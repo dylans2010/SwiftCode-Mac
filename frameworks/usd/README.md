@@ -1,9 +1,9 @@
-# ycode-usd
+# swiftcode-usd
 
 A Swift-native USD library: layers, the USDA text format, the USDC crate
 binary format, USDZ packages, a composed stage, and UsdShade/MaterialX
 networks. It builds on macOS and Linux with the Swift 6.4 toolchain and no
-other dependencies. It serves the Ycode Scene Composer (`composer/`) and,
+other dependencies. It serves the SwiftCode Scene Composer (`composer/`) and,
 later, the open RealityKit's asset loading. Design: `docs/SCENE-COMPOSER.md`.
 
 Clean-room status: written from Pixar's public OpenUSD documentation and

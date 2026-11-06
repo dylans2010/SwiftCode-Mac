@@ -92,7 +92,7 @@ Immutable, `NSCopying`; apps cannot create them.
 - Orientation is the sensor's native landscape orientation (`coordinates.md`
   §3); the image is not rotated for the interface orientation. The display
   transform rotates it.
-- Ycode's simulated camera must produce buffers that are IOSurface-backed
+- SwiftCode's simulated camera must produce buffers that are IOSurface-backed
   (so that Metal textures can be made from them with a texture cache), since
   renderers and the matte generator do that.
 

@@ -3,7 +3,7 @@
 Status: **reference** for stage 7 (`stage7-contract.md` §1 item 2, agent
 R3). It gives the messages that a host sends to the iOS 27.1 runtime's
 (24A94401) `launchd_sim` on its **service port**, and the replies that
-`launchd_sim` sends back. It is precise enough for Ycode's host to
+`launchd_sim` sends back. It is precise enough for SwiftCode's host to
 register host-side Mach names into the guest, bind the session, look up
 guest endpoints, read the guest domain environment, start one-shot
 programs with the host's stdio, wait for them, and detect the guest's
@@ -26,7 +26,7 @@ Terms:
   is the **control channel**. On macOS, the port is also published as the
   device launchd name in the host user domain.
 - **Host**: whoever holds the control channel. On macOS it is
-  CoreSimulator's helper, through `liblaunch_sim`. In Ycode it is the VMM.
+  CoreSimulator's helper, through `liblaunch_sim`. In SwiftCode it is the VMM.
 - **The library**: `RR/usr/lib/system/host/liblaunch_sim.dylib`
   (`launchd-sim.md` §6.2).
 - **Probe**: our programs in
@@ -80,7 +80,7 @@ Terms:
 |---|---|
 | `msgh_bits` remote | `COPY_SEND` of the host's send right to the service port |
 | `msgh_bits` local | `MAKE_SEND_ONCE` of a reply port |
-| `msgh_bits` voucher | the library attaches the caller's voucher (`COPY_SEND`). Not required: requests with no voucher (Ycode's case) were accepted |
+| `msgh_bits` voucher | the library attaches the caller's voucher (`COPY_SEND`). Not required: requests with no voucher (SwiftCode's case) were accepted |
 | `COMPLEX` | set if and only if the request has descriptors (700, 701, 704, 706) |
 | `msgh_id` | 700 to 709 (§1) |
 
@@ -289,8 +289,8 @@ error, or look-up error unchanged.
   right becomes a dead name. The library watches that send right with a
   dispatch source of type "Mach send, dead" and runs the caller's handler
   then (the handler ran in both cases).
-- For Ycode, this is only a convenience: the VMM knows when its own guest
-  process exits. Ycode may skip 706.
+- For SwiftCode, this is only a convenience: the VMM knows when its own guest
+  process exits. SwiftCode may skip 706.
 
 ## 4. Spawn attributes (the 704 OOL blob)
 
@@ -322,7 +322,7 @@ Binary-preference record (8 bytes): `u32` CPU type, `u32` CPU subtype.
 The library writes subtype `0xFFFFFFFF` (any).
 
 Example (built by our writer and accepted by `launchd_sim`; path
-`/tmp/ycode-R3/lsguest`, argv `lsguest-raw`, `com.ycode.rawsvc`, env
+`/tmp/swiftcode-R3/lsguest`, argv `lsguest-raw`, `com.swiftcode.rawsvc`, env
 `YC_RAW=1`, cwd `/tmp`, no CPU preference, not suspended), 221 bytes:
 
 | Offset | Bytes | Meaning |
@@ -332,7 +332,7 @@ Example (built by our writer and accepted by `launchd_sim`; path
 | 0x10 | `01 00 00 00` `33 00 00 00` | 1 env string at region 51 |
 | 0x38 | `3C 00 00 00` | cwd at region 60 |
 | 0x60 | `00 04 00 00` | `0x400` |
-| 0x9C | `/tmp/ycode-R3/lsguest\0` (22) `lsguest-raw\0` (12) `com.ycode.rawsvc\0` (17) `YC_RAW=1\0` (9) `/tmp\0` (5) | region, 65 bytes |
+| 0x9C | `/tmp/swiftcode-R3/lsguest\0` (22) `lsguest-raw\0` (12) `com.swiftcode.rawsvc\0` (17) `YC_RAW=1\0` (9) `/tmp\0` (5) | region, 65 bytes |
 
 All other header words are 0.
 
@@ -376,14 +376,14 @@ that never served the 708 request were not tried (§8).
 ### 5.4 Fileports and stdio
 
 The stdio ports of 704 are fileports (a Mach port that holds an open
-file). Ycode's host end must create fileport kernel objects for the host
-fds it wants the guest program to use (the Ycode kernel personality
+file). SwiftCode's host end must create fileport kernel objects for the host
+fds it wants the guest program to use (the SwiftCode kernel personality
 already implements fileports, `processes.md` §4.9). How `launchd_sim`
 turns them into fds of the new process was not observed.
 
 ### 5.5 Unknown message ids
 
-- With `AbortOnUnknownIPC = true` (CoreSimulator's value and Ycode's
+- With `AbortOnUnknownIPC = true` (CoreSimulator's value and SwiftCode's
   default plist), a message with an id that `launchd_sim` does not serve
   (710 was tried) makes `launchd_sim` **kill the sender** (`launchd.log`:
   "Killing sender of bogus IPC message: <name>.<pid>"); the probe received
@@ -391,11 +391,11 @@ turns them into fds of the new process was not observed.
 - With `AbortOnUnknownIPC = false`, ids 699 and 710 got no reply; the
   reply right was destroyed (the sender received a send-once notification,
   `msgh_id` 71).
-- A Ycode host must therefore send only the ids of §1.
+- A SwiftCode host must therefore send only the ids of §1.
 
 ## 6. The library's C interface (observed; for reference)
 
-The library is not used by Ycode. Its interface is recorded so that the
+The library is not used by SwiftCode. Its interface is recorded so that the
 SimLaunchHost operations of `launchd-sim.md` §6.1 can be matched with
 wire messages. Signatures were found by black-box calls (Appendix A); the
 confidence column says how directly.
@@ -422,7 +422,7 @@ Other exports are helpers (`xpc_binprefs_*`, `_xpc_spawnattr_pack_*`,
 `xpc_create_from_ce_der*`). Their names match the blob of §4 (packed
 strings, binary preferences); they were not called.
 
-## 7. Requirements for Ycode (derived)
+## 7. Requirements for SwiftCode (derived)
 
 1. **Keep the service port's send right** from the 708/808 exchange; it is
    the only way to reach `launchd_sim`'s control operations.
@@ -434,10 +434,10 @@ strings, binary preferences); they were not called.
    `system`-domain daemons need cannot be provided this way.
 3. **Bind** (700) with a session port whose receive right the VMM keeps
    for the VM's life, unless the bootstrap plist says
-   `RequireDomainBinding = false`. Ycode's plist may now use `true`, as
+   `RequireDomainBinding = false`. SwiftCode's plist may now use `true`, as
    CoreSimulator does. Destroying the session port is the clean shutdown.
 4. **One-shot programs** (for the stage 7 probe app's helper and later
-   `ycode spawn`): 704 with a §4 blob, absolute guest-visible paths (RR
+   `swiftcode spawn`): 704 with a §4 blob, absolute guest-visible paths (RR
    paths spelled in full), fileports for the stdio fds, then 705 for the
    exit status. Use the suspended flag plus `SIGCONT` when a debugger must
    attach first.
@@ -520,18 +520,18 @@ the probe served and could answer in any form (`YC_REPLY`).
 set around the fork, a holding-tank grandchild, exec with the environment
 file), answers its 708 with a fresh receive right, and keeps the send
 right. No booted simulator device is needed for this. The fake device:
-`/tmp/ycode-R3/dev` (bootstrap plist and environment derived from the
+`/tmp/swiftcode-R3/dev` (bootstrap plist and environment derived from the
 stage-4c fake device of `bootstrap-wire.md` A.3, UDID
 `5C0DE000-0000-4000-8000-000000000003`, `Paths` = one directory with two
 or three test job plists using `RootedSimulatorPath`). `launchd_sim`
 created `TMP = /private/var/tmp/com.apple.CoreSimulator.SimDevice.5C0DE000-0000-4000-8000-000000000003`
 and wrote `launchd.log` there.
 
-## Addendum: Ycode's client, observed requirements (2026-10-12, level 3, our runs on the Thor)
+## Addendum: SwiftCode's client, observed requirements (2026-10-12, level 3, our runs on the Thor)
 
 - `launchd_sim` accepts control requests only from a sender whose audit
-  token says euid 501 (the guest user); euid 0 gets EPERM. Ycode's host task
-  sends as pid 1 (`launchd_sim`'s parent in Ycode's process table), uid 501,
+  token says euid 501 (the guest user); euid 0 gets EPERM. SwiftCode's host task
+  sends as pid 1 (`launchd_sim`'s parent in SwiftCode's process table), uid 501,
   gid 20: a 704 spawn from sender pid 0 crashed `launchd_sim` (NULL
   dereference in libdispatch). On the Mac the host is also its parent.
 - A full boot with `RequireDomainBinding = true` and a 700 bind right after

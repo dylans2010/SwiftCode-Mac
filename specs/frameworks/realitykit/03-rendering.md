@@ -150,7 +150,7 @@ shared program avoids shader compiles.
   without error and rendered correctly (stripes from `uv0`; vertices offset
   by a sine of `model_position` and time). `supportsMutableUniformsResources`
   was false in the simulator.
-- For Ycode this is the hardest material: the app's AIR for the visible
+- For SwiftCode this is the hardest material: the app's AIR for the visible
   functions must be linked with the renderer's own shader skeleton
   (`09-open-design.md` §3.4).
 
@@ -325,14 +325,14 @@ Companions: `LowLevelTexture` (18), `LowLevelBuffer` (26),
   and is **not clamped** (0.477 s seen after a stall **[rv-anim]**); the
   first frames after creation are irregular (0.03, 0.1 s).
 
-## 9. Metal requirements (for Ycode's Metal → Vulkan layer)
+## 9. Metal requirements (for SwiftCode's Metal → Vulkan layer)
 
 - In the iOS simulator RealityKit renders on the simulator GPU device
   "Apple iOS simulator GPU", which reports only the `apple1`, `apple2` and
   `common1` families, argument-buffer tier 0, read-write texture tier 0, no
   ray tracing, 512 threads per threadgroup, 256 MiB maximum buffer, 4×
   MSAA supported **[all modes]**. So RealityKit's iOS renderer runs on a
-  minimal feature profile; Ycode's host does not need higher tiers for
+  minimal feature profile; SwiftCode's host does not need higher tiers for
   parity.
 - What RealityKit submits through the simulator Metal protocol
   (`specs/simulator/metal-sim-protocol.md`) for our scenes:
@@ -341,7 +341,7 @@ Companions: `LowLevelTexture` (18), `LowLevelBuffer` (26),
   `MTLEvent` wait/signal actions), `LowLevelMesh/Texture.replace(using:)`
   (app command buffers), post-process callbacks and custom materials all
   expose Metal objects to the app: an implementation on Vulkan must still
-  present Metal-shaped objects (through Ycode's Metal layer) on these APIs.
+  present Metal-shaped objects (through SwiftCode's Metal layer) on these APIs.
 
 ## 10. Performance guidance (documentation, level 1)
 

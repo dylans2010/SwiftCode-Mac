@@ -25,7 +25,7 @@ struct ActionSetTests {
     @Test("Write actions: validated (43–46, 5), one action set only (30), execution writes in order, lastExecutionDate")
     func execute() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.lightbulb()
+        let device = SwiftCodeTestAccessory.lightbulb()
         let acc = try await pair(device, into: h, store: store)
         let on = characteristic(acc, HMCharacteristicTypePowerState)
         let level = characteristic(acc, HMCharacteristicTypeBrightness)
@@ -64,8 +64,8 @@ struct ActionSetTests {
     @Test("HK-A25: partial failure is 64, total failure 63; other clients see the actions")
     func partialFailure() async throws {
         let (store, _, h) = try await homeFixture()
-        let lamp = YcodeTestAccessory.lightbulb(name: "Lamp")
-        let plug = YcodeTestAccessory.outlet(name: "Plug")
+        let lamp = SwiftCodeTestAccessory.lightbulb(name: "Lamp")
+        let plug = SwiftCodeTestAccessory.outlet(name: "Plug")
         let lampAcc = try await pair(lamp, into: h, store: store)
         let plugAcc = try await pair(plug, into: h, store: store)
         let watcher = Recorder()
@@ -173,7 +173,7 @@ struct TriggerTests {
         for (hub, expected) in [(HMHomeHubState.connected, HMEventTriggerActivationState.enabled),
                                 (.notAvailable, .disabledNoHomeHub)] {
             let (store, _, h) = try await homeFixture(store: newStore(hub: hub))
-            let acc = try await pair(YcodeTestAccessory.temperatureSensor(), into: h, store: store)
+            let acc = try await pair(SwiftCodeTestAccessory.temperatureSensor(), into: h, store: store)
             let temp = characteristic(acc, HMCharacteristicTypeCurrentTemperature)
             let events: [HMEvent] = [
                 HMCharacteristicThresholdRangeEvent(characteristic: temp, thresholdRange: HMNumberRange(minValue: 30)),
@@ -214,7 +214,7 @@ struct TriggerTests {
         let (store, _, h) = try await homeFixture()
         await expectCode(.missingParameter) { try await h.addTrigger(HMEventTrigger(name: "Empty", events: [], predicate: nil)) }
         let (_, _, elsewhere) = try await homeFixture("Elsewhere", store: store)
-        let acc = try await pair(YcodeTestAccessory.switch(), into: elsewhere, store: store)
+        let acc = try await pair(SwiftCodeTestAccessory.switch(), into: elsewhere, store: store)
         let foreign = HMCharacteristicEvent(characteristic: characteristic(acc, HMCharacteristicTypePowerState),
                                             triggerValue: NSNumber(value: true))
         await expectCode(.notFound) { try await h.addTrigger(HMEventTrigger(name: "Foreign", events: [foreign], predicate: nil)) }
@@ -246,7 +246,7 @@ struct EventObjectTests {
                                       identifier: "made-up place")
         check(HMLocationEvent(region: region), mutable: HMMutableLocationEvent.self)
         let (store, _, h) = try await homeFixture()
-        let acc = try await pair(YcodeTestAccessory.switch(), into: h, store: store)
+        let acc = try await pair(SwiftCodeTestAccessory.switch(), into: h, store: store)
         let c = characteristic(acc, HMCharacteristicTypePowerState)
         check(HMCharacteristicEvent(characteristic: c, triggerValue: NSNumber(value: true)),
               mutable: HMMutableCharacteristicEvent<NSNumber>.self)

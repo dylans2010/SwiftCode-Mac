@@ -3,7 +3,7 @@
  * R5; 09-open-design.md §3.6). Written from the Vulkan 1.3 specification.
  *
  * - Loads the Vulkan loader at run time (dlopen of libvulkan.so.1, or
- *   OV_VULKAN_LIBRARY / YCODE_VULKAN_LIBRARY). Nothing links against Vulkan:
+ *   OV_VULKAN_LIBRARY / SWIFTCODE_VULKAN_LIBRARY). Nothing links against Vulkan:
  *   hosts without it build and report that no device is available.
  * - One device (Vulkan 1.3, dynamic rendering), one graphics queue, one
  *   pipeline that draws textured quads with premultiplied-alpha blending.
@@ -19,7 +19,7 @@
  * or "cpu" / "gpu" by type; otherwise discrete > integrated > virtual > CPU.
  *
  * Vendored headers: vulkan/ holds the Khronos Vulkan headers 1.3.275
- * (Apache-2.0, notices kept), the same copy as ycode/Sources/CVulkan.
+ * (Apache-2.0, notices kept), the same copy as swiftcode/Sources/CVulkan.
  */
 #ifndef OV_COVVULKAN_H
 #define OV_COVVULKAN_H

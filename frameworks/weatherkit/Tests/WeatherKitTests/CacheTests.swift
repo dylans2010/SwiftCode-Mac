@@ -101,7 +101,7 @@ struct CacheTests {
     func keyParts() async throws {
         let clock = TestClock()
         let english = try makeService(clock: clock, language: "en-US")
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-weatherkit-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-weatherkit-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         _ = try await english.0.weather(for: fixtureLocation, including: .daily)
         _ = try await english.0.weather(
@@ -122,7 +122,7 @@ struct CacheTests {
     @Test("design.md §6: the cache persists across instances when a directory is configured; expiry still applies")
     func persistence() async throws {
         let clock = TestClock()
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-weatherkit-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-weatherkit-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let (first, firstBackend) = try makeService(clock: clock, cacheDirectory: directory)
         let original = try await first.weather(for: fixtureLocation)

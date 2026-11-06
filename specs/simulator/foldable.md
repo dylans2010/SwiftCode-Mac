@@ -1,14 +1,14 @@
 # Spec: folding and unfolding the iPhone Duo
 
-Status: **proposed** (OBS-FOLD, 2026-10-27); Ycode implementation in §10
+Status: **proposed** (OBS-FOLD, 2026-10-27); SwiftCode implementation in §10
 (FOLD-IMPL, 2026-10-27: hinge input works end to end into the guest's
 relay; the inner panel was blocked by §9 Q7 and stays behind a switch;
 OBS-FOLD2, 2026-10-27: Q7 answered, the `displays` capability; FOLD2,
-2026-10-27: Ycode's iPhone Duo unfolds, §10.4). It tells a clean agent how the
+2026-10-27: SwiftCode's iPhone Duo unfolds, §10.4). It tells a clean agent how the
 reference simulator folds and unfolds the iPhone Duo (iOS 27.1, `iPhone19,4`,
-product class V68) and what Ycode must build so its iPhone Duo can do the
+product class V68) and what SwiftCode must build so its iPhone Duo can do the
 same. Observations behind it: `research/notes/obs-fold-2026-10-27.md`. It
-builds on `hid-input.md` (Ycode's HID bundle and host transport),
+builds on `hid-input.md` (SwiftCode's HID bundle and host transport),
 `simframebuffer.md` (displays), `home-apps.md` §2.2, `iphone-types.md` §3.3
 and `device-capabilities.md`; it does not repeat them.
 
@@ -16,7 +16,7 @@ Terms: **cover** = the outer display `LCD`; **inner** = the folding display
 `LCD-1`; **hinge angle** = 0° closed … 180° open flat; **guest** = the
 simulated iOS; **relay** = the device-state relay inside the guest's
 `locationd` (CoreMotion), which turns host input into hinge and pose events.
-**Ycode decision** marks design choices.
+**SwiftCode decision** marks design choices.
 
 ## 1. Summary
 
@@ -112,13 +112,13 @@ implement it, but must feed it the way the reference does:
 - SpringBoard's reported angle can differ from the commanded one by a few
   degrees (its own profile and smoothing).
 - **Commanded targets** (OBS-FOLD2; each move a sweep of 17 events 30 ms
-  apart, as Ycode sends, §10.1): from closed, a target of 60° or 75° falls
+  apart, as SwiftCode sends, §10.1): from closed, a target of 60° or 75° falls
   back to the cover; **85°** and 90° end on the inner. From open flat,
   90° and 85° stay on the inner (the closing transition starts, then falls
   back); **80°** and 75° end on the cover. So the opening boundary lies in
   (75°, 85°] and the closing boundary in (80°, 85°]. Half Open (90°) ends
   on the inner from both sides.
-- *Under Ycode (FOLD2, §10.4), the same guest with the same sweeps:* an
+- *Under SwiftCode (FOLD2, §10.4), the same guest with the same sweeps:* an
   opening to every whole degree from 76° to 84° ends on the cover, 85° and
   more on the inner; a closing from open flat to 81°–84° ends on the cover,
   85° and 90° on the inner. Both boundaries lie in (84°, 85°] there.
@@ -220,7 +220,7 @@ virtual services:
 
 CoreMotion clients (SpringBoard, sharingd, `dtdeviceinfod`) receive them as
 CMMagicPose events (`hingeState: Closed | PartiallyOpen | OpenFlat`). The
-relay is part of the runtime; Ycode runs it unchanged.
+relay is part of the runtime; SwiftCode runs it unchanged.
 
 ### 5.5 Order and timing
 
@@ -263,7 +263,7 @@ None in the guest. A device rebooted while open flat came up closed (angle
 guest preference file mentions hinge or fold. Whether Device Hub re-sends its
 last pose after a boot was not observed.
 
-## 8. What Ycode must do
+## 8. What SwiftCode must do
 
 ### 8.1 Displays (`simframebuffer.md`, viewer)
 
@@ -279,10 +279,10 @@ last pose after a boot was not observed.
   reports them to the viewer. A display that is backlight-off, or that gets
   no frames, is shown black.
 - **D3.** The viewer shows the **active panel**: the cover while folded, the
-  inner while open. Ycode decision: decide from the hinge angle Ycode last
+  inner while open. SwiftCode decision: decide from the hinge angle SwiftCode last
   commanded and the side of the swap SpringBoard ended on (cover below about
   80–90°, inner above), and confirm with the guest's backlight state and
-  which display receives frames, as the reference host does (§4). Ycode may
+  which display receives frames, as the reference host does (§4). SwiftCode may
   also offer a side-by-side view of both panels.
 - **D4.** The viewer rotates each panel's image by the panel's current UI
   orientation (the inner panel's framebuffer is portrait, its upright UI is
@@ -292,29 +292,29 @@ last pose after a boot was not observed.
 
 ### 8.2 Input (`hid-input.md`)
 
-- **I1.** The Ycode HID bundle publishes a **touch-screen service per
+- **I1.** The SwiftCode HID bundle publishes a **touch-screen service per
   built-in display**, each with that display's `displayUUID`
   (`hid-input.md` §4.3, §6), and the viewer sends touches to the service of
   the panel it shows.
 - **I2.** The bundle publishes one more service, **device-motion control**:
   primary pair 0xFF61 / 0x5B, `DeviceUsagePairs` with that pair, a `Product`
-  string, transport "Virtual". Ycode decision: service ID
+  string, transport "Virtual". SwiftCode decision: service ID
   `0x59434F4400000004` (next after `hid-input.md` §4.1's IDs). It never
   answers `copyEvent`.
-- **I3.** New host→guest message kinds on Ycode's HID transport
+- **I3.** New host→guest message kinds on SwiftCode's HID transport
   (`hid-input.md` §7): **hinge angle** (integer degrees 0–180) and
   **device orientation** (one of the six strings of §5.3). For each, the
   bundle builds the dictionary of §5.3, serializes it in the IOKit text
-  format (the runtime's IOKit exports the serializer; Ycode may also write the
+  format (the runtime's IOKit exports the serializer; SwiftCode may also write the
   three-key text itself), and dispatches one vendor-defined event, usage page
   0xFF61, usage 0x5B, version 0, guest timestamp, from the service of I2.
 - **I4.** The host sends a **sweep** to change the fold: from the current
-  angle to the target in steps about 30 ms apart over about 0.5 s (Ycode
+  angle to the target in steps about 30 ms apart over about 0.5 s (SwiftCode
   decision, matching §5.5), ending exactly on the target. An "instant"
   option sends only the target (the reference's "Disable Hinge
   Interpolation").
 - **I5.** At boot the host's model is angle 0 and portrait (the relay's own
-  defaults); Ycode sends nothing until the user changes the fold. Ycode
+  defaults); SwiftCode sends nothing until the user changes the fold. SwiftCode
   decision: the host resets its fold state to closed on every boot (§7).
 
 ### 8.3 IDE and command line
@@ -323,25 +323,25 @@ last pose after a boot was not observed.
   device type lists two integrated displays): **Closed** (0°), **Half Open**
   (90°; the reference's partially open / "book" pose), **Open Flat**
   (180°), plus a hinge slider 0–180° (the reference has the slider only in
-  an internal action bar; Ycode decision to expose it). Each preset sends a
+  an internal action bar; SwiftCode decision to expose it). Each preset sends a
   sweep (I4). Rotate Left / Rotate Right send device orientation.
 - **E2.** The fold controls are disabled while the device is not booted and
-  show the current state as a check mark (Ycode's own state; the guest does
-  not report a posture back through any channel Ycode uses today).
-- **E3.** `ycode-simctl io <dev> screenshot --display=LCD|LCD-1` as in the
-  reference; a Ycode command to set the fold (for example `ycode-simctl
-  fold <dev> closed|half|open|<degrees>`) — Ycode decision, the reference
+  show the current state as a check mark (SwiftCode's own state; the guest does
+  not report a posture back through any channel SwiftCode uses today).
+- **E3.** `swiftcode-simctl io <dev> screenshot --display=LCD|LCD-1` as in the
+  reference; a SwiftCode command to set the fold (for example `swiftcode-simctl
+  fold <dev> closed|half|open|<degrees>`) — SwiftCode decision, the reference
   has none.
 - **E4.** No new environment variable and no device-plist key is needed;
   the guest learns that it is a foldable from the device identity (model
   `iPhone19,4`, product class V68) and from the two displays. *Correction
   (FOLD-IMPL, §10.2; OBS-FOLD2, §9 Q7): not sufficient. The panels'
   surface types come from the `displays` array of the capabilities file
-  (`device-capabilities.md` §3.1), which Ycode must write.*
+  (`device-capabilities.md` §3.1), which SwiftCode must write.*
 
 ### 8.4 Test plan
 
-1. Boot an iPhone Duo in Ycode: cover shows the home screen, inner black,
+1. Boot an iPhone Duo in SwiftCode: cover shows the home screen, inner black,
    relay logs a device state with hinge closed.
 2. Sweep 0→180: SpringBoard logs `FullyClosed→FoldingDual`, the inner shows
    the landscape home screen, the cover is black, `UI Orientation` is
@@ -357,7 +357,7 @@ last pose after a boot was not observed.
 
 1. Device Hub's visible labels, menu items, shortcuts and enabled states for
    the pose and rotate controls; whether it re-sends the pose after a reboot.
-2. The CoreDevice → `dtuhidd` message that carries the payload (Ycode does
+2. The CoreDevice → `dtuhidd` message that carries the payload (SwiftCode does
    not need it; it publishes its own service, §8.2).
 3. Standby input: where the relay reads it and what the host sends; tabletop
    pose (`coredevicepop.v68.tabletop`).
@@ -373,27 +373,27 @@ last pose after a boot was not observed.
    (`simctl io enumerate` keeps "Power state: On"; `simctl io poll` is
    silent). Whether this reaches the framebuffer as
    `SFBDisplaySetBacklightState` cannot be seen on the reference; under
-   Ycode, `YCODE_FRAMEBUFFER_CALLS=1` should show the matching calls (two
+   SwiftCode, `SWIFTCODE_FRAMEBUFFER_CALLS=1` should show the matching calls (two
    at boot are already seen, `simframebuffer.md` §3.4).
-   *Answered under Ycode (FOLD2, level 3; §10.4):* **no.** backboardd logs
+   *Answered under SwiftCode (FOLD2, level 3; §10.4):* **no.** backboardd logs
    the same factor changes (1 twice at boot, 0 about 40 s later, then 1 and
    0 at every swap), but no guest process calls
    `SFBDisplaySetBacklightState` (nor `SetCurrentUIOrientation`,
    `SetBrightnessFactor` or `GetMaskPath`) in a whole boot with a dozen
    swaps: the call log and both frame records show none. The calls of
    `simframebuffer.md` §3.4 come from CoreSimulator's host-side bridge,
-   which Ycode does not have. The panel the guest turns off keeps getting
-   frames, and they are black; that is the sign Ycode's viewer uses (D2,
+   which SwiftCode does not have. The panel the guest turns off keeps getting
+   frames, and they are black; that is the sign SwiftCode's viewer uses (D2,
    D3).
 5. The exact open-flat boundary (175°–180°).
-6. *Answered (§10.2, level 3 under Ycode):* a service published from
-   inside backboardd (Ycode's bundle, `_IOHIDServiceCreateVirtual`) is
+6. *Answered (§10.2, level 3 under SwiftCode):* a service published from
+   inside backboardd (SwiftCode's bundle, `_IOHIDServiceCreateVirtual`) is
    matched by the relay: `locationd` logs "AVP Service added." about 10 s
    into the boot and "Received AVP event" / "Processing AVP event - Source:
    hinge-slider-control, Type: range" (and `orientation-picker-control`,
-   `enum`) for every event Ycode sends.
+   `enum`) for every event SwiftCode sends.
 7. *Answered (OBS-FOLD2, 2026-10-27; levels 2 and 3).* How does the guest
-   learn each built-in panel's *surface* (cover / inner)? Under Ycode, with
+   learn each built-in panel's *surface* (cover / inner)? Under SwiftCode, with
    both panels published, SpringBoard reports surface `.default` for both
    ("display power required: NO surface: .default") and stops with
    "ManagedDisplaysController.swift:38: Assertion failed: Cloning source
@@ -415,7 +415,7 @@ last pose after a boot was not observed.
       - copy without `displays`: both surfaces `.default`, SpringBoard
         crashes again and again (crash reports: Swift assertion in
         SpringBoard's managed-displays controller, on a scene's
-        cloning-source update) — **the same failure as Ycode**;
+        cloning-source update) — **the same failure as SwiftCode**;
       - copy without the two `surfaceType` keys: the same failure;
       - `surfaceType` values swapped (LCD 2, LCD-1 1): no failure, but the
         roles swap: `Main` is `.inner`, `Unknown.main[3]` is `.cover`, and
@@ -432,46 +432,46 @@ last pose after a boot was not observed.
       `displayType` + names + `screenID` with `surfaceType` were all
       ignored, because incomplete). On the reference the host's displays
       carry the same names, ids and mask (`simctl io enumerate`: "Mask ID",
-      "Mask URL" naming the mask identifier). If Ycode's boot with the full
-      array still shows `.default`, check first that Ycode's framebuffer
+      "Mask URL" naming the mask identifier). If SwiftCode's boot with the full
+      array still shows `.default`, check first that SwiftCode's framebuffer
       displays agree with the entries (name, device name, id, size), then
-      the mask path Ycode reports (`SFBDisplayGetMaskPath`, NULL today).
+      the mask path SwiftCode reports (`SFBDisplayGetMaskPath`, NULL today).
    c. No guest log names the reader. MobileGestalt does not answer a
       question named `displays` (our probe's `MGCopyAnswer` returned
       nothing; `DeviceCornerRadius` answered). The file itself is the
-      input; Ycode needs no other channel.
+      input; SwiftCode needs no other channel.
    Also: on the reference, BacklightServices logs `surfaceType:0` for both
    panels too, and the inner panel's ShellSceneKit root is of kind
    `bringupDisplay` too; neither is part of the failure.
-   **Ycode:** write the whole `displays` array into
-   `DEV/ycode-capabilities.plist` for the iPhone Duo
-   (`device-capabilities.md` §3.1) and turn `YCODE_FOLD_DISPLAYS` on by
+   **SwiftCode:** write the whole `displays` array into
+   `DEV/swiftcode-capabilities.plist` for the iPhone Duo
+   (`device-capabilities.md` §3.1) and turn `SWIFTCODE_FOLD_DISPLAYS` on by
    default (§10.3).
 
-## 10. Ycode implementation (FOLD-IMPL, 2026-10-27)
+## 10. SwiftCode implementation (FOLD-IMPL, 2026-10-27)
 
 Clean-room work from this spec, `hid-input.md`, `simframebuffer.md`,
-`display-stream.md` and IOKit's open-source serializer format; Ycode boots
+`display-stream.md` and IOKit's open-source serializer format; SwiftCode boots
 on the Thor only.
 
 ### 10.1 What is built
 
 | Piece | Where | What |
 |---|---|---|
-| Device type | `ycode-simd/DeviceTypes.swift` | the iPhone Duo's `secondDisplay`: id 3, `LCD-1` / `primary-1`, 2007 × 2853 @3, 460 dpi, UID `59434F44-4500-4000-8000-000000000003` (Ycode's own, stable), mounted at 270°; a type with one is *foldable* |
-| Displays (D1, D2) | `SimGuestFrameworks/SimFramebuffer` | with `YCODE_FRAMEBUFFER_SECOND_DISPLAY` ("<id> <name> <device name> <w> <h> <scale> <pitch> <uid>") the library publishes the reference's five-display list of `simframebuffer.md` §4 — `LCD` 1, `TVOut` 2, `LCD-1` 3, `Wireless` 4, `Resizable` 5 — with the values of that table (the three others powered off, no swapchain asked for); `LCD-1` takes a swapchain like display 1. Backlight and UI-orientation calls are kept per display. `simframebuffer.md` §10 |
-| The switch | `DeviceMode.swift` | `ycode-simd` sets that variable only with **`YCODE_FOLD_DISPLAYS=1`** in its environment, because of §9 Q7; by default the iPhone Duo publishes its cover display only, as before. *Since FOLD2 (§10.4): on by default for foldables, with the `displays` capability; `YCODE_FOLD_DISPLAYS=0` turns both off* |
-| Hinge and orientation input (I2, I3) | `SimGuestFrameworks/SimHID`, `HIDHostService.swift` | the device-motion service `0x59434F4400000004` (primary pair 0xFF61/0x5B, `DeviceUsagePairs`, `Product` "Ycode Device Motion", `Transport` "Virtual"), published for every foldable (`YCODE_SIMHID_DEVICE_MOTION=1`); host messages kind 6 (hinge angle, whole degrees) and kind 7 (orientation code of §5.4); one vendor-defined event each (page 0xFF61, usage 0x5B, version 0). The data is written by the runtime's own `IOCFSerialize` (found with `dlsym`; the bundle writes the same text itself if it is missing). `hid-input.md` §15 |
+| Device type | `swiftcode-simd/DeviceTypes.swift` | the iPhone Duo's `secondDisplay`: id 3, `LCD-1` / `primary-1`, 2007 × 2853 @3, 460 dpi, UID `59434F44-4500-4000-8000-000000000003` (SwiftCode's own, stable), mounted at 270°; a type with one is *foldable* |
+| Displays (D1, D2) | `SimGuestFrameworks/SimFramebuffer` | with `SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY` ("<id> <name> <device name> <w> <h> <scale> <pitch> <uid>") the library publishes the reference's five-display list of `simframebuffer.md` §4 — `LCD` 1, `TVOut` 2, `LCD-1` 3, `Wireless` 4, `Resizable` 5 — with the values of that table (the three others powered off, no swapchain asked for); `LCD-1` takes a swapchain like display 1. Backlight and UI-orientation calls are kept per display. `simframebuffer.md` §10 |
+| The switch | `DeviceMode.swift` | `swiftcode-simd` sets that variable only with **`SWIFTCODE_FOLD_DISPLAYS=1`** in its environment, because of §9 Q7; by default the iPhone Duo publishes its cover display only, as before. *Since FOLD2 (§10.4): on by default for foldables, with the `displays` capability; `SWIFTCODE_FOLD_DISPLAYS=0` turns both off* |
+| Hinge and orientation input (I2, I3) | `SimGuestFrameworks/SimHID`, `HIDHostService.swift` | the device-motion service `0x59434F4400000004` (primary pair 0xFF61/0x5B, `DeviceUsagePairs`, `Product` "SwiftCode Device Motion", `Transport` "Virtual"), published for every foldable (`SWIFTCODE_SIMHID_DEVICE_MOTION=1`); host messages kind 6 (hinge angle, whole degrees) and kind 7 (orientation code of §5.4); one vendor-defined event each (page 0xFF61, usage 0x5B, version 0). The data is written by the runtime's own `IOCFSerialize` (found with `dlsym`; the bundle writes the same text itself if it is missing). `hid-input.md` §15 |
 | Touch per panel (I1) | SimHID | with a second display, a second touch screen `0x59434F4400000005` with that display's `displayUUID`; touch messages name the display (0 cover, 1 inner) |
 | HID bundle | `InputBridge.swift` | a foldable boots with the HID bundle (as with `--display-server`); `--hid-bundle none` still turns it off |
-| Fold model and sweep (I4, I5) | `ycode-simd/FoldModel.swift`, `FoldControl.swift` | the host keeps the angle it last sent (0 at every cold boot), the orientation (portrait) and the panel it expects (opening to 90° or more → inner; closing to 80° or less → cover; §3.3; *85° since FOLD2*). A move is a sweep of 17 messages 30 ms apart (0.5 s) ending exactly on the target, or one message with `instant`; a new move replaces one in progress. The model is kept in the memory directory's `fold.state`: a cold boot starts without it (closed), a warm-boot restore gets it back with the device (`snapshot.md`), so host and guest agree |
-| Control socket (E3) | `FoldControl.swift` | every device run serves `<memory file system>/ycodectl-<uid>-<id>.sock` (mode 0600; `/dev/shm` by default), one text command a connection: `fold closed\|half\|open\|<0–180> [instant]`, `orientation portrait\|landscape-left\|landscape-right\|faceup\|facedown`, `rotate left\|right`, `state`, `screenshot LCD\|LCD-1\|active <path.png>`; replies start with `ok` or `error` |
-| Command line (E3) | `main.swift`, `scripts/ycode-sim.sh` | `ycode-simd --device DEV --fold closed\|half\|open\|<deg> [--instant]`, `--orientation <name>`, `--rotate left\|right`, `--fold-state`, `--control <command…>`; the launcher passes these straight to `ycode-simd` (no boot slot), so the IDE's ssh command is `ycode-sim --device DEV --control fold half` |
+| Fold model and sweep (I4, I5) | `swiftcode-simd/FoldModel.swift`, `FoldControl.swift` | the host keeps the angle it last sent (0 at every cold boot), the orientation (portrait) and the panel it expects (opening to 90° or more → inner; closing to 80° or less → cover; §3.3; *85° since FOLD2*). A move is a sweep of 17 messages 30 ms apart (0.5 s) ending exactly on the target, or one message with `instant`; a new move replaces one in progress. The model is kept in the memory directory's `fold.state`: a cold boot starts without it (closed), a warm-boot restore gets it back with the device (`snapshot.md`), so host and guest agree |
+| Control socket (E3) | `FoldControl.swift` | every device run serves `<memory file system>/swiftcodectl-<uid>-<id>.sock` (mode 0600; `/dev/shm` by default), one text command a connection: `fold closed\|half\|open\|<0–180> [instant]`, `orientation portrait\|landscape-left\|landscape-right\|faceup\|facedown`, `rotate left\|right`, `state`, `screenshot LCD\|LCD-1\|active <path.png>`; replies start with `ok` or `error` |
+| Command line (E3) | `main.swift`, `scripts/swiftcode-sim.sh` | `swiftcode-simd --device DEV --fold closed\|half\|open\|<deg> [--instant]`, `--orientation <name>`, `--rotate left\|right`, `--fold-state`, `--control <command…>`; the launcher passes these straight to `swiftcode-simd` (no boot slot), so the IDE's ssh command is `swiftcode-sim --device DEV --control fold half` |
 | Screenshots (D4) | `ScreenCapture.swift`, `--display LCD\|LCD-1\|active` | `--screenshot`/`--screenshot-at` and the control socket take one panel, turned to its upright UI (the inner panel's image 90° clockwise: 2853 × 2007); default `active`, the panel shown |
 | Which panel is shown (D3) | `FoldModel.swift` `activePanel` | the model's panel, unless the guest set that panel's backlight to 0 while the other one is lit (from the frame records); *since FOLD2 also unless that panel's latest frame is black while the other's is not (§10.4)* |
 | Display stream | `display-stream.md` §11 | display-state message (0x07: panel, size, turn, hinge, posture, orientation), fold message (0x89), rotate (0x88) carried out for foldables; frames, touches and screenshots follow the panel shown |
-| Viewer | `ycode-sim-viewer` | for a foldable: a fold bar (Closed / Half Open / Open Flat, a hinge slider 0–180°, Rotate Left / Rotate Right), Device ▸ Fold ▸ Closed ⌥⌘1 / Half Open ⌥⌘2 / Open Flat ⌥⌘3 with a check mark, Rotate Left ⌘← / Right ⌘→; the picture is turned by the panel's turn and touches are mapped back to the panel's own points; script commands `fold`, `rotate`, `wait-display` |
-| IDE | `specs/ide/devices.md` | Devices and Simulators (Ycode's Device Hub equivalent): the same presets, slider and rotate buttons, and the same items in the row's context menu, only on Ycode simulator rows whose device type folds (the iPhone Duo rows), enabled while the device runs |
+| Viewer | `swiftcode-sim-viewer` | for a foldable: a fold bar (Closed / Half Open / Open Flat, a hinge slider 0–180°, Rotate Left / Rotate Right), Device ▸ Fold ▸ Closed ⌥⌘1 / Half Open ⌥⌘2 / Open Flat ⌥⌘3 with a check mark, Rotate Left ⌘← / Right ⌘→; the picture is turned by the panel's turn and touches are mapped back to the panel's own points; script commands `fold`, `rotate`, `wait-display` |
+| IDE | `specs/ide/devices.md` | Devices and Simulators (SwiftCode's Device Hub equivalent): the same presets, slider and rotate buttons, and the same items in the row's context menu, only on SwiftCode simulator rows whose device type folds (the iPhone Duo rows), enabled while the device runs |
 
 ### 10.2 Results on the Thor (iOS 27.1, iPhone Duo)
 
@@ -495,7 +495,7 @@ on the Thor only.
 - The viewer's and the IDE's controls are covered by unit tests
   (`FoldControlsTests`, `DisplayStreamFoldTests`); no viewer session was
   run in this round.
-- **With the inner panel (`YCODE_FOLD_DISPLAYS=1`):** the relay works
+- **With the inner panel (`SWIFTCODE_FOLD_DISPLAYS=1`):** the relay works
   ("Hinge state changed from .unknown to .closed", "CMMagicPose surface
   orientation changed: cover Am -> Po, inner Am -> Am", "Swap boundary 0.0°
   -> 85.0°") and SpringBoard names the panels "Main" and
@@ -513,11 +513,11 @@ on the Thor only.
 
 Write the `displays` capability (Q7 answered: `device-capabilities.md`
 §3.1, all five entries with all their keys) for the iPhone Duo,
-make `YCODE_FOLD_DISPLAYS` the default for foldables (`DeviceType.
+make `SWIFTCODE_FOLD_DISPLAYS` the default for foldables (`DeviceType.
 publishedSecondDisplay`), then run §8.4. Still to check then: whether the
 guest calls `SFBDisplaySetBacklightState` on the panel it turns off (Q4;
-the frame records and `YCODE_FRAMEBUFFER_CALLS=1` show it), the direction
-of the inner panel's turn (Ycode's choice, 90° clockwise, is to be checked
+the frame records and `SWIFTCODE_FRAMEBUFFER_CALLS=1` show it), the direction
+of the inner panel's turn (SwiftCode's choice, 90° clockwise, is to be checked
 against the reference's 2853 × 2007 screenshot), and Half Open's swap
 thresholds against the model.
 
@@ -530,33 +530,33 @@ thresholds against the model.
   frame is the upright landscape image turned 90° counter-clockwise (the
   framebuffer's top edge is the upright image's right edge). So turning
   the inner framebuffer **90° clockwise** gives the upright 2853 × 2007
-  image: Ycode's choice matches. Upright check: widgets on the left, the
+  image: SwiftCode's choice matches. Upright check: widgets on the left, the
   clock at the top right, Safari at the right edge, search at the bottom
   right.
 - **Thresholds.** §3.3 "Commanded targets": the model's "opening to 90° or
   more → inner; closing to 80° or less → cover" agrees with the reference
   for the presets (Closed, Half Open 90°, Open Flat) and for 75° and 80°
   closing; it is wrong for an opening to **85°** (the reference ends on the
-  inner). Ycode decision for the model: opening to **85°** or more →
+  inner). SwiftCode decision for the model: opening to **85°** or more →
   inner (instead of 90°); closing to 80° or less → cover (unchanged).
   Targets of 76–84° opening and 81–84° closing were not measured; there
   the backlight check of D3 decides.
 - **Backlight.** Q4: the guest switches each panel's backlight at every
-  swap; check the framebuffer calls under Ycode.
+  swap; check the framebuffer calls under SwiftCode.
 
 ### 10.4 FOLD2: the iPhone Duo unfolds (2026-10-27)
 
 Clean-room work from §9 Q7, §10.3 and `device-capabilities.md` §3.1;
-Ycode's own simulator on the Thor only (iOS 27.1 runtime 24A94401).
+SwiftCode's own simulator on the Thor only (iOS 27.1 runtime 24A94401).
 
 **What changed**
 
 | Piece | Where | What |
 |---|---|---|
-| `displays` capability | `ycode-simd/DeviceTypes.swift` (`DisplayEntry.iPhoneDuo`, `CapabilityValue.array`) | the iPhone Duo's five entries with every key and plist type of `device-capabilities.md` §3.1, inside `capabilities` of `DEV/ycode-capabilities.plist`; the `LCD-1` entry is built from the same record as the published second display, so names, ids and sizes agree. Written only together with the inner panel |
-| Inner panel by default | `DeviceType.foldDisplaysEnabled` | on for every foldable; **`YCODE_FOLD_DISPLAYS=0`** in `ycode-simd`'s environment publishes the cover only and writes the old capabilities file (no `displays`) |
-| Mask | — | **Ycode decision: no mask file.** The guest never calls `SFBDisplayGetMaskPath` (which stays NULL) and accepts the entries with the mask and chrome identifiers as plain strings: SpringBoard reports `.cover` and `.inner`. Ycode ships and generates no mask; a viewer that wants rounded corners can draw them from the corner radii of the entries |
-| Swap model | `FoldModel` | opening to **85°** or more → inner; closing to **84°** or less → cover (measured under Ycode for every degree 76–85, below); Half Open (90°) ends on the inner from both sides |
+| `displays` capability | `swiftcode-simd/DeviceTypes.swift` (`DisplayEntry.iPhoneDuo`, `CapabilityValue.array`) | the iPhone Duo's five entries with every key and plist type of `device-capabilities.md` §3.1, inside `capabilities` of `DEV/swiftcode-capabilities.plist`; the `LCD-1` entry is built from the same record as the published second display, so names, ids and sizes agree. Written only together with the inner panel |
+| Inner panel by default | `DeviceType.foldDisplaysEnabled` | on for every foldable; **`SWIFTCODE_FOLD_DISPLAYS=0`** in `swiftcode-simd`'s environment publishes the cover only and writes the old capabilities file (no `displays`) |
+| Mask | — | **SwiftCode decision: no mask file.** The guest never calls `SFBDisplayGetMaskPath` (which stays NULL) and accepts the entries with the mask and chrome identifiers as plain strings: SpringBoard reports `.cover` and `.inner`. SwiftCode ships and generates no mask; a viewer that wants rounded corners can draw them from the corner radii of the entries |
+| Swap model | `FoldModel` | opening to **85°** or more → inner; closing to **84°** or less → cover (measured under SwiftCode for every degree 76–85, below); Half Open (90°) ends on the inner from both sides |
 | Panel shown (D2, D3) | `activePanel`, `PanelPicture.isBlack`, `IOSurfaceHostService.presentedFrameIsBlack` | the model's panel, unless its latest frame is black while the other panel's is not (a 32 × 32 sample grid, colour bytes zero). This replaces the backlight check in practice: the guest sets no backlight through the framebuffer library (Q4). The control socket's `state` reports both signs (`frames LCD lit, LCD-1 black`) |
 | Display server | `startDisplayServer` | now gives the server the foldable's panels, the hinge and the touch panel (FOLD-IMPL never wired them: the hello had no `foldable`, and the fold bar answered "this device does not fold") |
 | Warm restore | `ExecHost.swift` | the restore's "first new frame" watches every built-in panel (a device saved open draws on the inner panel only; before, the check waited 300 s for the cover) |
@@ -577,11 +577,11 @@ upright; SpringBoard, locationd and backboardd log stream):
 | 5. Settings | launched folded: the cover shows its list. Unfolded: the same process continues on the inner panel in its **two-column** layout (General selected); folded again: the cover shows General's page (the state kept), portrait |
 | 6. Touches | through the viewer: a tap at the Settings icon of the inner home screen (499, 83 landscape points) opened Settings **on the inner panel**; the HID bundle has the second touch screen (`0x59434F4400000005`, the inner UID) |
 | Rotation | Rotate Left while open turns the inner home screen's UI a quarter (dock at the left edge of the upright picture); Rotate Right back |
-| Viewer | `ycode-sim-viewer --script` over a forwarded display socket: hello with `foldable` and `displays`; Fold ▸ Open/Half/Closed swap the shown panel within 0.7–1.6 s (`display: LCD-1 turned 90° (hinge 180°, openFlat, portrait)`), pictures 2853 × 2007 open, 1398 × 2034 closed |
-| IDE path | `scripts/ycode-sim.sh --device DEV --control fold half`, `--fold-state`, `--fold closed` (what the IDE's controls run over ssh): `ok` replies, panels as expected |
+| Viewer | `swiftcode-sim-viewer --script` over a forwarded display socket: hello with `foldable` and `displays`; Fold ▸ Open/Half/Closed swap the shown panel within 0.7–1.6 s (`display: LCD-1 turned 90° (hinge 180°, openFlat, portrait)`), pictures 2853 × 2007 open, 1398 × 2034 closed |
+| IDE path | `scripts/swiftcode-sim.sh --device DEV --control fold half`, `--fold-state`, `--fold closed` (what the IDE's controls run over ssh): `ok` replies, panels as expected |
 | 7. Warm restore | a device saved open (stop snapshot) restores open: `fold: restored (angle 180° (Open Flat), inner side)`, the first new frame comes on the inner panel 1.0 s after the root starts, the inner shows the home screen, the cover black; Closed and Open work afterwards. A cold boot always starts closed (`fold: starts closed`) |
 
-**Q4 under Ycode**: no setter calls at all (§9 Q4); the viewer follows the
+**Q4 under SwiftCode**: no setter calls at all (§9 Q4); the viewer follows the
 frames. **Mask**: not asked for (above).
 
 **Regressions** (same build): iPhone 18 Pro on iOS 27.0 reaches its home
@@ -590,8 +590,8 @@ fold", no second display; iPad (A16) on 27.1 reaches its home screen
 (165 s). Neither gets `displays` or the second display.
 
 **Boot time** (one `timed.sh` pair, the same iPhone Duo device, cold,
-`YCODE_FRAMEBUFFER_CALLS=1` and a log-stream one-shot in both): cover
-only (`YCODE_FOLD_DISPLAYS=0`) 71.1 s to the home screen; both panels
+`SWIFTCODE_FRAMEBUFFER_CALLS=1` and a log-stream one-shot in both): cover
+only (`SWIFTCODE_FOLD_DISPLAYS=0`) 71.1 s to the home screen; both panels
 61.6 s. The second panel costs nothing measurable; the difference is
 run-to-run noise (the single-panel run came first, after the device's
 previous two-panel boots).
@@ -608,13 +608,13 @@ Thor while other agents' boots kept the load average between 130 and 220:
   panel's two-column layout and back to the cover with its page kept.
   Home screen at 517 s (load, not the fold: the iPhone 18 Pro and the
   iPad of the same round took 530 s and 426 s).
-- Touches on each panel (item 6), through `ycode-sim-viewer --script`:
+- Touches on each panel (item 6), through `swiftcode-sim-viewer --script`:
   folded, a tap at the cover's Settings icon (56, 82 portrait points)
   opens Settings **on the cover**; after Home and Open Flat, a tap at the
   inner home screen's Settings icon (499, 83 landscape points) opens it
   **on the inner panel**; Closed brings it back to the cover. Touch to
   first changed frame 1.1–1.4 s under that load.
-- IDE path (`ycode-sim.sh --control fold half`, `--fold-state`,
+- IDE path (`swiftcode-sim.sh --control fold half`, `--fold-state`,
   `--fold closed`): `ok` replies, panels as expected.
 - Regressions: the iPhone 18 Pro on iOS 27.0 and the iPad (A16) reach
   their home screens and answer "does not fold".
@@ -627,7 +627,7 @@ boundary (Q5).
 
 The viewer's fold bar and the Devices window's segmented control, hinge
 slider and rotate buttons are replaced by Device Hub's controls
-(`specs/ide/device-hub.md` §4.4 and "Ycode implementation"): the pose
+(`specs/ide/device-hub.md` §4.4 and "SwiftCode implementation"): the pose
 buttons Closed, Partially Open, Open after one Rotate control (click
 left, Option-click right) in the control row of the compact window and
 the hub's canvas; Option-drag on a pose button or on the frame shows the
@@ -655,24 +655,24 @@ the same control-socket words as before.
 | Orientation input (§5.3, §6) | 3 | probe events with each orientation string; relay and MagicPose logs; screenshot |
 | No persistence (§7) | 3 | reboot while open; `device.plist`; search of the device's preference files |
 | Displays stay powered (§1, §6) | 3 | `simctl io enumerate` in both states |
-| Ycode requirements (§8) | — | Ycode decisions based on the above |
-| A backboardd-created service is matched by the relay; `IOCFSerialize` exists in the runtime and its text (§9 Q6, §10.2) | 3 | Ycode boots on the Thor: `locationd`/`backboardd` debug log stream, the HID bundle's log |
-| Without the inner panel the relay sends no device state (§10.2) | 3 | Ycode boots on the Thor: SpringBoard and `locationd` debug log stream, screenshots |
-| With the inner panel SpringBoard stops on the cloning-source assertion; surfaces `.default`, `surfaceType:0`; root `bringupDisplay`; display names by position (§9 Q7, §10.2) | 3 | Ycode boots on the Thor with two and with five published displays: SpringBoard log stream, crash annotations |
+| SwiftCode requirements (§8) | — | SwiftCode decisions based on the above |
+| A backboardd-created service is matched by the relay; `IOCFSerialize` exists in the runtime and its text (§9 Q6, §10.2) | 3 | SwiftCode boots on the Thor: `locationd`/`backboardd` debug log stream, the HID bundle's log |
+| Without the inner panel the relay sends no device state (§10.2) | 3 | SwiftCode boots on the Thor: SpringBoard and `locationd` debug log stream, screenshots |
+| With the inner panel SpringBoard stops on the cloning-source assertion; surfaces `.default`, `surfaceType:0`; root `bringupDisplay`; display names by position (§9 Q7, §10.2) | 3 | SwiftCode boots on the Thor with two and with five published displays: SpringBoard log stream, crash annotations |
 | `displays` structure, key types (§9 Q7a) | 2 | the device type's `capabilities.plist` via `plistlib` (OBS-FOLD2) |
 | The guest takes each panel's surface from `surfaceType` in `displays`; failure without it; required keys; reference `surfaceType:0` and `bringupDisplay` (§9 Q7b, c) | 3 | reference boots of throwaway iPhone Duo devices with `SIMCTL_CHILD_SIMULATOR_CAPABILITIES` pointing at edited copies: SpringBoard log stream, `ps -E`, launchd run counts, crash reports, screenshots; our MobileGestalt probe (OBS-FOLD2) |
 | Commanded-target thresholds (§3.3, §10.3) | 3 | one reference device, 16 sweeps of 17 events 30 ms apart from our guest probe; SpringBoard `DCMResolved` and hinge-state lines (OBS-FOLD2) |
 | Backlight switching at swaps (§9 Q4) | 3 | guest log stream (backboardd Backlight, SpringBoard BacklightServices) during the same sweeps; `simctl io enumerate`/`poll` (OBS-FOLD2) |
 | Inner panel turn direction (§10.3) | 3 | `simctl io recordVideo --display=LCD-1` (frame size, display matrix via `ffprobe`, a frame read without the matrix) against `simctl io screenshot` (OBS-FOLD2) |
-| Implementation (§10.1) | — | Ycode design; unit tests `FoldModelTests`, `DisplayStreamFoldTests`, `HIDHostServiceTests.deviceMotionBodies`, `FoldControlsTests` |
-| FOLD2 results: surfaces, swaps, inner landscape home screen, Settings moving, touches on each panel, viewer and IDE paths, warm restore; re-check on the merged tree (§10.4) | 3 | Ycode boots on the Thor: control-socket screenshots of both panels, SpringBoard/locationd/backboardd log stream (`DisplayContentMode`, `DevicePose`, `DisplayControlling`, UIKit "Scene did move screens"), `ycode-sim-viewer --script` runs, the HID bundle log |
-| Ycode swap band 76–85° (§3.3, §10.4) | 3 | one Ycode boot, 17-message sweeps from closed and from open flat to each degree; screenshots of both panels |
-| Q4 under Ycode: no framebuffer setter calls (§9 Q4) | 3 | `YCODE_FRAMEBUFFER_CALLS` call log with the setters' own budget, both frame records over whole boots; backboardd Backlight log lines |
+| Implementation (§10.1) | — | SwiftCode design; unit tests `FoldModelTests`, `DisplayStreamFoldTests`, `HIDHostServiceTests.deviceMotionBodies`, `FoldControlsTests` |
+| FOLD2 results: surfaces, swaps, inner landscape home screen, Settings moving, touches on each panel, viewer and IDE paths, warm restore; re-check on the merged tree (§10.4) | 3 | SwiftCode boots on the Thor: control-socket screenshots of both panels, SpringBoard/locationd/backboardd log stream (`DisplayContentMode`, `DevicePose`, `DisplayControlling`, UIKit "Scene did move screens"), `swiftcode-sim-viewer --script` runs, the HID bundle log |
+| SwiftCode swap band 76–85° (§3.3, §10.4) | 3 | one SwiftCode boot, 17-message sweeps from closed and from open flat to each degree; screenshots of both panels |
+| Q4 under SwiftCode: no framebuffer setter calls (§9 Q4) | 3 | `SWIFTCODE_FRAMEBUFFER_CALLS` call log with the setters' own budget, both frame records over whole boots; backboardd Backlight log lines |
 | Boot time with both panels (§10.4) | 3 | one `timed.sh` pair on the Thor |
-| `displays` written, mask decision (§10.4) | — | Ycode design; `DeviceTypeTests.iPhoneDuoDisplaysList`, `FoldModelTests` |
+| `displays` written, mask decision (§10.4) | — | SwiftCode design; `DeviceTypeTests.iPhoneDuoDisplaysList`, `FoldModelTests` |
 
 Level 5 was not used. Ghidra, the reference tools folder and the IPSWs were
 not opened. §10 (and §10.4, FOLD2) was written by a clean agent from this
-spec and the specs it names; it ran only Ycode's own simulator. Our probes and all raw data stay in `research/dirty/obs-fold/`
+spec and the specs it names; it ran only SwiftCode's own simulator. Our probes and all raw data stay in `research/dirty/obs-fold/`
 and `research/dirty/obs-fold2/`;
 no Apple file or code was copied into the repository.

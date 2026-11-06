@@ -35,7 +35,7 @@ Error objects carry `NSLocalizedDescriptionKey` (short title, e.g. "unsupported
 configuration") and `NSLocalizedFailureReasonKey` (one sentence explaining the
 condition); in the simulator, code 100 carries exactly those two keys and no
 recovery suggestion. The text is localized in 57 languages on Apple's side;
-Ycode writes its own English text (and later its own translations) — do not
+SwiftCode writes its own English text (and later its own translations) — do not
 copy Apple's strings.
 
 Which errors are fatal: failures reported through `session:didFailWithError:`

@@ -2,13 +2,13 @@
 
 Status: **implemented 2026-10-19 (agent SP-THREADS)**. §2 is a diagnostic
 (boot profile only). Every change has a switch. **On by default**: the
-image's first vCPUs made with the prebuilt VM (§3.1, `YCODE_VCPU_PREBUILT`)
-and wakeups after unlock (§4, `YCODE_WAKE_AFTER_UNLOCK`): together about
+image's first vCPUs made with the prebuilt VM (§3.1, `SWIFTCODE_VCPU_PREBUILT`)
+and wakeups after unlock (§4, `SWIFTCODE_WAKE_AFTER_UNLOCK`): together about
 −8 to −10 % home_s (§6.3). **Off**: 16 precreated vCPUs, batch growth and
 warm vCPUs (§3.1, §3.2): they cut the thread-start wait by up to 80 % but
 did not bring the home screen sooner. Measurements are in §6.
 
-This is Ycode's own design. The Linux facts (KVM vCPU creation, the arm64
+This is SwiftCode's own design. The Linux facts (KVM vCPU creation, the arm64
 MPIDR table, RCU grace periods) come from the Linux KVM API documentation
 and the Linux kernel source (`virt/kvm/kvm_main.c`, `arch/arm64/kvm/arm.c`;
 GPL, level 1). Nothing Apple-internal is named. Lock rules are those of
@@ -25,7 +25,7 @@ locking, process start.
 
 ## 2. Measuring (diagnostic)
 
-### 2.1 Boot profile header (`YCODE_BOOT_PROFILE`)
+### 2.1 Boot profile header (`SWIFTCODE_BOOT_PROFILE`)
 
 One `# latency` line with process-wide distributions (count, mean, p50,
 p90, p99, max in µs, sum in ms; buckets a quarter of a power of two wide,
@@ -46,7 +46,7 @@ p90, p99, max in µs, sum in ms; buckets a quarter of a power of two wide,
 
 ### 2.2 Guest probe `SimShim/guest-tests/stageperf/p_threadlat`
 
-Original Ycode code; times every latency in the guest with
+Original SwiftCode code; times every latency in the guest with
 `mach_absolute_time`. Prints `threadlat <name> n= p50= p90= p99= max=` (µs):
 `create` (one `pthread_create` at a time, joined: a parked vCPU),
 `burst.fresh` (12 threads started back to back and kept alive in a fresh
@@ -54,11 +54,11 @@ process, six processes: new vCPUs), `burst.parked` (the same again in that
 process), `dispatch` (`dispatch_async_f` to a global queue → block runs;
 back to back and after 30 ms idle), `sem` (`semaphore_signal` → the waiter
 returns), `cond` (`pthread_cond_signal` → the waiter holds the mutex).
-Run with `ycode-simd --exec p_threadlat`.
+Run with `swiftcode-simd --exec p_threadlat`.
 
 ## 3. Thread start
 
-### 3.1 Create the vCPUs before the VM runs (`YCODE_VCPU_PRECREATE`, `YCODE_VCPU_PREBUILT`, `YCODE_VCPU_BATCH_GROW`)
+### 3.1 Create the vCPUs before the VM runs (`SWIFTCODE_VCPU_PRECREATE`, `SWIFTCODE_VCPU_PREBUILT`, `SWIFTCODE_VCPU_BATCH_GROW`)
 
 Finding (§6.1): a new vCPU for a running process cost 50–150 ms, almost
 all of it waiting. Cause, from the Linux source (level 1): on arm64 KVM
@@ -75,33 +75,33 @@ creation takes microseconds.
 
 Rules:
 
-- `YCODE_VCPU_PRECREATE=<n>` (1…64; default `YCODE_VCPU_BATCH + 1` = 4,
+- `SWIFTCODE_VCPU_PRECREATE=<n>` (1…64; default `SWIFTCODE_VCPU_BATCH + 1` = 4,
   the earlier behaviour): the batch made with vCPU 0 (`VirtualMachine.makeVCPU`
   when the VM has no vCPU yet) creates `n` vCPUs.
-- `YCODE_VCPU_PREBUILT` (default on; `=0` off): the prebuilt VM (`PrebuiltVMs`,
+- `SWIFTCODE_VCPU_PREBUILT` (default on; `=0` off): the prebuilt VM (`PrebuiltVMs`,
   built off the kernel lock before a spawn or exec trap) makes those `n`
   vCPUs as spares (`makeSpareVCPUs`), so the image build under the kernel
   lock only takes them (vCPU 0's creation was about 3.2 ms of the 8.5 ms a
   spawn holds the kernel lock, measured by agent SP-SPAWN). With the
   default count (4) the vCPUs are the same as before, only made earlier.
-- `YCODE_VCPU_BATCH_GROW=1` (default off): a later batch creates as many
-  vCPUs as the VM already has (at least `YCODE_VCPU_BATCH + 1`), so a
+- `SWIFTCODE_VCPU_BATCH_GROW=1` (default off): a later batch creates as many
+  vCPUs as the VM already has (at least `SWIFTCODE_VCPU_BATCH + 1`), so a
   process growing to `m` threads pays about log2(m / n) grace periods.
-- `YCODE_VCPU_CREATORS=<k>` (existing, default 2): more creator threads let
+- `SWIFTCODE_VCPU_CREATORS=<k>` (existing, default 2): more creator threads let
   the grace periods of different VMs overlap.
  The extra vCPUs are
 spares: `KVM_CREATE_VCPU`, `KVM_ARM_VCPU_INIT` and the `kvm_run` mapping
 are done; the host thread is made at the thread start (off the kernel
-lock, `VCPUCreator`). Later batches are unchanged (`YCODE_VCPU_BATCH`).
+lock, `VCPUCreator`). Later batches are unchanged (`SWIFTCODE_VCPU_BATCH`).
 Invariants: as `boot-profile.md`/`stage4a-contract.md` — ids below the
 pool capacity, a spare is handed out once, `close` closes unused spares.
 
 Cost with `n` = 16: about 10 µs per vCPU (under the kernel lock at image
-build unless `YCODE_VCPU_PREBUILT=1`); kernel memory per vCPU (the vCPU
+build unless `SWIFTCODE_VCPU_PREBUILT=1`); kernel memory per vCPU (the vCPU
 structure and its `kvm_run` page); about 17 vCPUs per image instead of 7
 (10,000 instead of 4,300 `KVM_CREATE_VCPU` calls per boot).
 
-### 3.2 Warm vCPUs (`YCODE_VCPU_WARM=<n>`, default 0)
+### 3.2 Warm vCPUs (`SWIFTCODE_VCPU_WARM=<n>`, default 0)
 
 Each pool keeps up to `n` vCPUs with their host threads created ahead and
 parked (beyond the running threads). A start takes a parked one (a
@@ -115,7 +115,7 @@ active thread; a claim adds the active thread. A failed unclaimed creation
 is dropped without ending the pool; a failed claimed one ends it, as
 before. A finished unclaimed creation calls `onParked` (workqueue retry).
 
-## 4. Wakeup after unlock (`YCODE_WAKE_AFTER_UNLOCK`, default on; `=0` off)
+## 4. Wakeup after unlock (`SWIFTCODE_WAKE_AFTER_UNLOCK`, default on; `=0` off)
 
 `WaitQueue.finish` with the kernel lock held by the waking thread records
 the waiter on the lock instead of signalling it; the lock signals the
@@ -146,7 +146,7 @@ is unset.
 
 ## 6. Measurements (Thor, 2026-10-19)
 
-Harness full boots (`YCODE_LEAN_BOOT` unset, device in RAM, one boot at a
+Harness full boots (`SWIFTCODE_LEAN_BOOT` unset, device in RAM, one boot at a
 time, arms interleaved per round; `SX/SPTHR/runs`); home_s at 5 s
 resolution. Host load average 7–25 (other agents).
 
@@ -163,7 +163,7 @@ resolution. Host load average 7–25 (other agents).
 Phase split of a new vCPU (default): `creation.queue` mean 42 ms (p90 84
 ms), `create_vcpu` p50 5 µs but p90 29 ms (the grace period), `vcpu_init`
 6 µs, `pthread` 33 µs. With 16 made first: queue 23 µs, `create_vcpu` 4
-µs. `YCODE_WAKE_AFTER_UNLOCK=1` in the probe (no lock contention): `sem`
+µs. `SWIFTCODE_WAKE_AFTER_UNLOCK=1` in the probe (no lock contention): `sem`
 p50 13–25 → 32–33 µs, no gain.
 
 ### 6.2 Boot profile (one profiled boot each, latency sums are thread-seconds)
@@ -211,7 +211,7 @@ the home screen; no host crash; `guest_fatal` 7–13 in every arm.
 |---|---|---|
 | `KVM_CREATE_VCPU` discards the arm64 MPIDR table with `synchronize_rcu()`; the table is built at a vCPU's first run when the VM has more than one vCPU | 1 | Linux `arch/arm64/kvm/arm.c` (`kvm_arch_vcpu_create`, `kvm_init_mpidr_data`, `kvm_destroy_mpidr_data`) |
 | Creation cost before and after the first run, phase split | 3 | `p_threadlat` and boot profiles on the Thor (§6) |
-| Guest latencies | 3 | `p_threadlat` (original Ycode code) |
+| Guest latencies | 3 | `p_threadlat` (original SwiftCode code) |
 
 Levels 2, 4 and 5 were not used. `.claude/Xcode.app`, the reference tools,
 `research/` and Ghidra were not opened.

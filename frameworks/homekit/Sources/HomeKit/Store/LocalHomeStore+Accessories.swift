@@ -4,21 +4,21 @@
 
 import Foundation
 
-extension YcodeLocalHomeStore {
+extension SwiftCodeLocalHomeStore {
     // MARK: Endpoints and discovery
 
     func pairedHomes(of endpointID: String) -> [Int] {
         state.homes.indices.filter { h in state.homes[h].accessories.contains { $0.endpointID == endpointID } }
     }
 
-    func _publish(_ endpoint: YcodeAccessoryEndpoint) {
+    func _publish(_ endpoint: SwiftCodeAccessoryEndpoint) {
         let id = endpoint.endpointID
         endpoints[id] = endpoint
         if pairedHomes(of: id).isEmpty {
             guard discovered[id] == nil else { return }
-            let record = YcodeDiscoveredAccessoryRecord(
+            let record = SwiftCodeDiscoveredAccessoryRecord(
                 id: UUID(), endpointID: id, name: endpoint.name,
-                categoryType: YcodeHomeCatalog.categoryType(forHAPCategory: endpoint.categoryNumber))
+                categoryType: SwiftCodeHomeCatalog.categoryType(forHAPCategory: endpoint.categoryNumber))
             discovered[id] = record
             sendToBrowsers(.accessoryDiscovered(record))
         } else {
@@ -33,9 +33,9 @@ extension YcodeLocalHomeStore {
         guard pairedHomes(of: endpointID).isEmpty, let endpoint = endpoints[endpointID] else { return }
         endpoint.delegate = nil
         guard discovered[endpointID] == nil else { return }
-        let record = YcodeDiscoveredAccessoryRecord(
+        let record = SwiftCodeDiscoveredAccessoryRecord(
             id: UUID(), endpointID: endpointID, name: endpoint.name,
-            categoryType: YcodeHomeCatalog.categoryType(forHAPCategory: endpoint.categoryNumber))
+            categoryType: SwiftCodeHomeCatalog.categoryType(forHAPCategory: endpoint.categoryNumber))
         discovered[endpointID] = record
         sendToBrowsers(.accessoryDiscovered(record))
     }
@@ -51,9 +51,9 @@ extension YcodeLocalHomeStore {
         }
     }
 
-    // MARK: YcodeAccessoryEndpointDelegate
+    // MARK: SwiftCodeAccessoryEndpointDelegate
 
-    public func endpoint(_ endpointID: String, didUpdateValues values: [YcodeCharacteristicAddress: YcodeHomeValue]) {
+    public func endpoint(_ endpointID: String, didUpdateValues values: [SwiftCodeCharacteristicAddress: SwiftCodeHomeValue]) {
         queue.async {
             for h in self.pairedHomes(of: endpointID) {
                 for (address, value) in values {
@@ -65,7 +65,7 @@ extension YcodeLocalHomeStore {
                         guard let c = svc.characteristics.firstIndex(where: { $0.iid == address.iid }) else { continue }
                         self.state.homes[h].accessories[a].services[s].characteristics[c].value = value
                         let cid = svc.characteristics[c].id
-                        let event = YcodeHomeEvent.characteristicValue(
+                        let event = SwiftCodeHomeEvent.characteristicValue(
                             home: self.state.homes[h].id, accessory: acc.id, service: svc.id, characteristic: cid, value: value)
                         for session in self.liveSessions where session.notifications.contains(cid) { session.send(event) }
                     }
@@ -81,7 +81,7 @@ extension YcodeLocalHomeStore {
 
     // MARK: Pairing
 
-    /// Category of a bridged accessory from its primary service (Ycode table).
+    /// Category of a bridged accessory from its primary service (SwiftCode table).
     static func category(forPrimaryService type: String?) -> String {
         switch type {
         case HMServiceTypeLightbulb: return HMAccessoryCategoryTypeLightbulb
@@ -106,10 +106,10 @@ extension YcodeLocalHomeStore {
     }
 
     /// HomeKit records for an attribute database (one per `aid`).
-    func records(from db: YcodeAccessoryDatabase, endpoint: YcodeAccessoryEndpoint, room: UUID,
-                 primaryID: UUID) -> [YcodeAccessoryRecord] {
+    func records(from db: SwiftCodeAccessoryDatabase, endpoint: SwiftCodeAccessoryEndpoint, room: UUID,
+                 primaryID: UUID) -> [SwiftCodeAccessoryRecord] {
         let isBridge = db.accessories.count > 1
-        var out: [YcodeAccessoryRecord] = []
+        var out: [SwiftCodeAccessoryRecord] = []
         for acc in db.accessories {
             func infoString(_ type: String) -> String? {
                 for s in acc.services where s.type == HMServiceTypeAccessoryInformation {
@@ -120,7 +120,7 @@ extension YcodeLocalHomeStore {
             let name = infoString(HMCharacteristicTypeName) ?? endpoint.name
             var serviceIDs: [Int: UUID] = [:]
             for s in acc.services { serviceIDs[s.iid] = UUID() }
-            let services = acc.services.map { s -> YcodeServiceRecord in
+            let services = acc.services.map { s -> SwiftCodeServiceRecord in
                 var serviceName: String
                 if case .string(let v)? = s.characteristics.first(where: { $0.type == HMCharacteristicTypeName })?.value {
                     serviceName = v
@@ -128,25 +128,25 @@ extension YcodeLocalHomeStore {
                     serviceName = name
                 }
                 if s.type == HMServiceTypeAccessoryInformation { serviceName = name }
-                return YcodeServiceRecord(
+                return SwiftCodeServiceRecord(
                     id: serviceIDs[s.iid]!, iid: s.iid, type: s.type, name: serviceName, associatedType: nil,
                     isPrimary: s.isPrimary,
                     isUserInteractive: !s.isHidden && s.type != HMServiceTypeAccessoryInformation,
                     linkedServiceIDs: s.linkedIIDs.compactMap { serviceIDs[$0] },
                     characteristics: s.characteristics.map {
-                        YcodeCharacteristicRecord(iid: $0.iid, type: $0.type,
-                                                  properties: YcodeHAPPermission.properties($0.permissions),
+                        SwiftCodeCharacteristicRecord(iid: $0.iid, type: $0.type,
+                                                  properties: SwiftCodeHAPPermission.properties($0.permissions),
                                                   metadata: $0.metadata, value: $0.value)
                     })
             }
             let category = acc.aid == 1
-                ? YcodeHomeCatalog.categoryType(forHAPCategory: endpoint.categoryNumber)
+                ? SwiftCodeHomeCatalog.categoryType(forHAPCategory: endpoint.categoryNumber)
                 : Self.category(forPrimaryService: acc.services.first(where: \.isPrimary)?.type
                     ?? acc.services.first(where: { $0.type != HMServiceTypeAccessoryInformation })?.type)
             let hasIdentify = acc.services.contains { s in
                 s.type == HMServiceTypeAccessoryInformation && s.characteristics.contains { $0.type == HMCharacteristicTypeIdentify }
             }
-            out.append(YcodeAccessoryRecord(
+            out.append(SwiftCodeAccessoryRecord(
                 id: acc.aid == 1 ? primaryID : UUID(), name: name, categoryType: category,
                 manufacturer: infoString(HMCharacteristicTypeManufacturer), model: infoString(HMCharacteristicTypeModel),
                 firmwareVersion: infoString(HMCharacteristicTypeFirmwareVersion), roomID: room, services: services,
@@ -162,11 +162,11 @@ extension YcodeLocalHomeStore {
 
     func addAccessory(_ homeID: UUID, discovered id: UUID, _ session: Session, _ reply: @escaping Reply) {
         guard state.homes.contains(where: { $0.id == homeID }) else {
-            reply(.failure(YcodeHomeStoreError(.notFound))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         guard let record = discovered.values.first(where: { $0.id == id }), let endpoint = endpoints[record.endpointID] else {
             // Already paired somewhere, or gone.
-            reply(.failure(YcodeHomeStoreError(.notFound))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         discovered[record.endpointID] = nil
         endpoint.fetchDatabase { result in
@@ -174,11 +174,11 @@ extension YcodeLocalHomeStore {
                 switch result {
                 case .failure(let f):
                     if self.endpoints[record.endpointID] != nil { self.discovered[record.endpointID] = record }
-                    reply(.failure(YcodeHomeStoreError(f.errorCode)))
+                    reply(.failure(SwiftCodeHomeStoreError(f.errorCode)))
                 case .success(let db):
                     guard let h = self.state.homes.firstIndex(where: { $0.id == homeID }) else {
                         self.discovered[record.endpointID] = record
-                        reply(.failure(YcodeHomeStoreError(.notFound))); return
+                        reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
                     }
                     let new = self.records(from: db, endpoint: endpoint, room: self.state.homes[h].defaultRoom.id,
                                            primaryID: record.id)
@@ -219,18 +219,18 @@ extension YcodeLocalHomeStore {
 
     func identify(_ homeID: UUID, _ accessoryID: UUID, _ reply: @escaping Reply) {
         guard let home = state.homes.first(where: { $0.id == homeID }), let i = home.accessoryIndex(accessoryID) else {
-            reply(.failure(YcodeHomeStoreError(.notFound))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         let acc = home.accessories[i]
-        guard acc.supportsIdentify else { reply(.failure(YcodeHomeStoreError(.operationNotSupported))); return }
+        guard acc.supportsIdentify else { reply(.failure(SwiftCodeHomeStoreError(.operationNotSupported))); return }
         guard let endpoint = endpoints[acc.endpointID], acc.isReachable else {
-            reply(.failure(YcodeHomeStoreError(.accessoryNotReachable))); return
+            reply(.failure(SwiftCodeHomeStoreError(.accessoryNotReachable))); return
         }
         endpoint.identify { result in
             self.queue.async {
                 switch result {
                 case .success: reply(.success(.done))
-                case .failure(let f): reply(.failure(YcodeHomeStoreError(f.errorCode)))
+                case .failure(let f): reply(.failure(SwiftCodeHomeStoreError(f.errorCode)))
                 }
             }
         }
@@ -240,10 +240,10 @@ extension YcodeLocalHomeStore {
 
     struct Located {
         var home: Int
-        var accessory: YcodeAccessoryRecord
-        var service: YcodeServiceRecord
-        var characteristic: YcodeCharacteristicRecord
-        var address: YcodeCharacteristicAddress { .init(aid: accessory.aid, iid: characteristic.iid) }
+        var accessory: SwiftCodeAccessoryRecord
+        var service: SwiftCodeServiceRecord
+        var characteristic: SwiftCodeCharacteristicRecord
+        var address: SwiftCodeCharacteristicAddress { .init(aid: accessory.aid, iid: characteristic.iid) }
     }
 
     func locate(_ homeID: UUID, _ characteristicID: UUID) -> Located? {
@@ -253,7 +253,7 @@ extension YcodeLocalHomeStore {
         return Located(home: h, accessory: acc, service: acc.services[s], characteristic: acc.services[s].characteristics[c])
     }
 
-    func setCachedValue(_ homeID: UUID, _ characteristicID: UUID, _ value: YcodeHomeValue?) {
+    func setCachedValue(_ homeID: UUID, _ characteristicID: UUID, _ value: SwiftCodeHomeValue?) {
         guard let h = state.homes.firstIndex(where: { $0.id == homeID }),
               let (a, s, c) = state.homes[h].characteristicPath(characteristicID) else { return }
         state.homes[h].accessories[a].services[s].characteristics[c].value = value
@@ -261,18 +261,18 @@ extension YcodeLocalHomeStore {
     }
 
     /// The endpoint for an accessory, or the failure to report (4 when unreachable).
-    func endpoint(for acc: YcodeAccessoryRecord) -> YcodeAccessoryEndpoint? {
+    func endpoint(for acc: SwiftCodeAccessoryRecord) -> SwiftCodeAccessoryEndpoint? {
         guard acc.isReachable, let e = endpoints[acc.endpointID] else { return nil }
         return e
     }
 
     func readCharacteristic(_ homeID: UUID, _ cid: UUID, _ reply: @escaping Reply) {
-        guard let loc = locate(homeID, cid) else { reply(.failure(YcodeHomeStoreError(.notFound))); return }
+        guard let loc = locate(homeID, cid) else { reply(.failure(SwiftCodeHomeStoreError(.notFound))); return }
         guard loc.characteristic.properties.contains(HMCharacteristicPropertyReadable) else {
-            reply(.failure(YcodeHomeStoreError(.writeOnlyCharacteristic))); return
+            reply(.failure(SwiftCodeHomeStoreError(.writeOnlyCharacteristic))); return
         }
         guard let endpoint = endpoint(for: loc.accessory) else {
-            reply(.failure(YcodeHomeStoreError(.accessoryNotReachable))); return
+            reply(.failure(SwiftCodeHomeStoreError(.accessoryNotReachable))); return
         }
         endpoint.read(loc.address) { result in
             self.queue.async {
@@ -281,24 +281,24 @@ extension YcodeLocalHomeStore {
                     self.setCachedValue(homeID, cid, v)
                     reply(.success(.value(v)))
                 case .failure(let f):
-                    reply(.failure(YcodeHomeStoreError(f.errorCode)))
+                    reply(.failure(SwiftCodeHomeStoreError(f.errorCode)))
                 }
             }
         }
     }
 
-    func writeCharacteristic(_ homeID: UUID, _ cid: UUID, _ value: YcodeHomeValue, _ session: Session, _ reply: @escaping Reply) {
-        guard let loc = locate(homeID, cid) else { reply(.failure(YcodeHomeStoreError(.notFound))); return }
+    func writeCharacteristic(_ homeID: UUID, _ cid: UUID, _ value: SwiftCodeHomeValue, _ session: Session, _ reply: @escaping Reply) {
+        guard let loc = locate(homeID, cid) else { reply(.failure(SwiftCodeHomeStoreError(.notFound))); return }
         guard loc.characteristic.properties.contains(HMCharacteristicPropertyWritable) else {
-            reply(.failure(YcodeHomeStoreError(.readOnlyCharacteristic))); return
+            reply(.failure(SwiftCodeHomeStoreError(.readOnlyCharacteristic))); return
         }
-        let checked: YcodeHomeValue
-        switch YcodeValueValidation.validate(value.apiValue, metadata: loc.characteristic.metadata) {
+        let checked: SwiftCodeHomeValue
+        switch SwiftCodeValueValidation.validate(value.apiValue, metadata: loc.characteristic.metadata) {
         case .success(let v): checked = v
-        case .failure(let e): reply(.failure(YcodeHomeStoreError(e.code))); return
+        case .failure(let e): reply(.failure(SwiftCodeHomeStoreError(e.code))); return
         }
         guard let endpoint = endpoint(for: loc.accessory) else {
-            reply(.failure(YcodeHomeStoreError(.accessoryNotReachable))); return
+            reply(.failure(SwiftCodeHomeStoreError(.accessoryNotReachable))); return
         }
         endpoint.write(loc.address, value: checked, authorizationData: authorizationData[cid]) { result in
             self.queue.async {
@@ -307,25 +307,25 @@ extension YcodeLocalHomeStore {
                     self.didWrite(homeID, loc, checked, origin: session.id)
                     reply(.success(.done))
                 case .failure(let f):
-                    reply(.failure(YcodeHomeStoreError(f.errorCode)))
+                    reply(.failure(SwiftCodeHomeStoreError(f.errorCode)))
                 }
             }
         }
     }
 
     /// After a successful write: cache it and notify the other subscribed sessions.
-    func didWrite(_ homeID: UUID, _ loc: Located, _ value: YcodeHomeValue, origin: UUID?) {
+    func didWrite(_ homeID: UUID, _ loc: Located, _ value: SwiftCodeHomeValue, origin: UUID?) {
         let readable = loc.characteristic.properties.contains(HMCharacteristicPropertyReadable)
         if readable { setCachedValue(homeID, loc.characteristic.id, value) }
-        let event = YcodeHomeEvent.characteristicValue(home: homeID, accessory: loc.accessory.id, service: loc.service.id,
+        let event = SwiftCodeHomeEvent.characteristicValue(home: homeID, accessory: loc.accessory.id, service: loc.service.id,
                                                        characteristic: loc.characteristic.id, value: value)
         for s in liveSessions where s.id != origin && s.notifications.contains(loc.characteristic.id) { s.send(event) }
     }
 
     func enableNotification(_ homeID: UUID, _ cid: UUID, _ on: Bool, _ session: Session, _ reply: @escaping Reply) {
-        guard let loc = locate(homeID, cid) else { reply(.failure(YcodeHomeStoreError(.notFound))); return }
+        guard let loc = locate(homeID, cid) else { reply(.failure(SwiftCodeHomeStoreError(.notFound))); return }
         guard loc.characteristic.properties.contains(HMCharacteristicPropertySupportsEventNotification) else {
-            reply(.failure(YcodeHomeStoreError(.notificationNotSupported))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notificationNotSupported))); return
         }
         if !on {
             session.notifications.remove(cid)
@@ -333,7 +333,7 @@ extension YcodeLocalHomeStore {
             reply(.success(.done)); return
         }
         guard let endpoint = endpoint(for: loc.accessory) else {
-            reply(.failure(YcodeHomeStoreError(.accessoryNotReachable))); return
+            reply(.failure(SwiftCodeHomeStoreError(.accessoryNotReachable))); return
         }
         endpoint.setEventsEnabled(true, for: loc.address) { result in
             self.queue.async {
@@ -342,7 +342,7 @@ extension YcodeLocalHomeStore {
                     session.notifications.insert(cid)
                     reply(.success(.done))
                 case .failure(let f):
-                    reply(.failure(YcodeHomeStoreError(f.errorCode)))
+                    reply(.failure(SwiftCodeHomeStoreError(f.errorCode)))
                 }
             }
         }

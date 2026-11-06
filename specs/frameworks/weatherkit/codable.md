@@ -31,7 +31,7 @@ description, not code.
 - Several types carry **non-public keys** (marked *np*). An implementation
   must accept and preserve them when present; when it has no value for a
   required *np* key it must still write something decodable — the plan
-  (`plan.md` R2) fixes Ycode's default per key after the owner-run W-DATA
+  (`plan.md` R2) fixes SwiftCode's default per key after the owner-run W-DATA
   check shows real values.
 
 ## 2. Small types

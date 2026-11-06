@@ -17,7 +17,7 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 def default_files():
     """Root documents, community files, docs and the area READMEs."""
     patterns = ["*.md", ".github/*.md", ".github/ISSUE_TEMPLATE/*.md", "docs/*.md",
-                "ycode/README.md", "frameworks/README.md", "composer/README.md", "packaging/README.md"]
+                "swiftcode/README.md", "frameworks/README.md", "composer/README.md", "packaging/README.md"]
     found = []
     for pattern in patterns:
         found += glob.glob(os.path.join(REPO, pattern))

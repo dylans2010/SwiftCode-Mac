@@ -188,12 +188,12 @@ Public facts:
   `Entity(contentsOf:)` into the same hierarchy, components, materials
   and animations as the USD source.
 
-Policy for Ycode:
+Policy for SwiftCode:
 
 1. The **simulator** never needs to read `.reality`: the guest app runs
    Apple's own RealityKit from the runtime image.
 2. The **open RealityKit** reads USD only. Apps that ship `.reality`
-   files are out of scope until a public specification exists; the Ycode
+   files are out of scope until a public specification exists; the SwiftCode
    IDE can keep Reality Composer Pro packages as USDA (their source form)
    and, on Linux, load the USDA scenes directly instead of compiling them.
 3. `Entity.write(to:)` in the open implementation writes **USD** (USDA or

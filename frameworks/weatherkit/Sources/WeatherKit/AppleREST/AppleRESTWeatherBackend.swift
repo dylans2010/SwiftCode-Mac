@@ -1,4 +1,4 @@
-// Ycode extension, plan.md R4: a backend on Apple's documented WeatherKit
+// SwiftCode extension, plan.md R4: a backend on Apple's documented WeatherKit
 // REST API v1 (rest-api.md), used with the developer's own key. Only the
 // documented endpoints are used (design.md §1 non-goals).
 import Foundation
@@ -29,7 +29,7 @@ public struct AppleRESTWeatherBackend: WeatherBackend {
 
     /// - Parameters:
     ///   - locationContext: resolves a coordinate's time zone and country.
-    ///     Ycode's default, until the offline resolver of design.md §4 exists,
+    ///     SwiftCode's default, until the offline resolver of design.md §4 exists,
     ///     is the process's time zone and no country (alerts then depend on
     ///     the service's own lookup).
     public init(

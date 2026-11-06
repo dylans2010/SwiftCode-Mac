@@ -6,8 +6,8 @@
 
 import Foundation
 
-/// Settings of a `YcodeLocalHomeStore`.
-public struct YcodeLocalHomeStoreConfiguration: Sendable {
+/// Settings of a `SwiftCodeLocalHomeStore`.
+public struct SwiftCodeLocalHomeStoreConfiguration: Sendable {
     /// JSON snapshot written after every change (nil: memory only).
     public var persistenceURL: URL?
     /// Parity mode for Apple's simulator without an Apple Account:
@@ -19,10 +19,10 @@ public struct YcodeLocalHomeStoreConfiguration: Sendable {
     /// Name of the local home owner (`currentUser`).
     public var ownerName: String
     /// Answers the permission prompt (simulator-baseline.md §3). Default: allow.
-    public var consent: @Sendable (YcodeHomeClient) -> Bool
+    public var consent: @Sendable (SwiftCodeHomeClient) -> Bool
 
     public init(persistenceURL: URL? = nil, simulateNoAccount: Bool = false, hubState: HMHomeHubState = .connected,
-                ownerName: String = "Home Owner", consent: @escaping @Sendable (YcodeHomeClient) -> Bool = { _ in true }) {
+                ownerName: String = "Home Owner", consent: @escaping @Sendable (SwiftCodeHomeClient) -> Bool = { _ in true }) {
         self.persistenceURL = persistenceURL
         self.simulateNoAccount = simulateNoAccount
         self.hubState = hubState
@@ -31,47 +31,47 @@ public struct YcodeLocalHomeStoreConfiguration: Sendable {
     }
 }
 
-public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDelegate, @unchecked Sendable {
+public final class SwiftCodeLocalHomeStore: SwiftCodeHomeStore, SwiftCodeAccessoryEndpointDelegate, @unchecked Sendable {
     /// The store behind `HMHomeManager()`: in memory, or the JSON file named by
-    /// `YCODE_HOMEKIT_STORE`.
-    public static let shared: YcodeLocalHomeStore = {
-        let path = ProcessInfo.processInfo.environment["YCODE_HOMEKIT_STORE"]
-        return YcodeLocalHomeStore(configuration: .init(persistenceURL: path.map { URL(fileURLWithPath: $0) }))
+    /// `SWIFTCODE_HOMEKIT_STORE`.
+    public static let shared: SwiftCodeLocalHomeStore = {
+        let path = ProcessInfo.processInfo.environment["SWIFTCODE_HOMEKIT_STORE"]
+        return SwiftCodeLocalHomeStore(configuration: .init(persistenceURL: path.map { URL(fileURLWithPath: $0) }))
     }()
 
     struct Persisted: Codable {
-        var homes: [YcodeHomeRecord] = []
+        var homes: [SwiftCodeHomeRecord] = []
         /// Recorded prompt answers by bundle identifier.
         var answers: [String: Bool] = [:]
     }
 
     final class Session: @unchecked Sendable {
         let id: UUID
-        let client: YcodeHomeClient
-        let send: @Sendable (YcodeHomeEvent) -> Void
+        let client: SwiftCodeHomeClient
+        let send: @Sendable (SwiftCodeHomeEvent) -> Void
         var dropped = false
         var browsing = false
         var notifications: Set<UUID> = []
-        init(id: UUID, client: YcodeHomeClient, send: @escaping @Sendable (YcodeHomeEvent) -> Void) {
+        init(id: UUID, client: SwiftCodeHomeClient, send: @escaping @Sendable (SwiftCodeHomeEvent) -> Void) {
             self.id = id
             self.client = client
             self.send = send
         }
     }
 
-    public let configuration: YcodeLocalHomeStoreConfiguration
-    let queue = DispatchQueue(label: "ycode.homekit.store")
+    public let configuration: SwiftCodeLocalHomeStoreConfiguration
+    let queue = DispatchQueue(label: "swiftcode.homekit.store")
     var state = Persisted()
     var sessions: [UUID: Session] = [:]
     var sessionOrder: [UUID] = []
     /// Published endpoints by endpoint ID.
-    var endpoints: [String: YcodeAccessoryEndpoint] = [:]
+    var endpoints: [String: SwiftCodeAccessoryEndpoint] = [:]
     /// Published, unpaired endpoints (what browsers see), by endpoint ID.
-    var discovered: [String: YcodeDiscoveredAccessoryRecord] = [:]
+    var discovered: [String: SwiftCodeDiscoveredAccessoryRecord] = [:]
     /// Opaque authorization data per characteristic (not persisted).
     var authorizationData: [UUID: Data] = [:]
 
-    public init(configuration: YcodeLocalHomeStoreConfiguration = .init()) {
+    public init(configuration: SwiftCodeLocalHomeStoreConfiguration = .init()) {
         self.configuration = configuration
         if let url = configuration.persistenceURL, let data = try? Data(contentsOf: url),
            var loaded = try? JSONDecoder().decode(Persisted.self, from: data) {
@@ -84,11 +84,11 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         }
     }
 
-    // MARK: - Ycode API (tests, tools)
+    // MARK: - SwiftCode API (tests, tools)
 
     /// Makes an accessory server available: browsers see it until it is
     /// added to a home; if it is already paired, its accessories become reachable.
-    public func publish(_ endpoint: YcodeAccessoryEndpoint) {
+    public func publish(_ endpoint: SwiftCodeAccessoryEndpoint) {
         queue.async { self._publish(endpoint) }
     }
 
@@ -107,16 +107,16 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
     public func sync<T>(_ body: () -> T) -> T { queue.sync(execute: body) }
 
     /// Current records (tests, tools).
-    public var homeRecords: [YcodeHomeRecord] { queue.sync { state.homes } }
+    public var homeRecords: [SwiftCodeHomeRecord] { queue.sync { state.homes } }
 
     /// Forgets the recorded prompt answer of a bundle (`simctl privacy reset` analogue).
     public func resetAuthorization(bundleIdentifier: String) {
         queue.sync { state.answers[bundleIdentifier] = nil; save() }
     }
 
-    // MARK: - YcodeHomeStore
+    // MARK: - SwiftCodeHomeStore
 
-    public func connect(client: YcodeHomeClient, events: @escaping @Sendable (YcodeHomeEvent) -> Void) -> YcodeHomeSession {
+    public func connect(client: SwiftCodeHomeClient, events: @escaping @Sendable (SwiftCodeHomeEvent) -> Void) -> SwiftCodeHomeSession {
         queue.sync {
             let session = Session(id: UUID(), client: client, send: events)
             sessions[session.id] = session
@@ -150,7 +150,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
                     }
                 }
             }
-            return YcodeHomeSession(id: session.id, authorizationStatus: status.rawValue)
+            return SwiftCodeHomeSession(id: session.id, authorizationStatus: status.rawValue)
         }
     }
 
@@ -162,11 +162,11 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         }
     }
 
-    public func perform(_ request: YcodeHomeRequest, session id: UUID,
-                        completion: @escaping @Sendable (Result<YcodeHomeResponse, YcodeHomeStoreError>) -> Void) {
+    public func perform(_ request: SwiftCodeHomeRequest, session id: UUID,
+                        completion: @escaping @Sendable (Result<SwiftCodeHomeResponse, SwiftCodeHomeStoreError>) -> Void) {
         queue.async {
             guard let session = self.sessions[id], self.isAuthorized(session) else {
-                completion(.failure(YcodeHomeStoreError(.homeAccessNotAuthorized)))
+                completion(.failure(SwiftCodeHomeStoreError(.homeAccessNotAuthorized)))
                 return
             }
             self.handle(request, session: session, reply: completion)
@@ -188,11 +188,11 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         s.send(.homesLoaded(state.homes))
     }
 
-    func broadcast(_ event: YcodeHomeEvent) {
+    func broadcast(_ event: SwiftCodeHomeEvent) {
         for s in liveSessions { s.send(event) }
     }
 
-    func sendToBrowsers(_ event: YcodeHomeEvent) {
+    func sendToBrowsers(_ event: SwiftCodeHomeEvent) {
         for s in liveSessions where s.browsing { s.send(event) }
     }
 
@@ -207,32 +207,32 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
 
     // MARK: - Request dispatch
 
-    typealias Reply = @Sendable (Result<YcodeHomeResponse, YcodeHomeStoreError>) -> Void
+    typealias Reply = @Sendable (Result<SwiftCodeHomeResponse, SwiftCodeHomeStoreError>) -> Void
 
-    func handle(_ request: YcodeHomeRequest, session: Session, reply: @escaping Reply) {
+    func handle(_ request: SwiftCodeHomeRequest, session: Session, reply: @escaping Reply) {
         switch request {
         case .addHome(let name): addHome(name, session, reply)
         case .removeHome(let h): removeHome(h, session, reply)
         case .renameHome(let h, let name):
             mutate(h, session, reply) { home in
                 let n = try self.checkedName(name)
-                if self.state.homes.contains(where: { $0.id != h && YcodeNameRules.similar($0.name, n) }) {
+                if self.state.homes.contains(where: { $0.id != h && SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.renameWithSimilarName)
                 }
                 home.name = n
                 return .homeName
             }
         case .updatePrimaryHome:
-            reply(.failure(YcodeHomeStoreError(.operationNotSupported)))
+            reply(.failure(SwiftCodeHomeStoreError(.operationNotSupported)))
 
         case .addRoom(let h, let name):
             mutateReturning(h, session, reply) { home in
                 let n = try self.checkedName(name)
-                if home.rooms.contains(where: { YcodeNameRules.similar($0.name, n) })
-                    || YcodeNameRules.similar(home.defaultRoom.name, n) {
+                if home.rooms.contains(where: { SwiftCodeNameRules.similar($0.name, n) })
+                    || SwiftCodeNameRules.similar(home.defaultRoom.name, n) {
                     throw HMError(.objectWithSimilarNameExistsInHome)
                 }
-                let room = YcodeRoomRecord(id: UUID(), name: n)
+                let room = SwiftCodeRoomRecord(id: UUID(), name: n)
                 home.rooms.append(room)
                 return (.roomAdded(room.id), .object(room.id))
             }
@@ -252,7 +252,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
                 if r == home.defaultRoom.id { throw HMError(.roomForHomeCannotBeUpdated) }
                 guard let i = home.rooms.firstIndex(where: { $0.id == r }) else { throw HMError(.notFound) }
                 let n = try self.checkedName(name)
-                if home.rooms.contains(where: { $0.id != r && YcodeNameRules.similar($0.name, n) }) {
+                if home.rooms.contains(where: { $0.id != r && SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.renameWithSimilarName)
                 }
                 home.rooms[i].name = n
@@ -262,10 +262,10 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         case .addZone(let h, let name):
             mutateReturning(h, session, reply) { home in
                 let n = try self.checkedName(name)
-                if home.zones.contains(where: { YcodeNameRules.similar($0.name, n) }) {
+                if home.zones.contains(where: { SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.objectWithSimilarNameExistsInHome)
                 }
-                let zone = YcodeZoneRecord(id: UUID(), name: n, roomIDs: [])
+                let zone = SwiftCodeZoneRecord(id: UUID(), name: n, roomIDs: [])
                 home.zones.append(zone)
                 return (.zoneAdded(zone.id), .object(zone.id))
             }
@@ -279,7 +279,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
             mutate(h, session, reply) { home in
                 guard let i = home.zones.firstIndex(where: { $0.id == z }) else { throw HMError(.notFound) }
                 let n = try self.checkedName(name)
-                if home.zones.contains(where: { $0.id != z && YcodeNameRules.similar($0.name, n) }) {
+                if home.zones.contains(where: { $0.id != z && SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.renameWithSimilarName)
                 }
                 home.zones[i].name = n
@@ -305,10 +305,10 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         case .addServiceGroup(let h, let name):
             mutateReturning(h, session, reply) { home in
                 let n = try self.checkedName(name)
-                if home.serviceGroups.contains(where: { YcodeNameRules.similar($0.name, n) }) {
+                if home.serviceGroups.contains(where: { SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.objectWithSimilarNameExistsInHome)
                 }
-                let g = YcodeServiceGroupRecord(id: UUID(), name: n, serviceIDs: [])
+                let g = SwiftCodeServiceGroupRecord(id: UUID(), name: n, serviceIDs: [])
                 home.serviceGroups.append(g)
                 return (.serviceGroupAdded(g.id), .object(g.id))
             }
@@ -322,7 +322,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
             mutate(h, session, reply) { home in
                 guard let i = home.serviceGroups.firstIndex(where: { $0.id == g }) else { throw HMError(.notFound) }
                 let n = try self.checkedName(name)
-                if home.serviceGroups.contains(where: { $0.id != g && YcodeNameRules.similar($0.name, n) }) {
+                if home.serviceGroups.contains(where: { $0.id != g && SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.renameWithSimilarName)
                 }
                 home.serviceGroups[i].name = n
@@ -383,7 +383,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
                 guard let (a, i) = home.servicePath(s) else { throw HMError(.notFound) }
                 var normalized: String?
                 if let type {
-                    guard let entry = YcodeHomeCatalog.serviceType(type) else { throw HMError(.invalidAssociatedServiceType) }
+                    guard let entry = SwiftCodeHomeCatalog.serviceType(type) else { throw HMError(.invalidAssociatedServiceType) }
                     normalized = entry.identifier
                 }
                 home.accessories[a].services[i].associatedType = normalized
@@ -395,7 +395,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         case .enableNotification(let h, let c, let on): enableNotification(h, c, on, session, reply)
         case .updateAuthorizationData(let h, let c, let data):
             guard let home = state.homes.first(where: { $0.id == h }), home.characteristicPath(c) != nil else {
-                reply(.failure(YcodeHomeStoreError(.notFound))); return
+                reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
             }
             authorizationData[c] = data
             reply(.success(.done))
@@ -410,7 +410,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
     // MARK: - Mutation helper
 
     func checkedName(_ name: String) throws -> String {
-        switch YcodeNameRules.validate(name) {
+        switch SwiftCodeNameRules.validate(name) {
         case .success(let n): return n
         case .failure(let e): throw e
         }
@@ -419,9 +419,9 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
     /// Runs `body` on a copy of home `id`; on success stores it, broadcasts the
     /// change (originator tagged) and replies.
     func mutateReturning(_ id: UUID, _ session: Session, _ reply: Reply,
-                         _ body: (inout YcodeHomeRecord) throws -> (YcodeHomeChange, YcodeHomeResponse)) {
+                         _ body: (inout SwiftCodeHomeRecord) throws -> (SwiftCodeHomeChange, SwiftCodeHomeResponse)) {
         guard let i = state.homes.firstIndex(where: { $0.id == id }) else {
-            reply(.failure(YcodeHomeStoreError(.notFound))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         var home = state.homes[i]
         do {
@@ -431,21 +431,21 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
             broadcast(.homeUpdated(home, change: change, origin: session.id))
             reply(.success(response))
         } catch let e as HMError {
-            reply(.failure(YcodeHomeStoreError(e.code, userInfo: e.userInfo)))
+            reply(.failure(SwiftCodeHomeStoreError(e.code, userInfo: e.userInfo)))
         } catch {
-            reply(.failure(YcodeHomeStoreError(.unexpectedError)))
+            reply(.failure(SwiftCodeHomeStoreError(.unexpectedError)))
         }
     }
 
     func mutate(_ id: UUID, _ session: Session, _ reply: Reply,
-                _ body: (inout YcodeHomeRecord) throws -> YcodeHomeChange) {
-        mutateReturning(id, session, reply) { (home: inout YcodeHomeRecord) -> (YcodeHomeChange, YcodeHomeResponse) in
+                _ body: (inout SwiftCodeHomeRecord) throws -> SwiftCodeHomeChange) {
+        mutateReturning(id, session, reply) { (home: inout SwiftCodeHomeRecord) -> (SwiftCodeHomeChange, SwiftCodeHomeResponse) in
             (try body(&home), .done)
         }
     }
 
     /// Applies a store-internal change (no originator: every session gets the delegate callback).
-    func update(_ id: UUID, change: YcodeHomeChange, _ body: (inout YcodeHomeRecord) -> Void) {
+    func update(_ id: UUID, change: SwiftCodeHomeChange, _ body: (inout SwiftCodeHomeRecord) -> Void) {
         guard let i = state.homes.firstIndex(where: { $0.id == id }) else { return }
         body(&state.homes[i])
         save()
@@ -454,7 +454,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
 
     // MARK: - Homes
 
-    /// Ycode's names for the four built-in scenes (own wording).
+    /// SwiftCode's names for the four built-in scenes (own wording).
     static let builtinActionSets: [(String, String)] = [
         (HMActionSetTypeWakeUp, "Wake Up"),
         (HMActionSetTypeSleep, "Bedtime"),
@@ -467,18 +467,18 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
         if configuration.simulateNoAccount { reply(.failure(.noAccount)); return }
         let n: String
         do { n = try checkedName(name) } catch let e as HMError {
-            reply(.failure(YcodeHomeStoreError(e.code))); return
+            reply(.failure(SwiftCodeHomeStoreError(e.code))); return
         } catch { return }
-        if state.homes.contains(where: { YcodeNameRules.similar($0.name, n) }) {
-            reply(.failure(YcodeHomeStoreError(.homeWithSimilarNameExists))); return
+        if state.homes.contains(where: { SwiftCodeNameRules.similar($0.name, n) }) {
+            reply(.failure(SwiftCodeHomeStoreError(.homeWithSimilarNameExists))); return
         }
-        let owner = YcodeUserRecord(id: UUID(), name: configuration.ownerName, isAdministrator: true)
-        let home = YcodeHomeRecord(
+        let owner = SwiftCodeUserRecord(id: UUID(), name: configuration.ownerName, isAdministrator: true)
+        let home = SwiftCodeHomeRecord(
             id: UUID(), name: n, isPrimary: state.homes.isEmpty,
-            defaultRoom: YcodeRoomRecord(id: UUID(), name: "Default Room"),
+            defaultRoom: SwiftCodeRoomRecord(id: UUID(), name: "Default Room"),
             rooms: [], zones: [], serviceGroups: [], accessories: [],
             actionSets: Self.builtinActionSets.map {
-                YcodeActionSetRecord(id: UUID(), name: $0.1, type: $0.0, actions: [], lastExecutionDate: nil, isExecuting: false)
+                SwiftCodeActionSetRecord(id: UUID(), name: $0.1, type: $0.0, actions: [], lastExecutionDate: nil, isExecuting: false)
             },
             triggers: [], users: [owner], currentUserID: owner.id, hubState: configuration.hubState.rawValue)
         state.homes.append(home)
@@ -489,7 +489,7 @@ public final class YcodeLocalHomeStore: YcodeHomeStore, YcodeAccessoryEndpointDe
 
     func removeHome(_ id: UUID, _ session: Session, _ reply: Reply) {
         guard let i = state.homes.firstIndex(where: { $0.id == id }) else {
-            reply(.failure(YcodeHomeStoreError(.notFound))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
         let home = state.homes.remove(at: i)
         if home.isPrimary, !state.homes.isEmpty { state.homes[0].isPrimary = true }

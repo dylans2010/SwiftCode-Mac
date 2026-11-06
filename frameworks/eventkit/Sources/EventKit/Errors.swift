@@ -1,5 +1,5 @@
 // EKErrorDomain errors (specs/frameworks/eventkit/errors.md). The codes are the
-// contract; the English messages are Ycode's own wording.
+// contract; the English messages are SwiftCode's own wording.
 
 import Foundation
 
@@ -68,7 +68,7 @@ public struct EKError: Error, Hashable, Sendable {
     public static var priorityIsInvalid: Code { .priorityIsInvalid }
     public static var eventStoreNotAuthorized: Code { .eventStoreNotAuthorized }
 
-    /// Ycode's English message for a code.
+    /// SwiftCode's English message for a code.
     static func message(for code: Code) -> String {
         switch code {
         case .eventNotMutable: return "This event cannot be changed."

@@ -3,7 +3,7 @@
 Status: **reference** (HOME-APPS-SPEC, 2026-10-19). It records which apps
 the reference simulator shows on a freshly created device, where they come
 from in the runtime, how the home screen learns about them, and what this
-means for Ycode. It answers the report "Ycode's simulator is missing
+means for SwiftCode. It answers the report "SwiftCode's simulator is missing
 default apps (Notes, Maps, Clock, …)".
 
 Facts come from three throwaway devices on this Mac (level 3: `simctl
@@ -21,11 +21,11 @@ apps whose Info.plist `SBAppTags` contains `hidden` and apps with
 ## 1. Summary
 
 1. **The reference shows two apps.** A fresh iOS 27.1 (24A94401) device of
-   type iPhone Duo (model `iPhone19,4`, the device Ycode uses) shows
+   type iPhone Duo (model `iPhone19,4`, the device SwiftCode uses) shows
    **Settings** on page 1 and **Safari** in the dock. Nothing else: no
    other page, no folder, no widget on the home screen. This is the
-   runtime's content, not a fault of the reference. Ycode already shows
-   the same two icons (`home-screen.md` §1), so for this runtime Ycode's
+   runtime's content, not a fault of the reference. SwiftCode already shows
+   the same two icons (`home-screen.md` §1), so for this runtime SwiftCode's
    app set is correct.
 2. **Notes, Clock, Maps and the other apps of a real iPhone are not in the
    runtime.** Notes, Clock, Calculator, Camera, Mail and about 100 other
@@ -33,7 +33,7 @@ apps whose Info.plist `SBAppTags` contains `hidden` and apps with
    only `.lproj` folders and empty `PlugIns`/`Extensions` folders, with no
    `Info.plist` and no executable. Maps, Calendar, Photos, Messages and 13
    other apps that the iOS 27.0 runtime ships are not in the 27.1 runtime
-   at all (§4). Ycode must not show these apps. Ycode must match the
+   at all (§4). SwiftCode must not show these apps. SwiftCode must match the
    simulator, not a device.
 3. **The iOS 27.1 runtime supports one device type only.** Its
    `supportedDeviceTypes` list is "iPhone Duo". `simctl create` with any
@@ -78,7 +78,7 @@ class 0):
 | `LCD-1` | 2007 × 2853 | the inner display; black (the device is folded) |
 
 `simctl io <dev> screenshot` without `--display` takes `LCD-1` and gives a
-black image. Comparisons with Ycode must use `--display=LCD`. Ycode's
+black image. Comparisons with SwiftCode must use `--display=LCD`. SwiftCode's
 single display (1398 × 2034, `device-capabilities.md` §3) is the cover
 display.
 
@@ -125,7 +125,7 @@ was heavily loaded at that time (load average above 800, other agents'
 simulators running). The poster failures took several minutes each. None
 of these apps is on the home screen, so this does not change the layout.
 
-**Not in this runtime (must not appear in Ycode)**
+**Not in this runtime (must not appear in SwiftCode)**
 
 | App | Bundle identifier (from the default layout) | State in the 27.1 runtime | In the 27.0 runtime |
 |---|---|---|---|
@@ -283,7 +283,7 @@ Consequence for a host: the home screen is decided by SpringBoard from
 three inputs that the host supplies — the runtime's bundles (§3.1), correct
 LaunchServices records (§3.2) and the device answers (`idiom`, screen size
 and the capabilities named in `SBAppTags`; `device-capabilities.md`). If
-an app that the reference shows is missing in Ycode, check these in that
+an app that the reference shows is missing in SwiftCode, check these in that
 order.
 
 ## 4. The 27.1 runtime is reduced
@@ -307,7 +307,7 @@ ships them. §4.1 has the full layout and launch results.
 
 ### 4.1 Reference home screen: iOS 27.0, iPhone 18 Pro
 
-The device type that Ycode adds for 27.0 (`iphone-types.md`). Two fresh
+The device type that SwiftCode adds for 27.0 (`iphone-types.md`). Two fresh
 devices (OBS-IPHONE18, 2026-10-27) gave the same layout apart from the
 generated UUIDs. Device-type values: `iphone-types.md` §3–§4.
 
@@ -379,7 +379,7 @@ screenshot 12 s after the launch):
 | Settings | `com.apple.Preferences` | yes, 1.0 s | yes | as on 27.1 (§2.3) |
 | Safari | `com.apple.mobilesafari` | yes, 0.4 s | yes | the Start Page with a customization card, an iCloud prompt (Not Now / Turn On) and the Privacy Report |
 
-Two behaviors to keep in mind when comparing screenshots with Ycode:
+Two behaviors to keep in mind when comparing screenshots with SwiftCode:
 
 - **A permission alert stays up.** The first permission alert of a fresh
   device (Maps' location request; after a reboot, Health's notification
@@ -431,28 +431,28 @@ Differences from the phone:
 
 Launches on the iPad were not determined (the host was overloaded; §8).
 
-## 6. Deltas for Ycode (to be verified by the implementer)
+## 6. Deltas for SwiftCode (to be verified by the implementer)
 
-| # | Item | Reference | Ycode (from its specs) | Action |
+| # | Item | Reference | SwiftCode (from its specs) | Action |
 |---|---|---|---|---|
 | 1 | App set on the home screen | Settings (page 1), Safari (dock) | the same (`home-screen.md` §1, §2.3) | none; Notes, Clock, Maps etc. must **not** be added — the runtime does not have them |
-| 2 | Today view | Batteries, Screen Time widgets | not specified | check `IconState.plist` `today` after a fresh Ycode boot |
+| 2 | Today view | Batteries, Screen Time widgets | not specified | check `IconState.plist` `today` after a fresh SwiftCode boot |
 | 3 | `DesiredIconState.plist` | written on first boot (466w-678h file), with `metadata.creationDate` and an empty `dockUtilities` array added on the iPhone Duo too; `listUniqueIdentifiers` kept as in the default file (`app-launch.md` §8 Q3) | written by the guest's SpringBoard: the 466w-678h file plus `metadata` and `dockUtilities`, list identifiers kept (`app-launch.md` §6 check 3, 13 devices, 2026-10-20) | none (matches) |
 | 4 | Visible app records | 22 (§2.3) | 162 registered, placeholders fixed (`home-screen.md` §3.3) | compare `listapps`-equivalent output (bundle ids, `SBAppTags`) |
 | 5 | Settings launches, first screen | yes; Settings list | stage-7 path launches a probe app (`home-screen.md` §6) | launch `com.apple.Preferences` and `com.apple.mobilesafari` with `ylaunch` and compare first screens |
-| 6 | Poster apps | not launchable: `FBSOpenApplicationServiceErrorDomain` 1, reason NotFound ("unknown to FrontBoard"), answered after about 12 s (`app-launch.md` §8 Q5, §8.2) | answered: NotFound after `ylaunch`'s 10 s window, no process; domain code 4, not 1 (`app-launch.md` §2.1, Q7) | not a Ycode fault if they fail the same way; a request that is never answered is a difference |
+| 6 | Poster apps | not launchable: `FBSOpenApplicationServiceErrorDomain` 1, reason NotFound ("unknown to FrontBoard"), answered after about 12 s (`app-launch.md` §8 Q5, §8.2) | answered: NotFound after `ylaunch`'s 10 s window, no process; domain code 4, not 1 (`app-launch.md` §2.1, Q7) | not a SwiftCode fault if they fail the same way; a request that is never answered is a difference |
 | 7 | Displays | cover `LCD` 1398 × 2034 shows the home screen; inner `LCD-1` 2007 × 2853 black | one display, 1398 × 2034 | compare against `--display=LCD` screenshots only |
-| 8 | Home-screen orientation on the cover display | sideways: dock at the right edge, status at the top right | check Ycode screenshots | report if Ycode draws a portrait layout |
-| 9 | iPad | needs a runtime that supports iPads (27.0, 24A434) | Ycode boots 27.0 as a second runtime (§9) | done: iPad and iPhone 18 Pro on 27.0 match §4.1 and §5 |
-| 10 | Husks | copied as plain directories | Ycode uses the same runtime image | nothing; they must not be registered |
+| 8 | Home-screen orientation on the cover display | sideways: dock at the right edge, status at the top right | check SwiftCode screenshots | report if SwiftCode draws a portrait layout |
+| 9 | iPad | needs a runtime that supports iPads (27.0, 24A434) | SwiftCode boots 27.0 as a second runtime (§9) | done: iPad and iPhone 18 Pro on 27.0 match §4.1 and §5 |
+| 10 | Husks | copied as plain directories | SwiftCode uses the same runtime image | nothing; they must not be registered |
 
 If the user wants Maps, Calendar, Photos, Messages and the others, the
-answer is a different runtime (27.0 ships them), not a change in Ycode.
+answer is a different runtime (27.0 ships them), not a change in SwiftCode.
 Notes, Clock, Camera, Mail and Calculator are not in either runtime.
 
 ## 7. How to reproduce on the Mac
 
-1. `xcrun simctl create ycode-test-<name> com.apple.CoreSimulator.SimDeviceType.iPhone-Duo com.apple.CoreSimulator.SimRuntime.iOS-27-1`, `boot`, `bootstatus -b`.
+1. `xcrun simctl create swiftcode-test-<name> com.apple.CoreSimulator.SimDeviceType.iPhone-Duo com.apple.CoreSimulator.SimRuntime.iOS-27-1`, `boot`, `bootstatus -b`.
 2. `xcrun simctl listapps <udid>` (an XML plist).
 3. `plutil -p ~/Library/Developer/CoreSimulator/Devices/<udid>/data/Library/SpringBoard/IconState.plist`.
 4. `xcrun simctl io <udid> screenshot --display=LCD <file>`.
@@ -473,33 +473,33 @@ Notes, Clock, Camera, Mail and Calculator are not in either runtime.
 - **Safari's first screen** under normal load (a white page after 15 s
   under heavy load).
 
-## 9. Ycode on the iOS 27.0 runtime (agent IOS27, 2026-10-27)
+## 9. SwiftCode on the iOS 27.0 runtime (agent IOS27, 2026-10-27)
 
-Clean-room results: Ycode's own simulator on the Thor with a copy of the
+Clean-room results: SwiftCode's own simulator on the Thor with a copy of the
 27.0 RuntimeRoot (24A434), the guest's files read after the boot
-(`IconState.plist` with `plistlib`), Ycode screenshots (scratch only),
+(`IconState.plist` with `plistlib`), SwiftCode screenshots (scratch only),
 `ylaunch` one-shots (`open`, `wait`, `kill`). No Apple simulator, Xcode or
 reference tool was run. The host was shared (load average 5–200), so the
-times outside §9.3 are upper bounds. What Ycode changed for this:
+times outside §9.3 are upper bounds. What SwiftCode changed for this:
 `ipad.md` §9.2, `iphone-types.md` §9; the IDE's runtime choice:
 `specs/ide/run.md` §Runtimes and device types.
 
 ### 9.1 Home screens
 
-| Device (Ycode type) | `IconState.plist` against the reference | Screen |
+| Device (SwiftCode type) | `IconState.plist` against the reference | Screen |
 |---|---|---|
 | iPhone 18 Pro (`iphone-18-pro`, the default on 27.0) | equal to §4.1 in every list: dock Safari, Messages; page 1 the small Maps widget, the small stack Calendar Up Next/News/Photos, Calendar, Photos, Maps, News, Health, Wallet, Siri, Settings; page 2 Fitness, Watch, Reminders, Files, Preview, folder "Utilities" (Shortcuts, Passwords), Contacts; `ignored` Remote; `today` Calendar (small), Batteries (small), News (`extraLargePortrait`), Maps (medium), Screen Time (large) | 1206 × 2622 portrait: wallpaper; status bar with the time at the left and the cellular dots, Wi-Fi and battery right of the island; the two widget tiles with labels, the eight labelled icons in two rows; the "Search" pill; the dock with Safari and Messages. Icons are drawn grey (placeholders) first and filled about 4 minutes later under load |
 | iPad Pro 13-inch (M5) (`ipad-pro-13-m5`) | equal to §5 in every list (`ipad.md` §9.2) | 2064 × 2752 portrait: wallpaper, the News stack ("Apple News Is Offline"), the Reminders widget ("No Reminders"), the Calendar widget, Files, Reminders, Maps, News, Settings, two page dots, the dock with Messages, Safari, Calendar (the date), Photos, Siri and the App Library tile |
 
 Differences seen on the screens (not in the layout files):
 
-- **Calendar widget.** In Ycode the Calendar "Up Next" widget stays in its
+- **Calendar widget.** In SwiftCode the Calendar "Up Next" widget stays in its
   redacted placeholder form (grey and pink bars), on the iPhone stack and
   the iPad medium widget, for the whole run (8 minutes); the reference
   shows "TUESDAY 27" and "No Events Today". Not investigated (the
   widget's timeline is rendered by the guest's widget renderer; whether a
   host service it needs is missing is open, §9.4).
-- **Maps widget.** Ycode draws the map grid without map tiles; the
+- **Maps widget.** SwiftCode draws the map grid without map tiles; the
   reference shows a map of North America. The Thor has no network for the
   guest, and whether the reference's tiles come from the network or from
   data in the runtime is open (§9.4).
@@ -510,7 +510,7 @@ Each app was opened with `ylaunch open` on a booted device; on the iPhone
 each app was killed 25 s later before the next one, as the reference did
 with `simctl terminate`.
 
-| App | Bundle identifier | iPhone 18 Pro: pid; open request | First screen (iPhone, Ycode) | iPad Pro 13 (M5): pid |
+| App | Bundle identifier | iPhone 18 Pro: pid; open request | First screen (iPhone, SwiftCode) | iPad Pro 13 (M5): pid |
 |---|---|---|---|---|
 | Maps | `com.apple.Maps` | yes; 43 s (the first open of the boot, still while the home screen was being built) | the location alert "Allow "Maps" to use your location?" (Allow Once / Allow While Using App / Don't Allow) over a blank map | yes |
 | Calendar | `com.apple.mobilecal` | yes; 2.0 s | "What's New in Calendar" with Continue | yes |
@@ -530,21 +530,21 @@ Maps is killed and covers every later app until the Health alert replaces
 it; Maps, Calendar, Photos, Messages and News were running again in the
 background after a kill (`ylaunch kill` found and killed two or three
 instances of each). Guest crashes in these boots: `fileindexerd` (as on
-every Ycode boot) and `AppIntentsLiveEntityService` (twice per boot; the
+every SwiftCode boot) and `AppIntentsLiveEntityService` (twice per boot; the
 reference reports the same process, `iphone-types.md` §6); no host crash.
 
 **Sample contacts.** The reference's Contacts shows John Appleseed and the
 other sample contacts because `simctl create` writes the address-book
-databases into a new device (`first-boot.md` §2). Ycode's new device has
+databases into a new device (`first-boot.md` §2). SwiftCode's new device has
 none, so Contacts is empty. These databases are CoreSimulator's content,
-not the runtime's; Ycode does not copy them (§9.4).
+not the runtime's; SwiftCode does not copy them (§9.4).
 
 ### 9.3 Boot times on 27.0
 
 Measured with the harness's `timed.sh` (the Thor to itself: no other
-`ycode-simd`, 1-minute load 1.4 and 0.6 at the start), full boot (no lean
+`swiftcode-simd`, 1-minute load 1.4 and 0.6 at the start), full boot (no lean
 boot), release build of the IOS27 branch, iPhone 18 Pro, frames every 5 s.
-"Home" is `ycode-simd`'s home watch (`YCODE_HOME_WATCH`) and the first lit
+"Home" is `swiftcode-simd`'s home watch (`SWIFTCODE_HOME_WATCH`) and the first lit
 frame (the launcher's criterion, `specs/ide/run.md` §Warm boot).
 
 | Boot | Home watch | First lit frame | What the frames show | Run length |
@@ -554,7 +554,7 @@ frame (the launcher's criterion, `specs/ide/run.md` §Warm boot).
 
 For comparison: the reference iPhone 18 Pro on 27.0 drew its home screen
 45–49 s into a first boot and 18.1 s into a second boot on a busy Mac
-(`iphone-types.md` §6); Ycode's 27.1 iPhone Duo reaches its home screen in
+(`iphone-types.md` §6); SwiftCode's 27.1 iPhone Duo reaches its home screen in
 about 30 s on a repeat boot (main line, `scheduling-policy.md`). The 27.0
 boot has more to draw (17 more apps, 39 visible records, two page-1
 widgets). Under the shared host's load (5–200) the same boots took 90–380 s
@@ -579,7 +579,7 @@ known ones of the main line (`fileindexerd`, `intelligencetasksd`).
 
 | Claim | Level | Source |
 |---|---|---|
-| Ycode on 27.0: layouts, screens, launches, times (§9) | 3 | Ycode boots on the Thor with the 27.0 RuntimeRoot copy, `IconState.plist` read with `plistlib`, Ycode screenshots, `ylaunch` outputs; `timed.sh` runs |
+| SwiftCode on 27.0: layouts, screens, launches, times (§9) | 3 | SwiftCode boots on the Thor with the 27.0 RuntimeRoot copy, `IconState.plist` read with `plistlib`, SwiftCode screenshots, `ylaunch` outputs; `timed.sh` runs |
 | Home screen of a fresh 27.1 iPhone Duo (§2.1) | 2, 3 | `IconState.plist` via `plutil`; `simctl io screenshot --display=LCD` |
 | Two displays, default screenshot display (§2.2) | 3 | `simctl io enumerate`; screenshots of both displays |
 | Visible app records, display names, paths (§2.3) | 3 | `simctl listapps` on the 27.1 iPhone, 27.0 iPhone and 27.0 iPad |
@@ -591,12 +591,12 @@ known ones of the main line (`fileindexerd`, `intelligencetasksd`).
 | Default layout files and format (§3.3) | 2 | SpringBoard.app's `DefaultIconState*.plist` via `plutil`/`plistlib` |
 | Desired = 466w-678h file | 2 | comparison of `DesiredIconState.plist` with the default files |
 | `dockUtilities` added to the iPhone's Desired file; list identifiers kept; poster apps answered after ≈12 s | 2, 3 | new 27.1 iPhone Duo device, 2026-10-20 (`app-launch.md` §8) |
-| Ycode's Desired file matches (§6 item 3) | 2 | 13 Ycode device directories on the Thor, `DesiredIconState.plist` compared key by key with the runtime's default file (`plistlib`), 2026-10-20 |
+| SwiftCode's Desired file matches (§6 item 3) | 2 | 13 SwiftCode device directories on the Thor, `DesiredIconState.plist` compared key by key with the runtime's default file (`plistlib`), 2026-10-20 |
 | Filtering rules (§3.4) | 2, 3 | `DesiredIconState.plist` against `IconState.plist` on three fresh devices |
 | Device capabilities (§5) | 2 | the device types' `capabilities.plist` |
 | 27.0 iPhone and iPad layouts (§4, §5) | 2, 3 | `IconState.plist`, screenshots |
 | 27.0 iPhone 18 Pro layout, keys added by SpringBoard, visible apps, launches and first screens, persistent alert, background relaunch (§4.1) | 2, 3 | two fresh iOS 27.0 iPhone 18 Pro devices, 2026-10-27: `DesiredIconState.plist`/`IconState.plist` against the default file (`plistlib`), `simctl listapps`, `simctl launch`/`terminate`, `launchctl list` via `simctl spawn`, screenshots (scratch only); registrable-bundle count from Info.plist keys (level 4) |
-| Ycode's side (§6) | — | `home-screen.md`, `first-boot.md`, `device-capabilities.md` |
+| SwiftCode's side (§6) | — | `home-screen.md`, `first-boot.md`, `device-capabilities.md` |
 
 Level 5 was not used. The reference tools folder, `research/dirty/` and
 Ghidra were not opened. No Apple images, strings files or plists were

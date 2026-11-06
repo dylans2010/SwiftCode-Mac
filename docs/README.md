@@ -1,6 +1,6 @@
-# Ycode documentation
+# SwiftCode documentation
 
-New here? Start with the [README](../README.md). It says what Ycode is, what works and how to install it.
+New here? Start with the [README](../README.md). It says what SwiftCode is, what works and how to install it.
 
 ## Guides
 
@@ -29,7 +29,7 @@ These pages record one piece of work at one date. They aren't kept up to date.
 |---|---|
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute, and the clean-room rules |
 | [AGENTS.md](../AGENTS.md) | The full clean-room protocol, for people and for AI coding agents |
-| [ycode/README.md](../ycode/README.md) | Developing Ycode: tools, tests, test inputs |
+| [swiftcode/README.md](../swiftcode/README.md) | Developing SwiftCode: tools, tests, test inputs |
 | [frameworks/README.md](../frameworks/README.md) | The open framework packages |
 | [composer/README.md](../composer/README.md) | The Scene Composer's core and command line |
 | [packaging/README.md](../packaging/README.md) | How the disk image and the Flatpak are built, and the Flatpak's permissions |
@@ -41,9 +41,9 @@ The folders follow the clean-room protocol: analysis on one side, code on the ot
 
 | Folder | Room | What it holds |
 |---|---|---|
-| `ycode/` | Clean | The Swift package with the IDE, the command-line tools and the simulator. This is where most code lives. |
+| `swiftcode/` | Clean | The Swift package with the IDE, the command-line tools and the simulator. This is where most code lives. |
 | `frameworks/` | Clean | Open implementations of Apple frameworks, one Swift package each, including OpenViews (SwiftUI), which draws the Linux IDE. |
-| `composer/` | Clean | The Scene Composer's core and its `ycode-scene` tool. |
+| `composer/` | Clean | The Scene Composer's core and its `swiftcode-scene` tool. |
 | `specs/` | Boundary | One specification per subsystem or format: behaviour, not code. Each ends with its evidence. This is the only path from analysis to code. |
 | `research/` | Dirty | Our own probes and experiments, their results, and observations written in prose. Clean-room work doesn't read it. |
 | `tools/` | Dirty | Analysis scripts. They record metadata only. |

@@ -10,7 +10,7 @@ import SwiftUICore
 // `FileDocument`, `FileDocumentConfiguration`, `fileDialogDefaultDirectory`,
 // `fileDialogMessage`, `fileDialogConfirmationLabel`, `UTType`).
 //
-// Design (Ycode's): the dialog is OpenViews' own, drawn in the window as a
+// Design (SwiftCode's): the dialog is OpenViews' own, drawn in the window as a
 // sheet (the "open panel" of a Linux app on OpenViews; no desktop portal is
 // used). It lists one folder: a bar with Back (to the enclosing folder) and
 // the folder's path, the entries sorted by name (hidden files left out), and

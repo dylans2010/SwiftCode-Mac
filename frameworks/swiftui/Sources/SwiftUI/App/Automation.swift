@@ -8,7 +8,7 @@ import SwiftUICore
 
 // Automation hooks for apps built on OpenViews (not SwiftUI API): what the
 // samples' drivers do with package access, offered publicly so an app in
-// another package (Ycode's Linux IDE shell, `ycode-ide`) can be driven and
+// another package (SwiftCode's Linux IDE shell, `swiftcode-ide`) can be driven and
 // photographed the same way: the running window's texts with their frames
 // (menu titles, the items of open menus), screenshots read back from the
 // window's presenter with open pop-ups drawn over it, synthetic input

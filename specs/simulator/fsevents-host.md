@@ -1,7 +1,7 @@
 # Spec: the host's file-event service `com.apple.FSEvents`
 
 Status: **specification** (agent OBS-FSEVENTS, dirty room, 2026-10-27);
-**implemented** in Ycode with change events (agent FS-HOST, clean room,
+**implemented** in SwiftCode with change events (agent FS-HOST, clean room,
 2026-10-27; §10). It answers `service-fidelity.md` §11 (Q11.1–Q11.3).
 Terms are as in `launchd-sim.md` (DEV, TMP, RR).
 
@@ -12,7 +12,7 @@ The guest's public FSEvents API (FSEvents.h: `FSEventsCopyUUIDForDevice`,
 **host** service. On the Mac the simulator registers the host's own
 `com.apple.FSEvents` endpoint into the guest's `user/<uid>` domain
 (`launchd-sim.md` §6.3), so every guest stream is served by the Mac's
-file-event daemon and watches host paths. Ycode registers no such name:
+file-event daemon and watches host paths. SwiftCode registers no such name:
 every guest call that needs the service fails ("FSEvents_connect() =>
 Unknown service name (1102)" in the guest log). §8 lists what that costs.
 
@@ -186,7 +186,7 @@ On the Mac the guest's data directory is on the host's data volume, so
 every guest path has the same device (`0x100000e`, major 1, minor 14) and
 the same UUID. The UUID is not the volume's APFS UUID; it is the event
 store's own, and it was the same in both boots in which it was read
-(device `ycode-test-fsevents-1`, boots 2 and 3, 2026-10-27). Clients store it: fileindexerd keeps `streamUUID`
+(device `swiftcode-test-fsevents-1`, boots 2 and 3, 2026-10-27). Clients store it: fileindexerd keeps `streamUUID`
 and `lastEventID` in its state file
 (`DEV/data/Containers/Data/InternalDaemon/<container>/indexingState`, a
 JSON object), reads them back at its next start and asks the service
@@ -234,7 +234,7 @@ Observed on the Mac (§9), second and later boots of a throwaway device:
 
 On the Mac several of these see host files (configd_sim's resolver
 directory, DockFolderViewService's `/`, revisiond's volume-wide document
-ids). Ycode serves the guest's own file system, so these streams see only
+ids). SwiftCode serves the guest's own file system, so these streams see only
 guest changes; that is a deliberate difference.
 
 ## 7. The minimal host behaviour
@@ -244,7 +244,7 @@ and answer:
 
 | Request | Minimal answer |
 |---|---|
-| 66002 | RetCode 0 and a fixed UUID string per device of the guest's data (one per Ycode device, kept with the device so that it is the same in every boot; a new UUID tells clients that their stored ids are void, which they handle by rescanning) |
+| 66002 | RetCode 0 and a fixed UUID string per device of the guest's data (one per SwiftCode device, kept with the device so that it is the same in every boot; a new UUID tells clients that their stored ids are void, which they handle by rescanning) |
 | 66003 | RetCode 0 and an id that never decreases across boots of the device (for example a counter kept with the device and advanced by every answer and every event) |
 | 66004 | RetCode 0 and id 0 |
 | 66000 | a new stream port; keep the client port's send right; if `sinceWhen` is not `SinceNow`, send the HistoryDone event of §5 step 3 |
@@ -280,11 +280,11 @@ task and stayed up until the shutdown, 5 and 7 minutes after the
 failed calls (one start in each boot; the processes had run 33 and 107
 minutes in all, most of it starved by the host's load). It did not
 log the subscription failure (POSIX 19) or the fatal error seen in
-Ycode (`service-fidelity.md` §11). The service is therefore not what
+SwiftCode (`service-fidelity.md` §11). The service is therefore not what
 keeps fileindexerd alive; §7's behaviour gives the guest file-event
-notification and removes the failed calls. Ycode's crash comes from the
-volume capabilities that Ycode's `getattrlist` reports for the data
-volume: injecting Ycode's two capability words into fileindexerd's reply
+notification and removes the failed calls. SwiftCode's crash comes from the
+volume capabilities that SwiftCode's `getattrlist` reports for the data
+volume: injecting SwiftCode's two capability words into fileindexerd's reply
 on the Mac reproduces the crash word for word (`service-fidelity.md`
 §11, Q11.2).
 
@@ -304,10 +304,10 @@ streams; directory-level streams: the directory path with `/` and flags
 0). Apply the exclusion paths. History replay is not needed: answer every
 `sinceWhen` as if no stored event were newer, i.e. with HistoryDone only.
 
-## 8. What the missing service costs today (Ycode)
+## 8. What the missing service costs today (SwiftCode)
 
 - fileindexerd: its file-provider root gets no change notification
-  (it rescans instead); its crash in Ycode is caused by the volume
+  (it rescans instead); its crash in SwiftCode is caused by the volume
   capabilities, not by this service (`service-fidelity.md` §11).
 - UserEventAgent's `com.apple.fsevents.matching` plug-in cannot watch
   anything, so `WatchPaths` / `QueueDirectories` of launchd jobs
@@ -322,7 +322,7 @@ streams; directory-level streams: the directory path with `/` and flags
 
 Details: `research/notes/obs-fsevents-2026-10-27.md`.
 
-1. **Recorder.** Ycode's own interposing library (built for the simulator
+1. **Recorder.** SwiftCode's own interposing library (built for the simulator
    SDK, kept in the dirty room) inserted into every guest process of a
    boot of a throwaway Mac device (iPhone Duo, iOS 27.1 24A94401, macOS
    27.2, Xcode 27.1). It records each bootstrap look-up and XPC
@@ -336,18 +336,18 @@ Details: `research/notes/obs-fsevents-2026-10-27.md`.
    with NoDefer and WatchRoot; relative to the device with IgnoreSelf),
    fourteen file operations, flushes, stop, restart, invalidate.
 3. **Stand-in.** In fileindexerd (and, in one run, the probe) the
-   look-up of `com.apple.FSEvents` is answered either with 1102 (as Ycode
+   look-up of `com.apple.FSEvents` is answered either with 1102 (as SwiftCode
    does) or with a port served by a thread in the same process that gives
    the answers of §7 and never sends a change event;
-   `com.apple.FileProvider.sim2host` (also absent in Ycode) is denied too.
+   `com.apple.FileProvider.sim2host` (also absent in SwiftCode) is denied too.
    No Mac setting was changed.
 
-## 10. Ycode implementation
+## 10. SwiftCode implementation
 
-Code: `ycode/Sources/YcodeHostServices/FSEventsHostService.swift`; started
-by the device session (`ycode-simd/DeviceSession.swift`); tests
+Code: `swiftcode/Sources/SwiftCodeHostServices/FSEventsHostService.swift`; started
+by the device session (`swiftcode-simd/DeviceSession.swift`); tests
 `FSEventsHostServiceTests`; guest probe
-`ycode/SimShim/guest-tests/fsevents/p_fsevents.c` (public API only).
+`swiftcode/SimShim/guest-tests/fsevents/p_fsevents.c` (public API only).
 
 **Endpoint.** `com.apple.FSEvents` is a host-side name of `user/<uid>`
 (`launchd-sim.md` §6.3), registered with the late names (after the GPU,
@@ -355,26 +355,26 @@ surface and HID names; a client that looks it up earlier goes on without
 events, §7). One service port; one stream port per started stream (a member
 of the service's port set, with a no-senders request); the client port's
 send right is kept until the stream port loses its last sender.
-`YCODE_DEBUG_NO_FSEVENTS=1` leaves the name unregistered (the old state);
-`YCODE_FSEVENTS_NO_CHANGES=1` gives the minimal service of §7.
+`SWIFTCODE_DEBUG_NO_FSEVENTS=1` leaves the name unregistered (the old state);
+`SWIFTCODE_FSEVENTS_NO_CHANGES=1` gives the minimal service of §7.
 
 **Requests.** As §3 and §7: 66002 answers the store UUID for the guest's
 data volume (device 0x01000010, which holds DEV, the temporary directories
-and /System's view; Ycode's runtime volume is read-only and has no store)
+and /System's view; SwiftCode's runtime volume is read-only and has no store)
 and `NO-UUID-UNKNOWN-DEVICE` otherwise; 66003 the last event id issued;
 66004 id 0 (no history is kept); 66000 a new stream port (a malformed
 request: MIG_BAD_ARGUMENTS); 66001 sends the stream's pending events at once
 and answers the id of the last event sent to it; 66006 stops the stream;
 anything else MIG_BAD_ID; a message without a reply right is dropped.
 
-**The store.** `DEV/ycode-fsevents.plist`: `UUID` (made at the device's
+**The store.** `DEV/swiftcode-fsevents.plist`: `UUID` (made at the device's
 first boot, kept) and `ReservedEventID`. Event ids start at 1000 and are
 reserved 10 000 at a time: the file is written when a reservation is used
 up, and a new boot (or a restore, whose DEV holds the file as it was at the
 save) continues after the last reservation, so ids never go back and are
 never issued twice.
 
-**Change events.** Ycode does not watch the host. Its VFS reports every
+**Change events.** SwiftCode does not watch the host. Its VFS reports every
 change a guest process makes (`file-system-features.md` §7): the kind, the
 item type, the canonical guest path and the process. A stream's paths are
 made canonical when it starts (symbolic links resolved; for a path that
@@ -420,23 +420,23 @@ flags, latency, last id) are kept in the snapshot's host-service record
 (`fsevents`) and served again after a restore; events pending at the save
 are not replayed.
 
-**Differences from the Mac (by design).** Ycode's service sees only the
-guest's own changes made through Ycode: not changes made on the host
+**Differences from the Mac (by design).** SwiftCode's service sees only the
+guest's own changes made through SwiftCode: not changes made on the host
 behind the guest's back, not the host's files (configd_sim's resolver
 directory, DockFolderViewService's `/` are guest paths here, §6), and not
 writes through a writable shared mapping. No document-id (`/.docid`)
 events and no event history are kept. Hard links are not reported as such
-(Ycode has no `link`). None of the streams logged in a full boot (the first
+(SwiftCode has no `link`). None of the streams logged in a full boot (the first
 64 registrations) watches `var/run/simulatoraudio`; the running app's
 volume (`simulator-features.md` I.9) was a kqueue `EVFILT_VNODE` matter
 (the app watches that directory with a vnode source), fixed in
 `threads-and-events.md` §3.10.
 
-**Host writes (agent VNODE-EVENTS, 2026-10-28).** Files that `ycode-simd`
+**Host writes (agent VNODE-EVENTS, 2026-10-28).** Files that `swiftcode-simd`
 itself writes into a running device's data tree (the settings controller's
 audio settings, preference and Environment Overrides files,
 `simulator-features.md`) go through one hook, `HostDataWrites`
-(`YcodeDarwinABI/VnodeNotes.swift`), which reports to this service the same
+(`SwiftCodeDarwinABI/VnodeNotes.swift`), which reports to this service the same
 changes a guest process's safe save would make, with pid 0: the temporary
 file created and modified, then renamed, and the name renamed (so a
 `MarkSelf` stream never marks them as its own, and `IgnoreSelf` never drops
@@ -454,7 +454,7 @@ boot: a new reservation, never back), file events of a new file (created,
 modified, ChangeOwner for `chmod`, extended attribute, renamed, OwnEvent;
 then the new name; a directory created and removed) and HistoryDone for a
 stream since an id. fileindexerd starts once in 700 s
-(`service-fidelity.md` §11, Ycode implementation).
+(`service-fidelity.md` §11, SwiftCode implementation).
 
 ## Evidence
 
@@ -467,11 +467,11 @@ stream since an id. fileindexerd starts once in 700 s
 | The UUID differs from the APFS volume UUID; stable across boots; stored by fileindexerd | 3 (`diskutil info`; five boots; the state file read as data) |
 | Clients and watched paths (§6); jobs with `WatchPaths`/`QueueDirectories` | 3 (recorder); 2 (RR job plists read as data) |
 | The client library accepts the minimal answers; fileindexerd stays up without the service and with the minimal stand-in (§7) | 3 (stand-in runs with the probe and with fileindexerd, and look-ups denied, on three devices, §9.3) |
-| Ycode's fileindexerd crash comes from the data volume's capability bits (§7) | 3 (fault injection on the Mac; `service-fidelity.md` §11) |
+| SwiftCode's fileindexerd crash comes from the data volume's capability bits (§7) | 3 (fault injection on the Mac; `service-fidelity.md` §11) |
 | Interposition of the guest's own calls (method) | 3 (black-box; our own code) |
-| Ycode's service, its store, flag mapping and coalescing (§10) | Ycode design (from §2–§7); unit tests `FSEventsHostServiceTests`; guest probe `p_fsevents` on the Linux host (runs `fsh/probe1`, `probe2`) |
+| SwiftCode's service, its store, flag mapping and coalescing (§10) | SwiftCode design (from §2–§7); unit tests `FSEventsHostServiceTests`; guest probe `p_fsevents` on the Linux host (runs `fsh/probe1`, `probe2`) |
 | No guest stream on `var/run/simulatoraudio` (§10) | 3 (the service's stream log of a full boot, `fsh/probe1`) |
-| Host writes reported through `HostDataWrites` (§10) | Ycode design; unit test `VnodeEventsTests.anotherProcessAndTheHostPost` |
+| Host writes reported through `HostDataWrites` (§10) | SwiftCode design; unit test `VnodeEventsTests.anotherProcessAndTheHostPost` |
 | Darwin's own change kinds behind the flags (FSE_CREATE_FILE, FSE_CHOWN for chmod, FSE_STAT_CHANGED, FSE_CLONE pairs) (§10) | 1 (xnu `bsd/sys/fsevents.h`, `bsd/vfs/vfs_syscalls.c`) |
 
 No disassembly or decompilation was used (level 5 not used).

@@ -3,7 +3,7 @@
 // Bridges to NSError with domain `WeatherKit.WeatherError` and codes 0
 // (`permissionDenied`) and 1 (`unknown`) through Swift's default error
 // bridging (the module and type names give the domain, the case order the
-// code). The phrases are Ycode's own wording.
+// code). The phrases are SwiftCode's own wording.
 import Foundation
 
 /// Errors the weather service reports.
@@ -35,7 +35,7 @@ public enum WeatherError: LocalizedError, Sendable {
     public var recoverySuggestion: String? { nil }
 }
 
-/// Units Ycode's model uses (api.md §6: the REST API's metric units).
+/// Units SwiftCode's model uses (api.md §6: the REST API's metric units).
 enum WeatherUnits {
     /// Millimetres per hour, for precipitation intensities.
     static var millimetersPerHour: UnitSpeed {

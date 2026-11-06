@@ -1,6 +1,6 @@
 // swift-tools-version:6.0
 //
-// ycode-weatherkit: an open, Linux-buildable WeatherKit written from
+// swiftcode-weatherkit: an open, Linux-buildable WeatherKit written from
 // specs/frameworks/weatherkit/ under the clean-room protocol of AGENTS.md.
 //
 // The library module is named `WeatherKit` (an interop identifier) so that
@@ -25,7 +25,7 @@ let weatherKitDependencies: [Target.Dependency] = []
 #endif
 
 let package = Package(
-    name: "ycode-weatherkit",
+    name: "swiftcode-weatherkit",
     platforms: [.macOS(.v15), .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .visionOS(.v2)],
     products: coreLocationProducts + [
         .library(name: "WeatherKit", targets: ["WeatherKit"])

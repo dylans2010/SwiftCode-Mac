@@ -9,7 +9,7 @@ import SwiftUICore
 // Picker (round R8): segmented, menu and inline styles. 06 §4: in a Form the
 // default style shows the selection with a menu. Golden `picker.segmented`:
 // 84 × 31 for "A" and "Bee" unproposed (equal segments: the widest label + 8
-// + 8; Ycode's segment font is the subheadline style), the proposed width
+// + 8; SwiftCode's segment font is the subheadline style), the proposed width
 // otherwise, 31 high, baselines 20.67.
 //
 // The options are the views of the content that carry a `tag(_:)` (or, in a
@@ -212,7 +212,7 @@ extension Picker: PrimitiveView {
 /// How a picker presents its options.
 @MainActor @preconcurrency
 public protocol PickerStyle {
-    /// Ycode's style identifier (the reference API has no public requirement).
+    /// SwiftCode's style identifier (the reference API has no public requirement).
     var _ovStyleKind: Int { get }
 }
 

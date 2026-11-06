@@ -1,4 +1,4 @@
-# Spec: stage 3a-ii contract (Ycode's host libraries)
+# Spec: stage 3a-ii contract (SwiftCode's host libraries)
 
 Status: **contract, complete.** §7 and §8 build on
 `specs/simulator/host-library-init.md` (level 1).
@@ -13,14 +13,14 @@ Inputs:
 
 ## 1. Goal and exit criterion
 
-Ycode supplies clean-room replacements for the three macOS host libraries
+SwiftCode supplies clean-room replacements for the three macOS host libraries
 that the simulator runtime re-exports:
 
 - `/usr/lib/system/libsystem_kernel.dylib`
 - `/usr/lib/system/libsystem_platform.dylib`
 - `/usr/lib/system/libsystem_pthread.dylib`
 
-**Exit criterion (3a):** `ycode-simd --exec hello …` on the Thor prints
+**Exit criterion (3a):** `swiftcode-simd --exec hello …` on the Thor prints
 `milestone: libSystem initializer reached` (stage-3 contract §1). **Stretch
 (3b):** `hello` prints its line and exits 0.
 
@@ -58,10 +58,10 @@ Dependencies between the three:
 
 ## 3. Build
 
-- **Sources:** `ycode/SimHostLibs/{kernel,platform,pthread}/`, in C11
+- **Sources:** `swiftcode/SimHostLibs/{kernel,platform,pthread}/`, in C11
   (freestanding) and arm64 assembly.
-- **Build script:** `ycode/SimHostLibs/build.sh` writes
-  `ycode/SimHostLibs/out/libsystem_{kernel,platform,pthread}.dylib`.
+- **Build script:** `swiftcode/SimHostLibs/build.sh` writes
+  `swiftcode/SimHostLibs/out/libsystem_{kernel,platform,pthread}.dylib`.
 - **It must build on Linux** with the swiftly toolchain: `clang`, plus
   `ld64.lld` through `-fuse-ld=lld` or a direct `ld64.lld` call. The flags
   are:
@@ -79,17 +79,17 @@ Dependencies between the three:
 - **No SDK headers.** The libraries declare their own types, so the build
   never needs the iOS SDK.
 - **Self-check.** The build script verifies every output with
-  `ycode macho`: platform 7, MH_DYLIB, arm64 subtype 0, the install name,
+  `swiftcode macho`: platform 7, MH_DYLIB, arm64 subtype 0, the install name,
   no code signature, and 16 KiB-aligned segments. It also checks that
   **every symbol in the matching surface JSON** is exported (from
-  `llvm-nm -gU`, or Ycode's export-trie reader if one exists). A missing
+  `llvm-nm -gU`, or SwiftCode's export-trie reader if one exists). A missing
   symbol fails the build.
 
 ### 3.1 Toolchain deviations (normative, from agent P)
 
 - **CPU baseline.** The default CPU for the `arm64-apple` triple emits
   `ldapr` (FEAT_LRCPC). The Thor has it, and the reference hosts are
-  ARMv8.4 or later. Ycode's host libraries require LRCPC.
+  ARMv8.4 or later. SwiftCode's host libraries require LRCPC.
 
 - **Untagged objects.** Swift 6.4's `ld64.lld` rejects input objects that
   carry a Darwin platform tag.
@@ -120,7 +120,7 @@ Dependencies between the three:
 Every surface symbol must be exported from day one. A function that is not
 implemented yet is a generated stub. The stub:
 
-- executes Ycode-private trap **`x16 = 0x7963_0F00`** with `x0` = a pointer
+- executes SwiftCode-private trap **`x16 = 0x7963_0F00`** with `x0` = a pointer
   to the symbol name (a NUL-terminated string in `__TEXT,__cstring`). The
   VMM logs `unimplemented libfunc <name>`. In `--trace` mode the VMM exits
   with status **73**; otherwise it returns;
@@ -161,7 +161,7 @@ struct layouts:
 - `ProgramVars` (40 B)
 - the bsdthread registration record (56 B)
 
-Ycode's decisions:
+SwiftCode's decisions:
 
 1. **Nothing depends on the init functions being called.** It is not
    confirmed that the iOS 27.1 libSystem calls `__libkernel_init`,
@@ -249,7 +249,7 @@ Ycode's decisions:
      `errno` in `libsystem_kernel`. A TSD base of 0 is treated as "no slot".
    - `cerror` (cancellation is a no-op in 3a) and `cerror_nocancel` store
      into both locations and return −1 in `x0` and `x1`.
-   - P's `__ycode_set_errno` hook is implemented by K on top of these.
+   - P's `__swiftcode_set_errno` hook is implemented by K on top of these.
 6. **`apple[]` additions the VMM must supply.** In addition to stage-3 §6:
    `ptr_munge=` (**non-zero**), `security_config=0x0`, and
    `th_port=0x203`.
@@ -261,7 +261,7 @@ trap whose ELR lies in any of these**:
 
 - a shared-cache image under `/usr/lib/system/libsystem_*`;
 - the shared-cache `libSystem.B`;
-- one of Ycode's three host libraries.
+- one of SwiftCode's three host libraries.
 
 `dyld_sim` never calls the host libraries itself, so a trap from them means
 the libSystem initialization chain is running. The milestone line names
@@ -272,12 +272,12 @@ the image and offset, and the LR's image too.
 **Milestone reached on the Thor**, reproduced by the orchestrator:
 
 ```
-milestone: libSystem initializer reached (/usr/lib/system/libsystem_kernel.dylib [ycode] + 0x7e8; LR 0x25a9f20b0 = /usr/lib/libSystem.B.dylib + 0x10b0)
+milestone: libSystem initializer reached (/usr/lib/system/libsystem_kernel.dylib [swiftcode] + 0x7e8; LR 0x25a9f20b0 = /usr/lib/libSystem.B.dylib + 0x10b0)
 ```
 
 - 280 traps.
 - All 11 cache mappings were made at their header addresses.
-- The three Ycode libraries were loaded from the VFS (stat, open, fstat,
+- The three SwiftCode libraries were loaded from the VFS (stat, open, fstat,
   `F_CHECK_LV`, mmap).
 - **libSystem.B calls the host `__libkernel_init` directly.** This settles
   `host-library-init.md` open question 1.
@@ -295,16 +295,16 @@ milestone: libSystem initializer reached (/usr/lib/system/libsystem_kernel.dylib
    stays fixed.
 3. **Build order on a fresh checkout:** first `swift build`, then
    `sh SimShim/build.sh`, then `sh SimHostLibs/build.sh`. The last of these
-   uses `.build/debug/ycode` and `../../specs/simulator/data`.
+   uses `.build/debug/swiftcode` and `../../specs/simulator/data`.
 4. **`pfz=`** is not supplied. There is no commpage text page, so nothing
    needs it yet.
 5. **Main-thread block placement:** a 16 KiB EL0 RW page at `0x3_1001_0000`,
    directly after the host page. `TPIDRRO_EL0` = `0x3_1001_00E0`.
 
-## 10. Stage 3b: Ycode-private Mach-routine ABI (normative)
+## 10. Stage 3b: SwiftCode-private Mach-routine ABI (normative)
 
 On Darwin, MIG routines (`host_get_clock_service`, `semaphore_create`, …)
-are RPC messages to the kernel. Ycode owns both ends, its
+are RPC messages to the kernel. SwiftCode owns both ends, its
 `libsystem_kernel` and its VMM, so instead of emulating MIG messaging it
 uses **private traps**:
 
@@ -366,7 +366,7 @@ Any other name → `KERN_INVALID_NAME`.
   see sane values.
 
 **Exit criterion (3b) — MET 2026-10-11** (orchestrator reproduction: exit 0, 740 traps,
-0 unimplemented under `--trace`): `ycode-simd --exec hello …` with **no debug flags**
+0 unimplemented under `--trace`): `swiftcode-simd --exec hello …` with **no debug flags**
 prints `hello from the iOS simulator runtime on Linux` and exits 0, and the
 `--trace` run shows no unimplemented library function or trap on the path.
 
@@ -374,17 +374,17 @@ prints `hello from the iOS simulator runtime on Linux` and exits 0, and the
 
 | Owner | Scope |
 |---|---|
-| Agent **P** (now) | `ycode/SimHostLibs/build.sh`, `SimHostLibs/README.md`, `SimHostLibs/common/` (shared headers, the stub generator), `SimHostLibs/platform/`, plus the generated unimplemented-stub layer for *all three* libraries, so every library links and passes the export check from the start |
+| Agent **P** (now) | `swiftcode/SimHostLibs/build.sh`, `SimHostLibs/README.md`, `SimHostLibs/common/` (shared headers, the stub generator), `SimHostLibs/platform/`, plus the generated unimplemented-stub layer for *all three* libraries, so every library links and passes the export check from the start |
 | Agent **K** (after §7–§8) | `SimHostLibs/kernel/` |
 | Agent **Q** (after §7–§8) | `SimHostLibs/pthread/` |
-| Agent **H2** (after §7–§8) | VMM integration (§5, §6) in `YcodeHypervisor` and `ycode-simd`. The private trap `0x7963_0F00` goes in `YcodeDarwinKernel` |
+| Agent **H2** (after §7–§8) | VMM integration (§5, §6) in `SwiftCodeHypervisor` and `swiftcode-simd`. The private trap `0x7963_0F00` goes in `SwiftCodeDarwinKernel` |
 
 The orchestrator owns `Package.swift`, every spec, and the commits.
 
 ## Evidence
 
 - §2 and §5: `host-library-loading.md` (level 1).
-- §3 and §4: Ycode design. The symbol lists come from
+- §3 and §4: SwiftCode design. The symbol lists come from
   `host-library-surface.md` (level 4).
 
 ## 11. Stage 4c decisions (2026-10-12)
@@ -471,7 +471,7 @@ taken from the host file system of the volume's first writable prefix,
 for "/"'s volume the device directory; `visionos.md` §10.26.2), `f_fsid` = {dev, 0x1A},
 `MNT_ROOTFS` for `/`, `MNT_DOVOLFS | MNT_JOURNALED`, `f_fssubtype` 1.
 
-**Ycode decisions (not yet backed by a probe):** `memorystatus_control`
+**SwiftCode decisions (not yet backed by a probe):** `memorystatus_control`
 EPERM except commands 18/19/24 → EINVAL (EPERM itself is level 3,
 `app-install-launch.md` §3.3); `quotactl` ENOTSUP; `csrctl` op 0 EPERM, op
 1 config 0; `__persona`: no personas exist (ESRCH; alloc/dealloc EPERM;
@@ -499,7 +499,7 @@ signed images only.
   `__commpage_gettimeofday` stays "not available" by default: reading
   `CNTVCT_EL0` in place needs every vCPU's virtual counter aligned to the
   kernel's mach time first (`first-boot.md` §6 item 4). With the commpage
-  flag byte of `fast-traps.md` §2 (VMM switch `YCODE_FAST_TRAPS=1`) the
+  flag byte of `fast-traps.md` §2 (VMM switch `SWIFTCODE_FAST_TRAPS=1`) the
   library reads the counter, the `NEWTIMEOFDAY_DATA` snapshot and the
   credential block instead (`fast-traps.md` §3–§5); `getuid`, `geteuid`,
   `getgid` and `getegid` are hand-written for that.
@@ -514,7 +514,7 @@ count is in 32-bit words.
 | Flavor | Count | Values |
 |---|---|---|
 | `HOST_BASIC_INFO` (1) | 12 (`HOST_BASIC_INFO_COUNT`), or 5 (`HOST_BASIC_INFO_OLD_COUNT`) | `max_cpus` 1, `avail_cpus` 1, `memory_size` 1 GiB, `cpu_type` `CPU_TYPE_ARM64` (0x0100000C), `cpu_subtype` 0 (`CPU_SUBTYPE_ARM64_ALL`), `cpu_threadtype` 0, `physical_cpu` 1, `physical_cpu_max` 1, `logical_cpu` 1, `logical_cpu_max` 1, `max_mem` (uint64 at +40) 1 GiB. With a count of 5 to 11 only the first five fields are written and the count becomes 5. |
-| `HOST_SCHED_INFO` (3) | 2 | `min_timeout` 10, `min_quantum` 10 (ms; a Ycode choice) |
+| `HOST_SCHED_INFO` (3) | 2 | `min_timeout` 10, `min_quantum` 10 (ms; a SwiftCode choice) |
 | `HOST_PRIORITY_INFO` (5) | 8 | as §7 item 5 |
 
 A count below the flavor's minimum is `KERN_FAILURE`; a NULL `info` or
@@ -523,14 +523,14 @@ A count below the flavor's minimum is `KERN_FAILURE`; a NULL `info` or
 flavor ("host_info (flavor N)"). The CPU and memory values agree with the
 guest's sysctls (`hw.ncpu`, `hw.memsize`, `hw.cputype`, `hw.cpusubtype`).
 JavaScriptCore asked for one of the new flavors at start-up and failed
-without it (level 3, Ycode boot logs). From the speed explorer X15's
+without it (level 3, SwiftCode boot logs). From the speed explorer X15's
 prototype.
 
 ### 11.6 Cooperative thread requests without a cooperative pool (speed work, 2026-10-16)
 
 `_pthread_workqueue_add_cooperativethreads(n, priority)` asks the kernel for
 one cooperative thread per call of `workq_kernreturn` op
-`QUEUE_REQTHREADS2` (0x030, count 1; `threads-and-events.md` §2.3). Ycode's
+`QUEUE_REQTHREADS2` (0x030, count 1; `threads-and-events.md` §2.3). SwiftCode's
 kernel has no cooperative pool and refuses the op with `ENOTSUP`. The
 library then:
 
@@ -557,13 +557,13 @@ those cycles.
 
 Evidence: op numbers and the meaning of the cooperative flag are from
 open-source xnu/libpthread (`workqueue_internal.h`, `qos_private.h`;
-level 1). The worker cycle and trap counts are from Ycode traces and exit
-summaries (level 3). The fallback mapping is a Ycode design.
+level 1). The worker cycle and trap counts are from SwiftCode traces and exit
+summaries (level 3). The fallback mapping is a SwiftCode design.
 
 ### 11.7 Mach thread and task suspension (agent THREAD-SUSPEND, 2026-10-28)
 
 Hand-written in `kernel/mach.c`; they were generated stubs
-(KERN_NOT_SUPPORTED). Ycode-private traps in the kernel's own range (not
+(KERN_NOT_SUPPORTED). SwiftCode-private traps in the kernel's own range (not
 the `0x7963_2000` routine range): they run on the locked path under L0
 alone, so the suspender can wait with every lock released
 (`threads-and-events.md` §1.6).

@@ -2,7 +2,7 @@
 //
 // Public failures are `HMError` values (domain `HMErrorDomain`); the
 // undocumented code 2040 of errors.md §2 is a plain NSError in the same domain
-// because it has no `HMError.Code` case. Descriptions are Ycode's own wording.
+// because it has no `HMError.Code` case. Descriptions are SwiftCode's own wording.
 
 import Foundation
 
@@ -141,7 +141,7 @@ public struct HMError: Error, CustomNSError, Hashable, Sendable, CustomStringCon
     public var localizedDescription: String { userInfo[NSLocalizedDescriptionKey] ?? HMError.describe(code) }
     public var description: String { "HMError(\(code.rawValue) \(code))" }
 
-    /// Ycode's description text for a code (own wording, errors.md §2 last paragraph).
+    /// SwiftCode's description text for a code (own wording, errors.md §2 last paragraph).
     public static func describe(_ code: Code) -> String {
         switch code {
         case .homeAccessNotAuthorized: return "Access to home data is not authorized for this app."
@@ -163,12 +163,12 @@ public struct HMError: Error, CustomNSError, Hashable, Sendable, CustomStringCon
 extension HMError {
     /// The private "no account" code returned by `addHome` without an iCloud
     /// account (errors.md §2; not a public `HMErrorCode`).
-    public static let ycodeNoAccountCode = 2040
+    public static let swiftcodeNoAccountCode = 2040
 
     /// The 2040 error exactly as errors.md §2 describes it: domain
     /// `HMErrorDomain`, userInfo holding only a localized description.
-    public static func ycodeNoAccountError() -> NSError {
-        NSError(domain: HMErrorDomain, code: ycodeNoAccountCode,
+    public static func swiftcodeNoAccountError() -> NSError {
+        NSError(domain: HMErrorDomain, code: swiftcodeNoAccountCode,
                 userInfo: [NSLocalizedDescriptionKey: "The operation could not be completed (unknown error code 2040)."])
     }
 
@@ -295,7 +295,7 @@ extension HMError.Code {
 // MARK: - Wire form
 
 /// An error as it crosses the store boundary (Codable for a future daemon).
-public struct YcodeHomeStoreError: Error, Codable, Hashable, Sendable {
+public struct SwiftCodeHomeStoreError: Error, Codable, Hashable, Sendable {
     public var domain: String
     public var code: Int
     public var userInfo: [String: String]
@@ -313,9 +313,9 @@ public struct YcodeHomeStoreError: Error, Codable, Hashable, Sendable {
         self.userInfo = userInfo
     }
 
-    static let noAccount = YcodeHomeStoreError(
-        domain: HMErrorDomain, code: HMError.ycodeNoAccountCode,
-        userInfo: HMError.ycodeNoAccountError().userInfo.compactMapValues { $0 as? String })
+    static let noAccount = SwiftCodeHomeStoreError(
+        domain: HMErrorDomain, code: HMError.swiftcodeNoAccountCode,
+        userInfo: HMError.swiftcodeNoAccountError().userInfo.compactMapValues { $0 as? String })
 
     /// The error an app sees: `HMError` for public codes, `NSError` otherwise.
     public var publicError: Error {
@@ -328,8 +328,8 @@ public struct YcodeHomeStoreError: Error, Codable, Hashable, Sendable {
 
 // MARK: - Accessory protocol status (errors.md §3, accessory-protocols.md §2.3)
 
-/// HAP status codes, the error vocabulary of `YcodeAccessoryEndpoint`.
-public enum YcodeHAPStatus: Int, Codable, Sendable, CaseIterable {
+/// HAP status codes, the error vocabulary of `SwiftCodeAccessoryEndpoint`.
+public enum SwiftCodeHAPStatus: Int, Codable, Sendable, CaseIterable {
     case success = 0
     case insufficientPrivileges = -70401
     case unableToCommunicate = -70402
@@ -343,7 +343,7 @@ public enum YcodeHAPStatus: Int, Codable, Sendable, CaseIterable {
     case invalidValue = -70410
     case insufficientAuthorization = -70411
 
-    /// The `HMErrorCode` an app sees for this status (errors.md §3, Ycode's proposal).
+    /// The `HMErrorCode` an app sees for this status (errors.md §3, SwiftCode's proposal).
     public var errorCode: HMError.Code? {
         switch self {
         case .success: return nil
@@ -364,8 +364,8 @@ public enum YcodeHAPStatus: Int, Codable, Sendable, CaseIterable {
 
 /// Why an accessory operation failed: a HAP status, or the connection is gone
 /// (mapped to 4 `AccessoryNotReachable`, errors.md §3 last row).
-public enum YcodeAccessoryFailure: Error, Codable, Hashable, Sendable {
-    case status(YcodeHAPStatus)
+public enum SwiftCodeAccessoryFailure: Error, Codable, Hashable, Sendable {
+    case status(SwiftCodeHAPStatus)
     case unreachable
 
     public var errorCode: HMError.Code {

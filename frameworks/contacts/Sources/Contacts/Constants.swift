@@ -313,7 +313,7 @@ public let CNSocialProfileUserIdentifierKey: String = "userIdentifier"
 public let CNSocialProfileUsernameKey: String = "username"
 
 /// Every label constant of the spec (for tests and localization).
-let ycodeAllLabelConstants: [(name: String, value: String)] = [
+let swiftcodeAllLabelConstants: [(name: String, value: String)] = [
     ("CNLabelContactRelationAssistant", "_$!<Assistant>!$_"),
     ("CNLabelContactRelationAunt", "_$!<Aunt>!$_"),
     ("CNLabelContactRelationAuntFathersBrothersWife", "_$!<AuntFathersBrothersWife>!$_"),
@@ -548,7 +548,7 @@ let ycodeAllLabelConstants: [(name: String, value: String)] = [
 ]
 
 /// Every string constant of the spec with its value (C-CN-MODEL).
-let ycodeAllStringConstants: [(name: String, value: String)] = [
+let swiftcodeAllStringConstants: [(name: String, value: String)] = [
     ("CNContactBirthdayKey", CNContactBirthdayKey),
     ("CNContactDatesKey", CNContactDatesKey),
     ("CNContactDepartmentNameKey", CNContactDepartmentNameKey),

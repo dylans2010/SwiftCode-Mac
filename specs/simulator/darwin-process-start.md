@@ -225,7 +225,7 @@ EL0, and non-executable at EL1.
 0**, because simulator platform libraries must run on older host kernels.
 At version 0, the four fields that have RO-page copies (`USER_PAGE_SHIFT_32`,
 `USER_PAGE_SHIFT_64`, `KERNEL_PAGE_SHIFT`, `DEV_FIRM`) are read from their
-**legacy RW-page** offsets. The kernel fills both copies. Ycode should fill
+**legacy RW-page** offsets. The kernel fills both copies. SwiftCode should fill
 both.
 
 ### 3.2 RW-data page, base `0xF_FFFF_C000` (user read-only)
@@ -311,7 +311,7 @@ layout-version-1 (non-simulator) binaries.
 
 The text page holds a jump table at its start. libsystem_kernel finds the
 page through `apple[]` `pfz=` at startup (`__libkernel_init`). The page
-contains Apple code, so Ycode must write its own code with the same
+contains Apple code, so SwiftCode must write its own code with the same
 behavior.
 
 | Offset | Entry | Behavior |
@@ -465,9 +465,9 @@ matches the stage-2 VMM's choice.
 
 ---
 
-## 5. Implications for Ycode (stage 3)
+## 5. Implications for SwiftCode (stage 3)
 
-What the VMM must build for each new guest process. This is Ycode's design.
+What the VMM must build for each new guest process. This is SwiftCode's design.
 The Darwin facts it relies on are above.
 
 **Address space.**
@@ -484,7 +484,7 @@ The Darwin facts it relies on are above.
 3. Map three commpage pages, each 16 KiB:
    - RW-data page at `0xF_FFFF_C000`, EL0 read-only, XN;
    - RO-data page at `0xF_FFFF_4000`, EL0 read-only, XN;
-   - a text page (Ycode's own PFZ routines, §3.4) at a fixed Ycode-chosen
+   - a text page (SwiftCode's own PFZ routines, §3.4) at a fixed SwiftCode-chosen
      VA inside `0xF_FFE0_0000`–`0xF_FFFF_FFFF` that is not one of the two
      data pages, EL0 read+execute.
    Keep `[0xF_C000_0000, 0x10_0000_0000)` free of other mappings.
@@ -507,7 +507,7 @@ The Darwin facts it relies on are above.
 
 The minimum apple set to provide, in this order:
 
-| String | Ycode value |
+| String | SwiftCode value |
 |---|---|
 | `executable_path=` | The guest path |
 | `pfz=` | The text page VA |
@@ -517,12 +517,12 @@ The minimum apple set to provide, in this order:
 | `main_stack=` | top, usable size, alloc base, alloc size |
 | `executable_file=` | Optional. Any stable fsid,fileid |
 | `executable_cdhash=` / `executable_boothash=` | Only if a CDHash is known. Omit otherwise |
-| `th_port=` | The guest name of the main-thread port. Ycode's Mach layer must create this name with one send right |
+| `th_port=` | The guest name of the main-thread port. SwiftCode's Mach layer must create this name with one send right |
 | `security_config=` | `0x0` |
 
 **Registers.**
 
-- PC = the entry of the program that Ycode starts first;
+- PC = the entry of the program that SwiftCode starts first;
 - SP = the value from step 5 above;
 - x0–x30 = 0;
 - SPSR = `0x0` (EL0t, DAIF clear). This is **different from the stage-2
@@ -535,7 +535,7 @@ The minimum apple set to provide, in this order:
 **Commpage fill.** The simulator reads the legacy RW offsets (§3.1). Fill
 both copies of each duplicated field.
 
-| Field | Value for Ycode |
+| Field | Value for SwiftCode |
 |---|---|
 | 0x000 signature | `commpage 64-bit` |
 | 0x01E version | 3 |
@@ -559,9 +559,9 @@ both copies of each duplicated field.
 
 **Guest CPU count (nCPU; speed work 2026-10-17).** The guest is told one
 CPU count, N, everywhere it can read one, so that every consumer sizes its
-thread pools alike. N is the launcher setting `YCODE_GUEST_CPUS` (1…64)
+thread pools alike. N is the launcher setting `SWIFTCODE_GUEST_CPUS` (1…64)
 when set, otherwise **1** (measured default, below). N does not depend on how many
-vCPUs an image has (Ycode gives every guest thread its own vCPU). With N:
+vCPUs an image has (SwiftCode gives every guest thread its own vCPU). With N:
 
 - commpage: `NCPUS` (0x022, the `kNumCPUs` field of the capabilities),
   `ACTIVE_CPUS`, `PHYSICAL_CPUS`, `LOGICAL_CPUS` = N; `kUP` only when N = 1;
@@ -574,7 +574,7 @@ vCPUs an image has (Ycode gives every guest thread its own vCPU). With N:
   and are written as 4 bytes, with length 4, also to an 8-byte buffer
   (visionos.md §10.10.1: RealityKit's render manager asks
   `hw.physicalcpu` with an 8-byte buffer, and an 8-byte answer
-  overwrites two of its flags; Ycode does so since VISIONOS-R3, with the
+  overwrites two of its flags; SwiftCode does so since VISIONOS-R3, with the
   other width rules in `stage3-contract.md` §8);
 - workqueue: the constrained parallelism per QoS, the cooperative pool
   width (`threads-and-events.md` §2.5) and the `QOS_MAX_PARALLELISM` answer
@@ -599,14 +599,14 @@ data drive filled). In those builds N = 14 also made fileindexerd fail its
 start in a loop ("Failed to init after preparing dependencies",
 NSPOSIXErrorDomain 19; 15–47 crashes per boot) while at N = 1 it still
 waited for searchd. That crash is not caused by N: once searchd runs (the
-renameatx_np fix) fileindexerd crashes the same way at N = 1, because Ycode
+renameatx_np fix) fileindexerd crashes the same way at N = 1, because SwiftCode
 has no host `com.apple.FSEvents` service (`service-fidelity.md`).
 On the integrated build (speed-int fb1a4d6 with fast traps, the HVC
 doorbell and the 24 MHz timebase; two boots at a time) N = 1 reached the
 home screen at 240/285/270 s with the kernel lock busy 23–29 % of the run,
 N = 14 at 245/295/285 s with 30–35 %. More admitted workers did not shorten
-the boot: Ycode's kernel lock serializes the traps they make. Larger N stays
-available through `YCODE_GUEST_CPUS` for experiments.
+the boot: SwiftCode's kernel lock serializes the traps they make. Larger N stays
+available through `SWIFTCODE_GUEST_CPUS` for experiments.
 
 Evidence: level 1. The commpage fields are from xnu
 (`osfmk/arm/cpu_capabilities.h`, `osfmk/arm/commpage/commpage.c`); the
@@ -614,9 +614,9 @@ sysctl names from xnu (`bsd/kern/kern_mib.c`); libdispatch's use of them
 from libdispatch (`src/shims/hw_config.h`: `_dispatch_hw_get_config`, which
 reads the commpage CPU counts and `hw.activecpu`/`hw.logicalcpu_max`/
 `hw.physicalcpu`); the cooperative width from libdispatch's cooperative root
-queues and xnu `bsd/pthread/workqueue_internal.h`. The value of N is Ycode's
+queues and xnu `bsd/pthread/workqueue_internal.h`. The value of N is SwiftCode's
 choice. The default N = 1 is level 3: the boot times and crash counts
-above (Ycode boots on the Thor, exit summaries).
+above (SwiftCode boots on the Thor, exit summaries).
 
 **Timebase mode.** The value 3 (`ACNTVCT_EL0`) must **not** be used: that
 register is Apple-specific and is UNDEFINED on the Thor. Choose one of:
@@ -635,20 +635,20 @@ register is Apple-specific and is UNDEFINED on the Thor. Choose one of:
   - The value 2 (`CNTVCTSS_EL0`) is allowed only if the guest has
     FEAT_ECV.
 
-**Guest timebase (Ycode's choice since 2026-10-17): Mode A semantics, 24
+**Guest timebase (SwiftCode's choice since 2026-10-17): Mode A semantics, 24
 MHz.** The guest's mach time runs at Apple's arm64 timebase, 24 MHz
 (`mach_timebase_info` = 125/3), whatever the host counter's frequency:
 
 - traps −3 and −4 return the VM's aligned host counter scaled to 24 MHz
   with the fixed-point clock scale of `fast-traps.md` §3.2 (≈ counter ×
   24 000 000 / `CNTFRQ_EL0`; on the Thor, 1 GHz: ≈ × 3/125); with the fast
-  traps on (the default) Ycode's library computes the same value at EL0
+  traps on (the default) SwiftCode's library computes the same value at EL0
   from `CNTVCT_EL0` and the scale the commpage publishes;
 - trap −89 returns 125/3;
 - the commpage says `USER_TIMEBASE` = 0 (no user timebase), so code that
   reads the commpage (libsyscall's `mach_absolute_time.s`,
   `kdebug_trace.c`) takes the trap instead of reading `CNTVCT_EL0`, which
-  stays at the host frequency; Ycode's own `libsystem_kernel` traps, or
+  stays at the host frequency; SwiftCode's own `libsystem_kernel` traps, or
   (fast traps) reads the counter only through the scale;
 - every mach-tick value the kernel takes or gives (mach_wait_until,
   mk_timer, `NOTE_MACHTIME` and absolute kevent timers, ulock deadlines,
@@ -656,7 +656,7 @@ MHz.** The guest's mach time runs at Apple's arm64 timebase, 24 MHz
   commpage wall-clock snapshot) uses the same 24 MHz ticks, because the kernel converts with its one
   counter and frequency.
 
-The launcher setting `YCODE_GUEST_TIMEBASE=host` restores Mode B (the host
+The launcher setting `SWIFTCODE_GUEST_TIMEBASE=host` restores Mode B (the host
 counter as is, 10⁹/`CNTFRQ_EL0`, `USER_TIMEBASE` = 1).
 
 Why: Swift Concurrency on Apple arm64 does not ask for the timebase. It
@@ -684,7 +684,7 @@ correct with either timebase.
   fatal guest error, not a return of 1);
 - the platform call sub-selectors in x3.
 
-**A reused VM** (`boot-profile.md` §9, SP1: Ycode may run a new image in
+**A reused VM** (`boot-profile.md` §9, SP1: SwiftCode may run a new image in
 the KVM VM of an image that ended): the new image sees exactly the state of
 §1–§3. Its RAM and anonymous memory read as zeros, every vCPU is reset to
 its initial state, its file mappings show the file's current bytes, and no
@@ -697,13 +697,13 @@ first vCPU's boot). Nothing of the old process is visible to it.
 
 1. **Which program runs first.** The kernel always starts `/usr/lib/dyld`,
    the host dyld, which is not part of the simulator runtime. On macOS the
-   host dyld loads `dyld_sim` from the runtime. Ycode must either start
+   host dyld loads `dyld_sim` from the runtime. SwiftCode must either start
    `dyld_sim` directly, with whatever interface the host dyld gives it, or
    provide a minimal loader of its own. That interface is not in xnu. It
    needs a separate spec (dyld open source, level 1).
 2. **SP alignment at entry.** xnu does not align SP to 16 bytes (§1.2).
    Confirm from dyld's open-source start code that it realigns before using
-   SP. If it does not, Ycode should add padding.
+   SP. If it does not, SwiftCode should add padding.
 3. **Extra `apple[]` keys** that the host dyld adds before it calls
    `dyld_sim` (for example the simulator-specific keys). Not in xnu.
 4. **Commpage fields the iOS 27.1 runtime reads.** libsyscall's startup
@@ -748,6 +748,6 @@ the repository.
 | Timebase numer/denom formula, `mach_timebase_info` trap | `osfmk/arm/rtclock.c` (`timebase_callback`, `clock_timebase_info`), `libsyscall/wrappers/mach_timebase_info.c`, `osfmk/kern/syscall_sw.c` |
 | Guest timebase: Swift's fixed 125/3 conversion of task deadlines on Apple arm64 | swift `stdlib/public/Concurrency/DispatchGlobalExecutor.cpp` (`platform_time`, `clock_and_value_to_time`, `swift_dispatchEnqueueWithDeadline`), swiftlang/swift `main`, fetched 2026-10-17 |
 | libdispatch converts with `mach_timebase_info` | libdispatch `src/shims/time.h` (`_dispatch_time_nano2mach`), `src/time.c` (`_dispatch_host_time_init`), apple-oss-distributions/libdispatch `main`, fetched 2026-10-17 |
-| The Thor's counter is 1 GHz | level 3: `ycode-simd` reports `CNTFRQ_EL0 = 1000000000 Hz`; the host kernel log says `arch_timer: cp15 timer(s) running at 1000.00MHz` |
+| The Thor's counter is 1 GHz | level 3: `swiftcode-simd` reports `CNTFRQ_EL0 = 1000000000 Hz`; the host kernel log says `arch_timer: cp15 timer(s) running at 1000.00MHz` |
 | `CPUFAMILY_*` constants | `osfmk/mach/machine.h` |
 | macOS arm64 kernel options | `config/MASTER`, `config/MASTER.arm64.MacOSX` |

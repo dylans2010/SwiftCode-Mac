@@ -4,8 +4,8 @@ Status: **reference** for stage 7 and stage 8 (agent R6). It answers one
 question: when the host offers no Metal service, does the render server of
 the iOS 27.1 runtime (24A94401) still put real pixels into the swapchain
 surfaces that the framebuffer library receives? It then gives the method
-Ycode can use to save the current frame as an image, and the behavior that
-Ycode's SimFramebuffer replacement (`simframebuffer.md`) and IOSurface host
+SwiftCode can use to save the current frame as an image, and the behavior that
+SwiftCode's SimFramebuffer replacement (`simframebuffer.md`) and IOSurface host
 service (`iosurface-remote.md`) must have so that the saved frames are
 valid.
 
@@ -39,7 +39,7 @@ Terms:
 ## 1. Answer
 
 **Yes.** Without Metal host services, the render server draws real
-pixels into the display buffers and submits them. Ycode can take a
+pixels into the display buffers and submits them. SwiftCode can take a
 screenshot by saving the last submitted surface.
 
 1. **No Metal device.** With the Metal names absent, a guest process gets
@@ -90,7 +90,7 @@ screenshot by saving the last submitted surface.
    from Metal and 8469 XPC connection attempts to
    `com.apple.metal.simulator`. One look-up of
    `com.apple.metal.simulator.backboardd` was also denied. R4 saw the same
-   thing (`simframebuffer.md` §7 item 11). Ycode's answer to these
+   thing (`simframebuffer.md` §7 item 11). SwiftCode's answer to these
    look-ups must be cheap.
 
 ## 2. What the render server does per frame (observed)
@@ -133,7 +133,7 @@ screenshot by saving the last submitted surface.
    11–25 ms, maximum 255 ms (app launch transitions). The CPU renderer
    cost grows with the changed area. Thor numbers are open (§7 item 4).
 
-## 3. Frame capture (the format Ycode needs)
+## 3. Frame capture (the format SwiftCode needs)
 
 ### 3.1 Which surface, and when
 
@@ -142,7 +142,7 @@ screenshot by saving the last submitted surface.
   submitted** with `SFBSwapchainSwapSubmit`, on the swapchain of the
   built-in display (type 0, display 1). A swap that was begun but not
   submitted does not count.
-- **At Submit**, Ycode's framebuffer library records:
+- **At Submit**, SwiftCode's framebuffer library records:
   - a sequence number;
   - the surface ID: `IOSurfaceGetID` of the `SwapAddSurface` argument. It
     is a public call that the client answers from its cached state,
@@ -150,7 +150,7 @@ screenshot by saving the last submitted surface.
   - the target time that `SwapBegin` received;
   - the submit time.
 
-  The library sends this record to the host, by Ycode's own channel.
+  The library sends this record to the host, by SwiftCode's own channel.
 - **The pixels are in the host service's memory for that ID.** In a
   service boot, a read of the surface through `backboardd`'s mapping and
   a read of the test service's own memory for the same ID were
@@ -201,7 +201,7 @@ For the display that the headless library offers, pass
 `--display=<UUID>` of the 1398 × 2034 port that `simctl io <dev>
 enumerate` lists. The result is an RGBA PNG tagged sRGB.
 
-## 4. Requirements on Ycode's IOSurface service and framebuffer library
+## 4. Requirements on SwiftCode's IOSurface service and framebuffer library
 
 Results of service boots with one change each. The check is the TickApp
 liveness test: frames in 10 s, and two captures 3 s apart whose counters
@@ -223,21 +223,21 @@ Requirements:
 1. **Lock must succeed.** Method 4 must succeed, with options 0 and 1, for
    the display buffers. If it fails, the render server still submits
    frames, but it draws nothing into them. Unlock failure is tolerated, but
-   Ycode should answer it correctly (`iosurface-remote.md` §8 item 10).
+   SwiftCode should answer it correctly (`iosurface-remote.md` §8 item 10).
 2. **Shared memory.** The memory that the service hands out (Method 2
    `MemoryObject`) must be the memory that the host reads. Writes made
    through the guest mapping must be visible to the host without a copy
    (`iosurface-remote.md` §6; §3.1 above).
 3. **No Metal names** (`iosurface-remote.md` §8 design note). If a Metal
    device exists, the render server uses its Metal path and needs a Metal
-   service that understands Ycode's surfaces.
-4. **Seed.** The seed is not needed for drawing. Ycode's tear check
+   service that understands SwiftCode's surfaces.
+4. **Seed.** The seed is not needed for drawing. SwiftCode's tear check
    (§3.2) needs the R5 rule: a lock without the read-only bit increments
    the seed (`iosurface-remote.md` §3.1). It also needs the seed to be
    readable on the host by surface ID.
 5. **Swap completions** are not needed for drawing or presenting: 2
    minutes without any completion were normal, and so were 100 ms delays.
-   Ycode should still call each completion block once, with the target
+   SwiftCode should still call each completion block once, with the target
    time and the completion time (`simframebuffer.md` §7 item 7). The real
    server does this, and other clients of the completion (frame pacing)
    were not tested.
@@ -250,14 +250,14 @@ Requirements:
 7. **`IsInUse` and use counts** do not affect drawing (variant above). A
    library that does not change use counts is sufficient.
 8. **Nothing else of the capture is in the guest.** Our prototype's
-   read-only locks and reads in `backboardd` were harmless. Ycode reads
+   read-only locks and reads in `backboardd` were harmless. SwiftCode reads
    on the host and needs no guest call.
 
-## 5. Recipe for the first Ycode screenshot
+## 5. Recipe for the first SwiftCode screenshot
 
 1. Offer no Metal names, and answer their look-ups fast (§1 item 7).
-2. Run Ycode's IOSurface host service with requirements 1, 2 and 4 of §4.
-3. In Ycode's SimFramebuffer library, at `SFBSwapchainSwapSubmit`, send
+2. Run SwiftCode's IOSurface host service with requirements 1, 2 and 4 of §4.
+3. In SwiftCode's SimFramebuffer library, at `SFBSwapchainSwapSubmit`, send
    `(sequence, IOSurfaceGetID(surface), target time)` to the host. Then
    complete the swap as R4 describes.
 4. On a screenshot request, take the surface ID of the last record. Look
@@ -287,7 +287,7 @@ a drawn status bar. UIKit apps without Metal content draw in full.
   extensions, widget renderer) keep using the real IOSurface service.
   `backboardd` looks up their surfaces in ours. IDs from two services can
   name different surfaces. This may explain the transient pattern in §7
-  item 3, which a single-service Ycode would not have.
+  item 3, which a single-service SwiftCode would not have.
 
 ## 7. Open questions
 
@@ -339,7 +339,7 @@ a drawn status bar. UIKit apps without Metal content draw in full.
 | Layout, alpha, sRGB (§3.3) | 1 + 3 | public `IOSurfaceRef.h` getters; dumps; reference PNG profile (`sips`); attachments from `iosurface-remote.md` §1.2 |
 | `simctl io screenshot --display` behavior (§3.4) | 3 | `simctl io enumerate` and screenshots |
 | Requirements and variants (§4) | 3 | `run-server.sh` variants with `isserver_r6.h` switches and `sfbcapture.c` opts; TickApp captures |
-| Recipe (§5) | — | Ycode design from §1–§4 |
+| Recipe (§5) | — | SwiftCode design from §1–§4 |
 
 No disassembly or decompilation was used (level 5 was not used). No
 `.claude/Xcode.app`, `research/dirty/` or Ghidra project was opened. No

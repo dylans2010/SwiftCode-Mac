@@ -1,9 +1,9 @@
 // swift-tools-version: 6.0
-// ycode-contacts: open, Linux-buildable Contacts written from specs/frameworks/contacts/.
+// swiftcode-contacts: open, Linux-buildable Contacts written from specs/frameworks/contacts/.
 import PackageDescription
 
 let package = Package(
-    name: "ycode-contacts",
+    name: "swiftcode-contacts",
     platforms: [.macOS(.v14)],
     products: [
         // The library module carries the Apple framework's module name (an

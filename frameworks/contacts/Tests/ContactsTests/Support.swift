@@ -10,17 +10,17 @@ final class TestStore: @unchecked Sendable {
     let url: URL
     let store: CNContactStore
 
-    init(status: CNAuthorizationStatus = .authorized, limited: Set<String> = [], bundle: String = "org.ycode.tests") {
-        dir = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-cn-\(UUID().uuidString)")
+    init(status: CNAuthorizationStatus = .authorized, limited: Set<String> = [], bundle: String = "org.swiftcode.tests") {
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-cn-\(UUID().uuidString)")
         url = dir.appendingPathComponent("AddressBook.sqlite")
-        store = CNContactStore(ycodeConfiguration: YcodeContactStoreConfiguration(
+        store = CNContactStore(swiftcodeConfiguration: SwiftCodeContactStoreConfiguration(
             databaseURL: url, authorizationStatus: status, limitedContactIdentifiers: limited, bundleIdentifier: bundle))
     }
 
     /// Another store on the same database.
     func another(status: CNAuthorizationStatus = .authorized, limited: Set<String> = [],
-                 bundle: String = "org.ycode.tests") -> CNContactStore {
-        CNContactStore(ycodeConfiguration: YcodeContactStoreConfiguration(
+                 bundle: String = "org.swiftcode.tests") -> CNContactStore {
+        CNContactStore(swiftcodeConfiguration: SwiftCodeContactStoreConfiguration(
             databaseURL: url, authorizationStatus: status, limitedContactIdentifiers: limited, bundleIdentifier: bundle))
     }
 

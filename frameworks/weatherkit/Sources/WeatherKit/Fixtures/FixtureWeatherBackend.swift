@@ -1,4 +1,4 @@
-// Ycode extension (design.md §2–§3, plan.md R3): a backend that serves
+// SwiftCode extension (design.md §2–§3, plan.md R3): a backend that serves
 // weather from JSON fixtures in the `Codable` archive format of codable.md.
 //
 // A fixture set is a directory with a manifest, `fixture.json`:
@@ -71,7 +71,7 @@ public struct FixtureWeatherBackend: WeatherBackend {
     }
 
     /// The fixture set shipped with the package: made-up data written by
-    /// Ycode for tests and demos ("Fixture data").
+    /// SwiftCode for tests and demos ("Fixture data").
     public static func bundled(rebase: Rebase? = nil) throws -> FixtureWeatherBackend {
         guard let root = Bundle.module.url(forResource: "Fixtures", withExtension: nil) else {
             throw WeatherBackendError.malformedResponse("bundled fixtures missing")

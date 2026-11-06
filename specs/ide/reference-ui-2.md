@@ -6,7 +6,7 @@ executable target and a Swift Testing target. It continues
 `specs/ide/reference-ui.md` and answers OPEN QUESTIONs in
 `navigators.md`, `build.md`, `editor-area.md`, `debug.md` and
 `schemes.md`. It describes visible behavior, labels and defaults only. It
-records no colors and copies no assets. Ycode chooses its own icons
+records no colors and copies no assets. SwiftCode chooses its own icons
 (SF Symbols) wherever an icon is mentioned.
 
 ## 1. Issue navigator
@@ -290,7 +290,7 @@ records no colors and copies no assets. Ycode chooses its own icons
    - Close `<Project|Package>` ⌃⌥⌘W
 
    ⌘W therefore closes the **tab**. Closing the last tab is left to
-   Ycode's existing rule.
+   SwiftCode's existing rule.
 6. **Other File menu items:** Duplicate Editor Tab, Open in New Tab ⌥⌘O,
    Open in New Window, Open Terminal at Location, Open with External
    Editor.
@@ -324,7 +324,7 @@ The root is the package name. Its children, in order: "Package" (the
 manifest), "Sources", "Tests". With the observed settings, file names are
 shown without extensions.
 
-## 11. Differences from Ycode's specs (to implement)
+## 11. Differences from SwiftCode's specs (to implement)
 
 1. Issue navigator:
    - group by file under a root with "N issues";
@@ -354,4 +354,4 @@ shown without extensions.
 |---|---|---|
 | §1–§10 | 3 | Black-box observation of the reference app (Xcode 27.1, installed copy) driven through its menus and controls on a throwaway package, 2026-10-17. Screenshots and the accessibility tree only. No binaries were opened. |
 | §3.5, last sentence | 3 | Confirmed in pass 5 (`reference-ui-5.md` §5.4). |
-| §11 | — | Comparison with Ycode's specs at the time. |
+| §11 | — | Comparison with SwiftCode's specs at the time. |

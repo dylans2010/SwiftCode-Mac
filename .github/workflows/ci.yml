@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      ycode: ${{ steps.areas.outputs.ycode }}
+      swiftcode: ${{ steps.areas.outputs.swiftcode }}
       frameworks: ${{ steps.areas.outputs.frameworks }}
       lint: ${{ steps.areas.outputs.lint }}
     steps:
@@ -90,12 +90,12 @@ jobs:
           echo "$SWIFTLINT_SHA256  $RUNNER_TEMP/swiftlint.zip" | shasum -a 256 -c -
           unzip -q "$RUNNER_TEMP/swiftlint.zip" -d "$RUNNER_TEMP/swiftlint"
           echo "$RUNNER_TEMP/swiftlint" >> "$GITHUB_PATH"
-      - run: ycode/scripts/lint.sh
+      - run: swiftcode/scripts/lint.sh
 
-  ycode:
-    name: ycode (${{ matrix.name }})
+  swiftcode:
+    name: swiftcode (${{ matrix.name }})
     needs: changes
-    if: needs.changes.outputs.ycode == 'true'
+    if: needs.changes.outputs.swiftcode == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -121,25 +121,25 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ycode/.build/repositories
-            ycode/.build/checkouts
+            swiftcode/.build/repositories
+            swiftcode/.build/checkouts
             ~/.cache/org.swift.swiftpm
             ~/Library/Caches/org.swift.swiftpm
-          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('ycode/Package.resolved') }}
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('swiftcode/Package.resolved') }}
           restore-keys: swiftpm-${{ runner.os }}-${{ runner.arch }}-
       - name: Build
-        working-directory: ycode
+        working-directory: swiftcode
         run: swift build --build-tests
       - name: Test
         # One test at a time: on the hosted machines (3 and 4 cores) a parallel
         # run starts hundreds of UI suites at once, and the waits for the shared
         # main actor ran past time limits that measure the tests themselves.
-        run: python3 -I .github/scripts/run-tests.py --package ycode --log ci-logs -- --no-parallel
+        run: python3 -I .github/scripts/run-tests.py --package swiftcode --log ci-logs -- --no-parallel
       - name: Keep the logs of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: logs-ycode-${{ matrix.os }}
+          name: logs-swiftcode-${{ matrix.os }}
           path: ci-logs
           retention-days: 7
 
@@ -190,7 +190,7 @@ jobs:
   ok:
     name: CI passed
     if: always()
-    needs: [changes, scan, lint, ycode, frameworks]
+    needs: [changes, scan, lint, swiftcode, frameworks]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

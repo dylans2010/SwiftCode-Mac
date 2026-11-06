@@ -6,7 +6,7 @@ Every fact here comes from black-box observation of the iOS 27.1 runtime
 (24A94401) under CoreSimulator 1174.9.2 on macOS, and from binary metadata
 (levels 3 and 4). The spec states behavior, file formats, names, and
 environment. It does not describe launchd's internal algorithms. §8 is
-Ycode's own design guidance.
+SwiftCode's own design guidance.
 
 Terms:
 
@@ -18,7 +18,7 @@ Terms:
 - **device launchd name**: `com.apple.CoreSimulator.SimDevice.<UDID>`
   (upper-case UDID with dashes).
 - **host**: everything outside the guest. On macOS that is host launchd,
-  CoreSimulatorService, its trampolines and helpers. On Linux it is Ycode.
+  CoreSimulatorService, its trampolines and helpers. On Linux it is SwiftCode.
 
 ## 1. Role
 
@@ -98,7 +98,7 @@ the secure sockets (§5.4). Its working directory is `/`.
 ## 3. The bootstrap plist
 
 A property list (CoreSimulator writes XML) with these keys. All are
-interop facts: Ycode must write this file.
+interop facts: SwiftCode must write this file.
 
 Top level:
 
@@ -219,7 +219,7 @@ Import rules (observed):
 
 ### 4.3 Plist keys in use
 
-Counts over the 364 iOS 27.1 plists. Ycode does not implement these (the
+Counts over the 364 iOS 27.1 plists. SwiftCode does not implement these (the
 real `launchd_sim` does); the table sizes what the runtime relies on.
 
 | Key | Count | Values seen |
@@ -276,7 +276,7 @@ programs: the CoreSimulator bridge (`com.apple.CoreSimulator.bridge`,
 KeepAlive, MachServices including `com.apple.CoreSimulator.host_support`
 and `com.apple.CoreSimulator.SimPasteboardInterface`) and eight CoreDevice
 helpers (`com.apple.coredevice.dt*`). These programs are simulator-platform
-binaries shipped with the host tools. Ycode may omit them or supply its own.
+binaries shipped with the host tools. SwiftCode may omit them or supply its own.
 
 ### 4.6 Boot sequence
 
@@ -356,9 +356,9 @@ With `LogToFlatFile`, `launchd_sim` appends to `TMP/launchd.log` lines of
 the form `YYYY-MM-DD HH:MM:SS.ffffff (<domain>[/<label>] [<pid>]) <Level>: <text>`.
 Per-job lifecycle lines record state changes, spawn reasons, exits, and
 failed lookups. This is the main debugging aid when bringing
-`launchd_sim` up under Ycode.
+`launchd_sim` up under SwiftCode.
 
-## 6. The host side on macOS (what Ycode replaces)
+## 6. The host side on macOS (what SwiftCode replaces)
 
 ### 6.1 Control channel
 
@@ -423,14 +423,14 @@ For networking only `com.apple.SystemConfiguration.configd` is used (by
 the UNIX socket `/var/run/mDNSResponder`, not through a Mach name
 (`networking.md`).
 
-**Ycode** registers, besides the GPU, surface and HID names,
+**SwiftCode** registers, besides the GPU, surface and HID names,
 `com.apple.SystemConfiguration.configd` (and `configd_host`),
 `com.apple.PowerManagement.control` (visionos.md §10.11.4: a MIG server of
 IOKitUser's `powermanagement` subsystem that grants every assertion),
-`com.apple.audio.audiohald` (`audio-host.md` §13: Ycode's audio server;
+`com.apple.audio.audiohald` (`audio-host.md` §13: SwiftCode's audio server;
 `com.apple.audio.coreaudiod` stays unregistered, no guest uses it) and
 `com.apple.FSEvents` (`fsevents-host.md` §10: the file-event service, with
-events from Ycode's VFS). The
+events from SwiftCode's VFS). The
 host queues its 701 requests on the control channel before launchd_sim
 reads it, and the channel holds five messages: names that do not fit are
 registered by the session thread after the queued replies, and the
@@ -450,11 +450,11 @@ Observed on the Mac (agent OBS-FSEVENTS, 2026-10-27): a recorder of ours
 in every guest process of six full boots of four throwaway devices
 (iPhone Duo, iOS 27.1, first and later boots, about 2 h of boot time in
 all) logged each `bootstrap_look_up*` (with its result) and each
-`xpc_connection_create_mach_service` name. "Ycode" is by name only
-(`ycode/Sources/YcodeHostServices/`, `YcodeMetalHost`, the session's
+`xpc_connection_create_mach_service` name. "SwiftCode" is by name only
+(`swiftcode/Sources/SwiftCodeHostServices/`, `SwiftCodeMetalHost`, the session's
 registration list).
 
-| Name | Guest users seen (how) | Ycode |
+| Name | Guest users seen (how) | SwiftCode |
 |---|---|---|
 | `com.apple.FSEvents` | fileindexerd, UserEventAgent (`com.apple.fsevents.matching` plug-in), cfprefsd, revisiond, configd_sim, fontservicesd, DockFolderViewService (look-up) | provided (2026-10-27): `fsevents-host.md` §10 |
 | `com.apple.audio.audiohald` | SpringBoard (look-up, at boot) | **missing** |
@@ -463,13 +463,13 @@ registration list).
 | `com.apple.CoreSimulator.SimIdentityService` | apsd (XPC) | **missing** |
 | `com.apple.CoreSimulator.NearbyInteraction` | sharingd (XPC) | **missing** |
 | `com.apple.modelmanager.simulator` | HostInferenceProviderService (XPC) | **missing** |
-| `com.apple.metal.simulator.SpringBoard`, `.backboardd` | SpringBoard, backboardd (look-up and XPC) | not registered; the clients fall back to `com.apple.metal.simulator` (Ycode registers that one) |
+| `com.apple.metal.simulator.SpringBoard`, `.backboardd` | SpringBoard, backboardd (look-up and XPC) | not registered; the clients fall back to `com.apple.metal.simulator` (SwiftCode registers that one) |
 | `com.apple.metal.simulator` | ≈20 processes: PosterBoard and the poster extensions, widget renderers, chronod, iconservicesagent, assetsd, healthappd, … (XPC) | provided |
 | `com.apple.IOSurface.Remote` | SpringBoard, backboardd, the poster extensions, chronod, iconservicesagent, nsattributedstringagent (XPC) | provided |
 | `com.apple.PowerManagement.control` | SpringBoard, runningboardd, dasd, locationd, nsurlsessiond, apsd, cloudd, geod, sharingd, liveactivitiesd, financed, battery widgets (look-up) | provided |
 | `com.apple.SystemConfiguration.configd` | configd_sim (look-up) | provided |
-| `com.apple.CoreSimulator.SimFramebufferServer` | backboardd, CoreSimulatorBridge (look-up) | replaced: Ycode supplies its own guest SimFramebuffer framework |
-| `IndigoHIDRegistrationPort` | backboardd (look-up) | replaced: Ycode's own guest SimHID framework uses `dev.ycode.simulator.hid` |
+| `com.apple.CoreSimulator.SimFramebufferServer` | backboardd, CoreSimulatorBridge (look-up) | replaced: SwiftCode supplies its own guest SimFramebuffer framework |
+| `IndigoHIDRegistrationPort` | backboardd (look-up) | replaced: SwiftCode's own guest SimHID framework uses `dev.swiftcode.simulator.hid` |
 
 Not looked up at all in these boots (needed only by features the boots
 did not use, such as camera capture, audio output through coreaudiod,
@@ -490,7 +490,7 @@ shows on the Mac besides those (for example `com.apple.nehelper`,
 `com.apple.identityservicesd.desktop.auth`, `com.apple.spaceattributiond`)
 are guest names that the runtime does not provide on the Mac either.
 
-## 7. What the host must provide (requirements for Ycode)
+## 7. What the host must provide (requirements for SwiftCode)
 
 ### 7.1 For `launchd_sim` to start and serve (no daemons)
 
@@ -503,7 +503,7 @@ are guest names that the runtime does not provide on the Mac either.
 3. **A host bootstrap port** as `launchd_sim`'s task bootstrap special
    port. It must accept `bootstrap_check_in` of the device launchd name
    and return a receive right (the control endpoint). It should answer
-   `bootstrap_look_up` for the names in §6.3 that Ycode chooses to provide,
+   `bootstrap_look_up` for the names in §6.3 that SwiftCode chooses to provide,
    and 1102 for others.
 4. **Kernel personality.** Beyond what stage 3 provides: Mach port
    construction, insert/extract right, guards, contexts, dead-name and
@@ -529,16 +529,16 @@ are guest names that the runtime does not provide on the Mac either.
    a visible UI. Priority for a headless boot: none. For a visible
    SpringBoard: `SimFramebufferServer`, `IndigoHIDRegistrationPort`,
    `com.apple.metal.simulator*`, `com.apple.IOSurface.Remote`.
-6. **A control channel** equivalent to §6.1 for Ycode's own tools: at
+6. **A control channel** equivalent to §6.1 for SwiftCode's own tools: at
    least "spawn a one-shot program with my stdio" and "look up a guest
-   endpoint". Ycode can implement this inside its VMM instead of through
+   endpoint". SwiftCode can implement this inside its VMM instead of through
    `liblaunch_sim`.
 7. **Bridge jobs** (§4.5): optional.
 
-## 8. Ycode design notes (not observations)
+## 8. SwiftCode design notes (not observations)
 
-- Ycode should not try to run `launchd_sim_trampoline` or
-  `liblaunch_sim.dylib`: both are macOS-platform binaries. Ycode's VMM
+- SwiftCode should not try to run `launchd_sim_trampoline` or
+  `liblaunch_sim.dylib`: both are macOS-platform binaries. SwiftCode's VMM
   performs the trampoline's job (§2) and owns the host end of the control
   endpoint.
 - The simplest bring-up path: (1) start `launchd_sim` with a bootstrap
@@ -546,13 +546,13 @@ are guest names that the runtime does not provide on the Mac either.
   `TMP/launchd.log` for domain creation; (2) run the guest `launchctl print
   system` as a one-shot; (3) add `Paths` entries for logd and notifyd only;
   (4) then the full RR directories.
-- Because Ycode is the host, the device launchd name only has to be
-  unique within one Ycode VM; Ycode may keep CoreSimulator's naming for
+- Because SwiftCode is the host, the device launchd name only has to be
+  unique within one SwiftCode VM; SwiftCode may keep CoreSimulator's naming for
   familiarity.
 
 ### 8.1 Simulator log forwarding through diagnosticd (observed, 2026-10-13)
 
-These observations come from Ycode boots of iOS 27.1 (level 3: traces,
+These observations come from SwiftCode boots of iOS 27.1 (level 3: traces,
 Mach traffic counters, diagnosticd's own log file `DEV/data/var/db/
 diagnostics/diagnosticd.0.log`). File contents were read as formats (level 2).
 
@@ -573,15 +573,15 @@ diagnostics/diagnosticd.0.log`). File contents were read as formats (level 2).
    `NOTE_WL_SYNC_WAKE`. None of the wakeups was empty.
 3. diagnosticd forwards the stream to the host. It connects an AF_UNIX
    stream socket to `/private/var/run/.sim_diagnosticd_socket`. This is a
-   host path. On the Mac, CoreSimulator provides it. In Ycode the path does
+   host path. On the Mac, CoreSimulator provides it. In SwiftCode the path does
    not exist, so the connect fails with ENOENT. diagnosticd then logs
    "assertion failed: … diagnosticd + 3176 … 0x2" and tries again later
    (about 1100 failed attempts in 150 s).
 
-Consequences for Ycode:
+Consequences for SwiftCode:
 
 - The per-message XPC traffic is the guest's own forwarding design, so
-  Ycode does not suppress it. It costs much more under Ycode's global kernel
+  SwiftCode does not suppress it. It costs much more under SwiftCode's global kernel
   lock than on the Mac. Cheaper Mach messaging is the lever.
 - **Host end of `.sim_diagnosticd_socket` (implemented,
   `Descriptors/HostStreamSockets.swift`).** A guest `connect` of an AF_UNIX
@@ -603,35 +603,35 @@ Consequences for Ycode:
   host end the connect fails with ENOENT. diagnosticd then logs the
   assertion and retries for about 100 s (about 250 attempts), and then stops
   trying. That costs far less than the stream. Switches:
-  `YCODE_SIM_DIAGNOSTICD_SOCKET=1` turns the host end on;
-  `YCODE_SIM_DIAGNOSTICD_LOG=1` turns it on and prints the stream's strings;
-  `YCODE_DEBUG_NO_HOST_SOCKETS=1` forces it off.
+  `SWIFTCODE_SIM_DIAGNOSTICD_SOCKET=1` turns the host end on;
+  `SWIFTCODE_SIM_DIAGNOSTICD_LOG=1` turns it on and prints the stream's strings;
+  `SWIFTCODE_DEBUG_NO_HOST_SOCKETS=1` forces it off.
 
 ## 9. Open questions
 
 1. The two `XPC_SIMULATOR_HOLDING_TANK_*` variables: fd 5 is a Unix socket
    connected to the syslog socket, and the pid did not exist at the time of
-   the check. Is either needed? Test: start without them under Ycode.
+   the check. Is either needed? Test: start without them under SwiftCode.
 2. **Answered:** the guest bootstrap port is `bootstrap-wire.md`; the control channel is `launch-sim-control.md` (MIG base 700).
    Original question: message formats on the control channel (bind/register/find/spawn) and on
    the guest bootstrap port are not visible from metadata. The guest side
    uses the libxpc pipe and MIG-compatible bootstrap messages (import
-   names). Ycode's host end must speak the control-channel format; the
+   names). SwiftCode's host end must speak the control-channel format; the
    source of that information is still to be chosen (level 1 if Apple's
    open-source libxpc/launchd headers describe it, otherwise targeted
    level-3 capture with a Mach-message tracer on our own probe).
 3. Whether `launchd_sim` reads `RR/System/Library/xpc/launchd.plist` (a
    pre-built job cache with a `.sig` file) in addition to scanning `Paths`.
-   Needs file-access tracing (root) or a Ycode experiment.
+   Needs file-access tracing (root) or a SwiftCode experiment.
 4. What `RequireDomainBinding`, `AbortOnUnknownIPC`, and the
    "bind session" step require of the host. Hypothesis: `launchd_sim`
    refuses guest requests until the host binds the session; test under
-   Ycode by omitting the bind. **Partly answered (level 3, stage 4c-iii):**
+   SwiftCode by omitting the bind. **Partly answered (level 3, stage 4c-iii):**
    with `RequireDomainBinding = true` and no bind, `launchd_sim` defers the
    spawn of `system`-domain jobs indefinitely (`user/<uid>` jobs are not
-   affected). Ycode writes `false` until the bind is specified. **Answered (stage 7):** control-channel operation 700 binds the session (`launch-sim-control.md` §3.1); after it `system` leaves bootstrap mode, so Ycode can write `true` once its host binds.
+   affected). SwiftCode writes `false` until the bind is specified. **Answered (stage 7):** control-channel operation 700 binds the session (`launch-sim-control.md` §3.1); after it `system` leaves bootstrap mode, so SwiftCode can write `true` once its host binds.
 5. ~~The send right in slot 0 of `mach_ports_lookup`~~ **Answered
-   (level 3, Ycode runs, stage 4c-iii):** `launchd_sim` registers its
+   (level 3, SwiftCode runs, stage 4c-iii):** `launchd_sim` registers its
    service port (the receive right it got from the host's 708 reply) in
    registered-port slot 0 and sets its own bootstrap special port to NULL,
    so slot 0 in every child is a send right to `launchd_sim`'s service
@@ -658,10 +658,10 @@ Consequences for Ycode:
 | Job environment and spawn via xpcproxy_sim §4.4 | 3 | `ps -E` of notifyd, CoreSimulatorBridge, and our probe; launchd.log |
 | Bootstrap port, lookups, check-in, XPC lookup §5.1–5.3 | 3 | our probe program `bsprobe` (our own code) run with `simctl spawn` |
 | SimLaunchHost operations, liblaunch_sim loading, host registrations §6.1–6.3 | 3 | host `log show` for CoreSimulatorService and SimLaunchHost; `lsof` of SimLaunchHost |
-| Requirements and design §7–§8 | — | derived from the above; Ycode design |
-| Simulator log forwarding: filter file, system-mode client, per-message XPC sends, host socket path and the JSON entry stream on it §8.1 | 2, 3 | plists and diagnosticd.0.log read as formats; Ycode boot traces (`--trace-name`) and Mach traffic counters (`YCODE_DEBUG_MACH_STATS=1`) |
-| Cost of the host end, the retry-then-stop behavior without it, and the default-off choice §8.1 | 3 | paired Ycode boots on the Thor (2026-10-16): per-process trap counts from the exit summary, kernel-lock totals, `diagnosticd.0.log` read as a format |
-| Guest users of the host-side names, and names not used in a full boot §6.4 | 3 | recorder of ours (look-ups with results, XPC connection names) in every guest process of six Mac boots, 2026-10-27 (`research/notes/obs-fsevents-2026-10-27.md`); Ycode's names read from its sources |
+| Requirements and design §7–§8 | — | derived from the above; SwiftCode design |
+| Simulator log forwarding: filter file, system-mode client, per-message XPC sends, host socket path and the JSON entry stream on it §8.1 | 2, 3 | plists and diagnosticd.0.log read as formats; SwiftCode boot traces (`--trace-name`) and Mach traffic counters (`SWIFTCODE_DEBUG_MACH_STATS=1`) |
+| Cost of the host end, the retry-then-stop behavior without it, and the default-off choice §8.1 | 3 | paired SwiftCode boots on the Thor (2026-10-16): per-process trap counts from the exit summary, kernel-lock totals, `diagnosticd.0.log` read as a format |
+| Guest users of the host-side names, and names not used in a full boot §6.4 | 3 | recorder of ours (look-ups with results, XPC connection names) in every guest process of six Mac boots, 2026-10-27 (`research/notes/obs-fsevents-2026-10-27.md`); SwiftCode's names read from its sources |
 
 No disassembly or decompilation was used (level 5 not used). Dirty-room
 notes: `research/notes/launchd-sim-observations.md`.

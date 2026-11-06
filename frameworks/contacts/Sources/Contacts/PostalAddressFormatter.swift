@@ -1,5 +1,5 @@
 // CNPostalAddressFormatter (formats.md §2). The per-country layouts are
-// Ycode's own table: the rows of §2 fix the countries they cover; the
+// SwiftCode's own table: the rows of §2 fix the countries they cover; the
 // others follow common national practice (open question in the README).
 
 import Foundation
@@ -36,7 +36,7 @@ struct AddressLayout {
 
     static func layout(for address: CNPostalAddress) -> AddressLayout {
         let code = address.isoCountryCode.isEmpty
-            ? CNContactStore.ycodeDefaultConfiguration.countryCode
+            ? CNContactStore.swiftcodeDefaultConfiguration.countryCode
             : address.isoCountryCode
         return table[code.lowercased()] ?? northAmerican
     }

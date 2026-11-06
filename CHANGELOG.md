@@ -1,6 +1,6 @@
 # Changelog
 
-Notable changes to Ycode are recorded here. The format follows
+Notable changes to SwiftCode are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The release workflow takes each release's notes from this file.
 
@@ -35,11 +35,11 @@ IDE looks closer to Xcode 27.1.
   host (macOS: Settings ▸ Components, the run destination menu and the first launch; Linux: Window ▸ Downloads and the first
   launch). It gets a runtime only when you ask, after showing the exact command: on a Mac with Xcode through
   `xcodebuild -downloadPlatform`, otherwise by downloading it from Apple itself, or from a copy exported on a Mac. The same
-  from a terminal: `ycode runtime list|available|download|import|xcodebuild` and `ycode sim runtimes check|script`. See
+  from a terminal: `swiftcode runtime list|available|download|import|xcodebuild` and `swiftcode sim runtimes check|script`. See
   [docs/SIMULATOR-LINUX.md](docs/SIMULATOR-LINUX.md) §5.1.
 - **Breakpoints, both IDEs:** actions that `lldb-dap` does not run itself (debugger commands, sounds, log messages with
-  `%B` or `%H`, automatic continue) are now run by Ycode at the stop.
-- **Packages:** Ycode is on [FlatPark](https://flatpark.org/apps/io.github.MarcoDotIO.Ycode/). Installed from there,
+  `%B` or `%H`, automatic continue) are now run by SwiftCode at the stop.
+- **Packages:** SwiftCode is on [FlatPark](https://flatpark.org/apps/io.github.MarcoDotIO.Ycode/). Installed from there,
   `flatpak update` brings new releases.
 - **Packages:** the Flatpak includes 7-Zip (`7zz`, built without its RAR code), which getting a runtime directly from
   Apple uses to read the runtime's disk image.
@@ -88,9 +88,9 @@ IDE looks closer to Xcode 27.1.
   (a program run in a pseudo-terminal) as one row.
 - **Packages:** after the Linux IDE's window closed, a helper process kept the Flatpak's instance running. The Flatpak ran
   none of the host's tools (Swift, git, SourceKit-LSP) when `~/.profile` had a line only bash can read, as swiftly's
-  installer adds on systems where `sh` is dash; it now runs your own login shell. In the aarch64 package, `ycode-airc`
+  installer adds on systems where `sh` is dash; it now runs your own login shell. In the aarch64 package, `swiftcode-airc`
   (the simulator's Metal shader translator) could not load its bundled LLVM.
-- **`ycodebuild` on Linux:** `-showBuildSettings` for a macOS or iOS project stopped with "Could not initialize build
+- **`swiftcodebuild` on Linux:** `-showBuildSettings` for a macOS or iOS project stopped with "Could not initialize build
   system" when Swift came from swiftly or ran through the Flatpak. It now prints the project's settings and warns that
   those that come from an SDK that is not installed (`ARCHS`, `SDK_*`, `PLATFORM_*`, the bundle layout) are left out.
 
@@ -109,15 +109,15 @@ IDE looks closer to Xcode 27.1.
 ## [1.0.0-beta.1] - 2026-11-04
 
 The first public beta, and the first release with installable packages. Everything below is new to users, since there were
-no earlier releases. [The README](https://github.com/MarcoDotIO/Ycode#what-works-today) says how mature each part is.
+no earlier releases. [The README](https://github.com/dylans2010/SwiftCode-Mac#what-works-today) says how mature each part is.
 
 ### Added
 
 - **Packages:** a macOS disk image, and Flatpak bundles for x86-64 and arm64 Linux.
 - **Project files:** reading and writing `.pbxproj`, `.xcworkspace`, `.xcscheme` and `.xcconfig`, with byte-identical round
   trips on our test corpus, and build-setting resolution that matches `xcodebuild -showBuildSettings` on that corpus.
-- **Command-line tools:** `ycode`, `ycodebuild` (an `xcodebuild`-compatible command line), asset catalog and String Catalog
-  compilers, `ycode mcp` for coding agents, and Gauge (`ycode profile`).
+- **Command-line tools:** `swiftcode`, `swiftcodebuild` (an `xcodebuild`-compatible command line), asset catalog and String Catalog
+  compilers, `swiftcode mcp` for coding agents, and Gauge (`swiftcode profile`).
 - **The macOS IDE:** workspace window, navigators, source editor, build, run and debug, language features through
   SourceKit-LSP, plist, asset and String Catalog editors, Interface Builder documents, SwiftUI previews, tests, source control,
   a coding assistant and Settings. All experimental.
@@ -128,7 +128,7 @@ no earlier releases. [The README](https://github.com/MarcoDotIO/Ycode#what-works
 - **Simulators (experimental):** iOS, iPadOS and watchOS devices, and a partial visionOS, on arm64 Linux with KVM, with viewers
   for macOS and x86-64 Linux. You supply the simulator runtime; none of Apple's software is included.
 - **Open frameworks (partial):** Contacts, EventKit, HealthKit, HomeKit, StoreKit, WeatherKit and SwiftUI as Swift packages
-  that build on Linux, plus a USD library, and `ycode-scene`, the Scene Composer's command-line core.
+  that build on Linux, plus a USD library, and `swiftcode-scene`, the Scene Composer's command-line core.
 - **Project infrastructure:** CI, a release workflow, a public-content scan, and community documents.
 
 ### Known limitations

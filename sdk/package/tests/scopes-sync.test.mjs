@@ -1,11 +1,11 @@
 // Two-way sync test for the ScopesIDLists pair.
 //
 // Enforces that `src/ScopesIDLists.ts` (TypeScript) and
-// `ycode/Sources/YcodeSDK/Host/ScopesIDLists.swift` (host) stay identical:
+// `swiftcode/Sources/SwiftCodeSDK/Host/ScopesIDLists.swift` (host) stay identical:
 // the same capability IDs, the same scope kinds, and the same primary IPC
 // methods. It also enforces that every `kind: "view"` entry in the list
 // has a real opener registered in
-// `ycode/Sources/YcodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` —
+// `swiftcode/Sources/SwiftCodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` —
 // and that every registered opener has a matching `view` entry in the list.
 //
 // PARSING APPROACH (documented here so the contract is explicit):
@@ -27,7 +27,7 @@
 //      `static let viewID = "..."` line). The IDs are already wire IDs,
 //      so no enum-case mapping is needed; each one is still checked
 //      against `SDKCapabilityID`'s raw values in
-//      `ycode/Sources/YcodeExtensions/Capabilities.swift`, so a renamed
+//      `swiftcode/Sources/SwiftCodeExtensions/Capabilities.swift`, so a renamed
 //      raw value breaks this test rather than the mapping.
 //
 // This test FAILS when someone adds an ID to one file and not the other —
@@ -45,24 +45,24 @@ const testsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testsDir, "..", "..", "..");
 const swiftScopesPath = path.join(
   repoRoot,
-  "ycode",
+  "swiftcode",
   "Sources",
-  "YcodeSDK",
+  "SwiftCodeSDK",
   "Host",
   "ScopesIDLists.swift",
 );
 const swiftCapabilityPath = path.join(
   repoRoot,
-  "ycode",
+  "swiftcode",
   "Sources",
-  "YcodeExtensions",
+  "SwiftCodeExtensions",
   "Capabilities.swift",
 );
 const swiftBuiltInsPath = path.join(
   repoRoot,
-  "ycode",
+  "swiftcode",
   "Sources",
-  "YcodeSDK",
+  "SwiftCodeSDK",
   "Host",
   "ViewOpener",
   "SDKViewOpenerBuiltIns.swift",
@@ -112,7 +112,7 @@ function parseSwiftScopeEntries() {
 
 /**
  * Maps `SDKCapabilityID` enum case names to their wire raw values by
- * parsing `case <name> = "<raw>"` in `ycode/Sources/YcodeExtensions/
+ * parsing `case <name> = "<raw>"` in `swiftcode/Sources/SwiftCodeExtensions/
  * Capabilities.swift`. Used so the opener-registration check works with
  * wire IDs, and so a raw-value rename fails this test rather than
  * silently mismatching.

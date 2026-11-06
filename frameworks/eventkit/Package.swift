@@ -1,9 +1,9 @@
 // swift-tools-version: 6.0
-// ycode-eventkit: open, Linux-buildable EventKit written from specs/frameworks/eventkit/.
+// swiftcode-eventkit: open, Linux-buildable EventKit written from specs/frameworks/eventkit/.
 import PackageDescription
 
 let package = Package(
-    name: "ycode-eventkit",
+    name: "swiftcode-eventkit",
     platforms: [.macOS(.v14)],
     products: [
         // The library module carries the Apple framework's module name (an

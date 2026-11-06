@@ -36,14 +36,14 @@ struct ErrorTests {
 
     @Test("§2: 2040 is a plain NSError with only a localized description")
     func noAccountShape() {
-        let e = HMError.ycodeNoAccountError()
+        let e = HMError.swiftcodeNoAccountError()
         #expect(e.domain == "HMErrorDomain")
         #expect(e.code == 2040)
         #expect(Array(e.userInfo.keys) == [NSLocalizedDescriptionKey])
         #expect((e.userInfo[NSLocalizedDescriptionKey] as? String)?.contains("2040") == true)
         #expect(HMError.Code(rawValue: 2040) == nil, "not a public code")
-        #expect(YcodeHomeStoreError.noAccount.publicError as? HMError == nil)
-        #expect((YcodeHomeStoreError.noAccount.publicError as NSError).code == 2040)
+        #expect(SwiftCodeHomeStoreError.noAccount.publicError as? HMError == nil)
+        #expect((SwiftCodeHomeStoreError.noAccount.publicError as NSError).code == 2040)
     }
 
     @Test("§2: setup cancellation 23 carries an empty userInfo")
@@ -61,17 +61,17 @@ struct ErrorTests {
             (-70407, .accessoryOutOfResources), (-70408, .operationTimedOut), (-70409, .notFound),
             (-70410, .invalidParameter), (-70411, .invalidOrMissingAuthorizationData),
         ]
-        #expect(YcodeHAPStatus.allCases.count == expected.count)
+        #expect(SwiftCodeHAPStatus.allCases.count == expected.count)
         for (status, code) in expected {
-            #expect(YcodeHAPStatus(rawValue: status)?.errorCode == code, "status \(status)")
+            #expect(SwiftCodeHAPStatus(rawValue: status)?.errorCode == code, "status \(status)")
         }
-        #expect(YcodeAccessoryFailure.unreachable.errorCode == .accessoryNotReachable, "connection lost → 4")
+        #expect(SwiftCodeAccessoryFailure.unreachable.errorCode == .accessoryNotReachable, "connection lost → 4")
     }
 
     @Test("Wire errors round-trip through Codable")
     func wireForm() throws {
-        let e = YcodeHomeStoreError(.fireDateInPast)
-        let back = try JSONDecoder().decode(YcodeHomeStoreError.self, from: JSONEncoder().encode(e))
+        let e = SwiftCodeHomeStoreError(.fireDateInPast)
+        let back = try JSONDecoder().decode(SwiftCodeHomeStoreError.self, from: JSONEncoder().encode(e))
         #expect(back == e)
         #expect((back.publicError as? HMError)?.code == .fireDateInPast)
     }

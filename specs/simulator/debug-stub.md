@@ -1,21 +1,21 @@
-# Spec: the debug stub (LLDB on apps in Ycode's simulator)
+# Spec: the debug stub (LLDB on apps in SwiftCode's simulator)
 
 Status: **implemented** (agent SIM-DEBUG, 2026-10-30; SIM-DEBUG2,
 2026-10-31: OS version and LLDB's newer image loader, image notifications,
 launch-stopped attach, hardware watchpoints, Swift expressions). Closes gap
-#3 of `docs/PARITY.md`: "no debugger attaches to apps running on Ycode's
+#3 of `docs/PARITY.md`: "no debugger attaches to apps running on SwiftCode's
 simulator". Results are in §10.
 
-This is Ycode's own design. The protocol is GDB's remote serial protocol
+This is SwiftCode's own design. The protocol is GDB's remote serial protocol
 with LLDB's extensions, both publicly documented (§Evidence, level 1). The
 Arm facts (BRK, software step, MDSCR_EL1, SPSR.SS, exception classes) come
 from the public Arm Architecture Reference Manual. No Apple component is
 involved: the debugger is the user's own `lldb` (or `lldb-dap`), which
-speaks the documented protocol to a stub inside `ycode-simd`.
+speaks the documented protocol to a stub inside `swiftcode-simd`.
 
 ## 1. What it does
 
-A **gdb-remote stub inside `ycode-simd`** serves one guest process at a time
+A **gdb-remote stub inside `swiftcode-simd`** serves one guest process at a time
 to LLDB:
 
 - attach to a running process by pid or name, or wait for the next launch
@@ -46,25 +46,25 @@ IDE's lldb-dap connects with its `gdb-remote-port` attach argument (§8).
 
 | Part | Where | Platform |
 |---|---|---|
-| Protocol: framing, hex, register layout, breakpoint table, the server | `ycode/Sources/YcodeDebug/GDBRemote/` | portable (macOS, Linux) |
+| Protocol: framing, hex, register layout, breakpoint table, the server | `swiftcode/Sources/SwiftCodeDebug/GDBRemote/` | portable (macOS, Linux) |
 | Images: Mach-O headers read from memory, the `jGetLoadedDynamicLibrariesInfos` request and reply, dyld's states | `GDBRemoteImages.swift` | portable |
 | Host and process protocols the server drives | `GDBRemoteTarget.swift` (`GDBRemoteHost`, `GDBRemoteProcess`) | portable |
 | Sockets (Unix path or loopback TCP listener) | `GDBRemoteSocket.swift` | portable |
-| The simulator side: images, threads, registers, memory | `ycode/Sources/ycode-simd/DebugStub.swift` | arm64 Linux |
-| Kernel hooks: debug exceptions, thread holds, watchpoint stops, the image-list notification (§4.4) | `ycode/Sources/YcodeDarwinKernel/DebugHooks.swift` | portable |
-| Spawn holds (vAttachWait, `--debug-launch-stopped`) | `ycode-simd/ImageLauncher.swift` (`register`) → `SimDebugServer.imageWillStart` | arm64 Linux |
-| Run-gate requests: step, flush | `ycode/Sources/YcodeDarwinABI/ThreadGate.swift` | portable |
-| vCPU single step (MDSCR_EL1.SS, SPSR.SS), watchpoint registers (DBGWVR/DBGWCR, MDSCR_EL1.MDE) | `ycode/Sources/YcodeHypervisor/VCPUPool.swift` | arm64 Linux |
-| IDE: run with the debugger on the Ycode simulator | `YcodeIDECore/Session/RemoteRun.swift` (`attachToRemoteSimulatorApp`), `YcodeDebug/DAPDepth.swift` (`attachRemote`) | macOS |
-| Launcher: `--debug-server` is an app option | `ycode/scripts/ycode-sim.sh` | host |
-| Sample app | `ycode/Tools/debug-samples/DebugDemo` | built on macOS |
+| The simulator side: images, threads, registers, memory | `swiftcode/Sources/swiftcode-simd/DebugStub.swift` | arm64 Linux |
+| Kernel hooks: debug exceptions, thread holds, watchpoint stops, the image-list notification (§4.4) | `swiftcode/Sources/SwiftCodeDarwinKernel/DebugHooks.swift` | portable |
+| Spawn holds (vAttachWait, `--debug-launch-stopped`) | `swiftcode-simd/ImageLauncher.swift` (`register`) → `SimDebugServer.imageWillStart` | arm64 Linux |
+| Run-gate requests: step, flush | `swiftcode/Sources/SwiftCodeDarwinABI/ThreadGate.swift` | portable |
+| vCPU single step (MDSCR_EL1.SS, SPSR.SS), watchpoint registers (DBGWVR/DBGWCR, MDSCR_EL1.MDE) | `swiftcode/Sources/SwiftCodeHypervisor/VCPUPool.swift` | arm64 Linux |
+| IDE: run with the debugger on the SwiftCode simulator | `SwiftCodeIDECore/Session/RemoteRun.swift` (`attachToRemoteSimulatorApp`), `SwiftCodeDebug/DAPDepth.swift` (`attachRemote`) | macOS |
+| Launcher: `--debug-server` is an app option | `swiftcode/scripts/swiftcode-sim.sh` | host |
+| Sample app | `swiftcode/Tools/debug-samples/DebugDemo` | built on macOS |
 
 ## 3. Transport and framing
 
-`ycode-simd --debug-server <address>`; `<address>` is `unix:<path>`,
+`swiftcode-simd --debug-server <address>`; `<address>` is `unix:<path>`,
 `<host>:<port>` or `<port>` (loopback). One client at a time; a new client
 is accepted when the previous one disconnects. `--debug-server-log` prints
-every packet (`ycode-simd: debug: <- …` / `-> …`) to stderr.
+every packet (`swiftcode-simd: debug: <- …` / `-> …`) to stderr.
 
 - A packet is `$<body>#<cc>`; `cc` is the sum of the body bytes modulo 256,
   two lowercase hex digits. Inside a body `}` escapes the next byte (XOR
@@ -91,8 +91,8 @@ every packet (`ycode-simd: debug: <- …` / `-> …`) to stderr.
 | `qSupported:…` | `PacketSize=20000;QStartNoAckMode+;QThreadSuffixSupported+;QListThreadsInStopReply+;qEcho+;vContSupported+;qXfer:features:read-;multiprocess-` |
 | `QStartNoAckMode`, `QThreadSuffixSupported`, `QListThreadsInStopReply`, `QEnableErrorStrings`, `qVAttachOrWaitSupported`, `QSetDetachOnError:…`, `QSetDisableASLR:…`, `QSetIgnoredExceptions…` | `OK` |
 | `qHostInfo` | `cputype:16777228;cpusubtype:0;ostype:<os>;vendor:apple;endian:little;ptrsize:8;vm-page-size:16384;os_version:<v>;os_build:<hex>;watchpoint_exceptions_received:before;hostname:<hex>;default_packet_timeout:20;` — `<os>` is `ios`, `watchos` or `xros` from the device type (the device OS, not its simulator: §4.3); `<v>` and the build are the runtime's `ProductVersion` and `ProductBuildVersion` (`System/Library/CoreServices/SystemVersion.plist` under the runtime root) |
-| `qGDBServerVersion` | `name:ycode-simd;version:1;` |
-| `qProcessInfo` | `pid:<hex>;parent-pid;real-uid:1f5;real-gid:14;effective-uid;effective-gid;cputype:100000c;cpusubtype:0;ostype;vendor:apple;endian:little;ptrsize:8;os_version:<v>;` (numbers in hex; uid 501 and gid 20, the simulator's mobile user as Ycode runs it; LLDB ignores `os_version` here and takes it from `qHostInfo`) |
+| `qGDBServerVersion` | `name:swiftcode-simd;version:1;` |
+| `qProcessInfo` | `pid:<hex>;parent-pid;real-uid:1f5;real-gid:14;effective-uid;effective-gid;cputype:100000c;cpusubtype:0;ostype;vendor:apple;endian:little;ptrsize:8;os_version:<v>;` (numbers in hex; uid 501 and gid 20, the simulator's mobile user as SwiftCode runs it; LLDB ignores `os_version` here and takes it from `qHostInfo`) |
 | `qfProcessInfo`, `qsProcessInfo`, `qProcessInfoPID:<pid>` | the guest processes: `pid:<hex>;name:<hex>;` one per reply, then `E03` |
 | `qC` | `QC<tid>`: the thread of the last stop; `QC0` with no process (LLDB: connected, no process) |
 | `qAttached` | `1` |
@@ -128,7 +128,7 @@ every packet (`ycode-simd: debug: <- …` / `-> …`) to stderr.
 
 ### 4.2 Registers
 
-Ycode's order, learned by LLDB from `qRegisterInfo` (no target XML):
+SwiftCode's order, learned by LLDB from `qRegisterInfo` (no target XML):
 
 | Number | Name | Size | DWARF | Generic |
 |---|---|---|---|---|
@@ -190,7 +190,7 @@ address after each notification (§4.4).
 
 **`dyld_sim` is not LLDB's dyld.** In a simulator process LLDB keeps the
 host's macOS dyld as "the dyld" and skips an `MH_DYLINKER` whose OS is not
-macOS (`UpdateSpecialBinariesFromPreloadedModules`). Ycode has no host
+macOS (`UpdateSpecialBinariesFromPreloadedModules`). SwiftCode has no host
 dyld, so LLDB has no dyld module: it does not look for its
 `lldb_image_notifier` by name and puts its notification breakpoint on the
 image list's `notification` function instead (§4.4).
@@ -212,7 +212,7 @@ SystemVersion.plist: `PlatformDarwin::GetOSVersion` in LLDB's open
 source), which a process on a remote simulator has not got. Swift
 expressions then begin `@available(iOS 0, *)`, which the Swift compiler
 rejects ("expected version number"; `SwiftExpressionSourceCode.cpp` writes
-the platform's version into the wrapper). **Ycode decision:** `qHostInfo`
+the platform's version into the wrapper). **SwiftCode decision:** `qHostInfo`
 and `qProcessInfo` report the device OS (`ostype:ios`, `watchos`, `xros`).
 LLDB's target then is `arm64-apple-ios` on its `remote-ios` platform, even
 after `target create` of the simulator build (the executable's arch is
@@ -220,14 +220,14 @@ adopted from the process), and the OS version for Swift expressions is the
 stub's `os_version`. What changes for the user: LLDB looks for the system
 images in its iOS device-support folders, finds none, and reads them from
 the process's memory, as it did before; the images keep their
-`iossimulator` platform. `YCODE_DEBUG_OSTYPE=iossimulator` (diagnostics)
+`iossimulator` platform. `SWIFTCODE_DEBUG_OSTYPE=iossimulator` (diagnostics)
 restores the simulator OS type.
 
 **The image list's own address.** LLDB compares the struct's
 `dyldAllImageInfosAddress` field (offset 104) with the address
 `qShlibInfoAddr` gave; a difference means "dyld was slid" to the old
 plug-in, and "dyld has not started" to the new one (it then sets no
-notification breakpoint). Ycode's host leaves the field 0
+notification breakpoint). SwiftCode's host leaves the field 0
 (`stage3-contract.md` §6), so the stub shows it as dyld fills it: a read
 that covers it returns the struct's address when the guest's value is 0.
 Guest memory is not changed.
@@ -245,8 +245,8 @@ symbols come from their `__LINKEDIT` in the shared cache mapping).
 `notification` function; it reports every image-list change to the host
 through helper slot 55, `notifyMonitorOfImageListChanges(unloading, count,
 mach_header* addrs[], char* paths[])` (`dyld-sim-handoff.md` §3, §6.2), a
-Ycode-private trap. A host dyld would then call the debugger's notifier.
-**Ycode decision:** while a debugger is attached, the kernel's slot-55
+SwiftCode-private trap. A host dyld would then call the debugger's notifier.
+**SwiftCode decision:** while a debugger is attached, the kernel's slot-55
 trap returns into the `notification` function (`dyld_all_image_infos`
 +16, the host page's `ret` stub) as the call `notification(mode, count,
 dyld_image_info info[count])` (`mach-o/dyld_images.h`: mode 0 adding, 1
@@ -351,7 +351,7 @@ thread with SIGSTOP (17) and no reason.
 
 **Signals on resume.** `C<sig>` for a thread whose stop was a fault with
 that signal lets the fault take its normal course (the process ends with
-the signal, `processes.md` §2.3.1); any other signal is dropped (Ycode
+the signal, `processes.md` §2.3.1); any other signal is dropped (SwiftCode
 delivers no signals to handlers, `stage4b-contract.md` §2).
 
 **End.** When the process exits during a run the reply is `W<status>`;
@@ -423,12 +423,12 @@ left over after a detach is ignored.
   its main thread starts (`ImageLauncher.register`, kernel lock held). An
   image a debugger waits for is attached there: its threads are held, so
   the main thread parks before its first instruction (the host page's
-  `_ycode_launch`, before `dyld_sim` runs), and no code of the image has
+  `_swiftcode_launch`, before `dyld_sim` runs), and no code of the image has
   run when the debugger sees it. Only a pending wait holds anything.
 - **`vAttachWait;<name>`** (and `vAttachOrWait` when no process of that
   name runs) registers a wait for the next spawn of that executable name
   (10 minutes at most) and attaches to the held image.
-- **`--debug-launch-stopped`** (a ycode-simd option after
+- **`--debug-launch-stopped`** (a swiftcode-simd option after
   `--debug-server`) registers a wait for the `--launch` app's executable
   (its `CFBundleExecutable`) at startup: the app is held at its first
   instruction from its spawn until a connection's first packet attaches to
@@ -445,12 +445,12 @@ left over after a detach is ignored.
 
 ### 8.1 From the command line (the Mac)
 
-On the host, the run gets `--debug-server unix:$YCODE_DATA/debug/<device>.sock`
-(the launcher `ycode-sim` passes it as an app option, outside the warm-boot
+On the host, the run gets `--debug-server unix:$SWIFTCODE_DATA/debug/<device>.sock`
+(the launcher `swiftcode-sim` passes it as an app option, outside the warm-boot
 fingerprint). On the Mac:
 
 ```sh
-ssh -N -L 127.0.0.1:47200:$YCODE_DATA/debug/<device>.sock <user>@<arm64-linux-host> &
+ssh -N -L 127.0.0.1:47200:$SWIFTCODE_DATA/debug/<device>.sock <user>@<arm64-linux-host> &
 lldb DebugDemo.app
 (lldb) settings set target.exec-search-paths <build>/DebugDemo.app
 (lldb) settings set target.process.memory-cache-line-size 16384
@@ -496,8 +496,8 @@ directly from the lldb command line.
 
 ### 8.2 The IDE
 
-Run on a Ycode simulator destination now runs with the debugger, as Run on
-a Mac simulator does (the defaults key `Ycode.remote.debugger` = false turns
+Run on a SwiftCode simulator destination now runs with the debugger, as Run on
+a Mac simulator does (the defaults key `SwiftCode.remote.debugger` = false turns
 it off; a Gauge profile run never attaches):
 
 1. The run command adds `--debug-server unix:<data>/debug/<device>.sock`
@@ -517,7 +517,7 @@ it off; a Gauge profile run never attaches):
 
 ## 9. The sample app
 
-`ycode/Tools/debug-samples/DebugDemo` (original Ycode code): a UIKit app
+`swiftcode/Tools/debug-samples/DebugDemo` (original SwiftCode code): a UIKit app
 whose main thread runs `work(round:stats:)` once a second (`Work.swift`:
 `fibonacci`, a `Stats` struct passed `inout`). In round
 `DEBUGDEMO_PLUGIN_ROUND` (environment, default 40; `--app-env`) it loads
@@ -590,10 +590,10 @@ Xcode 27.1) and `lldb-dap` over an ssh forward:
 On the Linux host, iPhone 18 Pro, iOS 27.0, DebugDemo (with its plugin),
 the Mac's `lldb` (lldb-2103) over an ssh forward:
 
-- **Launch-stopped attach** (`--debug-launch-stopped`): ycode-simd printed
+- **Launch-stopped attach** (`--debug-launch-stopped`): swiftcode-simd printed
   "pid N (DebugDemo) held at its first instruction for the debugger", the
   launch line followed; `gdb-remote` attached with SIGSTOP at pc
-  0x3_1000_0000 (`_ycode_launch`, the host page) with only DebugDemo and
+  0x3_1000_0000 (`_swiftcode_launch`, the host page) with only DebugDemo and
   `dyld_sim` loaded, and `breakpoint set -n main -s DebugDemo` + `continue`
   stopped at `main` (App.swift:67) called from `dyld_sim`'s `start_sim`;
   LLDB had added the ~500 system images on the way through its
@@ -721,4 +721,4 @@ exception.
 | `dyld_all_image_infos` layout and what `dyld_sim` writes | `dyld-sim-handoff.md` §4.5 | as there |
 | `qaddr` = the thread's libdispatch slot | `ThreadInfo.swift` (THREAD_IDENTIFIER_INFO, public `mach/thread_info.h`) | 1 |
 | The stub's behavior end to end | runs on the Linux host with the Mac's `lldb` and lldb-dap (§10) | 3 |
-| Every other choice (one client, attach at the first packet, holds, the socket path, `--debug-server`, the IDE flow) | Ycode design | — |
+| Every other choice (one client, attach at the first packet, holds, the socket path, `--debug-server`, the IDE flow) | SwiftCode design | — |

@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/eventkit/`. What an EventKit app sees in the
 reference simulator (Xcode 27.1; iOS 27.1 runtime 24A94401 on an iPhone Duo;
-Apple-silicon Mac). Ycode's simulator must behave the same way first.
+Apple-silicon Mac). SwiftCode's simulator must behave the same way first.
 Statements are level 3 (`EKProbe`, observations in
 `research/notes/eventkit-contacts-simulator-observations-2026-10-20.md`)
 unless marked.
@@ -90,7 +90,7 @@ Per device under `<device>/data/`:
 The seed rows of a fresh calendar database include placeholder calendar
 names (`DEFAULT_CALENDAR_NAME`, `DEFAULT_TASK_CALENDAR_NAME`) that the
 framework localizes to "Calendar"/"Reminders", and further birthday and
-suggestion calendars that are not shown to apps without data. Ycode does not
+suggestion calendars that are not shown to apps without data. SwiftCode does not
 need to read or write these formats with its own EventKit (`design.md`). It
 needs only a writable, persistent `/var/mobile/Library` and app-group
 containers for Apple's daemons.
@@ -106,8 +106,8 @@ service in `simctl`).
 ## 7. Conformance checklist
 
 Each row: the probe phase (`EKProbe -phase <p>`, variant in brackets) and
-the expected result on the reference. A Ycode simulator running Apple's
-runtime and a Ycode EventKit must both produce it. Identifiers differ per
+the expected result on the reference. A SwiftCode simulator running Apple's
+runtime and a SwiftCode EventKit must both produce it. Identifiers differ per
 device except the fixed ones named.
 
 | # | Probe | Expected |

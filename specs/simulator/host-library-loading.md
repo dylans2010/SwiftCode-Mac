@@ -1,6 +1,6 @@
 # Spec: how `dyld_sim` loads the macOS host libraries
 
-Status: **reference** for stage 3a-ii of `docs/SIMULATOR-LINUX.md` (Ycode's
+Status: **reference** for stage 3a-ii of `docs/SIMULATOR-LINUX.md` (SwiftCode's
 own `libsystem_kernel`, `libsystem_platform`, and `libsystem_pthread`). It
 answers why `dyld_sim` stops with "Library not loaded:
 /usr/lib/system/libsystem_platform.dylib" (`stage3-contract.md` §12) and what
@@ -10,7 +10,7 @@ Every fact in §1–§5 comes from Apple's open-source `dyld` (evidence level 1)
 read at tag **`dyld-1378`**, as compiled with `TARGET_OS_SIMULATOR` set
 (that is, as `dyld_sim`). Flag and constant values come from the public macOS
 SDK headers. This spec restates behavior, names, error strings, and values.
-It contains no Apple source code. §6 is Ycode's checklist, derived from §1–§5.
+It contains no Apple source code. §6 is SwiftCode's checklist, derived from §1–§5.
 
 Terms:
 
@@ -391,14 +391,14 @@ decision from `MH_TWOLEVEL`, `MH_NO_REEXPORTED_DYLIBS`,
 ### 3.3 Page size and alignment
 
 `dyld_sim` itself checks no page size. Alignment is the kernel's
-requirement for `mmap(MAP_FIXED)`, and on Ycode the guest kernel requires
+requirement for `mmap(MAP_FIXED)`, and on SwiftCode the guest kernel requires
 16 KiB alignment (`stage3-contract.md` §12). Therefore:
 
 - every mapped segment's `vmaddr` (relative to `__TEXT`) and `fileoff` must
   be multiples of **0x4000**;
 - every segment's `filesize` except `__LINKEDIT`'s should be a multiple of
   0x4000, so that no page that `mmap` maps from the file contains bytes that
-  belong to the next segment. Ycode's mapping zero-fills only past end of
+  belong to the next segment. SwiftCode's mapping zero-fills only past end of
   file;
 - the reservation size is the image's total VM span, from the lowest to the
   highest segment address.
@@ -437,7 +437,7 @@ Because the host library is an override of a cache stub (§1.4):
   - Weak-import uses become 0.
   - All other uses become the marker value **`0xbad4007`**
     (`DYLD_BADROOT_MARKER`).
-  - A later call through such a use faults at `0xbad4007`. Ycode's VMM
+  - A later call through such a use faults at `0xbad4007`. SwiftCode's VMM
     should report that address as "missing export in a host-library
     replacement".
 - Before the cache images' fixups run, `dyld_sim` loads every image in the
@@ -527,7 +527,7 @@ present:
 
 The same happens for `libsystem_pthread` and `libsystem_kernel`.
 
-## 6. Requirements for Ycode's replacement dylibs
+## 6. Requirements for SwiftCode's replacement dylibs
 
 Placement (pick one; A is preferred):
 
@@ -541,7 +541,7 @@ Placement (pick one; A is preferred):
       treats as read-only input, so A is preferred.
 - [ ] Do not put a `/usr/lib/system/…` file inside the sim root unless B is
       intended. It is found first.
-- [ ] Ycode's VFS: `stat` and `fstat` give `S_IFREG`, the same inode and
+- [ ] SwiftCode's VFS: `stat` and `fstat` give `S_IFREG`, the same inode and
       mtime for the path and its descriptor, and a stable device number.
       The (inode, device, mtime) triple is unique across all guest files.
       `F_GETPATH` returns the guest path.
@@ -578,7 +578,7 @@ Header and load commands:
       if the image is position-independent without pointers.
 - [ ] No unknown `LC_REQ_DYLD` commands. Every fixed-size command has its
       exact size.
-- [ ] No `LC_CODE_SIGNATURE` (simplest). If one is present, Ycode's
+- [ ] No `LC_CODE_SIGNATURE` (simplest). If one is present, SwiftCode's
       `F_ADDFILESIGS_RETURN` must succeed and write back an `fs_file_start`
       ≥ the signature offset.
 - [ ] No Objective-C, no thread-local variables, and no weak definitions.
@@ -617,7 +617,7 @@ VMM services that these loads exercise:
    (`init.c`) and `libpthread`/`libplatform`/`xnu` `libsyscall` (level 1).
    That is outside this dyld-only study.
 4. **Platform name string.** `macCatalyst`'s display name was not checked.
-   It does not matter for Ycode.
+   It does not matter for SwiftCode.
 5. **Version skew.** This spec reads `dyld-1378`. The iOS 27.1 runtime's
    `dyld_sim` may be newer. The behavior here has been stable across recent
    tags, but recheck if a load fails with a reason not listed in §1.4 or
@@ -691,9 +691,9 @@ into the dirty scratchpad and read there:
 - **Public macOS SDK** `mach-o/loader.h`: `MH_*` flag values,
   `PLATFORM_MACOS` = 1, `PLATFORM_IOSSIMULATOR` = 7,
   `EXPORT_SYMBOL_FLAGS_REEXPORT` = 0x08, load-command values.
-- **Ycode documents (cited):** `stage3-contract.md` §12 (the observed error,
+- **SwiftCode documents (cited):** `stage3-contract.md` §12 (the observed error,
   macOS-platform stubs, the 16 KiB mapping rule), `dyld-sim-handoff.md` §3
   (helper slots and `fcntl` commands).
-- §6 is Ycode design, derived from the above.
+- §6 is SwiftCode design, derived from the above.
 - **Not used:** no Apple binary, simulator runtime file, `.claude/Xcode.app`
   content, `research/dirty/`, or Ghidra output was consulted.

@@ -6,11 +6,11 @@ products, and drives renewals, refunds, Ask to Buy and failures, all without
 an Apple account or network. In the simulator the store runs inside the
 StoreKit daemon (`simulator-baseline.md` §3). This file describes the
 control API (`StoreKitTest.framework`) and the rules the local store applies,
-with the values our probe measured. Ycode's simulator gets all of this for
+with the values our probe measured. SwiftCode's simulator gets all of this for
 free while it runs Apple's runtime; an open StoreKit must reproduce it.
 
 Names are interop facts from the public SDK (level 4); descriptions are ours.
-Behavior is level 3 (StoreProbe on `ycode-test-storekit-1`, iOS 27.1) unless
+Behavior is level 3 (StoreProbe on `swiftcode-test-storekit-1`, iOS 27.1) unless
 marked.
 
 ## 1. The framework
@@ -285,7 +285,7 @@ call we made.
   and Swift interface, as metadata). Framework install location: level 2.
 - All behavior and numbers: level 3 (StoreProbe phases `products`, `buy`,
   `sub`, `refund`, `ask`, `fail`, `offers`, `sk1`, `relaunch` on
-  `ycode-test-storekit-1`, iOS 27.1 runtime 24A94401, 2026-10-19/20).
+  `swiftcode-test-storekit-1`, iOS 27.1 runtime 24A94401, 2026-10-19/20).
 - §3.1 immediate upgrades: level 1 (public documentation of subscription
   levels), not directly observed.
 - JWS signature check in §9: level 3 with our own verifier

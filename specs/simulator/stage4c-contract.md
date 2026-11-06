@@ -10,7 +10,7 @@ host. Reference: `specs/simulator/launchd-sim.md` (levels 3/4),
 
 | Phase | Exit criterion |
 |---|---|
-| **4c-i** harness | `ycode-simd --device <dir> …` builds a device directory and a bootstrap plist, starts `RR/sbin/launchd_sim` per `launchd-sim.md` §2 with a host bootstrap port served by the VMM's **host task**, and logs every message `launchd_sim` sends to it. A `--trace --keep-going` run produces the list of unimplemented traps and library functions on `launchd_sim`'s path. The wire format of the bootstrap/XPC-pipe requests is specified (`bootstrap-wire.md`). |
+| **4c-i** harness | `swiftcode-simd --device <dir> …` builds a device directory and a bootstrap plist, starts `RR/sbin/launchd_sim` per `launchd-sim.md` §2 with a host bootstrap port served by the VMM's **host task**, and logs every message `launchd_sim` sends to it. A `--trace --keep-going` run produces the list of unimplemented traps and library functions on `launchd_sim`'s path. The wire format of the bootstrap/XPC-pipe requests is specified (`bootstrap-wire.md`). |
 | **4c-ii** serve | The host answers `launchd_sim`'s check-in of the device launchd name and lookups of host names (1102 for all, at first). With `Bootstrap.Paths` = one empty directory, `launchd_sim` keeps running and `TMP/launchd.log` shows the `system` and `user/501` domains created. |
 | **4c-iii** first jobs | The guest's own `launchctl print system` runs as a one-shot (VMM control channel, `launchd-sim.md` §7.2 item 6, or a job plist) and prints the domain. Then `Paths` with only logd and notifyd: both start through `xpcproxy_sim` and stay up. |
 
@@ -18,13 +18,13 @@ This contract pins 4c-i; 4c-ii/iii are added as §8+ when 4c-i reports.
 
 ## 2. Device mode (orchestrator decisions)
 
-- `ycode-simd --device <hostdir> --runtime-root <RR> [--udid <UDID>] [--job-path <dir>]… [--exec-args …]`
+- `swiftcode-simd --device <hostdir> --runtime-root <RR> [--udid <UDID>] [--job-path <dir>]… [--exec-args …]`
   boots a device instead of running `--exec`. The root process (pid 100) is
   `launchd_sim`.
 - **Paths.** Guest paths equal host paths (as before), so RR's guest path is
   its host path. DEV is `<hostdir>` (created if absent); its guest path is
   the host path, except for a copied or moved device, which keeps the guest
-  path its data was first booted at (`app-launch.md` §3.3). Ycode creates
+  path its data was first booted at (`app-launch.md` §3.3). SwiftCode creates
   `DEV/data/{tmp,var/run/simulatoraudio,Library/LaunchDaemons,Library/Application Support/Simulator}`,
   `DEV/data/var/run/memory_warning_simulation` (empty), the audio plist
   (`launchd-sim.md` §3), and `DEV/tmp-host/` and `DEV/private-var-tmp/`
@@ -35,17 +35,17 @@ This contract pins 4c-i; 4c-ii/iii are added as §8+ when 4c-i reports.
 - **UDID** default: a fixed UUID derived from the device path (stable
   across runs); upper case with dashes.
 - **Bootstrap plist** (`DEV/data/var/run/launchd_bootstrap.plist`, XML),
-  every key of `launchd-sim.md` §3 with Ycode's values: device name
-  `Ycode`, model `iPhone19,4` / `V68` / `iphone` unless overridden,
+  every key of `launchd-sim.md` §3 with SwiftCode's values: device name
+  `SwiftCode`, model `iPhone19,4` / `V68` / `iphone` unless overridden,
   screen 1206×2622 @3 pitch 460, runtime version and build read from
   `RR/System/Library/CoreServices/SystemVersion.plist` (a file format),
   `SIMULATOR_HOST_HOME` = `DEV`, framebuffer/HID framework paths empty,
   `SIMULATOR_CAPABILITIES` empty string, `Paths` = the `--job-path`
-  arguments in order (default: one empty directory `DEV/ycode-empty-jobs`).
+  arguments in order (default: one empty directory `DEV/swiftcode-empty-jobs`).
 - **Process start** (`launchd-sim.md` §2): argv `["launchd_sim", <plist>]`,
   environment = `Bootstrap.Self` plus `XPC_SERVICE_NAME`, `XPC_FLAGS=0x0`,
   `OSLogRateLimit=64`, `USER=mobile`… (not the holding-tank variables);
-  fds 0 and 1 = `/dev/null`, 2 = the console (Ycode keeps stderr visible),
+  fds 0 and 1 = `/dev/null`, 2 = the console (SwiftCode keeps stderr visible),
   3 = `/dev/console` write-only; cwd `/`; the task bootstrap special port
   is a send right to the host bootstrap port (§3).
 - The executable path given to the launcher is `RR/sbin/launchd_sim`
@@ -75,9 +75,9 @@ receive on ports of the host task and reply.
 
 | Agent | Work | Owns |
 |---|---|---|
-| **M** (Mach) | The host task (§3): `MachIPCSystem.makeHostTask()` or equivalent; the Swift message API; `MachIPCSystem.hostBootstrapPort` with its receive right in the host task; a way for P/V to give the root process a send right to it as its bootstrap special port. Unit tests: a guest kernel sends to the host port and gets a reply; port and OOL descriptors both ways; dead-name/no-senders for host ports. | `Sources/YcodeDarwinKernel/MachIPC*.swift`, new `Sources/YcodeDarwinKernel/Host/*.swift` (host-task files only), `Tests/YcodeDarwinKernelTests/MachHost*Tests.swift` |
+| **M** (Mach) | The host task (§3): `MachIPCSystem.makeHostTask()` or equivalent; the Swift message API; `MachIPCSystem.hostBootstrapPort` with its receive right in the host task; a way for P/V to give the root process a send right to it as its bootstrap special port. Unit tests: a guest kernel sends to the host port and gets a reply; port and OOL descriptors both ways; dead-name/no-senders for host ports. | `Sources/SwiftCodeDarwinKernel/MachIPC*.swift`, new `Sources/SwiftCodeDarwinKernel/Host/*.swift` (host-task files only), `Tests/SwiftCodeDarwinKernelTests/MachHost*Tests.swift` |
 | **F** (descriptors) | Device nodes: `/dev/null`, `/dev/zero`, `/dev/random`, `/dev/urandom` (reads from host entropy), `/dev/console` openable by path (write → console, read → EOF), `/dev/tty` → ENXIO; `stat` as character devices (`S_IFCHR`, plausible `rdev`); `/dev` as a directory listing these; `open` with O_CLOEXEC etc.; `DarwinFileSystem` API for V to install fds 0/1/3 at start. Path aliases: the VFS treats `/var` → `/private/var`, `/tmp` → `/private/tmp`, `/etc` → `/private/etc` as symlinks in the guest namespace (readlink shows them) when the device mode asks for it. | `DarwinFileSystem.swift`, `DescriptorObject.swift`, `Descriptors/`, its tests |
-| **V** (VMM) | Device mode (§2): options, device directory, bootstrap plist (XML via Foundation, works on Linux), process start, fds, VFS prefixes, the host bootstrap port as the root's bootstrap special port (M's API), and a **logging host bootstrap service**: a host thread that receives on the host bootstrap port and prints every message (header, ids, descriptors, body hex, sender pid) to stderr and to `DEV/ycode-host-bootstrap.log`, replying nothing yet. `--exec-args`/`--env` for `--exec` mode too. | `Sources/ycode-simd/*`, `YcodeHypervisor`, `CKVM` |
+| **V** (VMM) | Device mode (§2): options, device directory, bootstrap plist (XML via Foundation, works on Linux), process start, fds, VFS prefixes, the host bootstrap port as the root's bootstrap special port (M's API), and a **logging host bootstrap service**: a host thread that receives on the host bootstrap port and prints every message (header, ids, descriptors, body hex, sender pid) to stderr and to `DEV/swiftcode-host-bootstrap.log`, replying nothing yet. `--exec-args`/`--env` for `--exec` mode too. | `Sources/swiftcode-simd/*`, `SwiftCodeHypervisor`, `CKVM` |
 | **R** (research) | `specs/simulator/bootstrap-wire.md`: the wire format of the guest→bootstrap requests and their replies — `bootstrap_look_up`, `bootstrap_check_in`, `bootstrap_register`/`bootstrap_create_service` if used, XPC-pipe routines (`xpc_pipe_routine`), the XPC object serialization used inside them, and `launchd_sim`'s own messages to its host bootstrap at startup if observable. | `specs/simulator/bootstrap-wire.md`, scratch only |
 
 P (process layer) is not active in 4c-i; if M or V need a change in P's
@@ -105,7 +105,7 @@ write a `// CONTRACT-REQUEST:` and the orchestrator routes it.
 
 ## 6. Interfaces published by agents
 
-### 6.1 Host task (agent M, `Sources/YcodeDarwinKernel/Host/MachHostTask.swift`)
+### 6.1 Host task (agent M, `Sources/SwiftCodeDarwinKernel/Host/MachHostTask.swift`)
 
 A Mach port space with no VM and no BSD process, in the system's
 `MachIPCSystem`. Every method may be called from any host thread that
@@ -134,8 +134,8 @@ holds no kernel lock (it takes `system.lock` itself).
 
 As `stage4b-contract.md` §9: clean room; edit only your files; builds with
 `--scratch-path /tmp/yc-4c-<agent>`; Thor work in
-`$YCODE_DATA/work/4c-<agent>/`; runtime root
-`$YCODE_DATA/runtimes/iOS-27.1-24A94401/RuntimeRoot`; SSH
+`$SWIFTCODE_DATA/work/4c-<agent>/`; runtime root
+`$SWIFTCODE_DATA/runtimes/iOS-27.1-24A94401/RuntimeRoot`; SSH
 keys only, never `.env`, never a password, never sudo; the Thor is shared
 (touch only your own directories); scripts in `scratchpad/agent-<X>/`;
 do not commit. Report files changed, commands run with real output,
@@ -149,7 +149,7 @@ agent P is on that (§8.4). 4c-ii work proceeds in parallel.
 
 ### 8.1 Exit criterion
 
-`ycode-simd --device <dir>` on the Thor, no debug flags: `launchd_sim`
+`swiftcode-simd --device <dir>` on the Thor, no debug flags: `launchd_sim`
 gets its service port (708 → 808), finds its holding-tank child, creates
 the `system` and `user/501` domains (`TMP/launchd.log` shows them), and is
 still running when the run ends by `--timeout-ms` (then exit 0 for a
@@ -159,8 +159,8 @@ timeout in device mode is acceptable — V documents the convention).
 
 | Agent | Work | Owns |
 |---|---|---|
-| **X** (new) | `YcodeXPC`: the XPC object model and its serialization (`bootstrap-wire.md` §3: `?cpx`/`@cpx`, version 5, every tag in §3.2, dictionaries/arrays, key order kept but lookups by name, port-bearing objects matched to descriptors in depth-first order, inline vs. one-OOL payload §2.3), plus pipe-routine request/reply helpers (§2, §4: ids `0x40000000\|n`, reply `0x20000000`, one-way `0x10000000`, `error` replies, `{port}` replies). Pure Swift, no Mach dependency: a message is (id, body bytes, [descriptor]) with an abstract descriptor enum. Tests from the captured examples in the spec. | `Sources/YcodeXPC/**`, `Tests/YcodeXPCTests/**` |
-| **V** | The host bootstrap **server** in `HostBootstrap.swift`: 708 (size 24) → make a port, keep a send right as the control-channel end, reply per `bootstrap-wire.md` §5.2; pipe routines per §8 of that spec using `YcodeXPC` (207/804 → 1102 / 3, 206/805 → new receive right, others → `{error: 45}`), logging every request decoded. The holding-tank child via P's API (§8.3). Keeps the 4c-i logging (decoded now). | `Sources/ycode-simd/*` |
+| **X** (new) | `SwiftCodeXPC`: the XPC object model and its serialization (`bootstrap-wire.md` §3: `?cpx`/`@cpx`, version 5, every tag in §3.2, dictionaries/arrays, key order kept but lookups by name, port-bearing objects matched to descriptors in depth-first order, inline vs. one-OOL payload §2.3), plus pipe-routine request/reply helpers (§2, §4: ids `0x40000000\|n`, reply `0x20000000`, one-way `0x10000000`, `error` replies, `{port}` replies). Pure Swift, no Mach dependency: a message is (id, body bytes, [descriptor]) with an abstract descriptor enum. Tests from the captured examples in the spec. | `Sources/SwiftCodeXPC/**`, `Tests/SwiftCodeXPCTests/**` |
+| **V** | The host bootstrap **server** in `HostBootstrap.swift`: 708 (size 24) → make a port, keep a send right as the control-channel end, reply per `bootstrap-wire.md` §5.2; pipe routines per §8 of that spec using `SwiftCodeXPC` (207/804 → 1102 / 3, 206/805 → new receive right, others → `{error: 45}`), logging every request decoded. The holding-tank child via P's API (§8.3). Keeps the 4c-i logging (decoded now). | `Sources/swiftcode-simd/*` |
 | **P** | (after §8.4) `DarwinSystem.spawnInitialProcess(_:fileSystem:exitedChildEnvironmentKey:)`: when the key is given, create the root record, then an already-exited, unreaped child of it (no VM; status 0), add `KEY=<child pid>` to the root's environment, then launch. `wait4`/`waitpid` by the root reaps it as usual. | its files |
 
 ### 8.3 Pinned
@@ -178,7 +178,7 @@ libmalloc/xnu and our own run state only.
 ### 8.5 Resolutions (4c-i and 4c-ii, 2026-10-12)
 
 - **4c-ii exit criterion met** (orchestrator, fresh tree on the Thor, no
-  debug flags): `ycode-simd --device … --timeout-ms 30000` exits 0;
+  debug flags): `swiftcode-simd --device … --timeout-ms 30000` exits 0;
   `launchd_sim` sends 708 and gets 808, reaps its holding-tank child, and
   `TMP/launchd.log` shows `system` created, "launchd logging initialized",
   "boot-mode committed", and `user/501` created, entering and exiting
@@ -211,14 +211,14 @@ libmalloc/xnu and our own run state only.
 
 ### 9.1 Exit criterion
 
-On the Thor, `ycode-simd --device` with no debug flags:
+On the Thor, `swiftcode-simd --device` with no debug flags:
 
-1. A job plist in a `--job-path` directory (Ycode-written, `RunAtLoad`,
+1. A job plist in a `--job-path` directory (SwiftCode-written, `RunAtLoad`,
    `ProgramArguments` = `/bin/launchctl print system`, `StandardOutPath`
    under `/tmp`) is spawned by `launchd_sim` through `xpcproxy_sim`, runs,
    and its output file holds the printed `system` domain.
 2. With `--job-path` pointing at a directory that holds only the runtime's
-   logd and notifyd plists (Ycode links or copies them into the device
+   logd and notifyd plists (SwiftCode links or copies them into the device
    directory at run time; nothing from the runtime enters the repository),
    both daemons start through `xpcproxy_sim` and are still running at the
    timeout, and `launchd.log` shows no crash or throttle for them.
@@ -226,8 +226,8 @@ On the Thor, `ycode-simd --device` with no debug flags:
 ### 9.2 Model
 
 This phase is trace-driven debugging across every layer, so one agent
-(**I**, integrator) owns all of `ycode/` for its duration; no other agent
-edits `ycode/` meanwhile. Each fix stays small, is covered by a unit test
+(**I**, integrator) owns all of `swiftcode/` for its duration; no other agent
+edits `swiftcode/` meanwhile. Each fix stays small, is covered by a unit test
 or a probe where practical, and is listed in the report with its evidence
 level. Evidence rules are unchanged (levels 1 and 3; reading a runtime
 plist as a file format is level 2; no disassembly).
@@ -252,7 +252,7 @@ plist as a file format is level 2; no disassembly).
   Every earlier probe passes; 424 Swift tests and the host-library checks
   pass on macOS, the Thor, and x86-64.
 - Fixes (integrator I, levels 1–3): `RequireDomainBinding = false` in
-  Ycode's bootstrap plist (no session bind yet); kevent `EV_VANISHED` as a
+  SwiftCode's bootstrap plist (no session bind yet); kevent `EV_VANISHED` as a
   request flag; `MACH_RCV_SYNC_WAIT` on combined `mach_msg2`; workqueue
   binding at hand-out (two workers on one workloop → EXDEV); repeated
   `SYNC_WAKE` succeeds (`threads-and-events.md` corrected); Mach memory

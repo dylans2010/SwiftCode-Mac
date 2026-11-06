@@ -5,13 +5,13 @@ static-image runner). Every fact in §1–§6 comes from Apple's open-source
 `dyld` (evidence level 1), read at tag **`dyld-1378`** (the newest tag on
 2026-10-11) and cross-checked against older tags where noted, plus public
 `xnu` headers and the public macOS SDK headers. This spec restates behavior,
-signatures, and layouts. It contains no Apple source code. §7 is Ycode's own
+signatures, and layouts. It contains no Apple source code. §7 is SwiftCode's own
 design.
 
 Terms:
 
 - **host dyld**: the macOS `/usr/lib/dyld` that the kernel starts for a
-  simulator process. On Linux, Ycode's loader and VMM take its place.
+  simulator process. On Linux, SwiftCode's loader and VMM take its place.
 - **`dyld_sim`**: `<DYLD_ROOT_PATH>/usr/lib/dyld_sim`, the simulator's own
   dynamic linker. It is built from the same `dyld` sources with
   `TARGET_OS_SIMULATOR` set.
@@ -167,7 +167,7 @@ mapped `dyld_sim` and takes the first of these it finds:
   address and can serve as a cross-check.
 - On arm64e hosts the host signs the pointer with a zero discriminator
   before calling it. The simulator slice is plain arm64, so this does not
-  apply to Ycode.
+  apply to SwiftCode.
 
 ### 2.3 Signature
 
@@ -757,10 +757,10 @@ Where the start glue sits:
 - `start_sim` and `*startGlue = 1` have been present since at least
   `dyld-1042.1`.
 
-## 7. Implications for Ycode
+## 7. Implications for SwiftCode
 
-Ycode has no host dyld. **The Ycode loader plus the VMM play the host
-dyld's part, and the kernel's part too.** Everything below is Ycode design
+SwiftCode has no host dyld. **The SwiftCode loader plus the VMM play the host
+dyld's part, and the kernel's part too.** Everything below is SwiftCode design
 derived from §1–§6.
 
 ### 7.1 What the loader must build before the first EL0 instruction
@@ -788,7 +788,7 @@ derived from §1–§6.
      and `stack_guard=<random hex>`. Leave `executable_file` and `dyld_file`
      out until `fsgetpath` exists. Then dyld falls back to `realpath` and
      `/usr/lib/dyld`.
-4. **A Ycode "host page"** (EL0 read-only and executable, plus one EL0 RW
+4. **A SwiftCode "host page"** (EL0 read-only and executable, plus one EL0 RW
    page) that holds:
    - the 544-byte helpers table, `version = 18`;
    - a 368-byte `dyld_all_image_infos`:
@@ -808,7 +808,7 @@ derived from §1–§6.
    - `x0`–`x7` as in §2.3;
    - SP = 16-byte aligned, below the block, with `[sp]` = the address of an
      8-byte `startGlue` cell;
-   - `x30` (LR) = a stub that raises a Ycode-private "dyld_sim returned"
+   - `x30` (LR) = a stub that raises a SwiftCode-private "dyld_sim returned"
      trap;
    - `TPIDRRO_EL0` = 0 (see §8).
 
@@ -896,13 +896,13 @@ argument from `[sp]`, not from `x2`.
    - Kernel `sysctlbyname` (274) takes an extra `namelen` argument, so its
      stub must compute `strlen`. Alternatively, send it through a private
      trap.
-3. **Ycode-private traps** for helpers that have no single Darwin trap or
+3. **SwiftCode-private traps** for helpers that have no single Darwin trap or
    need host logic:
 
    | Helper | Behavior |
    |---|---|
    | `vlog`, `vwarn` | format with the arm64 `va_list` (a stack pointer), or just log the format string at first |
-   | `realpath`, `getcwd` | resolved in Ycode's path namespace |
+   | `realpath`, `getcwd` | resolved in SwiftCode's path namespace |
    | `vm_copy` | |
    | `proc_regionfilename` | |
    | `task_info`, `thread_info` | |
@@ -953,7 +953,7 @@ argument from `[sp]`, not from `x2`.
 1. The entry is
    `_dyld_sim_prepare(argc, argv, envp, apple, mainMH, simMH, simSlide,
    helpers, &startGlue)`, with the 9th argument at `[sp]`. It returns
-   `start_sim`, which Ycode then calls as `main`.
+   `start_sim`, which SwiftCode then calls as `main`.
 2. `argv` must point into a real kernel-format block, because `dyld_sim`
    writes `argv[−2]`.
 3. Most helpers are tiny EL0 stubs that forward to Darwin traps the VMM
@@ -978,8 +978,8 @@ argument from `[sp]`, not from `x2`.
    - the earlier observation refers to a different mapping.
 
    To resolve it, check mapping 0's address and `sharedRegionStart` with
-   `ycode dsc`, and trace `dyld_sim`'s first fixed `mmap` in stage 3.
-   Whatever the answer, Ycode must honor the exact `MAP_FIXED` address it is
+   `swiftcode dsc`, and trace `dyld_sim`'s first fixed `mmap` in stage 3.
+   Whatever the answer, SwiftCode must honor the exact `MAP_FIXED` address it is
    given.
 2. **Raw syscalls from static libraries.** `dyld_sim` links static archives
    from the SDK's `usr/local/lib/dyld/` (libc and others) that are not in the
@@ -990,8 +990,8 @@ argument from `[sp]`, not from `x2`.
    initializer. Confirm that 0 is acceptable. Also confirm the platform-call
    selector for `thread_set_cthread_self` (open in
    `darwin-arm64-abi.md`), which libpthread will use.
-4. **`dyld_sim`'s entry load command.** Ycode supports both commands. A
-   level-4 check of the iOS 27.1 `dyld_sim` with `ycode macho` should record
+4. **`dyld_sim`'s entry load command.** SwiftCode supports both commands. A
+   level-4 check of the iOS 27.1 `dyld_sim` with `swiftcode macho` should record
    which one is present. `-dylinker` output is expected to carry
    `LC_UNIXTHREAD`.
 5. **iOS 27.1 `dyld_sim` vs `dyld-1378`.** The runtime is probably built from

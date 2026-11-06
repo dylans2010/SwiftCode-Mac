@@ -3,7 +3,7 @@
 Status: **reference** for stage 4c (`stage4c-contract.md` §4 row R). It
 gives the Mach messages that the iOS 27.1 simulator runtime (24A94401)
 sends to a task's bootstrap port, and the replies it accepts. It is precise
-enough for Ycode to implement (a) the **host bootstrap** that `launchd_sim`
+enough for SwiftCode to implement (a) the **host bootstrap** that `launchd_sim`
 talks to at startup and (b) later, a guest-side reading of bootstrap and
 XPC lookups.
 
@@ -44,7 +44,7 @@ Terms:
 3. A process reads its bootstrap port **once, during library
    initialization**. After that, a change to the `bootstrap_port` global or
    to the task special port has no effect on libxpc's bootstrap traffic
-   (probe "self" mode captured nothing). Ycode must install the bootstrap
+   (probe "self" mode captured nothing). SwiftCode must install the bootstrap
    special port before the process's first instruction.
 4. A plain C program sends **nothing** to its bootstrap port during startup.
    Its first bootstrap message is its first explicit call.
@@ -60,7 +60,7 @@ are the received types (`mach-ipc.md` §2.5).
 |---|---|
 | `msgh_bits` remote | 18 (`PORT_SEND_ONCE`): the requester's reply port, made with `MAKE_SEND_ONCE` |
 | `msgh_bits` local | 17 (`PORT_SEND`): the bootstrap port, sent with `COPY_SEND` |
-| `msgh_bits` voucher | 17 with a voucher name on macOS. Ycode guests carry voucher 0 (`mach-ipc.md` §4.3). The server ignores it |
+| `msgh_bits` voucher | 17 with a voucher name on macOS. SwiftCode guests carry voucher 0 (`mach-ipc.md` §4.3). The server ignores it |
 | `COMPLEX` | set if and only if the payload holds a port-bearing object (§3.4), or if the payload is out of line (§2.3) |
 | `msgh_size` | 24, plus 4 + the descriptor bytes if complex, plus the inline payload |
 | `msgh_id` | **`0x40000000 | routine`** (for example, look-up 207 → `0x400000CF`) |
@@ -109,7 +109,7 @@ than 400 bytes), so this matters only for general pipe traffic.
 | 4 | 4 | version: `5` |
 | 8 | … | one object, the root. For pipe routines it is always a dictionary |
 
-Every request and reply that was captured used `?cpx`. Ycode writes this
+Every request and reply that was captured used `?cpx`. SwiftCode writes this
 magic and should also accept `@cpx` (`0x78706340`), for safety (§8).
 
 ### 3.2 Objects
@@ -329,7 +329,7 @@ value must be the pid of one of **its own child processes**:
 
 `XPC_SIMULATOR_HOLDING_TANK_FD_HACK` was **not** set in the successful runs.
 The order was: the 708 exchange, then the wait for the child, then the
-domains. For Ycode: before pid 100 executes `launchd_sim`, the VMM must
+domains. For SwiftCode: before pid 100 executes `launchd_sim`, the VMM must
 give it a child process (for example pid 101, already exited and
 unreaped). It then passes that pid in the variable.
 
@@ -359,7 +359,7 @@ the pipe "try receive / routine reply" calls in `src/runtime.c`.
 None of the 400-series IDs appear. The arguments of the old MIG routines
 match keys in the pipe dictionaries: `servicename` → `name`,
 `target_pid` → `targetpid`, `instance_id` → `instance`, `flags` →
-`flags`. A Ycode bootstrap server must implement the **pipe** routines of
+`flags`. A SwiftCode bootstrap server must implement the **pipe** routines of
 §4. It needs a 400-series MIG server only if some guest binary still sends
 those IDs. None did in the captures.
 
@@ -378,7 +378,7 @@ OR-ed with the wire flags: `launchctl`'s legacy look-ups with wire flags 8
 are logged as `0x9`. XPC look-ups are logged with no flags field. XPC
 listener check-ins are logged as `0x0`.
 
-## 7. Replies Ycode's host may send (checked against real clients)
+## 7. Replies SwiftCode's host may send (checked against real clients)
 
 The probe's host mode answered the runtime's own `bootstrap_*` and libxpc
 calls. It used only the layouts below, and every client accepted them:
@@ -397,13 +397,13 @@ The reply header in all cases: remote = the request's reply right with
 `MOVE_SEND_ONCE`, local 0, voucher 0, `msgh_id` `0x20000000` (808 for the
 MIG 708).
 
-## 8. Requirements for Ycode (derived)
+## 8. Requirements for SwiftCode (derived)
 
 1. **Host bootstrap, phase 4c-ii.** Receive on the host bootstrap port.
    For `msgh_id` 708 with `msgh_size` 24: create a port, keep a send right
    (the control-channel end), and reply as in §5.2. For pipe requests
    (`0x40000000 | n`): decode the dictionary. Answer 207 and 804 with 1102
-   or 3, or with `{port}` for names that Ycode provides. Answer 206 and 805
+   or 3, or with `{port}` for names that SwiftCode provides. Answer 206 and 805
    with a new receive right. Answer anything else with `{error: 45}` (or
    1102 for legacy routines). Log every unknown ID.
 2. **Process start.** Install the bootstrap special port before the first
@@ -432,7 +432,7 @@ MIG 708).
    register endpoint, spawn, `launch_sim_*`). It is private between
    `liblaunch_sim` and `launchd_sim` and is not covered here.
 6. The XPC connection protocol after look-up (`msgh_id` `0x77303074`, §3.2).
-   It is needed later, when Ycode serves XPC services itself.
+   It is needed later, when SwiftCode serves XPC services itself.
 7. The exact inline/OOL cut-off (§2.3) and the large-data threshold (seen:
    16 384 inline, 16 385 by port).
 
@@ -459,10 +459,10 @@ MIG 708).
 
 ### A.3 Running `launchd_sim`
 
-The device was a fake one under `/tmp/ycode-R/dev`. Its bootstrap plist was
+The device was a fake one under `/tmp/swiftcode-R/dev`. Its bootstrap plist was
 derived from a real device's plist (read as a file format): a fake UDID
 `5C0DE000-0000-4000-8000-000000000001`, device paths moved to
-`/tmp/ycode-R/dev`, and `Paths` set to one directory. The environment was
+`/tmp/swiftcode-R/dev`, and `Paths` set to one directory. The environment was
 `Bootstrap.Self` plus `XPC_SERVICE_NAME`, `XPC_FLAGS`, `OSLogRateLimit`,
 and `USER`. The executable was `RR/sbin/launchd_sim`, with argv
 `launchd_sim <plist>`. Run inside the booted iOS 27.1 simulator through

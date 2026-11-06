@@ -1,6 +1,6 @@
 # Open Quickly
 
-Ycode module: `YcodeUI` (`FuzzyMatch`, `OpenQuicklyController`).
+SwiftCode module: `SwiftCodeUI` (`FuzzyMatch`, `OpenQuicklyController`).
 
 File ▸ Open Quickly… (⇧⌘O) shows a panel: a large search field, then a
 list of matches (icon, name, and below it the folder for files or
@@ -27,6 +27,6 @@ change, +3·n for the n-th character of a contiguous run. Total = sum × 10
 
 - Open Quickly's purpose, shortcut and behavior (files and symbols, Return
   opens): Apple's public Xcode Help and shortcut reference (level 1).
-- The scoring rule is Ycode's own.
+- The scoring rule is SwiftCode's own.
 - OPEN QUESTION: Xcode's ranking, whether it matches paths (e.g. `dir/file`)
   and `file:line` queries, and its result-row layout.

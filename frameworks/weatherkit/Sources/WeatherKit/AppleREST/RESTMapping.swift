@@ -2,7 +2,7 @@
 // API is metric (°C, km/h, degrees, mbar, m, mm, mm/h), and so are the
 // model values built here (api.md §6).
 //
-// Fields the Swift model has but v1 does not document get Ycode values,
+// Fields the Swift model has but v1 does not document get SwiftCode values,
 // listed in the package README: zero amounts and extremes, cloud cover by
 // altitude zero, day parts synthesized from the day when absent, dew point
 // from temperature and humidity (Magnus formula) when absent.
@@ -217,7 +217,7 @@ struct RESTMapper {
     // MARK: Enumerations (rest-api.md §6)
 
     /// `conditionCode` is the case name in UpperCamelCase. Unknown codes fall
-    /// back by keyword (Ycode choice).
+    /// back by keyword (SwiftCode choice).
     static func condition(_ code: String) -> WeatherCondition {
         guard let first = code.first else { return .cloudy }
         let lowerCamel = first.lowercased() + code.dropFirst()
@@ -266,7 +266,7 @@ struct RESTMapper {
             speed: kmh(speed), gust: gust.map(kmh))
     }
 
-    /// Ycode's intensity bands (mm/h): 0 none, < 2.5 light, < 7.6 moderate, else heavy.
+    /// SwiftCode's intensity bands (mm/h): 0 none, < 2.5 light, < 7.6 moderate, else heavy.
     static func intensity(_ millimetersPerHour: Double) -> PrecipitationIntensityValue {
         let category: String
         switch millimetersPerHour {
@@ -298,7 +298,7 @@ struct RESTMapper {
                 minimumLiquidEquivalent: type == .snow ? mm(total) : zero))
     }
 
-    /// Ycode's English sentence for the next hour (the public `summary`).
+    /// SwiftCode's English sentence for the next hour (the public `summary`).
     static func summarySentence(_ periods: [REST.ForecastPeriodSummary], from start: Date?) -> String {
         guard let first = periods.first else { return "" }
         let firstKind = precipitation(first.condition)
@@ -321,7 +321,7 @@ struct RESTMapper {
         kind == .none ? "No precipitation" : CaseName.capitalized(kind.description)
     }
 
-    /// Ycode's condition × daylight → SF Symbols name table (design.md §5).
+    /// SwiftCode's condition × daylight → SF Symbols name table (design.md §5).
     static func symbolName(_ condition: WeatherCondition, daylight: Bool) -> String {
         switch condition {
         case .clear, .hot: return daylight ? "sun.max" : "moon.stars"

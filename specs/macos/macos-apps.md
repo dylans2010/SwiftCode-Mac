@@ -1,14 +1,14 @@
-# Spec: running native macOS programs and apps with Ycode on Linux
+# Spec: running native macOS programs and apps with SwiftCode on Linux
 
 Status: **design and feasibility (round 1, 2026-10-29)**, with Milestone A
 implemented (§9.1) and stage B in part (§9.3, §9.4: the Swift runtime,
-Concurrency and FoundationEssentials run; URLSession does not yet). Ycode design, written in the clean room: it uses the
-existing Ycode specs, public documentation and the license texts of the open
+Concurrency and FoundationEssentials run; URLSession does not yet). SwiftCode design, written in the clean room: it uses the
+existing SwiftCode specs, public documentation and the license texts of the open
 projects it names. No Apple binary was studied for it.
 
-Related: `specs/macos/dyld.md` (Ycode's dynamic linker for macOS
-processes), `specs/macos/libsystem.md` (Ycode's libSystem shim),
-`specs/macos/objc-runtime.md` (Ycode's Objective-C runtime),
+Related: `specs/macos/dyld.md` (SwiftCode's dynamic linker for macOS
+processes), `specs/macos/libsystem.md` (SwiftCode's libSystem shim),
+`specs/macos/objc-runtime.md` (SwiftCode's Objective-C runtime),
 `specs/macos/swift-runtime.md` (the Swift runtime and Foundation),
 `specs/simulator/native-mode.md`, `docs/native-loader-evaluation.md`,
 `docs/SIMULATOR-LINUX.md`, `docs/FUTURE.md` (macOS is second in the platform
@@ -16,13 +16,13 @@ order).
 
 ## 1. The goal and how it differs from the simulator
 
-The owner's request: run native macOS apps with Ycode on Linux.
+The owner's request: run native macOS apps with SwiftCode on Linux.
 
-Ycode already runs Apple's iOS, iPadOS and visionOS **simulator runtimes**
-on arm64 Linux. Each guest process is a KVM micro-VM; `YcodeDarwinKernel`
+SwiftCode already runs Apple's iOS, iPadOS and visionOS **simulator runtimes**
+on arm64 Linux. Each guest process is a KVM micro-VM; `SwiftCodeDarwinKernel`
 implements the Darwin system calls, Mach traps and IOKit; the runtime brings
 its own userland (`dyld_sim`, the shared cache with libSystem, the
-frameworks, the render server), and Ycode supplies three host libraries and
+frameworks, the render server), and SwiftCode supplies three host libraries and
 the host services.
 
 A macOS program is different in one way that decides everything: **nothing
@@ -31,18 +31,18 @@ in a simulator runtime is a macOS userland.** A macOS app links against
 AppKit, CoreGraphics, Metal and many more, all from the macOS system volume,
 and expects a macOS kernel personality around them (`launchd` as pid 1,
 WindowServer reached through SkyLight, IOKit drivers for the display and the
-GPU). Ycode has to find that userland somewhere. §5 compares the three
+GPU). SwiftCode has to find that userland somewhere. §5 compares the three
 places it can come from; that choice belongs to the owner (§6).
 
 What carries over unchanged from the simulator path:
 
-| Already in Ycode | Use for macOS programs |
+| Already in SwiftCode | Use for macOS programs |
 |---|---|
 | KVM micro-VM per process, EL1 shim, 16 KB pages, `TPIDRRO_EL0` | The same. A macOS arm64 process has the same EL0 view as a simulator process (§3) |
-| `YcodeDarwinKernel` (BSD calls, Mach IPC, kevent, workqueue, IOKit registry) | The same kernel. The differences are listed in §4 |
-| `YcodeMachO` (Mach-O and shared-cache parsing) | Used by the VMM to map the main executable and the dynamic linker |
-| The three host libraries (`ycode/SimHostLibs`) | Reused as macOS's `libsystem_kernel`, `libsystem_platform` and `libsystem_pthread` (§9.1) |
-| Metal on Vulkan (`YcodeMetalHost`, `YcodeVulkan`, `ycode-airc`) | The graphics path for macOS apps too (§8) |
+| `SwiftCodeDarwinKernel` (BSD calls, Mach IPC, kevent, workqueue, IOKit registry) | The same kernel. The differences are listed in §4 |
+| `SwiftCodeMachO` (Mach-O and shared-cache parsing) | Used by the VMM to map the main executable and the dynamic linker |
+| The three host libraries (`swiftcode/SimHostLibs`) | Reused as macOS's `libsystem_kernel`, `libsystem_platform` and `libsystem_pthread` (§9.1) |
+| Metal on Vulkan (`SwiftCodeMetalHost`, `SwiftCodeVulkan`, `swiftcode-airc`) | The graphics path for macOS apps too (§8) |
 | The display stream and the viewer | One way to show macOS windows (§7) |
 
 ## 2. What a macOS process expects
@@ -68,8 +68,8 @@ xnu and dyld headers, Apple's public documentation):
 
 ## 3. Execution model: reuse the micro-VM
 
-**Decision (Ycode design): run macOS processes in the same KVM micro-VM
-model as simulator processes, with `YcodeDarwinKernel` as the personality.**
+**Decision (SwiftCode design): run macOS processes in the same KVM micro-VM
+model as simulator processes, with `SwiftCodeDarwinKernel` as the personality.**
 Native mode (`native-mode.md`) stays a later speed option for both.
 
 Why:
@@ -82,7 +82,7 @@ Why:
   options 1 and 3) needs the micro-VM or a solved native-mode TLS problem.
 - Everything process-wide that a macOS process needs beyond its own image
   (Mach IPC to launchd, a bootstrap server, kevent, the workqueue, IOKit)
-  is already in `YcodeDarwinKernel` and is exercised daily by the iOS boot.
+  is already in `SwiftCodeDarwinKernel` and is exercised daily by the iOS boot.
 - One kernel personality for both platforms keeps one set of fixes; native
   mode would split it (`native-mode.md` §9, "Two code paths").
 - The cost is the trap price (about 4 µs per exit, `guest-cpu.md` §7.1).
@@ -90,16 +90,16 @@ Why:
   iOS boot already lives with it.
 
 Native mode becomes interesting once option 2 (§5) is chosen and every
-library in the process is Ycode-built: then no foreign code reads
+library in the process is SwiftCode-built: then no foreign code reads
 `TPIDRRO_EL0` inline and the whole TLS problem of native mode disappears
-(Ycode's libraries can be compiled to use another thread register, as
+(SwiftCode's libraries can be compiled to use another thread register, as
 Darling does). Record this as a speed path for later (§9, stage F).
 
-How a macOS process starts under Ycode (implemented for Milestone A,
+How a macOS process starts under SwiftCode (implemented for Milestone A,
 `dyld.md` §3):
 
-1. `ycode-simd --macos <binary>` builds a VM, maps the main executable at
-   its preferred address and Ycode's dynamic linker (`/usr/lib/dyld` in the
+1. `swiftcode-simd --macos <binary>` builds a VM, maps the main executable at
+   its preferred address and SwiftCode's dynamic linker (`/usr/lib/dyld` in the
    macOS userland root) at a fixed base, both by the VMM.
 2. The VMM writes the argument block (`darwin-process-start.md` §1.3), the
    commpage, the main-thread block and `TPIDRRO_EL0` exactly as for a
@@ -108,7 +108,7 @@ How a macOS process starts under Ycode (implemented for Milestone A,
    Mach-header slot. There is no `dyld_sim` hand-off (no launch block, no
    host-page entry stub): the macOS dyld *is* the first user code, as on a
    Mac.
-4. Ycode's dyld loads Ycode's libSystem (and through it the three host
+4. SwiftCode's dyld loads SwiftCode's libSystem (and through it the three host
    libraries), runs the initializers and calls `main`.
 
 ## 4. Kernel-ABI differences from the simulator path
@@ -119,21 +119,21 @@ of it applies unchanged. The differences below are the ones a macOS
 userland can notice. Items marked **(A)** were needed for Milestone A and
 are done; the others are the plan.
 
-| Area | Simulator path today | macOS process | Ycode plan |
+| Area | Simulator path today | macOS process | SwiftCode plan |
 |---|---|---|---|
 | Executable check | `--exec`/device mode accept only iOS- and visionOS-simulator executables (`EBADARCH` otherwise) | Platform 1 (`PLATFORM_MACOS`) in `LC_BUILD_VERSION` | **(A)** The macOS mode accepts platform 1 and nothing else; simulator modes are unchanged |
 | First user code | `dyld_sim`, entered through the host-page stub and the launch block | `/usr/lib/dyld`, entered directly with `SP` on the Mach header | **(A)** New start path (§3) |
 | Process platform (`proc_info`, `csops`-adjacent queries) | The runtime's simulator platform | `PLATFORM_MACOS` | **(A)** The kernel's process-platform value is 1 in macOS mode |
-| `sysctl` identity (`kern.osproductversion`, `kern.osversion`, `hw.model`, `hw.machine`) | Simulator runtime values; `hw.machine` = `arm64` | A Mac's: product version of the macOS release the userland claims, a Mac model identifier | Make the identity table per platform (stage B). Ycode's own libraries read none of it yet |
-| Code signing and AMFI | `csops` reports from the embedded signature; nothing is enforced (simulator binaries are ad hoc or platform-signed) | On a Mac every arm64 executable page must be signed (at least ad hoc); AMFI enforces library validation and entitlements for hardened-runtime apps; `CS_PLATFORM_BINARY` marks system code | Keep **not enforcing** (Ycode is not a security boundary). Report signatures through `csops` as today. Entitlements: read from the signature and answer the queries apps make (`SecTaskCopyValueForEntitlement` path later). No AMFI emulation |
-| `task_for_pid` | Implemented for the device's tasks (Mach trap 45) | Restricted on macOS to the same user with debugger entitlement, or root | Allow for the same Ycode device/session, as today; LLDB support for macOS processes uses it (stage D) |
-| Sandbox | Simulator apps carry container paths; `sandbox_check` and extensions per `sandbox-extensions.md` | App Sandbox for sandboxed Mac apps: container under `~/Library/Containers/<id>`, extensions from the open/save panel | Do not enforce. Provide the container directory layout and answer `sandbox_check` "allowed". Issue extensions from Ycode's file-dialog service (§7.3) so apps that consume them work |
-| Commpage | Legacy offsets that simulator binaries read (`darwin-process-start.md` §3.1) | The same arm64 commpage; macOS binaries of a current SDK may read the newer layout version | Same pages. Open question Q1 (§12): which layout version macOS-SDK binaries read. Ycode's own libraries read only fields Ycode fills |
+| `sysctl` identity (`kern.osproductversion`, `kern.osversion`, `hw.model`, `hw.machine`) | Simulator runtime values; `hw.machine` = `arm64` | A Mac's: product version of the macOS release the userland claims, a Mac model identifier | Make the identity table per platform (stage B). SwiftCode's own libraries read none of it yet |
+| Code signing and AMFI | `csops` reports from the embedded signature; nothing is enforced (simulator binaries are ad hoc or platform-signed) | On a Mac every arm64 executable page must be signed (at least ad hoc); AMFI enforces library validation and entitlements for hardened-runtime apps; `CS_PLATFORM_BINARY` marks system code | Keep **not enforcing** (SwiftCode is not a security boundary). Report signatures through `csops` as today. Entitlements: read from the signature and answer the queries apps make (`SecTaskCopyValueForEntitlement` path later). No AMFI emulation |
+| `task_for_pid` | Implemented for the device's tasks (Mach trap 45) | Restricted on macOS to the same user with debugger entitlement, or root | Allow for the same SwiftCode device/session, as today; LLDB support for macOS processes uses it (stage D) |
+| Sandbox | Simulator apps carry container paths; `sandbox_check` and extensions per `sandbox-extensions.md` | App Sandbox for sandboxed Mac apps: container under `~/Library/Containers/<id>`, extensions from the open/save panel | Do not enforce. Provide the container directory layout and answer `sandbox_check` "allowed". Issue extensions from SwiftCode's file-dialog service (§7.3) so apps that consume them work |
+| Commpage | Legacy offsets that simulator binaries read (`darwin-process-start.md` §3.1) | The same arm64 commpage; macOS binaries of a current SDK may read the newer layout version | Same pages. Open question Q1 (§12): which layout version macOS-SDK binaries read. SwiftCode's own libraries read only fields SwiftCode fills |
 | Page size, VA layout, `__PAGEZERO` | 16 KB pages, 4 GB `__PAGEZERO`, executables unslid | The same on Apple silicon | Unchanged |
-| Pointer authentication (arm64e) | Simulator caches are arm64; PAC not exposed | macOS system binaries are arm64e; third-party apps are arm64 | Ycode's own userland is arm64. Apple's macOS libraries (option 1) are arm64e and would need PAC in the guest (the vCPU would have to expose it) or are unusable: a hard requirement of option 1, §5.1 |
-| launchd | `launchd_sim` (the runtime's) under Ycode's bootstrap server | `launchd` as pid 1 with the system domain and `gui/<uid>` | Ycode's bootstrap server is the base. Option 2 needs a Ycode launchd-lite (stage C) |
-| IOKit | A minimal registry for the simulator's needs (`iokit-minimal.md`) | Display (`IOMobileFramebuffer`-like and DisplayPort services), HID event system, power, GPU (`AGXAccelerator`), USB | Only through Ycode's own services; no driver emulation for Apple's GPU stack (§8) |
-| Exceptions and crash reports | Mach exception ports, crash reports by Ycode | Same mechanism; ReportCrash on a Mac | Same as simulator path |
+| Pointer authentication (arm64e) | Simulator caches are arm64; PAC not exposed | macOS system binaries are arm64e; third-party apps are arm64 | SwiftCode's own userland is arm64. Apple's macOS libraries (option 1) are arm64e and would need PAC in the guest (the vCPU would have to expose it) or are unusable: a hard requirement of option 1, §5.1 |
+| launchd | `launchd_sim` (the runtime's) under SwiftCode's bootstrap server | `launchd` as pid 1 with the system domain and `gui/<uid>` | SwiftCode's bootstrap server is the base. Option 2 needs a SwiftCode launchd-lite (stage C) |
+| IOKit | A minimal registry for the simulator's needs (`iokit-minimal.md`) | Display (`IOMobileFramebuffer`-like and DisplayPort services), HID event system, power, GPU (`AGXAccelerator`), USB | Only through SwiftCode's own services; no driver emulation for Apple's GPU stack (§8) |
+| Exceptions and crash reports | Mach exception ports, crash reports by SwiftCode | Same mechanism; ReportCrash on a Mac | Same as simulator path |
 
 Interop identifiers named here (`PLATFORM_MACOS` = 1, `LC_BUILD_VERSION`,
 `csops`, `task_for_pid`) are public header facts (evidence level 1).
@@ -162,12 +162,12 @@ What this option would need, beyond the license:
 | Need | Why | Size of the work |
 |---|---|---|
 | **arm64e guest** | macOS system libraries are arm64e: pointer authentication instructions on every return and indirect call. The guest vCPU must expose PAC (FEAT_PAuth) with Apple's key usage, and the kernel must manage the per-process keys (`darwin-process-start.md` has no arm64e start state yet) | Medium on a host CPU with PAuth (mandatory from Armv8.3, so the Thor qualifies; KVM must be told to expose it); impossible on a host without it |
-| Apple's `dyld` and the macOS shared cache | The cache is one mapped file set, laid out for the macOS kernel's shared region | Ycode maps the simulator cache today; the macOS cache is larger (several GB) |
-| **WindowServer and SkyLight** | Every AppKit window is a WindowServer window; SkyLight talks to WindowServer over Mach messages and shared memory | WindowServer is a macOS daemon that drives the display hardware through IOKit; it would have to run in the guest with Ycode emulating its display and GPU devices, or Ycode would have to implement the SkyLight server side itself. Either is very large |
+| Apple's `dyld` and the macOS shared cache | The cache is one mapped file set, laid out for the macOS kernel's shared region | SwiftCode maps the simulator cache today; the macOS cache is larger (several GB) |
+| **WindowServer and SkyLight** | Every AppKit window is a WindowServer window; SkyLight talks to WindowServer over Mach messages and shared memory | WindowServer is a macOS daemon that drives the display hardware through IOKit; it would have to run in the guest with SwiftCode emulating its display and GPU devices, or SwiftCode would have to implement the SkyLight server side itself. Either is very large |
 | Display and GPU | WindowServer and Metal reach the GPU through the AGX kernel driver's user clients (IOKit) | Emulating Apple's GPU driver interface is far beyond the simulator work; the simulator avoids it because the simulator's Metal goes through a host-service protocol (`metal-sim-protocol.md`) that has no macOS counterpart |
 | IOKit drivers | HID event system, power management, USB, audio (CoreAudio's HAL plug-ins), Bluetooth | Many services, each with private user-client methods |
 | launchd services | `launchd` itself, then the daemons GUI apps call: pasteboard, LaunchServices (`lsd`), `cfprefsd`, font services, `distnoted`, `coreservicesd`, `tccd` | Each daemon is Apple code that could run in the guest (as the simulator's do) if the kernel surface is enough |
-| Code signing and AMFI | System libraries and daemons check their own and their peers' signatures and entitlements | Ycode would have to answer as a Mac kernel does |
+| Code signing and AMFI | System libraries and daemons check their own and their peers' signatures and entitlements | SwiftCode would have to answer as a Mac kernel does |
 
 Fidelity would be the highest possible: real AppKit, real text rendering,
 real Foundation. But the two hardest parts (WindowServer with its display
@@ -176,32 +176,32 @@ question blocks it regardless.
 
 ### 5.2 Option 2: an open and clean-room userland (the Darling approach)
 
-Build the macOS userland from open-source code and Ycode's own clean-room
+Build the macOS userland from open-source code and SwiftCode's own clean-room
 code, all compiled for the `arm64-apple-macos` target. Every image in the
-process is then something Ycode may redistribute.
+process is then something SwiftCode may redistribute.
 
 Candidate components and their licenses (license read from each project's
-license file or published license statement, 2026-10-29; Ycode itself is
+license file or published license statement, 2026-10-29; SwiftCode itself is
 MIT):
 
-| Layer | Candidate | License | Fit with Ycode (MIT) |
+| Layer | Candidate | License | Fit with SwiftCode (MIT) |
 |---|---|---|---|
-| Dynamic linker | Apple `dyld` (open source) | APSL-2.0 | APSL-2.0 is a file-level copyleft: modified APSL files must be published under APSL; it can sit next to MIT code in one distribution as a **separate component built from upstream** with its patches published. Not mixable into Ycode's own files |
-| Dynamic linker | **Ycode's own** (`dyld.md`, `ycode/MacUserland/dyld`) | MIT (Ycode) | Done for Milestone A |
+| Dynamic linker | Apple `dyld` (open source) | APSL-2.0 | APSL-2.0 is a file-level copyleft: modified APSL files must be published under APSL; it can sit next to MIT code in one distribution as a **separate component built from upstream** with its patches published. Not mixable into SwiftCode's own files |
+| Dynamic linker | **SwiftCode's own** (`dyld.md`, `swiftcode/MacUserland/dyld`) | MIT (SwiftCode) | Done for Milestone A |
 | libc | Apple `Libc` | APSL-2.0, with many files under BSD licenses | As above |
-| Kernel, platform, pthread libraries | Apple `xnu` (libsyscall), `libplatform`, `libpthread` | APSL-2.0 | As above; **Ycode already has its own** (`ycode/SimHostLibs`, MIT) |
-| malloc | Apple `libmalloc` | APSL-2.0 | Ycode's own is small (`libsystem.md` §5) |
-| libdispatch | `swift-corelibs-libdispatch` / Apple `libdispatch` | Apache-2.0 | Compatible with MIT (keep NOTICE and license text). Its Darwin build is not maintained upstream and needs Apple's private headers (§9.4); Ycode's own dispatch in libSystem stands in (`libsystem.md` §7) |
-| Blocks runtime | LLVM `compiler-rt` BlocksRuntime | Apache-2.0 WITH LLVM-exception | Compatible; Milestone A uses Ycode's own (§7 of `libsystem.md`), written from the public Block ABI specification |
+| Kernel, platform, pthread libraries | Apple `xnu` (libsyscall), `libplatform`, `libpthread` | APSL-2.0 | As above; **SwiftCode already has its own** (`swiftcode/SimHostLibs`, MIT) |
+| malloc | Apple `libmalloc` | APSL-2.0 | SwiftCode's own is small (`libsystem.md` §5) |
+| libdispatch | `swift-corelibs-libdispatch` / Apple `libdispatch` | Apache-2.0 | Compatible with MIT (keep NOTICE and license text). Its Darwin build is not maintained upstream and needs Apple's private headers (§9.4); SwiftCode's own dispatch in libSystem stands in (`libsystem.md` §7) |
+| Blocks runtime | LLVM `compiler-rt` BlocksRuntime | Apache-2.0 WITH LLVM-exception | Compatible; Milestone A uses SwiftCode's own (§7 of `libsystem.md`), written from the public Block ABI specification |
 | Objective-C runtime | Apple `objc4` | APSL-2.0 | Separate component built from upstream; or GNUstep's `libobjc2` (MIT) which implements a different ABI and does not run Apple-ABI binaries |
 | CoreFoundation | `swift-corelibs-foundation`'s CoreFoundation (CF-Lite lineage) | Apache-2.0 with the Swift Runtime Library Exception | Compatible |
-| Foundation | `swift-foundation` (FoundationEssentials, FoundationInternationalization) and `swift-corelibs-foundation` | Apache-2.0 with Runtime Library Exception | Compatible. Built for a Darwin target it would normally *be* Apple's Foundation's role; on Ycode it is the open Foundation (§9, stage B) |
+| Foundation | `swift-foundation` (FoundationEssentials, FoundationInternationalization) and `swift-corelibs-foundation` | Apache-2.0 with Runtime Library Exception | Compatible. Built for a Darwin target it would normally *be* Apple's Foundation's role; on SwiftCode it is the open Foundation (§9, stage B) |
 | ICU | `swift-foundation-icu` / ICU | Unicode License v3 (ICU) | Compatible |
-| Swift runtime and stdlib | `swift` repository | Apache-2.0 with Runtime Library Exception | Compatible; Milestone A used Embedded Swift; stage B builds the full runtime with Objective-C interop on Ycode's runtime (`swift-runtime.md`) |
+| Swift runtime and stdlib | `swift` repository | Apache-2.0 with Runtime Library Exception | Compatible; Milestone A used Embedded Swift; stage B builds the full runtime with Objective-C interop on SwiftCode's runtime (`swift-runtime.md`) |
 | C++ library, unwinder, libm | LLVM `libc++`, `libc++abi`, `libunwind`, `libc` (math, `strtod`), `compiler-rt` builtins | Apache-2.0 WITH LLVM-exception | Compatible; in use since stage B (`libsystem.md` §13, `swift-runtime.md` §6) |
-| AppKit | GNUstep `libs-gui` / `libs-base` | LGPL (version 2 or later per the GNUstep file headers; to be re-checked per release before any use) | **Reference only** (no code copied into Ycode). Linking LGPL libraries dynamically is allowed, but GNUstep's ABI is not Apple's: Apple-built app binaries cannot use it |
-| AppKit | **Ycode's own AppKit** (clean room, from Apple's public documentation and black-box behavior) | MIT (Ycode) | The recommended long-term path (§6); the `frameworks/` area already does this for SwiftUI and others |
-| Whole-system reference | Darling | GPL-3.0 (plus APSL-2.0 parts) | **Design reference only.** No code may be copied: GPL-3.0 is incompatible with releasing Ycode under MIT (`native-loader-evaluation.md` §6) |
+| AppKit | GNUstep `libs-gui` / `libs-base` | LGPL (version 2 or later per the GNUstep file headers; to be re-checked per release before any use) | **Reference only** (no code copied into SwiftCode). Linking LGPL libraries dynamically is allowed, but GNUstep's ABI is not Apple's: Apple-built app binaries cannot use it |
+| AppKit | **SwiftCode's own AppKit** (clean room, from Apple's public documentation and black-box behavior) | MIT (SwiftCode) | The recommended long-term path (§6); the `frameworks/` area already does this for SwiftUI and others |
+| Whole-system reference | Darling | GPL-3.0 (plus APSL-2.0 parts) | **Design reference only.** No code may be copied: GPL-3.0 is incompatible with releasing SwiftCode under MIT (`native-loader-evaluation.md` §6) |
 | Loader reference | Kakehashi | Apache-2.0 | Reference only; unmaintained; no code used |
 | Display (Linux side) | libwayland, libxcb | MIT (both) | Compatible, for the Linux-window path (§7) |
 
@@ -210,7 +210,7 @@ What runs under this option, and what does not:
 - **Runs:** programs built from source against the macOS SDK that use only
   what the open userland implements. Command-line tools first (Milestone A
   proves it), then Foundation tools (stage B), then apps written against
-  Ycode's AppKit subset (stage D).
+  SwiftCode's AppKit subset (stage D).
 - **Does not run, ever, without option 1:** binaries that need private
   Apple frameworks, and anything whose behavior depends on Apple's
   implementation details (exact text layout, private SPI).
@@ -220,7 +220,7 @@ What runs under this option, and what does not:
 
 ### 5.3 Option 3: a hybrid
 
-Ycode's open userland at the bottom (dyld, libSystem, the host libraries,
+SwiftCode's open userland at the bottom (dyld, libSystem, the host libraries,
 dispatch, objc, CoreFoundation, Foundation) and **Apple's own frameworks
 above it** for the parts that are hard to rewrite (AppKit, CoreText,
 CoreGraphics, ImageIO), loaded from a Mac by the user.
@@ -240,22 +240,22 @@ by the open bottom layers.
 |---|---|---|---|
 | Fidelity | Highest: the real AppKit, text, Foundation | Behavior-compatible for what is implemented; visibly different for complex UI | High in the Apple frameworks, limited by the open bottom layers |
 | Effort to the first CLI program | Medium (arm64e, the macOS cache) | **Done** (Milestone A) | Same as option 2 |
-| Effort to the first GUI window | Very large: WindowServer + SkyLight + display/GPU drivers | Medium: Ycode's own window protocol on the display stream or a Linux surface (§7, stage D) | Very large: SkyLight's server side is needed for Apple's AppKit |
+| Effort to the first GUI window | Very large: WindowServer + SkyLight + display/GPU drivers | Medium: SwiftCode's own window protocol on the display stream or a Linux surface (§7, stage D) | Very large: SkyLight's server side is needed for Apple's AppKit |
 | Effort to "most apps run" | Large but bounded by kernel/driver fidelity | Very large: the AppKit surface | Very large, and fragile |
 | Licensing | **Blocked** pending the owner's decision (§5.1) | Clean: MIT plus Apache-2.0 components; APSL-2.0 components only as separate, upstream-built parts with published patches | **Blocked** as option 1 |
 | Performance | The KVM trap cost (§3); Apple's code is well optimized | KVM trap cost now; native mode possible later because no foreign code reads `TPIDRRO_EL0` inline (§3) | KVM only |
 | What runs first | Any arm64e-capable system tool | Our own CLI programs (done), then Foundation CLIs | Same as option 2 |
-| Redistributable by Ycode | No | Yes | No |
+| Redistributable by SwiftCode | No | Yes | No |
 
 ## 6. Recommendation and the owner's decisions
 
 **Recommendation: option 2, in stages (§9), with the micro-VM model.**
 
-- It is the only option Ycode can ship and redistribute, and the only one
+- It is the only option SwiftCode can ship and redistribute, and the only one
   that is not blocked today.
 - It reuses what exists: the kernel personality, the three host libraries,
   Metal on Vulkan, the display stream, the `frameworks/` effort (open
-  SwiftUI and others), and now Ycode's dyld and libSystem.
+  SwiftUI and others), and now SwiftCode's dyld and libSystem.
 - It fits the project's direction (`docs/FUTURE.md`: open framework
   reimplementations, AppKit listed as later work).
 - It keeps native mode open as a large speed-up later (§3).
@@ -264,53 +264,53 @@ Decisions only the owner can make:
 
 1. **Option 1 or 3 at all?** Whether running Apple's macOS system
    libraries on Linux is acceptable under the macOS license in the owner's
-   situation (§5.1). Until the owner decides, Ycode does not copy or use
+   situation (§5.1). Until the owner decides, SwiftCode does not copy or use
    them. If the answer is ever yes, the first engineering gate is arm64e in
    the guest.
-2. **APSL-2.0 components.** Whether Ycode may ship upstream-built APSL-2.0
+2. **APSL-2.0 components.** Whether SwiftCode may ship upstream-built APSL-2.0
    components (for example `objc4` for Apple-ABI Objective-C) as separate
    parts with published patches, or must reimplement each one clean-room.
    The recommended default is: Apache-2.0 components yes (libdispatch,
    CoreFoundation and Foundation from swift-corelibs and swift-foundation),
    APSL-2.0 components only after the owner agrees.
-3. **The AppKit strategy.** Ycode's own AppKit (recommended; months of
+3. **The AppKit strategy.** SwiftCode's own AppKit (recommended; months of
    work for a useful subset) versus limiting macOS support to command-line
-   and Foundation programs plus SwiftUI apps on Ycode's open SwiftUI.
+   and Foundation programs plus SwiftUI apps on SwiftCode's open SwiftUI.
 4. **Where windows appear** (§7): on the Mac through the display stream
    (fits the IDE), as Linux windows (fits "run Mac apps on Linux"), or both.
 
 The owner's answers (2026-11-05):
 
-- **3. AppKit:** Ycode's own AppKit subset (stage D).
-- **2. Objective-C runtime:** Ycode writes its own, in Rust, from the public
+- **3. AppKit:** SwiftCode's own AppKit subset (stage D).
+- **2. Objective-C runtime:** SwiftCode writes its own, in Rust, from the public
   ABI (clang's Objective-C ABI, the Mach-O `__objc_*` sections, the runtime
   functions the SDK headers declare). Upstream `objc4` is used only as a
   benchmark baseline, built from source and not read for the
-  implementation. If Ycode's runtime cannot match or beat `objc4` on the
+  implementation. If SwiftCode's runtime cannot match or beat `objc4` on the
   agreed benchmarks (message send, class realization, method lookup
-  with and without a cache, `retain`/`release`, `@autoreleasepool`), Ycode
+  with and without a cache, `retain`/`release`, `@autoreleasepool`), SwiftCode
   ships upstream `objc4` (APSL-2.0) as a separate part with its patches
-  published. **Settled (2026-11-05):** Ycode's runtime is faster than or
+  published. **Settled (2026-11-05):** SwiftCode's runtime is faster than or
   tied with the Mac's shipped runtime (Apple's build of objc4) on all 16
   benchmarks, run on the same Mac (`objc-runtime.md` §14). The owner
-  accepted that build as the baseline, so Ycode keeps its own runtime and
+  accepted that build as the baseline, so SwiftCode keeps its own runtime and
   does not ship objc4.
 - **4. Windows:** both, as Linux windows and inside the IDE through the
   display stream.
-- **1. Apple's macOS libraries:** no decision; Ycode does not copy or use
+- **1. Apple's macOS libraries:** no decision; SwiftCode does not copy or use
   them.
 
 ## 7. Windowing, input, clipboard and file dialogs
 
-Ycode-design. Applies to option 2 (Ycode's AppKit); option 1 would need
+SwiftCode-design. Applies to option 2 (SwiftCode's AppKit); option 1 would need
 WindowServer instead (§5.1).
 
 ### 7.1 Windows
 
 A macOS app has many top-level windows, each with its own size, position,
-level, title and shadow, unlike the simulator's single screen. Ycode's
+level, title and shadow, unlike the simulator's single screen. SwiftCode's
 AppKit renders each window's content itself (CoreAnimation-like layer tree,
-drawn with Metal on Vulkan, §8) into a **window surface**, and a Ycode
+drawn with Metal on Vulkan, §8) into a **window surface**, and a SwiftCode
 host service, the **window broker**, owns the surfaces:
 
 | Message (guest → broker) | Meaning |
@@ -335,7 +335,7 @@ The broker shows the windows in one of two places (decision 4, §6):
   windows.
 
 The broker is a host service like the others (IOSurface, audio, camera);
-the guest reaches it through the bootstrap server under a Ycode service
+the guest reaches it through the bootstrap server under a SwiftCode service
 name, never under an Apple name.
 
 ### 7.2 Input
@@ -344,7 +344,7 @@ Keyboard, mouse, scroll and trackpad gestures come from the host window
 system (Wayland `wl_pointer`/`wl_keyboard`, X11 events) or from the
 display-stream viewer's existing HID path (`hid-input.md`), and are
 delivered by the broker as **window-relative events** with the window id.
-Ycode's AppKit turns them into `NSEvent` objects. Keyboard layout and text
+SwiftCode's AppKit turns them into `NSEvent` objects. Keyboard layout and text
 input: the broker sends key codes in the USB HID usage space plus the
 produced text, so the guest needs no keyboard-layout database at first;
 input methods (composition) come later through a text-input protocol
@@ -358,7 +358,7 @@ input methods (composition) come later through a text-input protocol
   `text/plain;charset=utf-8`, `public.png` ↔ `image/png`, file URLs ↔
   `text/uri-list`). The Mac viewer path uses the Mac's pasteboard through
   the viewer.
-- **Open and save panels:** Ycode's AppKit asks the broker; the broker
+- **Open and save panels:** SwiftCode's AppKit asks the broker; the broker
   shows a native dialog on the host side (the XDG desktop portal
   `FileChooser` on Linux, an `NSOpenPanel` in the viewer on the Mac) and
   returns the chosen path, mapped into the guest's file system. The broker
@@ -367,22 +367,22 @@ input methods (composition) come later through a text-input protocol
 
 ## 8. Graphics: Metal on Vulkan
 
-Ycode already translates the simulator's Metal to Vulkan: Metal Shading
-Language through AIR to SPIR-V (`ycode-airc`), and the Metal API calls
-through the host-service protocol `metal-sim-protocol.md` to `YcodeMetalHost`
-and `YcodeVulkan`. For macOS:
+SwiftCode already translates the simulator's Metal to Vulkan: Metal Shading
+Language through AIR to SPIR-V (`swiftcode-airc`), and the Metal API calls
+through the host-service protocol `metal-sim-protocol.md` to `SwiftCodeMetalHost`
+and `SwiftCodeVulkan`. For macOS:
 
-- Under option 2, Ycode's macOS `Metal.framework` is a guest library that
-  speaks the same Ycode protocol to the same host service. The protocol is
+- Under option 2, SwiftCode's macOS `Metal.framework` is a guest library that
+  speaks the same SwiftCode protocol to the same host service. The protocol is
   platform-neutral; macOS-only API (for example managed storage mode,
   `MTLStorageModeManaged`, and discrete-GPU queries) needs additions to it.
 - Window presentation: `CAMetalLayer` drawables become window surfaces of
   §7.1 instead of the simulator framebuffer.
 - Shaders compiled for the macOS GPU family come as AIR in a `.metallib`
-  exactly like the simulator's, so `ycode-airc` handles them; macOS-only
+  exactly like the simulator's, so `swiftcode-airc` handles them; macOS-only
   MSL features (for example some texture formats) are added as found.
 - Under option 1, Apple's Metal driver stack (AGX user clients) has no
-  Ycode equivalent; that is part of why option 1 is so large.
+  SwiftCode equivalent; that is part of why option 1 is so large.
 
 ## 9. Staged plan
 
@@ -390,16 +390,16 @@ Each stage has a done-criterion that can be checked on the Thor.
 
 | Stage | Content | Done when |
 |---|---|---|
-| **A** | Our own macOS arm64 command-line programs on Ycode's dyld, Ycode's libSystem and the three host libraries, started by `ycode-simd --macos` | The five samples (§9.1) print the expected output and exit with the expected status |
-| **B** | Foundation CLIs: Apache-2.0 libdispatch, CoreFoundation and Foundation (`swift-foundation`, `swift-corelibs-foundation`) built for `arm64-apple-macos` against Ycode's libSystem; a Swift runtime (`libswiftCore`) built for Darwin from the open Swift repository; the sysctl identity per platform | A Swift CLI that uses `Foundation` (`Date`, `JSONEncoder`, `FileManager`, `URLSession` to localhost) runs with correct output |
-| **C** | Process model: `posix_spawn`/`exec` of macOS binaries from macOS binaries, a Ycode launchd-lite for the `system` and `gui/<uid>` domains on Ycode's bootstrap server, XPC to Ycode services, `cfprefsd`-equivalent defaults | A shell (built from source) runs pipelines of our CLIs; `defaults read/write` round-trips |
-| **D** | Windowing prototype then Ycode's AppKit subset: the window broker (§7.1) on one Linux display and on the display stream; `NSApplication`, `NSWindow`, `NSView`, events, text drawing | A test program shows one window with text, takes keyboard input and closes cleanly; then a small document-based app |
-| **E** | Graphics: Ycode's macOS `Metal.framework` on the existing protocol; `CAMetalLayer` windows | A Metal triangle sample renders in a window |
-| **F** | Speed: native mode for all-Ycode processes (no foreign `TPIDRRO_EL0` readers); x86-64 support decisions (§10) | Measured per-call cost against the micro-VM. *Stage 1 done on the `native-mode` branch (`native-mode.md` §10, 2026-11-05): the Milestone A samples run natively with `YCODE_NATIVE=1`; a BSD call 30 × and a whole small program 9–17 × faster than in the micro-VM* |
+| **A** | Our own macOS arm64 command-line programs on SwiftCode's dyld, SwiftCode's libSystem and the three host libraries, started by `swiftcode-simd --macos` | The five samples (§9.1) print the expected output and exit with the expected status |
+| **B** | Foundation CLIs: Apache-2.0 libdispatch, CoreFoundation and Foundation (`swift-foundation`, `swift-corelibs-foundation`) built for `arm64-apple-macos` against SwiftCode's libSystem; a Swift runtime (`libswiftCore`) built for Darwin from the open Swift repository; the sysctl identity per platform | A Swift CLI that uses `Foundation` (`Date`, `JSONEncoder`, `FileManager`, `URLSession` to localhost) runs with correct output |
+| **C** | Process model: `posix_spawn`/`exec` of macOS binaries from macOS binaries, a SwiftCode launchd-lite for the `system` and `gui/<uid>` domains on SwiftCode's bootstrap server, XPC to SwiftCode services, `cfprefsd`-equivalent defaults | A shell (built from source) runs pipelines of our CLIs; `defaults read/write` round-trips |
+| **D** | Windowing prototype then SwiftCode's AppKit subset: the window broker (§7.1) on one Linux display and on the display stream; `NSApplication`, `NSWindow`, `NSView`, events, text drawing | A test program shows one window with text, takes keyboard input and closes cleanly; then a small document-based app |
+| **E** | Graphics: SwiftCode's macOS `Metal.framework` on the existing protocol; `CAMetalLayer` windows | A Metal triangle sample renders in a window |
+| **F** | Speed: native mode for all-SwiftCode processes (no foreign `TPIDRRO_EL0` readers); x86-64 support decisions (§10) | Measured per-call cost against the micro-VM. *Stage 1 done on the `native-mode` branch (`native-mode.md` §10, 2026-11-05): the Milestone A samples run natively with `SWIFTCODE_NATIVE=1`; a BSD call 30 × and a whole small program 9–17 × faster than in the micro-VM* |
 
 ### 9.1 Milestone A (implemented this round)
 
-The programs are Ycode's own (`ycode/MacUserland/samples/`), built on the
+The programs are SwiftCode's own (`swiftcode/MacUserland/samples/`), built on the
 Mac with `-target arm64-apple-macos14.0` against the macOS SDK (the SDK's
 `.tbd` link stubs only; no Apple code ends up in them). The Swift sample is
 Embedded Swift built by the open Swift toolchain on Linux (the Mac's Xcode
@@ -413,29 +413,29 @@ toolchain has no Embedded standard library for macOS; `libsystem.md` §10).
 | `dispatch` | Serial and global queues, groups, `dispatch_sync`, `dispatch_apply_f`, semaphores, `dispatch_once`, `dispatch_after` on the main queue, `dispatch_main`, blocks with `__block` variables |
 | `hello-swift` | Embedded Swift: structs, a class, arrays, a dictionary, string interpolation, `print` |
 
-The run command (from `ycode/`, after `sh MacUserland/build.sh`):
+The run command (from `swiftcode/`, after `sh MacUserland/build.sh`):
 
 ```sh
-.build/release/ycode-simd --macos <sample> [--env K=V]... [--exec-args <arg>...]
+.build/release/swiftcode-simd --macos <sample> [--env K=V]... [--exec-args <arg>...]
 ```
 
 Results: §9.2.
 
 ### 9.2 Milestone A results (2026-10-29, the Thor)
 
-`sh MacUserland/run-samples.sh .build/release/ycode-simd <samples>`:
+`sh MacUserland/run-samples.sh .build/release/swiftcode-simd <samples>`:
 
 | Sample | Result |
 |---|---|
-| `hello a b` (with `--env YCODE_SAMPLE=…`) | Expected output, exit 0 |
+| `hello a b` (with `--env SWIFTCODE_SAMPLE=…`) | Expected output, exit 0 |
 | `hello fail` | Expected output, exit 3 |
 | `fileio` | Expected output (`size 790`, 100 lines, `pread` of the appended tail, `ENOENT` text), exit 0 |
 | `threads` | 8 threads × 10,000 locked increments = 80,000, join sum 308, exit 0 (3 of 3 runs) |
 | `dispatch` | All five lines, exit 0 (8 of 8 repeated runs, 174–272 traps each) |
 | `hello-swift` (Embedded Swift) | Expected output, exit 0 |
 
-What it proves: the VMM maps a macOS executable and Ycode's dyld; the dyld
-loads Ycode's libSystem and the three host libraries through the guest VFS,
+What it proves: the VMM maps a macOS executable and SwiftCode's dyld; the dyld
+loads SwiftCode's libSystem and the three host libraries through the guest VFS,
 applies chained fixups, resolves two-level binds through re-exports, runs
 libSystem's initializer (which brings up the kernel, platform and pthread
 libraries exactly as on the simulator path) and `main`; system calls,
@@ -465,11 +465,11 @@ or swift-corelibs-foundation; the libc they need; packaging.
 
 | Step | Result |
 |---|---|
-| Swift runtime and standard library for Darwin | **Done.** Both configurations build and run; Ycode ships the Objective-C-interop one, on Ycode's Rust runtime (`swift-runtime.md` §2, `objc-runtime.md` §15) |
+| Swift runtime and standard library for Darwin | **Done.** Both configurations build and run; SwiftCode ships the Objective-C-interop one, on SwiftCode's Rust runtime (`swift-runtime.md` §2, `objc-runtime.md` §15) |
 | Concurrency, Synchronization, Observation, Regex | **Done** (`swift-runtime.md` §1) |
 | libc for the runtime, libc++ and FoundationEssentials | **Done**: libSystem's own exports grew from about 210 to 771, with LLVM libc's math and `strtod`, compiler-rt, libunwind and thread-local variables (`libsystem.md` §12-§14); LLVM's libc++ (`swift-runtime.md` §6) |
 | FoundationEssentials | **Done.** `Date`, `JSONEncoder`/`JSONDecoder`, `FileManager` and the rest of Essentials run (§9.4) |
-| Apache-2.0 libdispatch | **Not built**: why, and what it takes, below. Ycode's own dispatch grew what Concurrency needs (timer sources, wall-clock times, queue assertions; `libsystem.md` §7.3) |
+| Apache-2.0 libdispatch | **Not built**: why, and what it takes, below. SwiftCode's own dispatch grew what Concurrency needs (timer sources, wall-clock times, queue assertions; `libsystem.md` §7.3) |
 | FoundationInternationalization (ICU), swift-corelibs-foundation (`Foundation`, CoreFoundation), FoundationNetworking (`URLSession`) | **Not done**: below |
 | Packaging | **Done**: `MacUserland/swift/build.sh` (on a Mac) builds everything into `out/sdk` and `out/root`, with each project's licence and notice (`swift-runtime.md` §8) |
 
@@ -480,7 +480,7 @@ the other three.
 
 ### 9.4 Stage B results, and what URLSession needs
 
-Results on the arm64 Linux host (`ycode-simd --macos`), all with exit
+Results on the arm64 Linux host (`swiftcode-simd --macos`), all with exit
 status 0 and the expected output: a hello-world with classes, generics and
 closures in both runtime configurations; a language test (generic classes,
 `deinit`, weak references, dynamic casts, `Mirror`, errors, Unicode
@@ -501,7 +501,7 @@ configuration is not exercised upstream:
    `<firehose/tracepoint_private.h>`, `<pthread/workqueue_private.h>`,
    `<pthread/qos_private.h>`, `<os/voucher_private.h>`' dependencies,
    `<sys/guarded.h>`, `<voucher/ipc_pthread_priority_types.h>`. They are
-   Apple's (APSL-2.0) and Ycode does not copy them.
+   Apple's (APSL-2.0) and SwiftCode does not copy them.
 3. Switching those families off (`DISPATCH_MACH_SPI=0`,
    `OS_VOUCHER_*_SPI=0`, `OS_FIREHOSE_SPI=0`, `DISPATCH_LAYOUT_SPI=0`,
    `HAVE_MACH=OFF`) leads to the portable code paths, which then collide
@@ -512,16 +512,16 @@ configuration is not exercised upstream:
    the SDK tests their value.
 
 What it would take: a "Darwin without SPI" port of libdispatch, kept as
-Ycode patches: the CMake fixes; a platform header that keeps the SDK's
+SwiftCode patches: the CMake fixes; a platform header that keeps the SDK's
 Mach and QoS types and drops libdispatch's duplicates; the internal
 workqueue (`DISPATCH_USE_INTERNAL_WORKQUEUE`, already chosen by its
-configure step) over Ycode's pthreads; the kevent backend over Ycode's
+configure step) over SwiftCode's pthreads; the kevent backend over SwiftCode's
 kernel (which implements `kevent` for the simulator); locks on
-`__ulock_wait`/`__ulock_wake` (exported by Ycode's libsystem_kernel); no
+`__ulock_wait`/`__ulock_wake` (exported by SwiftCode's libsystem_kernel); no
 vouchers or firehose. Estimate: several days, mostly in the shims and the
 event layer. Then libSystem re-exports it as
 `/usr/lib/system/libdispatch.dylib` (today's alias, `libsystem.md` §2),
-replacing Ycode's dispatch.
+replacing SwiftCode's dispatch.
 
 **What URLSession needs.** `URLSession` is not in swift-foundation; it is
 in swift-corelibs-foundation's FoundationNetworking, which sits on the
@@ -529,11 +529,11 @@ whole open Foundation stack:
 
 | Piece | Status and what remains |
 |---|---|
-| `Dispatch` Swift overlay (swift-corelibs-libdispatch `src/swift`) | Needs most of the libdispatch API at link time: dispatch data and I/O objects, file-descriptor read/write sources, `dispatch_block_*`, work items. With Ycode's dispatch that is a large addition; with the ported libdispatch above it comes for free |
+| `Dispatch` Swift overlay (swift-corelibs-libdispatch `src/swift`) | Needs most of the libdispatch API at link time: dispatch data and I/O objects, file-descriptor read/write sources, `dispatch_block_*`, work items. With SwiftCode's dispatch that is a large addition; with the ported libdispatch above it comes for free |
 | FoundationInternationalization | Needs swift-foundation-icu (ICU 7x as C++); its C++ needs the full libc++, which links now (`swift-runtime.md` §6). Not attempted in this wave |
 | swift-corelibs-foundation: CoreFoundation | CF-Lite C sources: on a Darwin target they take the `TARGET_OS_MAC` paths (Mach-port run loops, `_dispatch_get_main_queue_port_4CF`, `notify`), which are Apple's private interfaces. It needs a configuration that uses the portable (Linux-like) run loop on dispatch with eventfd-like wake-ups (a pipe or kqueue user event), the same "Darwin without SPI" approach as libdispatch |
-| swift-corelibs-foundation: `Foundation` | Pure Swift with `#if os(macOS)` and `canImport(Darwin)` branches that assume Apple's Foundation is the one on Darwin (they import `Darwin` paths written for `FOUNDATION_FRAMEWORK`); needs an audit of those branches and Ycode patches |
-| FoundationNetworking | Uses libcurl (curl licence, MIT-style) with dispatch sources for socket readiness; libcurl builds for a Darwin target with `--without-ssl` for `http://localhost`, against Ycode's libSystem: sockets and `poll` exist (Ycode's kernel serves inet sockets on host sockets); `getaddrinfo` is missing from libSystem (localhost only needs numeric hosts) |
+| swift-corelibs-foundation: `Foundation` | Pure Swift with `#if os(macOS)` and `canImport(Darwin)` branches that assume Apple's Foundation is the one on Darwin (they import `Darwin` paths written for `FOUNDATION_FRAMEWORK`); needs an audit of those branches and SwiftCode patches |
+| FoundationNetworking | Uses libcurl (curl licence, MIT-style) with dispatch sources for socket readiness; libcurl builds for a Darwin target with `--without-ssl` for `http://localhost`, against SwiftCode's libSystem: sockets and `poll` exist (SwiftCode's kernel serves inet sockets on host sockets); `getaddrinfo` is missing from libSystem (localhost only needs numeric hosts) |
 
 Order of work for the next wave: the libdispatch port; then the Dispatch
 overlay; FoundationInternationalization with ICU; CoreFoundation and
@@ -550,9 +550,9 @@ Mach-O x86-64 binaries. Options:
 
 | Option | How | Cost | License |
 |---|---|---|---|
-| Not supported (default) | `ycode-simd --macos` refuses non-arm64 executables (`EBADARCH`), as today | None | — |
-| User-mode translator in the guest | An x86-64 → arm64 translator runs inside the micro-VM as the process's first image, translates the x86-64 Mach-O and its x86-64 libraries, and maps x86-64 Darwin system calls onto Ycode's arm64 personality. FEX-Emu (MIT) and Box64 (MIT) are open translators for **Linux ELF**; either would need a Mach-O loader, the Darwin x86-64 syscall and TLS (`gs`-based) conventions, and x86-64 builds of the whole userland (option 2's libraries, built for x86-64) | Very large: a second architecture for every userland library, plus translator work | MIT translators fit |
-| Full-system x86-64 emulation | Run x86-64 guests in QEMU TCG with an x86-64 Darwin personality | Very slow; Ycode's kernel personality would need an x86-64 trap ABI | QEMU is GPL-2.0: only as a separate program |
+| Not supported (default) | `swiftcode-simd --macos` refuses non-arm64 executables (`EBADARCH`), as today | None | — |
+| User-mode translator in the guest | An x86-64 → arm64 translator runs inside the micro-VM as the process's first image, translates the x86-64 Mach-O and its x86-64 libraries, and maps x86-64 Darwin system calls onto SwiftCode's arm64 personality. FEX-Emu (MIT) and Box64 (MIT) are open translators for **Linux ELF**; either would need a Mach-O loader, the Darwin x86-64 syscall and TLS (`gs`-based) conventions, and x86-64 builds of the whole userland (option 2's libraries, built for x86-64) | Very large: a second architecture for every userland library, plus translator work | MIT translators fit |
+| Full-system x86-64 emulation | Run x86-64 guests in QEMU TCG with an x86-64 Darwin personality | Very slow; SwiftCode's kernel personality would need an x86-64 trap ABI | QEMU is GPL-2.0: only as a separate program |
 
 Recommendation: not supported until arm64 macOS apps run well (after
 stage E). The x86-64 Linux host case is separate (`SIMULATOR-LINUX.md` §4:
@@ -561,15 +561,15 @@ user-mode arm64 translation on an x86-64 host, deferred).
 ## 11. Risks
 
 - **The AppKit surface is huge.** Option 2's value depends on how much of
-  AppKit Ycode reimplements. Mitigation: target apps built from source
-  first, and SwiftUI apps on Ycode's open SwiftUI.
+  AppKit SwiftCode reimplements. Mitigation: target apps built from source
+  first, and SwiftUI apps on SwiftCode's open SwiftUI.
 - **ABI drift.** Third-party binaries embed SDK structure layouts and
   inline functions (for example `FILE` macros, `dispatch_once`'s inline
-  fast path, `os_unfair_lock`'s size). Ycode's libraries must match those
+  fast path, `os_unfair_lock`'s size). SwiftCode's libraries must match those
   public layouts exactly (`libsystem.md` §4 lists the ones Milestone A
   relies on).
 - **Two loaders.** The simulator path uses the runtime's `dyld_sim`; macOS
-  uses Ycode's dyld. Kernel changes must keep both working. Mitigation:
+  uses SwiftCode's dyld. Kernel changes must keep both working. Mitigation:
   the macOS start path shares everything except the first PC.
 - **APSL components.** If the owner rejects APSL-2.0 parts, `objc4` must
   be reimplemented clean-room before any Apple-ABI Objective-C runs, which
@@ -582,26 +582,26 @@ user-mode arm64 translation on an x86-64 host, deferred).
 ## 12. Open questions
 
 - **Q1.** Which commpage layout version do binaries built with a current
-  macOS SDK read? Ycode's libraries do not depend on it; Apple-built code
+  macOS SDK read? SwiftCode's libraries do not depend on it; Apple-built code
   (option 1) and inlined SDK code might. To be answered by a dirty-room
   observation of the public commpage header's version field use.
 - **Q2.** Which `apple[]` strings does the macOS kernel pass that a macOS
-  userland reads (beyond `executable_path`)? Ycode's dyld needs only
+  userland reads (beyond `executable_path`)? SwiftCode's dyld needs only
   `executable_path`; option 1 would need the full set.
 - **Q3.** The exact `sysctl` identity values a Mac reports for the release
-  Ycode claims (stage B).
+  SwiftCode claims (stage B).
 
 ## Evidence
 
 | Claim | Level (AGENTS.md rule 4) |
 |---|---|
 | Process start (dyld entry, argument block, Mach header on the stack), `LC_BUILD_VERSION`, `PLATFORM_MACOS` = 1, chained fixups | 1 (public xnu/dyld/Mach-O headers; `darwin-process-start.md`) |
-| libSystem initializer order and host-library interfaces | Existing Ycode spec `host-library-init.md` (its own evidence) |
+| libSystem initializer order and host-library interfaces | Existing SwiftCode spec `host-library-init.md` (its own evidence) |
 | arm64e in macOS system binaries; shared cache location | 1 (Apple's public documentation and developer talks on arm64e and the cryptex-based system volume) |
 | macOS license terms (Apple-branded computers) | Public license text |
 | Component licenses (§5.2) | Each project's published license file or statement; GNUstep's to be re-checked |
 | Darling and Kakehashi properties | `docs/native-loader-evaluation.md` |
 | Rosetta 2 behavior | 1 (Apple's public documentation) |
-| §9.3-§9.4 build findings (libdispatch, swift-corelibs-foundation, swift-foundation) | 1 (the open projects' sources and build files) and 2 (Ycode's own build attempts) |
-| §9.4 run results | 3 (Ycode's own programs under `ycode-simd --macos`) |
-| Everything marked "Ycode plan" or "Ycode-design" | Ycode design, no Apple evidence needed |
+| §9.3-§9.4 build findings (libdispatch, swift-corelibs-foundation, swift-foundation) | 1 (the open projects' sources and build files) and 2 (SwiftCode's own build attempts) |
+| §9.4 run results | 3 (SwiftCode's own programs under `swiftcode-simd --macos`) |
+| Everything marked "SwiftCode plan" or "SwiftCode-design" | SwiftCode design, no Apple evidence needed |

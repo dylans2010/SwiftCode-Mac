@@ -1,7 +1,7 @@
 # Gap closure: failing tools (family 2)
 
 Date: 2026-11-06. Slice: gap-closure family 2 (FAILING TOOLS).
-Destination: SwiftCode-Mac main @ f9f66c05 (Ycode base, SwiftPM).
+Destination: SwiftCode-Mac main @ f9f66c05 (SwiftCode base, SwiftPM).
 Legacy (read-only): SwiftCode-Legacy @ d51a8f0d. Legacy source is Dylan's
 own code; direct porting was authorised by Dylan under MIT.
 
@@ -50,17 +50,17 @@ and appends a `memoryKey` memory preview (first 500 chars). Empty →
 
 Wave 4 left it failing ("no snapshot-history store, no Assist memory
 store"). Both prerequisites exist now: `project_snapshot` (Wave 7)
-stores snapshots in Application Support `YcodeSnapshots/` in Legacy's
+stores snapshots in Application Support `SwiftCodeSnapshots/` in Legacy's
 `AssistSnapshots/` layout (`projectModelSnapshotsDirectory()`), and the
-memory store is `YcodeMemoryGraphStore.shared` (`MemorySupport`).
+memory store is `SwiftCodeMemoryGraphStore.shared` (`MemorySupport`).
 
 Port (superset, all real, nothing invented):
 
-- Snapshot history: read `YcodeSnapshots/*/metadata.json` (id,
+- Snapshot history: read `SwiftCodeSnapshots/*/metadata.json` (id,
   timestamp, message), newest first, max 10, formatted exactly like
   Legacy (`<timestamp>: <message> [<id>]`). Missing/empty directory →
   Legacy's exact fallback line.
-- Memory: `memoryKey` is read from `YcodeMemoryGraphStore` for the
+- Memory: `memoryKey` is read from `SwiftCodeMemoryGraphStore` for the
   open workspace (same workspace key the memory tools use); appended
   as `Memory: <first 500 chars>` when non-empty.
 - Environment (new, per the gap-closure brief): the real process
@@ -126,7 +126,7 @@ the first on-screen window over 20×20, records with `SCStream`
 (2× window size, even dimensions, 30 fps, cursor shown) into an
 `AVAssetWriter` (H.264, `.mov`/`.mp4`), one recording at a time.
 
-Port: `YcodeTools+ScreenRecording.swift` (macOS-only,
+Port: `SwiftCodeTools+ScreenRecording.swift` (macOS-only,
 `#if canImport(ScreenCaptureKit)` + `#if canImport(AVFoundation)`).
 The session class follows Legacy's `StreamRecorderSession` shape
 (video input only; `.screen` samples only). Deviations, recorded:
@@ -139,7 +139,7 @@ The session class follows Legacy's `StreamRecorderSession` shape
   configuration exactly like Legacy, but no audio input is wired to
   the writer (Legacy wires none either) — recordings are video-only.
   The result never claims audio.
-- The artifact flow is Ycode's (`approveFileWritingChange` +
+- The artifact flow is SwiftCode's (`approveFileWritingChange` +
   `.assist_temp/artifacts/screenrecord_<app>_<ts>.<fmt>`), not
   Legacy's `AssistArtifactStore`. Structured result keeps Legacy's
   keys: `path`, `duration`, `width`, `height`, `app_identifier`,
@@ -185,7 +185,7 @@ used (`fullscreen`, `region`, `window`).
 
 NOT ported: the interactive region-selection overlay. It needs a live
 AppKit runloop and a user drag while the tool call blocks; the MCP
-host also runs headless (`ycode mcp`), where no runloop exists. A
+host also runs headless (`swiftcode mcp`), where no runloop exists. A
 modal overlay would block the tool call indefinitely with no timeout.
 The rect-based `region` is the working replacement; bare `region`
 fails naming the overlay and pointing at `region`.
@@ -198,11 +198,11 @@ with a tools list per server; `list` enumerates servers,
 `list_tools` lists one server's tools, otherwise the tool is called
 via JSON-RPC with approval (unless Autopilot — NOT ported).
 
-Ycode had no MCP client at all (it IS an MCP server). Port:
-`YcodeTools+MCPClient.swift`, a minimal JSON-RPC 2.0 client:
+SwiftCode had no MCP client at all (it IS an MCP server). Port:
+`SwiftCodeTools+MCPClient.swift`, a minimal JSON-RPC 2.0 client:
 
-- Configuration: `~/.config/ycode/mcp-servers.json` (or
-  `$XDG_CONFIG_HOME/ycode/mcp-servers.json`), Claude-Desktop shape:
+- Configuration: `~/.config/swiftcode/mcp-servers.json` (or
+  `$XDG_CONFIG_HOME/swiftcode/mcp-servers.json`), Claude-Desktop shape:
   `{"mcpServers": {"name": {"command": "...", "args": [...],
   "env": {...}} | {"url": "https://…", "headers": {...}}}}`.
   `transport` is inferred (command → stdio, url → streamable HTTP).
@@ -216,7 +216,7 @@ Ycode had no MCP client at all (it IS an MCP server). Port:
   `data:` stream). The legacy SSE transport is NOT implemented; a
   server configured with `"transport": "sse"` fails naming that.
 - Protocol: `initialize` (protocol version `2025-03-26`, client
-  `Ycode` / `ycode-mcp`), `notifications/initialized`, `tools/list`,
+  `SwiftCode` / `swiftcode-mcp`), `notifications/initialized`, `tools/list`,
   `tools/call`. The server's returned protocol version is accepted,
   never enforced. Timeouts: 30 s for initialize/list, 300 s for a
   call. Responses are matched by request id; malformed frames fail.
@@ -229,7 +229,7 @@ Ycode had no MCP client at all (it IS an MCP server). Port:
   Output is capped at 8,000 characters with a marker; the structured
   result carries `server`, `tool`, `durationMs`, `isError`.
 - Test seams (same pattern as `agenticDataTestSecretStore`):
-  `YcodeMCPHost.externalMCPTestConfig` (in-memory server table) and
+  `SwiftCodeMCPHost.externalMCPTestConfig` (in-memory server table) and
   the stdio runner is exercised in tests against a stub script via
   real Node — no live network, no real external server.
 
@@ -246,7 +246,7 @@ with `x-api-key` (or `x-user-api-key` for `uak_…` keys) and body
 candidates: `~/.local/bin/composio`, `/usr/local/bin/composio`,
 `/opt/homebrew/bin/composio`.
 
-Port: `YcodeTools+ComposioClient.swift`. Key from
+Port: `SwiftCodeTools+ComposioClient.swift`. Key from
 `defaultSecretStore()` under the new account `composio.api-key`
 (needs the one-line `SecretAccount.composioKey` addition — delivered
 as a patch, not edited here; the client defines the string locally
@@ -258,7 +258,7 @@ parse as a JSON object. Approval via `terminalApproveChange` (no
 Autopilot). CLI output is parsed for a JSON object (`successful` /
 `logId`/`log_id`) exactly like Legacy; a non-zero CLI exit with no
 JSON is a failure carrying the stderr tail. REST uses
-`YcodeAssistant.HTTP.send` (30 s). With no CLI and no key the tool
+`SwiftCodeAssistant.HTTP.send` (30 s). With no CLI and no key the tool
 fails honestly naming both missing prerequisites and where to put
 the key (SecretStore / env / `~/.composio/user_data.json`) — it never
 embeds or invents a key.
@@ -278,7 +278,7 @@ the filesystem.
 Port: the validation is ported exactly (the existing Wave 4 handler
 already had name/task/dependency checks; this slice adds the 500-char
 truncation, scope dedup, and `targetFiles` collection). Reachability
-note: Ycode's schema validation runs before the handler, so only the
+note: SwiftCode's schema validation runs before the handler, so only the
 array form of `workers` can arrive — Legacy's stringified-JSON /
 single-object / synonym forms are unreachable through the tool call
 and are NOT reproduced (recorded, not silently dropped).
@@ -292,7 +292,7 @@ slice can resume from. Target files are reconciled for real
 (existence check per file, reported per worker).
 
 What is still blocked: execution. Workers execute real work through
-an LLM subagent loop (`WorkerScheduler` + subagent execution); Ycode's
+an LLM subagent loop (`WorkerScheduler` + subagent execution); SwiftCode's
 MCP host has no LLM/subagent runtime (the LLM-wiring family owns
 that). The handler fails honestly after persisting the plan, naming
 the missing subagent runtime. A `FailingToolsWorkerExecutor` protocol
@@ -308,7 +308,7 @@ Legacy: `SwiftCode/Tools/Agentic/DependencyAudit.swift` (25 lines).
 <projectPath>"` without checking anything — an invented clean bill
 of health. Wave 8 correctly failed honestly instead.
 
-Port: `YcodeTools+DependencyAudit.swift`, a real audit against the
+Port: `SwiftCodeTools+DependencyAudit.swift`, a real audit against the
 Open Source Vulnerability database (OSV, `https://api.osv.dev`,
 keyless — evidence in §0):
 
@@ -336,7 +336,7 @@ keyless — evidence in §0):
   other ecosystems do not match). It is never phrased as a guarantee.
 - `package_dependency_audit` (Wave 7) is untouched: it audits pins,
   this audits vulnerabilities.
-- Test seam: `YcodeMCPHost.dependencyAuditTestFetcher` stubs the OSV
+- Test seam: `SwiftCodeMCPHost.dependencyAuditTestFetcher` stubs the OSV
   HTTP layer so tests never touch the network.
 
 ## 9. `reverse_analyze` — bridge ported; works when REA is configured
@@ -357,26 +357,26 @@ Port:
 
 - `Resources/ReverseBridge.mjs`: Legacy's bridge, ported verbatim
   except the product name in comments/remediation strings
-  (SwiftCode → Ycode) and the env fallback
-  (`YCODE_REVERSE_REA_DIR` first, `SWIFTCODE_REVERSE_REA_DIR` as an
+  (SwiftCode → SwiftCode) and the env fallback
+  (`SWIFTCODE_REVERSE_REA_DIR` first, `SWIFTCODE_REVERSE_REA_DIR` as an
   alias). Protocol version 1, pinned `rea-agents@6.5.0`, direct path
   (`dist/composition/directAnalysis.js` → `runDirectAnalysis`) plus
   the pinned-CLI fallback for `inspect_with_objdump` only
   (`scripts/rea.mjs … --format json`). No MCP transport anywhere in
   the bridge. Needs the Package.swift resource wiring (see §14).
-- `YcodeTools+ReverseBridge.swift`: the Swift runner, following
+- `SwiftCodeTools+ReverseBridge.swift`: the Swift runner, following
   Legacy's `ReverseBridge` (`resolveBridgeURL` → Bundle.module
-  resource, `YCODE_REVERSE_BRIDGE_PATH` / `SWIFTCODE_REVERSE_BRIDGE_PATH`
-  env; `resolveREADirectory` → `YCODE_REVERSE_REA_DIR` /
+  resource, `SWIFTCODE_REVERSE_BRIDGE_PATH` / `SWIFTCODE_REVERSE_BRIDGE_PATH`
+  env; `resolveREADirectory` → `SWIFTCODE_REVERSE_REA_DIR` /
   `SWIFTCODE_REVERSE_REA_DIR` env, `<bridge>/node_modules/rea-agents`,
-  `~/Library/Application Support/Ycode/Reverse/node_modules/rea-agents`;
-  `resolveNodeURL` → `YCODE_NODE_PATH` / `SWIFTCODE_NODE_PATH`, the
+  `~/Library/Application Support/SwiftCode/Reverse/node_modules/rea-agents`;
+  `resolveNodeURL` → `SWIFTCODE_NODE_PATH` / `SWIFTCODE_NODE_PATH`, the
   three fixed paths, then PATH; node major must be 22/24/26).
   Spawn is argv-only, stdin request + bounded stdout (8 MiB) /
   stderr (64 KiB), timeout kills the child. Frames are validated
   (version 1, matching id, type in progress/result/error) and the
   Evidence envelope must carry `evidence_id` + `operation`.
-- Handler (`YcodeTools+Engines.swift`): the existing validation chain
+- Handler (`SwiftCodeTools+Engines.swift`): the existing validation chain
   (steps 1–6) is unchanged; on success the Evidence is rendered as
   Markdown (generic JSON renderer: id, operation, provider,
   confidence, findings/sections when present, else pretty JSON capped
@@ -386,7 +386,7 @@ Port:
   rea-agents@6.5.0 directory, or without the bundled bridge resource,
   the tool fails honestly naming exactly which piece is missing and
   how to supply it (`npm install rea-agents@6.5.0` into a directory +
-  `YCODE_REVERSE_REA_DIR`). Nothing is downloaded or installed by
+  `SWIFTCODE_REVERSE_REA_DIR`). Nothing is downloaded or installed by
   the tool.
 - The REVIEW scout's DROP for `ReverseBridge.mjs` is reversed with
   evidence (§0): the package is obtainable. The full REA subsystem
@@ -403,7 +403,7 @@ input, waits, app screenshot). Wave 4 ported only
 `list_applications` (running-only), `launch`, `activate`,
 `close_application`, `list_windows` (CGWindowList, on-screen only).
 
-Port: `YcodeTools+AppInteraction.swift` (macOS-only,
+Port: `SwiftCodeTools+AppInteraction.swift` (macOS-only,
 `#if canImport(AppKit)` + `#if canImport(ApplicationServices)`),
 following the engine's shapes:
 
@@ -473,7 +473,7 @@ implemented a real subset parser (block mappings/sequences, plain /
 quoted scalars, null/bool/int/double, flow collections; anchors,
 aliases, tags, block scalars rejected with the line number).
 
-This slice extends the subset, in `YcodeTools+AgenticData.swift`:
+This slice extends the subset, in `SwiftCodeTools+AgenticData.swift`:
 
 - Block scalars: literal `|` and folded `>` with chomping indicators
   (`-` strip, `+` keep, default clip) and explicit indent indicators
@@ -493,7 +493,7 @@ libYAML's job. The full path is Yams (MIT, SPM
 `.package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2")`,
 vendored libYAML, Linux-supported — §0). Wiring is a Package.swift
 change for the coordinator: add the Yams package, add `Yams` to the
-`YcodeMCP` target dependencies, and swap `AgenticDataYAMLParser` for
+`SwiftCodeMCP` target dependencies, and swap `AgenticDataYAMLParser` for
 `Yams.load(yaml:)` behind the same handler (keeping the
 duplicate-key rejection and the `AnyJSON` mapping). Until then the
 subset parser stays, with its limits stated in the tool description.
@@ -532,21 +532,21 @@ vs `AssistPlistEditTool.swift` (`plist_edit`: actions get/set/delete,
 `path`+`key` params, string values only, always writes XML, verifies
 by re-read after `set`). Different ids, different schemas, different
 semantics. Destination: both are registered (`plist_edit` in
-`YcodeTools+FileWriting.swift`, `plist_editor` in
-`YcodeTools+Signing.swift`) with those same distinctions. Nothing to
+`SwiftCodeTools+FileWriting.swift`, `plist_editor` in
+`SwiftCodeTools+Signing.swift`) with those same distinctions. Nothing to
 do; no duplication is created.
 
 ## 14. Package.swift wiring needed (coordinator applies)
 
-1. `YcodeMCP` target resources: add
+1. `SwiftCodeMCP` target resources: add
    `.copy("Resources/ReverseBridge.mjs")` (or `.process("Resources")`)
    so `Bundle.module` finds the bridge at runtime. Without it,
    `reverse_analyze` fails honestly naming the missing resource.
 2. Yams (full YAML, §11): add
    `.package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2")`
-   and `Yams` to the `YcodeMCP` target dependencies.
+   and `Yams` to the `SwiftCodeMCP` target dependencies.
 3. `SecretAccount.composioKey = "composio.api-key"` in
-   `ycode/Sources/YcodeAssistant/SecretStore.swift` (one line; the
+   `swiftcode/Sources/SwiftCodeAssistant/SecretStore.swift` (one line; the
    Composio client carries the string locally until the patch lands).
 4. No new target, no new external dependency besides Yams (optional),
    no changes to any other target's dependencies. System frameworks
@@ -555,12 +555,12 @@ do; no duplication is created.
 
 ## 15. Tests
 
-`ycode/Tests/YcodeMCPTests/FailingToolsGapTests.swift` (Swift Testing,
+`swiftcode/Tests/SwiftCodeMCPTests/FailingToolsGapTests.swift` (Swift Testing,
 `@Test`, same `opened`/`TempSample` shape as the existing terminal
 tests; `MCPWritePolicy.allow` where a tool writes):
 
 - `env_capture_logs`: returns snapshot lines from a seeded
-  `YcodeSnapshots` entry + the memory preview + redacted env vars
+  `SwiftCodeSnapshots` entry + the memory preview + redacted env vars
   (a `*_TOKEN` var is `<redacted>`, a plain var is shown); empty
   snapshots → Legacy's fallback line.
 - `get_process_logs`: own host run by pid returns its real output;
@@ -608,17 +608,17 @@ on Linux) are pending on Dylan's Mac.
 
 ## 16. Files changed (destination only, uncommitted)
 
-Owned edits: `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift`,
-`YcodeTools+AgenticExecution.swift`, `YcodeTools+AgenticNetwork.swift`,
-`YcodeTools+AgenticData.swift`, `YcodeTools+Media.swift`,
-`YcodeTools+Engines.swift`. New files under
-`ycode/Sources/YcodeMCP/`: `YcodeTools+FailingToolsSupport.swift`,
-`YcodeTools+MCPClient.swift`, `YcodeTools+ComposioClient.swift`,
-`YcodeTools+WorkersRuntime.swift`, `YcodeTools+AppInteraction.swift`,
-`YcodeTools+ScreenRecording.swift`, `YcodeTools+ReverseBridge.swift`,
-`YcodeTools+DependencyAudit.swift`,
+Owned edits: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift`,
+`SwiftCodeTools+AgenticExecution.swift`, `SwiftCodeTools+AgenticNetwork.swift`,
+`SwiftCodeTools+AgenticData.swift`, `SwiftCodeTools+Media.swift`,
+`SwiftCodeTools+Engines.swift`. New files under
+`swiftcode/Sources/SwiftCodeMCP/`: `SwiftCodeTools+FailingToolsSupport.swift`,
+`SwiftCodeTools+MCPClient.swift`, `SwiftCodeTools+ComposioClient.swift`,
+`SwiftCodeTools+WorkersRuntime.swift`, `SwiftCodeTools+AppInteraction.swift`,
+`SwiftCodeTools+ScreenRecording.swift`, `SwiftCodeTools+ReverseBridge.swift`,
+`SwiftCodeTools+DependencyAudit.swift`,
 `Resources/ReverseBridge.mjs`. New tests:
-`ycode/Tests/YcodeMCPTests/FailingToolsGapTests.swift`. New spec: this
+`swiftcode/Tests/SwiftCodeMCPTests/FailingToolsGapTests.swift`. New spec: this
 file. Nothing in Legacy, nothing in SwiftCode-New, no ledger/manifest
 edits, no `Package.swift` edits (see §14).
 

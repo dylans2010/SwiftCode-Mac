@@ -3,10 +3,10 @@
 
 import Foundation
 
-/// Ycode-specific store settings. `EKEventStore()` uses
-/// `EKEventStore.ycodeDefaultConfiguration`; tests and tools create stores
-/// with their own configuration through `init(ycodeConfiguration:)`.
-public struct YcodeEventStoreConfiguration: Sendable {
+/// SwiftCode-specific store settings. `EKEventStore()` uses
+/// `EKEventStore.swiftcodeDefaultConfiguration`; tests and tools create stores
+/// with their own configuration through `init(swiftcodeConfiguration:)`.
+public struct SwiftCodeEventStoreConfiguration: Sendable {
     /// The calendar database file (created with the fresh-device content on
     /// first use).
     public var databaseURL: URL
@@ -18,7 +18,7 @@ public struct YcodeEventStoreConfiguration: Sendable {
     public var eventAccess: EKAuthorizationStatus
     public var reminderAccess: EKAuthorizationStatus
 
-    public init(databaseURL: URL = YcodeEventStoreConfiguration.standardDatabaseURL, timeZone: TimeZone? = nil,
+    public init(databaseURL: URL = SwiftCodeEventStoreConfiguration.standardDatabaseURL, timeZone: TimeZone? = nil,
                 eventAccess: EKAuthorizationStatus = .fullAccess, reminderAccess: EKAuthorizationStatus = .fullAccess) {
         self.databaseURL = databaseURL
         self.timeZone = timeZone
@@ -26,11 +26,11 @@ public struct YcodeEventStoreConfiguration: Sendable {
         self.reminderAccess = reminderAccess
     }
 
-    /// `$YCODE_EVENTKIT_DATABASE`, else `<data home>/ycode-eventkit/Calendar.sqlite`
+    /// `$SWIFTCODE_EVENTKIT_DATABASE`, else `<data home>/swiftcode-eventkit/Calendar.sqlite`
     /// (`$XDG_DATA_HOME` or `~/.local/share` on Linux, Application Support on macOS).
     public static var standardDatabaseURL: URL {
         let env = ProcessInfo.processInfo.environment
-        if let p = env["YCODE_EVENTKIT_DATABASE"], !p.isEmpty { return URL(fileURLWithPath: p) }
+        if let p = env["SWIFTCODE_EVENTKIT_DATABASE"], !p.isEmpty { return URL(fileURLWithPath: p) }
         #if canImport(Darwin)
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory())
@@ -38,22 +38,22 @@ public struct YcodeEventStoreConfiguration: Sendable {
         let base = env["XDG_DATA_HOME"].map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".local/share")
         #endif
-        return base.appendingPathComponent("ycode-eventkit/Calendar.sqlite")
+        return base.appendingPathComponent("swiftcode-eventkit/Calendar.sqlite")
     }
 }
 
 public class EKEventStore: NSObject {
     private static let defaultsLock = NSLock()
-    nonisolated(unsafe) private static var _default = YcodeEventStoreConfiguration()
+    nonisolated(unsafe) private static var _default = SwiftCodeEventStoreConfiguration()
 
     /// The configuration used by `EKEventStore()` and by
     /// `authorizationStatus(for:)`.
-    public static var ycodeDefaultConfiguration: YcodeEventStoreConfiguration {
+    public static var swiftcodeDefaultConfiguration: SwiftCodeEventStoreConfiguration {
         get { defaultsLock.lock(); defer { defaultsLock.unlock() }; return _default }
         set { defaultsLock.lock(); _default = newValue; defaultsLock.unlock() }
     }
 
-    let configuration: YcodeEventStoreConfiguration
+    let configuration: SwiftCodeEventStoreConfiguration
     let db: CalendarDatabase?
     let path: String
     let lock = NSRecursiveLock()
@@ -62,12 +62,12 @@ public class EKEventStore: NSObject {
     private var stagedIDs: [String] = []
     let delegateSourceIDs: Set<String>?
     /// Reminder searches run here (reminders.md §4).
-    let searchQueue = DispatchQueue(label: "org.ycode.eventkit.reminders.search")
-    let accessQueue = DispatchQueue(label: "org.ycode.eventkit.access")
+    let searchQueue = DispatchQueue(label: "org.swiftcode.eventkit.reminders.search")
+    let accessQueue = DispatchQueue(label: "org.swiftcode.eventkit.access")
 
-    public init(ycodeConfiguration: YcodeEventStoreConfiguration) {
-        configuration = ycodeConfiguration
-        path = ycodeConfiguration.databaseURL.path
+    public init(swiftcodeConfiguration: SwiftCodeEventStoreConfiguration) {
+        configuration = swiftcodeConfiguration
+        path = swiftcodeConfiguration.databaseURL.path
         db = try? CalendarDatabase(path: path)
         delegateSourceIDs = nil
         super.init()
@@ -75,12 +75,12 @@ public class EKEventStore: NSObject {
     }
 
     public override convenience init() {
-        self.init(ycodeConfiguration: EKEventStore.ycodeDefaultConfiguration)
+        self.init(swiftcodeConfiguration: EKEventStore.swiftcodeDefaultConfiguration)
     }
 
     /// A store limited to the given sources.
     public init(sources: [EKSource]) {
-        let base = sources.first?.store.configuration ?? EKEventStore.ycodeDefaultConfiguration
+        let base = sources.first?.store.configuration ?? EKEventStore.swiftcodeDefaultConfiguration
         configuration = base
         path = base.databaseURL.path
         db = try? CalendarDatabase(path: path)
@@ -99,7 +99,7 @@ public class EKEventStore: NSObject {
     // MARK: Authorization (recorded answers; the R5 broker is deferred)
 
     public class func authorizationStatus(for entityType: EKEntityType) -> EKAuthorizationStatus {
-        let c = ycodeDefaultConfiguration
+        let c = swiftcodeDefaultConfiguration
         return entityType == .event ? c.eventAccess : c.reminderAccess
     }
 

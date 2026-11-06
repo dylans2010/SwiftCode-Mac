@@ -1,7 +1,7 @@
 # Package dependencies
 
-Ycode modules: `YcodeProject` (typed mutations), `YcodeBuild`
-(`PackageResolver`), `YcodeUI` (`PackageDependencyModel`,
+SwiftCode modules: `SwiftCodeProject` (typed mutations), `SwiftCodeBuild`
+(`PackageResolver`), `SwiftCodeUI` (`PackageDependencyModel`,
 `AddPackageController`, the project editor's Package Dependencies tab, the
 navigator section).
 
@@ -30,7 +30,7 @@ navigator section).
 | Branch | `branch` | `branch` |
 | Commit | `revision` | `revision` |
 
-## Mutations (YcodeProject)
+## Mutations (SwiftCodeProject)
 
 - `addRemotePackage(url:requirement:)`, `addLocalPackage(relativePath:)`:
   a new object appended to `packageReferences` (key created if missing).
@@ -48,9 +48,9 @@ navigator section).
 - Invariant (tested): removing the fixture's package and adding it back
   with the same IDs reproduces the file byte for byte.
 
-## Resolution (Ycode's approach)
+## Resolution (SwiftCode's approach)
 
-Ycode does not link libSwiftPM. It resolves with git and SwiftPM's public
+SwiftCode does not link libSwiftPM. It resolves with git and SwiftPM's public
 command line:
 
 1. Versions: `git ls-remote --tags <url>`; tags that parse as semantic
@@ -61,7 +61,7 @@ command line:
 3. Checkout: `git clone` into `<checkouts>/<identity>` (identity = last URL
    component without `.git`, lowercased), later `git fetch --tags`, then a
    detached checkout. Default checkouts:
-   `~/Library/Caches/Ycode/SourcePackages/<project>-<hash>/checkouts`.
+   `~/Library/Caches/SwiftCode/SourcePackages/<project>-<hash>/checkouts`.
 4. Products: `swift package dump-package` on the checkout (or the local
    folder): the `products[].name` values.
 5. Transitive dependencies: each checked-out package's remote
@@ -84,7 +84,7 @@ command line:
    indentation, `" : "` separators, final newline. `originHash` follows
    SwiftPM's open-source definition: the SHA-256 (lowercase hex) of the
    root manifests' contents followed by the root dependencies' location
-   strings. A project has no root manifest, so Ycode hashes the project's
+   strings. A project has no root manifest, so SwiftCode hashes the project's
    remote package URLs in `packageReferences` order (OPEN QUESTION).
 7. File ▸ Packages ▸ Resolve Package Versions (reference-ui.md §1), and every package addition, resolve
    again. A failure becomes one error, "Package resolution failed: …",
@@ -126,6 +126,6 @@ paths are stored relative to the project directory.
   (level 1).
 - Navigator section and tab: Apple's public documentation (level 1).
 - OPEN QUESTION: whether the reference writes `package` on products of
-  local packages (Ycode writes it); whether an empty `packageReferences`
+  local packages (SwiftCode writes it); whether an empty `packageReferences`
   key is kept; the exact tab layout; the search and package-collection
-  panel of the reference sheet (Ycode takes only a URL or path).
+  panel of the reference sheet (SwiftCode takes only a URL or path).

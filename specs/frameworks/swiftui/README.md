@@ -6,11 +6,11 @@ status below. Reference: Xcode 27.1 (27A9269), iPhoneSimulator 27.1 SDK, iOS
 scale 3, 60 Hz; the only iPhone type the 27.1 runtime accepts on this Mac).
 
 Implementation status (2026-10-30): `frameworks/swiftui/` (package
-`ycode-swiftui`: library products `SwiftUI` and `SwiftUICore`, built as
+`swiftcode-swiftui`: library products `SwiftUI` and `SwiftUICore`, built as
 `OpenViews` and `OpenViewsCore` on Apple hosts, `OVText`, `OVRender`,
 `OVPlatform`, and the `ov-sample`, `ov-settings` and `ov-mini-ide` apps; test target `OpenViewsTests`).
 Rounds R1, R2, the core of R3, R4, R5 (rendering v1: display list, ThorVG
-rasteriser, software and Vulkan compositors, headless PNG back end, Ycode's
+rasteriser, software and Vulkan compositors, headless PNG back end, SwiftCode's
 symbol set), R6 and R7 (app, scenes and input on Linux: SDL3 windows on X11
 and Wayland, run loop, gestures, focus, keyboard) and R8 (controls, menus
 with pop-up windows, the text editing core) and R9 (containers and
@@ -26,7 +26,7 @@ The package README lists what is done, deferred and not started.
 This set serves two goals of `docs/FUTURE.md`:
 
 1. **Simulator parity first.** SwiftUI already works in Apple's iOS
-   Simulator, so it is an "easy win": Ycode's simulator runs Apple's own
+   Simulator, so it is an "easy win": SwiftCode's simulator runs Apple's own
    SwiftUI from the runtime, and only has to provide the system services,
    daemons and host features SwiftUI depends on. Files 01–02 say what those
    are and how to check them.
@@ -43,14 +43,14 @@ OpenSwiftUI, see there).
 | File | Content |
 |---|---|
 | `01-simulator-parity.md` | What SwiftUI apps need from the simulator, per area: observed behaviour in Apple's simulator and the services, daemons, Darwin notifications and host features it relies on |
-| `02-conformance-checklist.md` | The checklist to run on Ycode's simulator: probe mode + driver action + expected observable result |
+| `02-conformance-checklist.md` | The checklist to run on SwiftCode's simulator: probe mode + driver action + expected observable result |
 | `03-architecture.md` | `View` and body evaluation, identity and lifetime, dependency tracking (measured re-evaluation counts), update cycle, environment, preferences, modifier order |
 | `04-layout.md` | Proposal/size/placement, primitives, text, stacks, frames, padding, alignment, grids, safe areas, pixel rounding |
 | `05-animation.md` | Transactions, curves, springs, animation timing, scoping, retargeting, transitions, keyframes |
 | `06-app-and-components.md` | App/Scene lifecycle and scene phases, navigation, tabs, lists and scrolling, controls, keyboard and text input, presentations, gestures, persistence |
 | `07-text-images-color.md` | Fonts and Dynamic Type tables, SF Symbols and asset images, colours in light/dark/high contrast |
 | `08-environment-accessibility-localization.md` | Environment values, live setting changes, accessibility tree, localization and right-to-left layout, previews |
-| `09-open-design.md` | **Ycode-original design note**: module layout, graph runtime, rendering and text back ends with verified licences |
+| `09-open-design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: module layout, graph runtime, rendering and text back ends with verified licences |
 | `10-plan.md` | Implementation rounds (one agent each) and the conformance-test plan |
 | `golden-layout.md` | Generated: measured sizes and frames of ~140 composed views at fixed proposals |
 | `api-inventory.md` | Generated: name-only inventory of the iOS API surface (types, members with labels, iOS availability), by area |
@@ -84,7 +84,7 @@ in the git-ignored `research/dirty/swiftui/`.
 
 Level 1: developer.apple.com pages and WWDC session pages (titles and
 descriptions; cited per file), licence files of open-source projects.
-Level 3: our probe app on simulators named `ycode-test-swiftui-*`, driven by
+Level 3: our probe app on simulators named `swiftcode-test-swiftui-*`, driven by
 `simctl` and the simulator track's HID driver (`research/experiments/
 simulator/hid/hidsend.m`); our own service tracer inserted into our own
 app only. Level 4: SDK module interfaces, names only (`api-inventory.md`).

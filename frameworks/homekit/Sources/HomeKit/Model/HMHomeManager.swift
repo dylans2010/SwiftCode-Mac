@@ -25,25 +25,25 @@ open class HMHomeManager: NSObject, @unchecked Sendable {
     /// Empty until the first `homeManagerDidUpdateHomes`.
     public private(set) var homes: [HMHome] = []
 
-    let connection: YcodeConnection
+    let connection: SwiftCodeConnection
     /// The client identity this manager connected as.
-    public let ycodeClient: YcodeHomeClient
+    public let swiftcodeClient: SwiftCodeHomeClient
 
-    /// A manager on `YcodeLocalHomeStore.shared` as the current process.
+    /// A manager on `SwiftCodeLocalHomeStore.shared` as the current process.
     public override convenience init() {
-        self.init(ycodeStore: YcodeLocalHomeStore.shared, client: .processDefault)
+        self.init(swiftcodeStore: SwiftCodeLocalHomeStore.shared, client: .processDefault)
     }
 
     /// A manager on a given store, acting as `client` (tests, tools,
     /// multi-app simulations). A client without a usage string stops the
     /// process, as HomeKit does (simulator-baseline.md §2, HK-B06).
-    public init(ycodeStore store: YcodeHomeStore, client: YcodeHomeClient) {
+    public init(swiftcodeStore store: SwiftCodeHomeStore, client: SwiftCodeHomeClient) {
         if client.enforcesRequirements && client.usageDescription == nil {
             fatalError("HomeKit: this app must have an NSHomeKitUsageDescription key in its Info.plist "
                 + "explaining how it uses home data. The app was stopped before it could access home data.")
         }
-        connection = YcodeConnection(store: store)
-        ycodeClient = client
+        connection = SwiftCodeConnection(store: store)
+        swiftcodeClient = client
         super.init()
         connection.manager = self
         let session = store.connect(client: client) { [weak self] event in
@@ -93,7 +93,7 @@ open class HMHomeManager: NSObject, @unchecked Sendable {
 
     func home(_ id: UUID) -> HMHome? { homes.first { $0.uniqueIdentifier == id } }
 
-    func handle(_ event: YcodeHomeEvent) {
+    func handle(_ event: SwiftCodeHomeEvent) {
         let me = connection.sessionID
         switch event {
         case .authorizationStatus(let raw):

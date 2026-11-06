@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 **Please don't open a public issue.** Report it privately through
-[GitHub's security advisories](https://github.com/MarcoDotIO/Ycode/security/advisories/new).
+[GitHub's security advisories](https://github.com/dylans2010/SwiftCode-Mac/security/advisories/new).
 
 Please include what you found, how to reproduce it, the version and platform, and the impact you expect. Leave out
 secrets and personal data, and don't attach any Apple files.
@@ -24,10 +24,10 @@ Everything in this repository and the published packages. These areas matter mos
 
 - **Opening untrusted projects.** Parsers for project files, plists, asset catalogs and the like. A project can also run
   its own build scripts and package plug-ins when you build it, as with any IDE, so only build projects you trust.
-- **The simulator host.** `ycode-simd` runs guest code in KVM micro-VMs. A guest that escapes to the host process is a
+- **The simulator host.** `swiftcode-simd` runs guest code in KVM micro-VMs. A guest that escapes to the host process is a
   vulnerability.
 - **The simulator link.** Pairing and the encrypted connection between a viewer and a simulator host.
-- **The coding assistant and `ycode mcp`.** Stored credentials, and anything that lets an agent write files or run
+- **The coding assistant and `swiftcode mcp`.** Stored credentials, and anything that lets an agent write files or run
   commands without the approval it should need.
 - **Packaging and CI.** Signing, the release workflow, and anything in the packages that shouldn't be there.
 

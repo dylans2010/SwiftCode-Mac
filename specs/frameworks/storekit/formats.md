@@ -57,7 +57,7 @@ simulator; the chain does not lead to Apple's root, so a server that checks
 the chain must special-case the Xcode environment (level 1: Apple documents
 that Xcode-signed transactions do not chain to its root).
 
-Ycode can therefore generate its own key pair and certificate with the same
+SwiftCode can therefore generate its own key pair and certificate with the same
 subject and serve fully verifiable transactions; no Apple key material is
 needed.
 
@@ -155,7 +155,7 @@ certificate that Xcode's StoreKit editor exports as its public test
 certificate (identical SHA-256 fingerprint), so a developer can validate the
 receipt locally. Unlike the JWS key it is fixed, not generated per device
 (inference: the runtime's test-store support framework carries a signing
-identity file; level 2, name only). Ycode's own store signs with its own certificate and its
+identity file; level 2, name only). SwiftCode's own store signs with its own certificate and its
 IDE exports that one.
 
 Payload: the documented receipt ASN.1 (level 1): a SET of SEQUENCE

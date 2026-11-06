@@ -109,7 +109,7 @@ Token spelling rule: enum tokens use the runtime's capitalised C++ names
 RealityKit's public presets (names only): `fireworks`, `impact`, `magic`,
 `rain`, `snow`, `sparks` (`ParticleEmitterComponent.Presets`). An editor
 preset is just a set of the fields above plus, optionally, a particle
-image. Ycode ships its own preset values and images; Apple's preset
+image. SwiftCode ships its own preset values and images; Apple's preset
 contents are not copied.
 
 ### 1.4 How RCP 3 stores an emitter (OBS-RCP4)
@@ -249,11 +249,11 @@ The public UsdMedia schema (`def SpatialAudio` with `filePath`,
 `loopFromStage`, `startTime`, `endTime`, `mediaOffset`, `gain`) is read as
 a track of the stage's scene animation, not as components: our prim gave
 its entity an `AnimationLibraryComponent` and no audio components, and on
-macOS the track came out as an invalid animation definition. Ycode's
+macOS the track came out as an invalid animation definition. SwiftCode's
 editor should therefore write the RealityKit form of §2–§3 and treat
 UsdMedia audio as import-only.
 
-## 6. Requirements for Ycode
+## 6. Requirements for SwiftCode
 
 1. Write emitters with the USD names of §1 (not Swift names) and
    capitalised enum tokens; write colours as linear sRGB float4.

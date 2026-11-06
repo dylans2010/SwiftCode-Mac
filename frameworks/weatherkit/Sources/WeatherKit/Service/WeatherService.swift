@@ -25,7 +25,7 @@ public final class WeatherService: Sendable {
         self.init(backend: WeatherService.environmentBackend())
     }
 
-    /// Ycode extension: a service on an explicit backend.
+    /// SwiftCode extension: a service on an explicit backend.
     public init(backend: any WeatherBackend, configuration: Configuration = Configuration()) {
         self.engine = WeatherEngine(backend: backend, configuration: configuration)
     }
@@ -283,7 +283,7 @@ public final class WeatherService: Sendable {
         return result
     }
 
-    /// Ycode extension: drops every cached product and attribution of this instance.
+    /// SwiftCode extension: drops every cached product and attribution of this instance.
     public func removeCachedData() async {
         await engine.removeAll()
     }
@@ -292,7 +292,7 @@ public final class WeatherService: Sendable {
 // MARK: - Configuration
 
 extension WeatherService {
-    /// Ycode extension: settings of a service instance.
+    /// SwiftCode extension: settings of a service instance.
     public struct Configuration: Sendable {
         /// Language tag for requests and cache keys; nil = the process's
         /// preferred language (behavior.md §2), `en-US` form.

@@ -1,6 +1,6 @@
 # Editor area: tabs, splits, history, assistant
 
-Ycode module: `YcodeUI` (`EditorAreaController`, `NavigationHistory`,
+SwiftCode module: `SwiftCodeUI` (`EditorAreaController`, `NavigationHistory`,
 `Counterparts`, `WorkspaceWindowController`).
 
 ## Tabs
@@ -72,8 +72,8 @@ Counterparts of a file, in order (same folder first, then by path):
 Mode submenu. Modes are chosen only in the mode pop-up of the assistant's
 jump bar, whose list is `reference-ui-4.md` §16. The assistant's jump bar
 starts with a close button, then the mode pop-up (`reference-ui-5.md`
-§6.1). The table below is Ycode's mapping of the modes it can fill; Manual,
-Top Level Objects, Includes and Tests are Ycode's earlier names and give
+§6.1). The table below is SwiftCode's mapping of the modes it can fill; Manual,
+Top Level Objects, Includes and Tests are SwiftCode's earlier names and give
 way to the §16 names (Includes and Included By, Test Classes and Test
 Callers; Manual and Top Level Objects are dropped).
 
@@ -112,7 +112,7 @@ and a `func`.
 
 ### C.1 Text metrics
 
-| Property | Reference | Ycode in the session |
+| Property | Reference | SwiftCode in the session |
 |---|---|---|
 | Advance | **8.0** per character, exactly. 58 columns span 464 with no drift. | about 7.45 |
 | Line pitch | **18.0**, the same for wrapped continuation lines (no extra spacing between logical lines) | 15.0 |
@@ -139,7 +139,7 @@ and a `func`.
    tall. It starts 14 after the editor's left edge, so it lies under the
    line numbers, and it ends at the text container's edge, not under the
    minimap. Fill **#EEEEEE** on white, corners about 4.
-4. Ycode now: numbers end at x 317, 31 points before its code column. Its
+4. SwiftCode now: numbers end at x 317, 31 points before its code column. Its
    band is x 339–1007, 15 tall, #F2F2F2, and lies under the text only.
 
 ### C.3 Sticky scope header
@@ -168,11 +168,11 @@ Colours of fully covered glyph pixels (the median of the five pixels
 farthest from the background in each token). Every token kind gave the
 same value on several lines, to within ±1. These are recorded at the
 owner's request for the council. Earlier specs left theme colours
-unrecorded (reference-ui.md §4; settings.md: Ycode's built-in themes are
-its own). Whether Ycode's default theme takes these values is the owner's
+unrecorded (reference-ui.md §4; settings.md: SwiftCode's built-in themes are
+its own). Whether SwiftCode's default theme takes these values is the owner's
 decision; `fidelity-council.md` marks it as one.
 
-| Token (examples in the test file) | Reference | Ycode in the session |
+| Token (examples in the test file) | Reference | SwiftCode in the session |
 |---|---|---|
 | Keyword (`import`, `struct`, `let`, `func`) | **#C4246E** | #FF2D55 |
 | Plain text (`Foundation` after `import`, braces) | **#322529** | #000000 |
@@ -194,10 +194,10 @@ GPT's "number #006279" was the declaration-name colour. Gemini's
 |---|---|
 | Place | between the text and the scroll bar lane: a 1-point separator #E6E6E6 at x 995, the minimap from x 996 to x 1122, then the scroll bar's 17-point lane (x 1123–1139) at the editor's right edge |
 | Width | **127** plus the 1-point separator, in an 850-point editor (judges: 80, 115, 140; none right). reference-ui-5.md §6.5 has 128 at 962 and 73 at a 480-point split. All three fit **min(128, 15 % of the editor's width)**; confirm at two more widths in round 2. |
-| Rendering | the text drawn at **1/6 scale** in both directions: each visual line (wrapped ones too) is a bar 2 points tall on a 3-point pitch, and a character is 1.33 points wide. Bars take their token's colour at about 35 % strength (a comment bar is #CED1D9 on white). Column 0 maps to x 1010, 14 inside the minimap's left edge. **No labels and no boxes**: Ycode's symbol-name pills ("Section00", "describe") have no counterpart. |
+| Rendering | the text drawn at **1/6 scale** in both directions: each visual line (wrapped ones too) is a bar 2 points tall on a 3-point pitch, and a character is 1.33 points wide. Bars take their token's colour at about 35 % strength (a comment bar is #CED1D9 on white). Column 0 maps to x 1010, 14 inside the minimap's left edge. **No labels and no boxes**: SwiftCode's symbol-name pills ("Section00", "describe") have no counterpart. |
 | Visible area | a full-width shade, **#EDEDED** on white, from y 87 to y 210 at the top of the file: the editor's 757-point height ÷ 6. Bars inside it blend darker (#BFC2CA). No outline. |
 | Scrolling | the minimap scrolls with the text and passes under the toolbar band's veil (`liquid-glass.md` §7.3) |
-| Ycode now | about x 1009–1133, with its scroll bar on the minimap's **left** (x 1012–1019) |
+| SwiftCode now | about x 1009–1133, with its scroll bar on the minimap's **left** (x 1012–1019) |
 
 ### C.6 Opening a file from outside the window (the image step)
 
@@ -230,7 +230,7 @@ minimap and no frame around the image.
    that scrolled the bands under the toolbar could not run in the
    reference.
 
-**Ycode** changed nothing: the editor, jump bar, inspector and row
+**SwiftCode** changed nothing: the editor, jump bar, inspector and row
 selection stayed on Long.swift. The open-document event for a file in
 the open workspace must open it there, select its row and update all
 four in one pass.
@@ -268,7 +268,7 @@ motion starts about 40 ms after that.
    motion and a toolbar frame 35 ms after it. Their "205 pt" came from
    whole-frame phase correlation, which mixed the 260-point slide with the
    130-point re-centring.
-7. **Ycode now:** the pressed state shows 18 ms after its press. The
+7. **SwiftCode now:** the pressed state shows 18 ms after its press. The
    first motion comes **113 ms** after that, and the last change 367 ms
    after it. There are two pauses of 56 and 71 ms between changed frames.
    The text re-wraps in a final frame (changed region x 306–1399).
@@ -276,7 +276,7 @@ motion starts about 40 ms after that.
 ### C.8 Scrolling
 
 1. **Travel is 1:1.** 600 points of scroll input moved the reference's
-   text exactly 600 points (row matching between the stills). Ycode moved
+   text exactly 600 points (row matching between the stills). SwiftCode moved
    it **566**, 5.7 % short, in both directions.
 2. **Latency.** The text starts moving in the first frame after the first
    event and stops within one frame (≤ 19 ms) of the last. With these
@@ -284,12 +284,12 @@ motion starts about 40 ms after that.
 3. **The duration differences are not app behaviour.** The judges
    reported 1198 against 1295 ms for the editor and 987 against 1112 ms
    for the navigator. In each case the harness delivered the same input
-   more slowly to Ycode (1.176 against 1.299 s, and 0.993 against
+   more slowly to SwiftCode (1.176 against 1.299 s, and 0.993 against
    1.117 s), and both apps followed their input within a frame.
 4. **Frame pacing.** The longest gap between changing frames was 35 ms for
-   the reference and 53 ms for Ycode while scrolling the editor, and 23
+   the reference and 53 ms for SwiftCode while scrolling the editor, and 23
    against 48 ms in the navigator. Both recorders' median frame interval
-   was about 19 ms. Ycode drops two or more frames at times. Confirm at
+   was about 19 ms. SwiftCode drops two or more frames at times. Confirm at
    120 Hz.
 5. **Momentum: not observed.** The flick's synthetic events carried no
    momentum phase, so neither app coasted. The reference took 162 ms for
@@ -314,7 +314,7 @@ The type names `Int` and `String` are **#9D31CF** (purple). Gemini's teal
 #36867A for types, #AD3DA4 for keywords and #D12F1B for strings do not
 occur in the captures.
 
-Ycode now matches every token but one: it colours the module name after
+SwiftCode now matches every token but one: it colours the module name after
 `import` (`Foundation`) as a type (#9D31CE). The reference draws it in
 plain text, #322529.
 
@@ -334,24 +334,24 @@ The header pins exactly when the declaration's own line would pass
 y 87. It would stay until the declaration's closing line reaches the
 header (offset about 726, beyond this scroll).
 
-**Ycode:** in this step it scrolled **1050** points for the same input
+**SwiftCode:** in this step it scrolled **1050** points for the same input
 (D.3). That left line 42, inside a `/* … */` block between two structs, at
-the top. No header belongs there. The judges' "Ycode has no pinned
+the top. No header belongs there. The judges' "SwiftCode has no pinned
 header" therefore was not tested in round 2.
 
 ### D.3 Scroll travel and frame cadence
 
-| Step (input) | Reference travel | Ycode travel |
+| Step (input) | Reference travel | SwiftCode travel |
 |---|---|---|
 | 03, linear 600 | **600** | **1050** (1.75 ×) |
 | 08, bands, linear 1200 | 1200 | 1200 |
 | 15, navigator, 500 | 432 | 432 |
 
-The harness's own measurement agrees with these. Ycode over-travelled
+The harness's own measurement agrees with these. SwiftCode over-travelled
 only in the first editor scroll after opening the file. The cause is not
-visible in the captures; round 1 had Ycode 5.7 % short.
+visible in the captures; round 1 had SwiftCode 5.7 % short.
 
-| Step | Reference: median / 90th percentile / longest gap between changed frames | Ycode |
+| Step | Reference: median / 90th percentile / longest gap between changed frames | SwiftCode |
 |---|---|---|
 | 03 linear scroll | 20.0 / 28.0 / 39 ms | 19.3 / 30.6 / 40 ms |
 | 04 flick | 13.0 / 25.6 / 100 ms | 15.7 / **48.7** / 109 ms |
@@ -359,8 +359,8 @@ visible in the captures; round 1 had Ycode 5.7 % short.
 | 15 navigator scroll | 19.7 / 24.6 / 33 ms | 22.9 / 29.8 / **75** ms |
 
 The linear scrolls run at about 50 frames a second in **both** apps. The
-judges' "Xcode 13.3 ms against Ycode 20 ms" for step 03 is not borne out.
-Ycode's gaps are the problem only in the flick and in the navigator.
+judges' "Xcode 13.3 ms against SwiftCode 20 ms" for step 03 is not borne out.
+SwiftCode's gaps are the problem only in the flick and in the navigator.
 
 ### D.4 Momentum flick and the top bounce
 
@@ -376,7 +376,7 @@ at the top.
    ω = 12.6 rad/s (response about 0.50 s)**, with an RMSE of 0.5 points.
    It was within 1 point of rest 0.48 s after the peak and at rest after
    0.58 s.
-2. **Ycode:** overscroll **10** points; spring-back ω = 10.5 rad/s (about
+2. **SwiftCode:** overscroll **10** points; spring-back ω = 10.5 rad/s (about
    0.60 s); at rest 0.42 s after the peak.
 3. The judges' totals (713 against 788 ms) include the input-driven travel
    from different starting offsets (600 against 1050), so they are not
@@ -411,12 +411,12 @@ the press:
    the scroll position and the top inset are preserved.
 3. The judges' 305 and 270 ms include the pressed-state frame and a
    trailing toolbar frame.
-4. **Ycode, hide:** 135 ms to the first motion, then only four frames over
+4. **SwiftCode, hide:** 135 ms to the first motion, then only four frames over
    144 ms (gaps of 83, 38 and 23 ms). The text re-wraps in a separate
    frame 23 ms after the inspector is gone. **The text then jumps up 40
    points:** line 1 goes under the jump bar and line 3 takes its place.
    This persists through the show and the later steps.
-5. **Ycode, show:** 83 ms to the first motion; 309 ms of motion in 12
+5. **SwiftCode, show:** 83 ms to the first motion; 309 ms of motion in 12
    frames (mean 28 ms). The text re-wraps progressively.
 
 ### D.6 Minimap
@@ -432,15 +432,15 @@ the press:
    962 → 128 does not fit this rule (it would give 140). Confirm with
    several more widths in round 3.
 2. **Scale is the same in both apps:** 1/6, a 3-point pitch per visual
-   line and about 1.33 points per character. Opus's "Ycode at half scale"
+   line and about 1.33 points per character. Opus's "SwiftCode at half scale"
    does not hold.
 3. **What differs is the bars.** The reference draws one solid bar per
    token: a whole comment, spaces included, is a single bar, and code
-   lines break only between tokens. Ycode breaks its bars at every space
+   lines break only between tokens. SwiftCode breaks its bars at every space
    (one bar per word).
 4. **The visible-region shade** is #EDEDED across the full minimap width,
    with no outline, in both apps. The reference's spans y 87–210 at the
-   top of the file; Ycode's spans 86–211.
+   top of the file; SwiftCode's spans 86–211.
 
 ### D.7 Selecting files in the navigator by click
 
@@ -453,16 +453,16 @@ The reference's timings, from the click:
 | Bands.swift | +100–180 ms | +12 ms | — |
 
 1. The reference **does show "Loading…"** before an image appears, so
-   Opus's "Xcode never shows a loading state" is wrong. Ycode's one
+   Opus's "Xcode never shows a loading state" is wrong. SwiftCode's one
    Loading frame (50 ms) is within the reference's behaviour.
-2. Ycode changes the editor and the inspector in the same frame, 165–250
+2. SwiftCode changes the editor and the inspector in the same frame, 165–250
    ms after the click.
 3. For an image, the reference's status bar shows no "Line: Col:".
-   Ycode's still shows "Line: 1 Col: 1".
+   SwiftCode's still shows "Line: 1 Col: 1".
 
 ### D.8 Image inspector text (Stripes.png)
 
-| Row | Reference | Ycode |
+| Row | Reference | SwiftCode |
 |---|---|---|
 | Dimensions | "800 × 1800 pixels" | the same text |
 | Resolution | **"--"** (the file records no resolution) | "72 × 72 DPI" |
@@ -480,7 +480,7 @@ value read through Accessibility.
 The failed split step left the reference's Add Editor menu open in the
 following stills. Its items are "**Tab**" (⌘T), "**Editor Pane On
 Right**" (⌃⌘T) and "**Editor Pane Below**" (⌃⌥⌘T). The harness had looked
-for "Add Editor Pane on Right", which is why the split failed. Ycode's
+for "Add Editor Pane on Right", which is why the split failed. SwiftCode's
 items are "Add Editor Tab", "Add Editor Pane on Right" and "Add Editor
 Pane Below".
 
@@ -499,7 +499,7 @@ differ.
 
 Step 04: a momentum flick back up 600 points.
 
-| Time from the first moved frame | Reference: travel (pt) | Ycode: travel (pt) |
+| Time from the first moved frame | Reference: travel (pt) | SwiftCode: travel (pt) |
 |---|---|---|
 | 0–85 ms | 80 at 17 ms, 280 at 33, 445 at 50, 537 at 67, 580 at 82 | **0 (no movement)** |
 | 97–112 ms | 617, 634 | 240, 352 |
@@ -512,10 +512,10 @@ Step 04: a momentum flick back up 600 points.
 | 713 ms | 600 (rest) | 604 (rest at 883 ms) |
 
 1. **No start delay.** The reference moves in the first frame after the
-   gesture; Ycode holds still for **85–98 ms**. Remove the delay: content
+   gesture; SwiftCode holds still for **85–98 ms**. Remove the delay: content
    must follow the gesture's first event.
 2. **Overshoot 8 %.** The reference runs **48 points** past the end of a
-   600-point flick (8.0 %), peaking 157 ms after it starts; Ycode runs
+   600-point flick (8.0 %), peaking 157 ms after it starts; SwiftCode runs
    120 points (20 %), peaking at 202 ms.
 3. **Return.** From the peak the reference returns as a critically damped
    spring with ω about **11–12.6 rad/s** (half the overshoot gone about
@@ -525,7 +525,7 @@ Step 04: a momentum flick back up 600 points.
    fraction 0.69) describes the same curve including the input-driven
    rise; implement it as momentum + the critically damped return, not as
    one underdamped spring.
-4. Ycode's whole-motion fit (response 0.47 s, damping fraction 0.45) is
+4. SwiftCode's whole-motion fit (response 0.47 s, damping fraction 0.45) is
    too soft: overshoot and return both need the reference's values.
 
 ### E.2 Split editor: the change is one frame (supersedes the judges' 200 ms)
@@ -537,15 +537,15 @@ Step 16: View ▸ Editor ▸ "Editor Pane On Right" with Long.swift open.
    out the new pane's jump bar once (the middle component truncates and
    the issue stepper appears). There is no sliding or growing animation.
    The judges' "200 ms ease-out" spans the frame before the change to
-   that second frame. Ycode's one-frame change (12 ms) matches; the
+   that second frame. SwiftCode's one-frame change (12 ms) matches; the
    follow-up jump-bar layout should come in the same frame or within
    100 ms.
 2. **Panes.** Left pane x 290–713.5, a divider 713.5–716 (2.5 wide,
-   #D7D7D7), right pane 716–1140: equal halves of the editor. Ycode
+   #D7D7D7), right pane 716–1140: equal halves of the editor. SwiftCode
    matches (its divider is a 1-point line at 715).
 3. **Each pane's jump bar** (y 45–84, as the editor's):
 
-| Item | Position from the pane's left edge | Reference | Ycode now |
+| Item | Position from the pane's left edge | Reference | SwiftCode now |
 |---|---|---|---|
 | Close button | +14 to +25 (an "×" 11 × 11) | present in both panes, #7F7F7F | missing |
 | Grid button | +36 to +49 | present | present |
@@ -557,12 +557,12 @@ Step 16: View ▸ Editor ▸ "Editor Pane On Right" with Long.swift open.
    component** (the group) is cut to its first letters ("Gla") with a
    fade over its last **about 4 points**, and keeps its icon and its
    chevron; the first component and the file keep their full names.
-   Ycode does not truncate.
+   SwiftCode does not truncate.
 5. **Inactive pane.** The pane without focus draws its jump bar dimmed:
    path text **#7F7F7F** (active **#262626**), path icons **desaturated
    to grey** (the project and Swift icons lose their colour), chevrons
    #7F7F7F in both. The warning triangle keeps its yellow in both panes.
-   The close button is #7F7F7F in both. Ycode draws both panes alike.
+   The close button is #7F7F7F in both. SwiftCode draws both panes alike.
 6. **Minimaps stay** in split panes (67 points in a 424-point pane, E.6);
    Gemini's "auto-hide below 350 points" does not hold.
 7. **Focus.** The new pane takes focus, so the navigator's selection turns
@@ -572,7 +572,7 @@ Step 16: View ▸ Editor ▸ "Editor Pane On Right" with Long.swift open.
 
 Step 05, a click on Stripes.png after Long.swift:
 
-| | Reference (round 3) | Ycode now |
+| | Reference (round 3) | SwiftCode now |
 |---|---|---|
 | Editor | the image replaces the text in **one frame** (the recording's single changed frame) | clears to a blank editor with "Loading…" centred, for **192 ms**, then the image |
 | Jump bar, status bar | in the same frame | in the blank frame |
@@ -590,7 +590,7 @@ for Stripes.png, which is already open in the window.
 
 - Reference: **zero changed frames**. No reload, no flash, the jump bar
   and the inspector unchanged.
-- Ycode: the editor flashes blank and repaints over **100 ms**; the jump
+- SwiftCode: the editor flashes blank and repaints over **100 ms**; the jump
   bar drops the group component ("GlassScroll › Stripes" instead of
   "GlassScroll › GlassScroll › Stripes"); the inspector's Full Path
   changes from `/tmp/…` to the resolved `/private/tmp/…`.
@@ -604,7 +604,7 @@ for Stripes.png, which is already open in the window.
 
 With no file open (step 01's "before" still; the conflict session's
 Repositories view), the reference's editor area is **pure white** from
-x 290 to 1140: no minimap, no minimap separator, no scroll lane. Ycode
+x 290 to 1140: no minimap, no minimap separator, no scroll lane. SwiftCode
 draws the minimap's separator (a 1-point #E5E5E5 line at x 995), the
 visible-region shade as a grey block (#EDEDED, x 996–1126, y 86–212),
 and the scroll lane (#F3F3F3,
@@ -615,7 +615,7 @@ is open.
 
 Measured from the minimap's separator to the start of the scroll lane:
 
-| Editor pane width | Reference | Ycode now |
+| Editor pane width | Reference | SwiftCode now |
 |---|---|---|
 | 850 (one pane, window 1400) | **131** | 131 |
 | 424 (split, window 1400) | **67** | 67 |
@@ -624,7 +624,7 @@ Measured from the minimap's separator to the start of the scroll lane:
 | 1110 (round 2, inspector hidden) | 139 | — |
 
 The widths fit **clamp(15.5 % of the pane's width, 63, about 140)**: the
-reference never makes the minimap narrower than about 63. Ycode follows
+reference never makes the minimap narrower than about 63. SwiftCode follows
 the percentage below the floor, so at 274 its minimap is 18 points
 narrower and its text column 18 points wider, which makes its lines wrap
 about 2 characters later than the reference's. The scroll lane (x 1126–
@@ -636,30 +636,30 @@ about 2 characters later than the reference's. The scroll lane (x 1126–
    is 110 full-block characters (U+2588) after "// ". The reference draws
    them **8.0 points apart**, the editor's cell width (C.1): the band's
    first visual row is 611 wide (x 373–984) and its continuation 273.5,
-   884.5 in all. Ycode draws them **6.89 apart** (622 + 136 = 758): its
+   884.5 in all. SwiftCode draws them **6.89 apart** (622 + 136 = 758): its
    fallback font's own advance. Every glyph, including glyphs from a
    fallback font, must advance exactly one cell (8.0 at the default
    size); centre a narrower fallback glyph in its cell and clip a wider
-   one. The blocks are 13 tall in both apps; Ycode draws them 1 point
+   one. The blocks are 13 tall in both apps; SwiftCode draws them 1 point
    lower (y 152–165 against 151–164).
 2. **Wrap edge.** The band's first row ends at x 984 in the reference
-   (the container edge of C.1, about 986) and at x 995 in Ycode, which
-   wraps against the minimap's separator. Ycode's container is about 11
+   (the container edge of C.1, about 986) and at x 995 in SwiftCode, which
+   wraps against the minimap's separator. SwiftCode's container is about 11
    points too wide.
-3. **First layout.** Ycode's first layout of Long.swift wraps one word
+3. **First layout.** SwiftCode's first layout of Long.swift wraps one word
    later ("width so") than every later layout; the reference wraps the
    same way from the first frame. Lay out with the final container width
    before the first draw.
 4. **Wrapped current line.** The reference's current-line highlight
    covers every visual line of a wrapped line (also in the merge sheet,
-   `merge-sheet.md` §4.2); Ycode's covers only the first.
+   `merge-sheet.md` §4.2); SwiftCode's covers only the first.
 
 ## Evidence
 
 - Commands, shortcuts and the assistant/counterparts behavior: Apple's
   published Xcode keyboard-shortcut reference and Xcode Help (level 1).
 - Counterpart pairing rules: Xcode Help's description of counterparts
-  (level 1); the test-file and storyboard rules are Ycode's reading.
+  (level 1); the test-file and storyboard rules are SwiftCode's reading.
 - Tab bar look, when it shows, pinning, and the close commands (⌘W closes
   the tab): `specs/ide/reference-ui-2.md` §8 (level 3).
 - With one tab, ⌘W is Close Window: `specs/ide/reference-ui-3.md` §5.2
@@ -676,8 +676,8 @@ about 2 characters later than the reference's. The scroll lane (x 1126–
   recordings' frame times, and the C.7 curve from a grid fit of a cubic
   Bezier. The script is `research/tools/council-r1/measure_captures.py`;
   the method is `research/notes/council-r1-2026-11-04.md`. Font family:
-  reference-ui.md §4 (level 3). Ycode values come from the same session's
-  captures of Ycode.
+  reference-ui.md §4 (level 3). SwiftCode values come from the same session's
+  captures of SwiftCode.
 - Council round 2 (D.1–D.9), level 3: the round 2 session's 1x stills and
   recordings of the reference (foreground, key window). Offsets come from
   row matching against stills; the springs and Bezier curves from least

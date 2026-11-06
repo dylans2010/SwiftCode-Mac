@@ -5,13 +5,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        The simulator is experimental, and [docs/SIMULATOR.md](https://github.com/MarcoDotIO/Ycode/blob/main/docs/SIMULATOR.md) lists the known problems.
+        The simulator is experimental, and [docs/SIMULATOR.md](https://github.com/dylans2010/SwiftCode-Mac/blob/main/docs/SIMULATOR.md) lists the known problems.
 
         **Don't attach any Apple files:** no runtimes, SDKs, frameworks, or anything copied from a device or a runtime. We can't accept them, and we can't send them to you. Check logs for private names and paths.
   - type: input
     id: version
     attributes:
-      label: Ycode version
+      label: SwiftCode version
       placeholder: 1.0.0-beta.2
     validations:
       required: true
@@ -67,12 +67,12 @@ body:
     id: what
     attributes:
       label: What happened, and what did you expect?
-      description: Include the steps and the `ycode-simd` command line, if you ran it yourself.
+      description: Include the steps and the `swiftcode-simd` command line, if you ran it yourself.
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
       label: Relevant log lines
-      description: Only the lines that matter, from Ycode's own output.
+      description: Only the lines that matter, from SwiftCode's own output.
       render: text

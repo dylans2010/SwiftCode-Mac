@@ -365,9 +365,9 @@ public final class SDLBackend: PlatformBackend {
     public func makeWindow(_ configuration: WindowConfiguration) throws -> any PlatformWindow {
         if configuration.vulkan && !vulkanLoaded {
             // The compositor and SDL must use the same Vulkan loader
-            // (09-open-design.md §3.6): YCODE_VULKAN_LIBRARY names it, else the
+            // (09-open-design.md §3.6): SWIFTCODE_VULKAN_LIBRARY names it, else the
             // system's default.
-            let path = ProcessInfo.processInfo.environment["YCODE_VULKAN_LIBRARY"]
+            let path = ProcessInfo.processInfo.environment["SWIFTCODE_VULKAN_LIBRARY"]
             if !sdl.Vulkan_LoadLibrary(path) {
                 throw PlatformError.vulkan(sdl.GetError().map { String(cString: $0) } ?? "no Vulkan loader")
             }

@@ -58,11 +58,11 @@ Probe runs on the fresh device (screenshots in `research/dirty/`, not committed)
 | present chooser (multiple selection, all calendars, full access) | "Calendars" list with sections "On My iPhone" (Calendar) and "Other" (US Holidays, marked Subscribed; Birthdays with a gift icon), an "Add Calendar" row, Cancel (×) and Done (✓) |
 | select one calendar, tap Done | `calendarChooserSelectionDidChange:` (1 selected), then `calendarChooserDidFinish:` with 1 selected calendar |
 
-## 5. What Ycode must provide
+## 5. What SwiftCode must provide
 
 In-process UIKit controllers with these classes, properties and delegate
 calls; the edit controller saves through the broker without read access
-(`design.md` §7). Visual layout is Ycode's own; parity tests check classes,
+(`design.md` §7). Visual layout is SwiftCode's own; parity tests check classes,
 delegate calls, actions and the resulting store contents, not pixels.
 
 ## Evidence

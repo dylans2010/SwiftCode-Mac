@@ -92,7 +92,7 @@ documentation (level 1), probe runs (level 3, **[rv-basic]**,
   the green metallic sphere and the grey floor were where the camera
   predicts. The renderer object must be kept alive until completion (a
   renderer released right after submitting never called back).
-- For Ycode this is the best **headless conformance harness**: tests can
+- For SwiftCode this is the best **headless conformance harness**: tests can
   render a scene and compare pixels without a window or screenshots
   (`10-plan.md` §2).
 

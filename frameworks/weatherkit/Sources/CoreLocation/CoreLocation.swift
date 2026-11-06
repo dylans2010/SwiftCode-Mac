@@ -4,7 +4,7 @@
 // (`specs/frameworks/weatherkit/api.md`, `location.md` §1 for the CLLocation
 // members). No location manager, authorization, geocoding or updates: those
 // belong to the future Core Location spec. Names are interop identifiers;
-// everything else here is Ycode's own.
+// everything else here is SwiftCode's own.
 //
 // On Apple platforms this module is not built (see Package.swift) and the
 // system CoreLocation is used instead.
@@ -100,7 +100,7 @@ open class CLLocation: NSObject, @unchecked Sendable {
     public let floor: CLFloor?
     public let sourceInformation: CLLocationSourceInformation?
 
-    /// A location at a coordinate. Ycode defaults: altitude 0, horizontal
+    /// A location at a coordinate. SwiftCode defaults: altitude 0, horizontal
     /// accuracy 0, every other accuracy and the motion values −1 (invalid),
     /// timestamp now.
     public convenience init(latitude: CLLocationDegrees, longitude: CLLocationDegrees) {
@@ -169,7 +169,7 @@ open class CLLocation: NSObject, @unchecked Sendable {
 
     /// Great-circle distance in metres to another location (haversine on a
     /// sphere of the mean Earth radius; altitude is ignored). This is
-    /// Ycode's approximation, accurate to about 0.5 %.
+    /// SwiftCode's approximation, accurate to about 0.5 %.
     open func distance(from location: CLLocation) -> CLLocationDistance {
         let radius = 6_371_008.8
         let toRadians = Double.pi / 180

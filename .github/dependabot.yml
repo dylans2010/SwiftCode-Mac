@@ -1,5 +1,5 @@
 # Keeps the pinned action commits up to date. Swift packages are pinned on purpose
-# (ycode/Package.resolved, exact versions in frameworks/) and updated by hand.
+# (swiftcode/Package.resolved, exact versions in frameworks/) and updated by hand.
 version: 2
 updates:
   - package-ecosystem: github-actions

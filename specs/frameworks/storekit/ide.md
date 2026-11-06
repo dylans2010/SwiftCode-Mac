@@ -1,7 +1,7 @@
 # StoreKit spec: the IDE side (Xcode's StoreKit tooling)
 
 Part of `specs/frameworks/storekit/`. What Xcode offers for StoreKit
-Testing and what Ycode's IDE must reproduce: the configuration file
+Testing and what SwiftCode's IDE must reproduce: the configuration file
 (`configuration-file.md`), the file template, the configuration editor, the
 scheme option that installs a configuration on Run, the Transaction Manager
 and the Debug ▸ StoreKit commands, and what the command-line tools expose.
@@ -42,8 +42,8 @@ The Run action carries one optional child element:
 - `identifier` is a **relative path** to the `.storekit` file.
 - Base directory (observed): for a project's shared scheme
   `<dir>/<Name>.xcodeproj/xcshareddata/xcschemes/<scheme>.xcscheme`, the
-  path `../../StoreProbe/YcodeProbe.storekit` named
-  `<dir>/StoreProbe/YcodeProbe.storekit` and worked; `../StoreProbe/…` did
+  path `../../StoreProbe/SwiftCodeProbe.storekit` named
+  `<dir>/StoreProbe/SwiftCodeProbe.storekit` and worked; `../StoreProbe/…` did
   not resolve (Xcode then removed the installed configuration, §2.2). So the base is two levels below `<dir>`, consistent
   with the project's embedded workspace `<Name>.xcodeproj/project.xcworkspace`
   as the base (open question 1: user schemes and `.xcworkspace` containers).
@@ -68,7 +68,7 @@ The Test action does not have the option in the editor (level 1: tests use
    `com.apple.instruments.deviceservice`, program
    `/System/Library/PrivateFrameworks/DVTInstrumentsFoundation.framework/DTServiceHub`,
    started on demand by Xcode through CoreSimulator). The daemon logs the
-   request as made "for dev.ycode.skprobe by
+   request as made "for dev.swiftcode.skprobe by
    com.apple.dt.instruments.DVTInstrumentsFoundation" and accepts it because
    that caller "is entitled for StoreKit testing"; ordinary apps may only
    save configurations for themselves. Timeline of one run (light host
@@ -101,7 +101,7 @@ The Test action does not have the option in the editor (level 1: tests use
 
 Local StoreKit Testing works on simulators and on physical devices
 (through the same option); for a device Xcode installs the configuration
-over its device connection. Ycode supports simulators first.
+over its device connection. SwiftCode supports simulators first.
 
 ## 3. The configuration editor (level 1; GUI pass pending)
 
@@ -109,7 +109,7 @@ From public documentation and the interface-file names:
 
 1. New file: the template assistant offers a local configuration or one
    **synchronized with App Store Connect** (needs a signed-in team; the
-   synced file is read-only until converted). Ycode offers local only and
+   synced file is read-only until converted). SwiftCode offers local only and
    preserves the sync keys of existing files.
 2. Main view: a sidebar/list of products grouped as Consumables,
    Non-Consumables, Non-Renewing Subscriptions and subscription groups; a
@@ -150,27 +150,27 @@ question 5).
 | `xcodebuild test` | runs tests that use `SKTestSession` (level 1); our attempt to observe whether it applies the scheme's Run option hung before the tests started on a heavily loaded host (open question 3) |
 | `xcrun` tools | none dedicated to StoreKit (level 3: no such tool in the developer `usr/bin`) |
 
-## 6. What Ycode's IDE must provide
+## 6. What SwiftCode's IDE must provide
 
 1. Read, edit and write `.storekit` files per `configuration-file.md`,
    preserving unknown keys and the sync keys; a source-text view.
 2. A "StoreKit Configuration File" template (local) producing a valid empty
    configuration with default settings (USA, `en_US`, real time, all toggles
    off, no errors) and a fresh 8-hex-digit identifier.
-3. The configuration editor of §3 (Ycode's own design and assets).
+3. The configuration editor of §3 (SwiftCode's own design and assets).
 4. The scheme option: the Run ▸ Options pop-up listing the workspace's
    `.storekit` files, writing and reading `StoreKitConfigurationFileReference`
    with the relative path rule of §2.1.
-5. On Run to a Ycode simulator: install the configuration for the app's
+5. On Run to a SwiftCode simulator: install the configuration for the app's
    bundle id in the guest's store before launch (through the guest's
-   configuration service, or, with an open StoreKit, through Ycode's own
+   configuration service, or, with an open StoreKit, through SwiftCode's own
    channel), and keep it after the run.
 6. A Transaction Manager with the actions of §1 and §4, and the Debug ▸
    StoreKit menu.
-7. Export of the store's public certificate (Ycode's own).
-8. Command line: a Ycode CLI equivalent to the missing `simctl` support
+7. Export of the store's public certificate (SwiftCode's own).
+8. Command line: a SwiftCode CLI equivalent to the missing `simctl` support
    (install configuration, list/act on transactions) so tests and CI can
-   drive the store without the GUI (Ycode extension).
+   drive the store without the GUI (SwiftCode extension).
 
 ## 7. Open questions
 
@@ -195,9 +195,9 @@ question 5).
 - §2.1–§2.2: level 2 (scheme format, launchd job and program path) and
   level 3 (Xcode 27.1 running our generated project
   `research/experiments/storekit/make_project.py` through its scripting
-  interface on `ycode-test-storekit-1`; positive and negative path runs; the
+  interface on `swiftcode-test-storekit-1`; positive and negative path runs; the
   daemon's copy and the device log).
 - §2.3, §3, §4: level 1 (public documentation), marked pending GUI
   observation.
 - §5: level 3.
-- §6: Ycode's requirements (no evidence level).
+- §6: SwiftCode's requirements (no evidence level).

@@ -1,4 +1,4 @@
-# Spec: stage 3a contract (starting `dyld_sim` in the Ycode micro-VM)
+# Spec: stage 3a contract (starting `dyld_sim` in the SwiftCode micro-VM)
 
 Status: **stage 3a built and verified up to the host-library boundary (§12).**
 This is the contract for stage 3a of `docs/SIMULATOR-LINUX.md`. It extends
@@ -22,14 +22,14 @@ level 4:
   `__TEXT.vmaddr = 0`. Its `LC_SOURCE_VERSION` is `27062.0`, which is newer
   than the open-source `dyld-1378`.
 - The shared cache's mappings start at **`0x1_C000_0000`** and end at
-  `0x2_A919_C000` (`ycode dsc`). `dyld_sim` maps them at those addresses.
+  `0x2_A919_C000` (`swiftcode dsc`). `dyld_sim` maps them at those addresses.
 
 ## 1. Stage 3a exit criterion
 
 On the Thor, the following command:
 
 ```
-ycode-simd --exec <guest-tests>/hello --runtime-root <RuntimeRoot> --trace
+swiftcode-simd --exec <guest-tests>/hello --runtime-root <RuntimeRoot> --trace
 ```
 
 must produce all of these:
@@ -57,7 +57,7 @@ must produce all of these:
 | `0x1_6F60_0000`–`0x1_6FE0_0000` | Main stack (8 MiB). `user_stack` (top) = **`0x1_6FE0_0000`** |
 | `0x1_8000_0000`–`0x3_0000_0000` | Shared-region reservation. **Nothing else may be placed here.** `dyld_sim` maps the cache into it |
 | `0x3_0000_0000` + image | `dyld_sim`, mapped as one reservation of its `mappedSize`, with slide = `0x3_0000_0000 − preferred base` |
-| `0x3_1000_0000`–`0x3_1001_0000` | **Ycode host page** (§5): code at +0 (EL0 RX, 16 KiB), read-only data at +0x4000 (EL0 RO, 16 KiB), read-write data at +0x8000 (EL0 RW, 32 KiB) |
+| `0x3_1000_0000`–`0x3_1001_0000` | **SwiftCode host page** (§5): code at +0 (EL0 RX, 16 KiB), read-only data at +0x4000 (EL0 RO, 16 KiB), read-write data at +0x8000 (EL0 RW, 32 KiB) |
 | `0x3_2000_0000` and up | Anonymous allocations (`vm_allocate` anywhere, `mmap` without `MAP_FIXED`). First fit at or above the hint, never below this base |
 | `0xF_FFFF_4000` | Read-only commpage (16 KiB, EL0 RO) |
 | `0xF_FFFF_C000` | Commpage (16 KiB, EL0 RO). Filled as in §6 |
@@ -82,7 +82,7 @@ must produce all of these:
 - A memslot stays registered after its pages are unmapped, at least until
   stage 3b.
 
-## 4. Address-space model (portable, `YcodeDarwinABI`)
+## 4. Address-space model (portable, `SwiftCodeDarwinABI`)
 
 - `PageTableBuilder` gains `unmap(va:size:)`, `protect(va:size:attributes:)`,
   and dirty-table tracking (`drainDirtyTables() -> [(gpa, bytes)]`).
@@ -123,15 +123,15 @@ must produce all of these:
   guest path, a size, and stat data. It is created by the VFS, and its host
   fd stays open as long as any mapping or descriptor references it.
 
-## 5. Ycode host page and the launch sequence
+## 5. SwiftCode host page and the launch sequence
 
-The host page is built from `ycode/SimShim/host_stubs.S` → `host_stubs.bin`,
+The host page is built from `swiftcode/SimShim/host_stubs.S` → `host_stubs.bin`,
 linked at VA `0x3_1000_0000`. The fixed offsets below are the interface
 between the assembly and the Swift side:
 
 | Offset | Size | Contents | Written by |
 |---|---|---|---|
-| `+0x0000` | ≤ 16 KiB | Code. **`+0x0000` is `_ycode_launch`** (the EL0 entry). It is followed by the 67 helper stubs, a `ret` stub, and the notification stub | assembled |
+| `+0x0000` | ≤ 16 KiB | Code. **`+0x0000` is `_swiftcode_launch`** (the EL0 entry). It is followed by the 67 helper stubs, a `ret` stub, and the notification stub | assembled |
 | `+0x4000` | 544 | **Helpers table**: `version = 18`, then the 67 slot pointers in the order and at the offsets of `dyld-sim-handoff.md` §3.2. Slots 32 and 33 are 0 | assembled |
 | `+0x8000` | 8 | errno cell (`int`, 8-byte slot) | stubs |
 | `+0x8008` | 8 | `startGlue` cell | `dyld_sim` |
@@ -140,7 +140,7 @@ between the assembly and the Swift side:
 | `+0x8300` | 2 KiB | `infoArray` and `uuidArray` storage, and path strings | VMM |
 | `+0x9000` | 4 KiB | `sysctlbyname` and scratch space | stubs / VMM |
 
-**`_ycode_launch`** is entered at EL0. The VMM sets boot-info PC =
+**`_swiftcode_launch`** is entered at EL0. The VMM sets boot-info PC =
 `0x3_1000_0000` and SP = the launch block's `stackTop`. It then:
 
 1. Aligns SP down to 16 bytes, leaving room for the 9th argument. It stores
@@ -164,7 +164,7 @@ between the assembly and the Swift side:
   return NULL instead.
 - **Mach forwarding stubs** pass `x0` through unchanged.
 - **Pure EL0 stubs** behave exactly as in §7.3 table 1. AMFI output = `0xFF`.
-- **Ycode-private traps** use `x16` in `0x7963_0000`–`0x7963_FFFF` (ASCII
+- **SwiftCode-private traps** use `x16` in `0x7963_0000`–`0x7963_FFFF` (ASCII
   "yc"). The dispatcher checks this range **before** decoding the Darwin
   classes. They follow the BSD convention (carry plus errno):
 
@@ -187,7 +187,7 @@ between the assembly and the Swift side:
 
 - **Main executable and `dyld_sim`:** mapped as in §2, segment by segment,
   with each segment's `initprot`. Zero-fill (`vmsize > filesize`) is
-  anonymous. Ycode applies no fixups.
+  anonymous. SwiftCode applies no fixups.
 - **Kernel argument block:** built at the top of the main stack, in the
   exact layout of `darwin-process-start.md` Q1:
   - `argv` = `[guest path of the executable]`.
@@ -198,7 +198,7 @@ between the assembly and the Swift side:
     - `DYLD_SHARED_CACHE_DIR=<RuntimeRoot>/System/Library/Caches/com.apple.dyld`;
     - `HOME=/tmp`, `TMPDIR=/tmp/`;
     - `PATH=<RuntimeRoot>/usr/bin:<RuntimeRoot>/bin`;
-    - `XPC_SIMULATOR_LAUNCHD_NAME=dev.ycode.sim`.
+    - `XPC_SIMULATOR_LAUNCHD_NAME=dev.swiftcode.sim`.
   - `apple[]`, in the kernel's order:
     - `executable_path=<path>`;
     - `stack_guard=0x<16 hex>` (random, bits 8–15 zero);
@@ -221,7 +221,7 @@ between the assembly and the Swift side:
   - **User timebase mode (0x090) = 1** (`CNTVCT_EL0`). The timebase offset
     is 0. Superseded 2026-10-17: 0 (no user timebase) with the 24 MHz guest
     timebase (`darwin-process-start.md` §5, "Guest timebase"); 1 only with
-    `YCODE_GUEST_TIMEBASE=host`.
+    `SWIFTCODE_GUEST_TIMEBASE=host`.
   - Continuous-time and approximate-time fields: 0 (unsupported). The
     gettimeofday block's tick = 0, so the guest falls back to BSD 116.
   - Memory size: 1 GiB.
@@ -230,7 +230,7 @@ between the assembly and the Swift side:
   The VMM reads `CNTFRQ_EL0` (and the counter, for trap −3/−4) through KVM
   ONE_REG. `mach_timebase_info` (trap −89) returns 10⁹/`CNTFRQ`, reduced.
   Superseded 2026-10-17: traps −3/−4 return the counter scaled to 24 MHz and
-  trap −89 returns 125/3, unless `YCODE_GUEST_TIMEBASE=host`
+  trap −89 returns 125/3, unless `SWIFTCODE_GUEST_TIMEBASE=host`
   (`darwin-process-start.md` §5, "Guest timebase").
   The stage-2 24 MHz constants stay as the default for the portable
   dispatcher's tests only.
@@ -239,7 +239,7 @@ between the assembly and the Swift side:
   - `TPIDRRO_EL0` = 0 and `TPIDR_EL0` = 0.
   - SPSR is still `0x3C0`: no interrupts are delivered in stage 3.
 
-## 7. Shim changes (`ycode/SimShim/shim.S`)
+## 7. Shim changes (`swiftcode/SimShim/shim.S`)
 
 - **TLB flush on resume.** The trap frame's reserved word at **+312**
   becomes **`resumeFlags`**. Bit 0 means "flush the TLB before resume". When
@@ -254,15 +254,15 @@ between the assembly and the Swift side:
   arm64: Unconditionally save+flush host FPSIMD/SVE/SME state") loses the
   host thread's SVE predicate state after a `KVM_RUN` in which the guest did
   not use FP/SIMD; forcing an FP access each run takes the kernel's correct
-  path. The VMM sets it on every resume (`YCODE_SHIM_FP_TOUCH`, default on).
-  Measured cost ≈ 0.2 µs per `KVM_RUN`. Ycode also exports AdvSIMD-only
-  `memcpy`/`memmove` from `ycode-simd` (`CKVM/hostcopy.c`) so glibc's SVE
-  variants are never used on vCPU threads (`YCODE_LIBC_MEMCPY=1` disables).
+  path. The VMM sets it on every resume (`SWIFTCODE_SHIM_FP_TOUCH`, default on).
+  Measured cost ≈ 0.2 µs per `KVM_RUN`. SwiftCode also exports AdvSIMD-only
+  `memcpy`/`memmove` from `swiftcode-simd` (`CKVM/hostcopy.c`) so glibc's SVE
+  variants are never used on vCPU threads (`SWIFTCODE_LIBC_MEMCPY=1` disables).
 - **EL0 counter access.** At boot the shim sets `CNTKCTL_EL1` with
   EL0VCTEN = 1 and EL0PCTEN = 0, so EL0 can read `CNTVCT_EL0`.
 - **Unchanged:** everything else from stage 2.
 
-## 8. Trap coverage required for 3a (`YcodeDarwinKernel`)
+## 8. Trap coverage required for 3a (`SwiftCodeDarwinKernel`)
 
 The dispatcher decodes `x16` in this order:
 
@@ -379,7 +379,7 @@ status **72**, so each 3b iteration finds the next missing trap.
   `O_TRUNC` 0x400, `O_EXCL` 0x800, `O_CLOEXEC` 0x1000000,
   `O_DIRECTORY` 0x100000.
 
-### 8.1 VFS Swift API (in `YcodeDarwinABI`, owned by M, used by T)
+### 8.1 VFS Swift API (in `SwiftCodeDarwinABI`, owned by M, used by T)
 
 ```swift
 public struct DarwinErrnoError: Error, Equatable { public var errno: Int32 }   // thrown for every BSD-style failure
@@ -438,17 +438,17 @@ Errno values (Darwin):
 
 ## 9. Guest test program
 
-`ycode/SimShim/guest-tests/hello.c` is our own code. Its `main` writes
+`swiftcode/SimShim/guest-tests/hello.c` is our own code. Its `main` writes
 `hello from the iOS simulator runtime on Linux\n` to fd 1 with `write()` and
 returns 0.
 
-It is built on macOS by `ycode/SimShim/guest-tests/build.sh` with:
+It is built on macOS by `swiftcode/SimShim/guest-tests/build.sh` with:
 
 ```
 xcrun --sdk iphonesimulator clang -target arm64-apple-ios27.0-simulator -O2
 ```
 
-The output is `out/hello`. The script then checks with `ycode macho` that
+The output is `out/hello`. The script then checks with `swiftcode macho` that
 the binary is platform 7. The artifact is copied to the Thor.
 
 ## 10. Corrections to `darwin-arm64-abi.md` (from the xnu research)
@@ -484,10 +484,10 @@ the binary is platform 7. The artifact is copied to the Thor.
   `dyld-sim-handoff.md` §1.4 therefore does not unmap the host cache.
 - The simulator cache contains only tiny macOS-platform link stubs at those
   paths, and `dyld_sim` does not accept them.
-- **Ycode must supply its own clean-room implementations of these three
+- **SwiftCode must supply its own clean-room implementations of these three
   libraries.** This is stage 3a-ii, whose contract is in
   `specs/simulator/host-libraries.md`. Every system call the runtime makes
-  then goes through Ycode's own `libsystem_kernel`.
+  then goes through SwiftCode's own `libsystem_kernel`.
 
 ### Resolutions made during the build
 
@@ -526,10 +526,10 @@ the binary is platform 7. The artifact is copied to the Thor.
 
 | Owner | Files |
 |---|---|
-| Agent **S** (assembly) | `ycode/SimShim/shim.S` (§7), new `host_stubs.S` (§5), `build.sh` additions, `guest-tests/` (§9), `SimShim/README.md` |
-| Agent **M** (memory and VFS, portable) | In `YcodeDarwinABI`: `PageTables.swift`, `VMLayout.swift`, new `AddressSpace.swift` (§4), new `DarwinFileSystem.swift` (§8 VFS, `GuestFile`, Darwin `stat64` encoding), and matching tests in `Tests/YcodeDarwinABITests/` |
-| Agent **T** (kernel personality, portable) | New target `YcodeDarwinKernel`: the dispatcher (§8), Mach port table, `sysctl` table, the `vlog` formatter, and the process-image builders (§6: argument block, apple strings, commpage, `dyld_all_image_infos`, launch block). Also `TrapFrame.swift` (`resumeFlags`), and tests in `Tests/YcodeDarwinKernelTests/`. The old `DarwinTrapDispatcher.swift` in `YcodeDarwinABI` stays for the stage-2 self-test |
-| Agent **H** (hypervisor and integration, Linux arm64) | `CKVM/`, `YcodeHypervisor/` (memslot `PhysicalBacking`, file-backed slots, ONE_REG for `CNTFRQ`/`CNTVCT`, TLB-flush flag), and `ycode-simd/main.swift`: `--exec` mode, which loads the main executable and `dyld_sim` with `YcodeMachO`, writes §6, boots, runs the loop, prints the milestone, and attributes each ELR to an image |
+| Agent **S** (assembly) | `swiftcode/SimShim/shim.S` (§7), new `host_stubs.S` (§5), `build.sh` additions, `guest-tests/` (§9), `SimShim/README.md` |
+| Agent **M** (memory and VFS, portable) | In `SwiftCodeDarwinABI`: `PageTables.swift`, `VMLayout.swift`, new `AddressSpace.swift` (§4), new `DarwinFileSystem.swift` (§8 VFS, `GuestFile`, Darwin `stat64` encoding), and matching tests in `Tests/SwiftCodeDarwinABITests/` |
+| Agent **T** (kernel personality, portable) | New target `SwiftCodeDarwinKernel`: the dispatcher (§8), Mach port table, `sysctl` table, the `vlog` formatter, and the process-image builders (§6: argument block, apple strings, commpage, `dyld_all_image_infos`, launch block). Also `TrapFrame.swift` (`resumeFlags`), and tests in `Tests/SwiftCodeDarwinKernelTests/`. The old `DarwinTrapDispatcher.swift` in `SwiftCodeDarwinABI` stays for the stage-2 self-test |
+| Agent **H** (hypervisor and integration, Linux arm64) | `CKVM/`, `SwiftCodeHypervisor/` (memslot `PhysicalBacking`, file-backed slots, ONE_REG for `CNTFRQ`/`CNTVCT`, TLB-flush flag), and `swiftcode-simd/main.swift`: `--exec` mode, which loads the main executable and `dyld_sim` with `SwiftCodeMachO`, writes §6, boots, runs the loop, prints the milestone, and attributes each ELR to an image |
 
 The orchestrator owns `Package.swift` and every spec.
 
@@ -538,5 +538,5 @@ The orchestrator owns `Package.swift` and every spec.
 - `dyld-sim-handoff.md` and `darwin-process-start.md` (level 1, Apple open
   source).
 - Orchestrator measurements on the iOS 27.1 runtime with `otool -l` and
-  `ycode dsc` (level 4).
-- The remainder is Ycode design.
+  `swiftcode dsc` (level 4).
+- The remainder is SwiftCode design.

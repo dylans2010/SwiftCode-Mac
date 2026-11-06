@@ -1,6 +1,6 @@
 # xcodebuild: test, test-without-building, build-for-testing, .xctestrun
 
-Ycode: `YcodeXcodebuild` (`TestActions`, `TestConsoleParser`,
+SwiftCode: `SwiftCodeXcodebuild` (`TestActions`, `TestConsoleParser`,
 `XCTestRunFile`, `SwiftTestingBridge`). Grammar: `cli.md`. Build log and
 banners: `build-actions.md`. Result bundles: `result-bundle.md`.
 
@@ -31,12 +31,12 @@ filter is a comma-separated list of `Module.Class[/method]` and
 runner (the testing library joins the XCTest run); they are listed first
 through the library's documented ABI entry point (open-source
 swift-testing, `Documentation/ABI/JSON.md`) in a child process
-(`ycodebuild __list-swift-tests <executable>`), to map console names to
+(`swiftcodebuild __list-swift-tests <executable>`), to map console names to
 suites and source files. XCTest class/method lists for `-skip-testing`
 come from SwiftPM's open-source `swiftpm-xctest-helper` in the toolchain.
 
 Tests hosted in an application (`TEST_HOST`) run inside the application,
-and UI test bundles in the xctest runner ("Ycode implementation" below).
+and UI test bundles in the xctest runner ("SwiftCode implementation" below).
 Code coverage (scheme setting or
 `-enableCodeCoverage YES`): the build gets `CLANG_COVERAGE_MAPPING = YES`
 and `CLANG_PROFILE_DATA_DIRECTORY = <build folder>/ProfileData`; each runner
@@ -62,7 +62,7 @@ by line, unchanged (XCTest's `Test Suite '…' started at …`, `Test Case
 `Testing started` is written by the reference tool through a buffered
 stream: on a terminal it appears where testing starts (before the runner
 output), but when stdout is a pipe or file it appears **last**, after the
-banner. ycodebuild reproduces both: it prints the line immediately when
+banner. swiftcodebuild reproduces both: it prints the line immediately when
 stdout is a terminal and otherwise at exit. The line is printed with
 `-quiet` too; `-quiet` suppresses the runner output and the session lines.
 
@@ -70,7 +70,7 @@ Every `test` and `test-without-building` run writes a result bundle: the
 `-resultBundlePath` one, else
 `<DerivedData folder>/Logs/Test/Test-<scheme>-<yyyy.MM.dd_HH-mm-ss-ZZZ>.xcresult`
 (local time, e.g. `Test-CalcTests-2026.10.13_23-46-27--0400.xcresult`).
-For `-xctestrun` runs ycodebuild uses the `Logs/Test` folder of the
+For `-xctestrun` runs swiftcodebuild uses the `Logs/Test` folder of the
 DerivedData folder that holds the file (`…/Build/Products/x.xctestrun`).
 
 On failure, on stderr:
@@ -108,7 +108,7 @@ not write one.
 | `__xctestrun_metadata__` | `{FormatVersion: 2}` |
 | `ContainerInfo` | `{ContainerName: <project or workspace name>, SchemeName}` |
 | `TestPlan` | `{Name, IsDefault}` |
-| `CodeCoverageBuildableInfos` | array (empty in ycodebuild; the reference lists each buildable's products, sources and architectures) |
+| `CodeCoverageBuildableInfos` | array (empty in swiftcodebuild; the reference lists each buildable's products, sources and architectures) |
 | `TestConfigurations` | `[{Name: "Test Scheme Action", IsEnabled: true, TestTargets: [...]}]` |
 
 Per test target: `BlueprintName`, `BlueprintProviderName` (project name),
@@ -137,7 +137,7 @@ applies. Paths under the products directory start with `__TESTROOT__`;
 accepts format version 1 (one dictionary per target at the top level).
 
 The reference tool also writes its own diagnostic and logging variables
-into `EnvironmentVariables` and `DYLD_INSERT_LIBRARIES`; ycodebuild does
+into `EnvironmentVariables` and `DYLD_INSERT_LIBRARIES`; swiftcodebuild does
 not (they are tool plumbing, not part of the run's meaning).
 
 ## 5. Results gathered from the console
@@ -153,10 +153,10 @@ passing N argument(s) <label> → <value>[, …] to <name> started.` (one
 result per case, the overall status and an equal share of the time).
 Identifiers: `Class/method()` and `Suite/function()`.
 
-## Ycode implementation (TEST-HOST, 2026-10-30)
+## SwiftCode implementation (TEST-HOST, 2026-10-30)
 
 How the bundle gets into the host, the agent and its protocol:
-`specs/ide/testing.md`, "Ycode implementation". For the actions:
+`specs/ide/testing.md`, "SwiftCode implementation". For the actions:
 
 - **Targets.** A scheme with test plans builds the chosen plan's enabled
   targets with the scheme's (`-testPlan`, else the default plan). Plan
@@ -167,25 +167,25 @@ How the bundle gets into the host, the agent and its protocol:
   | Bundle | macOS | iOS-family simulator |
   |---|---|---|
   | tool-hosted | xctest runner (§1) | – |
-  | `TEST_HOST` | inside the host app, Ycode's agent inserted | the Ycode simulator, one run per host app |
+  | `TEST_HOST` | inside the host app, SwiftCode's agent inserted | the SwiftCode simulator, one run per host app |
   | UI test | xctest runner (no automation service) | reported as not supported |
 
-- **Destinations.** `-destination 'platform=iOS Simulator,name=Ycode
-  Simulator'` (any name containing "Ycode", or `id=ycode-remote-simulator`)
-  builds for the simulator and runs hosted bundles on the Ycode simulator
-  described by `YCODE_SIM_HOST` (`user@host`, ssh keys only),
-  `YCODE_SIM_DATA`, `YCODE_SIM_RUNTIME`, `YCODE_SIM_SIMD` (ycode-simd or the
-  `ycode-sim` launcher), `YCODE_SIM_DEVICE` (directory name under
-  `<data>/devices`, default `ycode-device`), `YCODE_SIM_OPTIONS` (more
-  options, split like a shell), `YCODE_SIM_ENV` (`K=V` words for the remote
-  environment, e.g. `YCODE_WARM_BOOT=1`); `YCODE_SSH`, `YCODE_RSYNC`
+- **Destinations.** `-destination 'platform=iOS Simulator,name=SwiftCode
+  Simulator'` (any name containing "SwiftCode", or `id=swiftcode-remote-simulator`)
+  builds for the simulator and runs hosted bundles on the SwiftCode simulator
+  described by `SWIFTCODE_SIM_HOST` (`user@host`, ssh keys only),
+  `SWIFTCODE_SIM_DATA`, `SWIFTCODE_SIM_RUNTIME`, `SWIFTCODE_SIM_SIMD` (swiftcode-simd or the
+  `swiftcode-sim` launcher), `SWIFTCODE_SIM_DEVICE` (directory name under
+  `<data>/devices`, default `swiftcode-device`), `SWIFTCODE_SIM_OPTIONS` (more
+  options, split like a shell), `SWIFTCODE_SIM_ENV` (`K=V` words for the remote
+  environment, e.g. `SWIFTCODE_WARM_BOOT=1`); `SWIFTCODE_SSH`, `SWIFTCODE_RSYNC`
   replace the programs. Without the four required variables the action
   fails with exit 64. Machine names are never written to files. Hosted
   bundles for another platform without that destination fail with a
   "Testing failed" line that names it.
-- **The agent.** `YCODE_TEST_AGENT` (macOS) or `YCODE_TEST_AGENT_<SDK>`
-  (`YCODE_TEST_AGENT_IPHONESIMULATOR`), else `libYcodeTestAgent.dylib`
-  next to ycodebuild (`swift build --product YcodeTestAgent`) or in its
+- **The agent.** `SWIFTCODE_TEST_AGENT` (macOS) or `SWIFTCODE_TEST_AGENT_<SDK>`
+  (`SWIFTCODE_TEST_AGENT_IPHONESIMULATOR`), else `libSwiftCodeTestAgent.dylib`
+  next to swiftcodebuild (`swift build --product SwiftCodeTestAgent`) or in its
   `<sdk>/` folder (`OUT=.build/debug SimGuestAgents/build-test-agent.sh`).
   Missing, the target fails with a "Testing failed" line saying how to
   build it.
@@ -214,8 +214,8 @@ How the bundle gets into the host, the agent and its protocol:
   (`…_iphonesimulator27.0-arm64.xctestrun` for the simulator; it was always
   `macosx` before).
 - **Result bundles**: one `ActionTestPlanRunSummary` per configuration
-  (`result-bundle.md`, "Ycode implementation"); `testKind` `app hosted`
-  and `UI test` for those bundles (Ycode's words, OPEN QUESTION there).
+  (`result-bundle.md`, "SwiftCode implementation"); `testKind` `app hosted`
+  and `UI test` for those bundles (SwiftCode's words, OPEN QUESTION there).
 
 ## Evidence
 
@@ -224,14 +224,14 @@ How the bundle gets into the host, the agent and its protocol:
   summary, exit codes, default bundle path, `.xctestrun` name and keys,
   `test` writing no `.xctestrun`: black-box `xcodebuild` 27.1 runs on a
   hand-written project with XCTest and swift-testing tests (level 3).
-  The test section of ycodebuild's output matches the reference (timings
+  The test section of swiftcodebuild's output matches the reference (timings
   masked, concurrent swift-testing lines as a multiset): see
   `conformance.md`.
 - `.xctestrun` format: `man xcodebuild.xctestrun` (level 1) and files the
   reference tool writes (level 2).
 - swift-testing console format and ABI: open-source swift-testing; XCTest
   listing: open-source SwiftPM `swiftpm-xctest-helper` (level 1).
-- Hosted tests: Ycode's own design (`testing.md`, "Ycode implementation");
+- Hosted tests: SwiftCode's own design (`testing.md`, "SwiftCode implementation");
   the `.xctestrun` keys for them from `man xcodebuild.xctestrun` (level 1).
 - OPEN QUESTION: parallel testing options are not implemented; the
   reference's own mechanism for hosted and UI tests is a dirty-room

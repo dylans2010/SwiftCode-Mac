@@ -5,7 +5,7 @@
 import Foundation
 
 /// One public constant of type-identifiers.md.
-public struct YcodeHomeCatalogEntry: Hashable, Sendable {
+public struct SwiftCodeHomeCatalogEntry: Hashable, Sendable {
     /// The constant's name, e.g. `HMServiceTypeLightbulb`.
     public let constantName: String
     /// The name after the table prefix, e.g. `Lightbulb`.
@@ -29,7 +29,7 @@ public struct YcodeHomeCatalogEntry: Hashable, Sendable {
 }
 
 /// One characteristic value enumeration (type-identifiers.md §5).
-public struct YcodeValueEnumerationEntry: Hashable, Sendable {
+public struct SwiftCodeValueEnumerationEntry: Hashable, Sendable {
     public let name: String
     public let introduced: String
     public let cases: [Case]
@@ -46,34 +46,34 @@ public struct YcodeValueEnumerationEntry: Hashable, Sendable {
     }
 }
 
-/// Ycode's view of the identifier catalog. The tables live in
+/// SwiftCode's view of the identifier catalog. The tables live in
 /// `Generated/Catalog.swift`.
-public enum YcodeHomeCatalog {
+public enum SwiftCodeHomeCatalog {
     /// The HAP base UUID suffix (type-identifiers.md §1).
     public static let hapBaseSuffix = "-0000-1000-8000-0026BB765291"
 
     /// Every public string constant (HK-B14 counts 255).
-    public static var allConstants: [YcodeHomeCatalogEntry] {
+    public static var allConstants: [SwiftCodeHomeCatalogEntry] {
         serviceTypes + characteristicTypes + accessoryCategoryTypes + metadataFormats + metadataUnits
             + characteristicProperties + actionSetTypes + significantEvents + keyPaths + otherConstants
     }
 
-    private static let servicesByID: [String: YcodeHomeCatalogEntry] =
+    private static let servicesByID: [String: SwiftCodeHomeCatalogEntry] =
         Dictionary(uniqueKeysWithValues: serviceTypes.map { ($0.identifier, $0) })
-    private static let characteristicsByID: [String: YcodeHomeCatalogEntry] =
+    private static let characteristicsByID: [String: SwiftCodeHomeCatalogEntry] =
         Dictionary(uniqueKeysWithValues: characteristicTypes.map { ($0.identifier, $0) })
-    private static let categoriesByID: [String: YcodeHomeCatalogEntry] =
+    private static let categoriesByID: [String: SwiftCodeHomeCatalogEntry] =
         Dictionary(uniqueKeysWithValues: accessoryCategoryTypes.map { ($0.identifier, $0) })
 
-    public static func serviceType(_ identifier: String) -> YcodeHomeCatalogEntry? {
+    public static func serviceType(_ identifier: String) -> SwiftCodeHomeCatalogEntry? {
         servicesByID[normalizedTypeUUID(identifier) ?? identifier]
     }
 
-    public static func characteristicType(_ identifier: String) -> YcodeHomeCatalogEntry? {
+    public static func characteristicType(_ identifier: String) -> SwiftCodeHomeCatalogEntry? {
         characteristicsByID[normalizedTypeUUID(identifier) ?? identifier]
     }
 
-    public static func accessoryCategoryType(_ identifier: String) -> YcodeHomeCatalogEntry? {
+    public static func accessoryCategoryType(_ identifier: String) -> SwiftCodeHomeCatalogEntry? {
         categoriesByID[identifier.uppercased()]
     }
 
@@ -102,7 +102,7 @@ public enum YcodeHomeCatalog {
         return full
     }
 
-    /// English text for a service or characteristic type (Ycode's own wording,
+    /// English text for a service or characteristic type (SwiftCode's own wording,
     /// derived from the catalog name); nil for custom types.
     public static func localizedDescription(forType identifier: String) -> String? {
         guard let entry = serviceType(identifier) ?? characteristicType(identifier) else { return nil }

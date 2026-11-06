@@ -1,13 +1,13 @@
-# Cloud accounts — the `YcodeCloud` target, Appwrite auth, and the Cloud framework
+# Cloud accounts — the `SwiftCodeCloud` target, Appwrite auth, and the Cloud framework
 
 Wave 12 (slice A) of the Legacy → Mac migration. Before this wave,
-Ycode had no account system at all: Settings ▸ Accounts was an
-explicit empty state ("Ycode does not sign in to accounts"), there
+SwiftCode had no account system at all: Settings ▸ Accounts was an
+explicit empty state ("SwiftCode does not sign in to accounts"), there
 was no cloud backend, no sync engine, and no user-account model
 (destination audit §5). Legacy's account system was Appwrite auth
 plus a hand-rolled cloud framework. This wave ports it:
 
-- **Part 1** — the new `YcodeCloud` SwiftPM target: a small
+- **Part 1** — the new `SwiftCodeCloud` SwiftPM target: a small
   `URLSession` REST client for the Appwrite Account API, with
   Keychain-stored session secret, typed models and errors.
 - **Part 2** — `CloudAuthManager`: Legacy's `AuthManager` flows
@@ -43,9 +43,9 @@ Legacy's root `Package.swift` declares `sdk-for-apple from:
 "15.0.0"` (product `Appwrite`) and `supabase-swift from: "2.0.0"`
 (product `Supabase`). Legacy's `Package.resolved` pins
 `sdk-for-apple 15.0.0`, `supabase-swift 2.1.0`, and `swift-crypto
-5.0.1`. Ycode's `ycode/Package.swift` declares swift-crypto as
+5.0.1`. SwiftCode's `swiftcode/Package.swift` declares swift-crypto as
 `"3.0.0"..<"5.0.0"` and pins `4.5.2`. A naive reading says the
-Appwrite SDK cannot coexist with Ycode's range because its graph
+Appwrite SDK cannot coexist with SwiftCode's range because its graph
 pins swift-crypto 5.0.1. That reading is wrong in detail and right
 in conclusion; the detail matters.
 
@@ -71,9 +71,9 @@ lockfile's pinned versions:
   range spans majors, so SPM picked the highest available release
   at resolve time (5.0.1). Supabase contributes nothing to this
   chain.
-- Nuance, recorded honestly: adding `sdk-for-apple 15.0.0` to Ycode
+- Nuance, recorded honestly: adding `sdk-for-apple 15.0.0` to SwiftCode
   would NOT inherently fail resolution — swift-certificates' range
-  intersects Ycode's `"3.0.0"..<"5.0.0"` at `3.12.3..<5.0.0`, so SPM
+  intersects SwiftCode's `"3.0.0"..<"5.0.0"` at `3.12.3..<5.0.0`, so SPM
   could resolve with a 3.x/4.x swift-crypto. The real blocker is
   platform, not version: `sdk-for-apple` declares Apple platforms
   only (`.iOS("15.0")`, `.macOS("11.0")`, `.watchOS("7.0")`,
@@ -85,11 +85,11 @@ lockfile's pinned versions:
 
 The `URLSession` REST client avoids all of it — no new SPM
 dependency, no async-http-client/NIO/certificates/crypto chain, no
-Apple-only SDK in the Linux build. Ycode's swift-crypto range is
-not widened, no fork is vendored, and `ycode/Package.swift` gains
-only the `YcodeCloud` target (plain `.target`, library product,
-test target — the Wave 10 `YcodeGitHub` model; its only dependency
-is first-party `YcodeAssistant`, for `SecretStore`).
+Apple-only SDK in the Linux build. SwiftCode's swift-crypto range is
+not widened, no fork is vendored, and `swiftcode/Package.swift` gains
+only the `SwiftCodeCloud` target (plain `.target`, library product,
+test target — the Wave 10 `SwiftCodeGitHub` model; its only dependency
+is first-party `SwiftCodeAssistant`, for `SecretStore`).
 
 ### 1.4 Supabase: a dead dependency, twice over
 
@@ -97,7 +97,7 @@ is first-party `YcodeAssistant`, for `SecretStore`).
   Legacy's Swift sources returns zero files. `supabase-swift` is
   declared in Legacy's `Package.swift` (`from: "2.0.0"`, pinned
   `2.1.0`) and linked as a product, but never imported. It is not
-  ported, and no supabase-swift dependency is added to Ycode.
+  ported, and no supabase-swift dependency is added to SwiftCode.
 - **The Supabase that Legacy does use is not the SDK.**
   `Views/Utilities/Database/Services/SupabaseService.swift` (101
   lines, imports only Foundation) is a pure `URLSession` PostgREST
@@ -140,7 +140,7 @@ places.
 ## 3. The REST client (`AppwriteAccountClient`)
 
 `public struct AppwriteAccountClient: Sendable` in
-`ycode/Sources/YcodeCloud/AppwriteAccountClient.swift`, following
+`swiftcode/Sources/SwiftCodeCloud/AppwriteAccountClient.swift`, following
 the `GitHubClient` pattern: a value type, an injected `URLSession`
 (`.shared` by default; tests inject a session backed by a
 `URLProtocol` stub), no stored secret of its own.
@@ -150,7 +150,7 @@ the `GitHubClient` pattern: a value type, an injected `URLSession`
 | Header | Value |
 |---|---|
 | `X-Appwrite-Project` | the project id |
-| `User-Agent` | `Ycode` |
+| `User-Agent` | `SwiftCode` |
 | `Cookie` | `a_session_<project>=<secret>`, when a session is active |
 | `Content-Type` | `application/json`, when a body is present |
 
@@ -160,7 +160,7 @@ Appwrite email sessions are cookie-based. Creating a session makes
 the server set `a_session_<project>`; the client captures that
 cookie's value from the `Set-Cookie` response header, keeps it in a
 locked box (`SessionSecretBox`, the `RateLimitBox` precedent from
-`YcodeGitHub`), and sends it back as a `Cookie` header. The host
+`SwiftCodeGitHub`), and sends it back as a `Cookie` header. The host
 persists it through `onSessionSecretChanged`, which
 `CloudAuthManager` wires to the secret store
 (`SecretAccount.appwriteSessionSecret`). The secret is never logged
@@ -215,7 +215,7 @@ formatter fallback).
 ## 4. The auth manager (`CloudAuthManager`)
 
 `@MainActor public final class CloudAuthManager` in
-`ycode/Sources/YcodeCloud/CloudAuthManager.swift`, ported from
+`swiftcode/Sources/SwiftCodeCloud/CloudAuthManager.swift`, ported from
 Legacy's `AuthManager` (415 lines). Same observable state
 (`currentUser`, `currentSession`, `swiftCodeID`,
 `isAuthenticated`, `isLoading`, `authError`), same flows, same
@@ -276,9 +276,9 @@ keep Legacy's confirmation alert
 Legacy's `loginWithGoogle` / `loginWithGitHub` called the SDK's
 `createOAuth2Session(provider:success:failure:)`, which opened the
 authorize URL in a web-auth session and resumed the app on the
-`appwrite-callback-<project>://` scheme. Ycode has no URL-scheme
+`appwrite-callback-<project>://` scheme. SwiftCode has no URL-scheme
 callback plumbing: there is no `onOpenURL` / `handleOpenURL`
-handling anywhere in `ycode/Sources`, no registered custom scheme,
+handling anywhere in `swiftcode/Sources`, no registered custom scheme,
 and no web-auth session wrapper. So this slice implements the
 client side honestly and stops there:
 
@@ -327,7 +327,7 @@ re-implement the string matching.
 ## 6. The Cloud framework — ported faithfully, including the stubs
 
 Legacy's `Frameworks/Internal/Cloud/` (16 files, ~1,059 lines)
-is ported into `YcodeCloud` with Legacy's exact semantics. The
+is ported into `SwiftCodeCloud` with Legacy's exact semantics. The
 important finding from reading it is how little of it ever did
 anything remote — and this port says so instead of inventing the
 missing backend.
@@ -489,7 +489,7 @@ local cache / queue / conflict resolver, and the
 
 | Capability | Reason |
 |---|---|
-| OAuth2 Google / GitHub sign-in | No URL-scheme callback plumbing in Ycode (no registered `appwrite-callback-<project>` scheme, no `onOpenURL` handling). Client side is built (§4.4); the app shell must register the scheme and forward URLs to `handleOAuthCallback(_:)`. |
+| OAuth2 Google / GitHub sign-in | No URL-scheme callback plumbing in SwiftCode (no registered `appwrite-callback-<project>` scheme, no `onOpenURL` handling). Client side is built (§4.4); the app shell must register the scheme and forward URLs to `handleOAuthCallback(_:)`. |
 | Record syncing (`CloudManager.sync`, `CloudSyncEngine` push/pull) | Legacy never synced a record and never configured a provider or a backend database/collection. The no-op and the queue are ported faithfully; a real backend needs database/collection ids and a conflict policy from Dylan. |
 | Storage upload | Appwrite file creation needs a `multipart/form-data` upload the client does not build yet. List/download/delete work. |
 | Guest-account migration, live session stream | Legacy had neither; the seams throw / yield once, honestly. |
@@ -523,7 +523,7 @@ local cache / queue / conflict resolver, and the
 
 ## 9. Tests
 
-`ycode/Tests/YcodeCloudTests/` — Swift Testing, stub transport
+`swiftcode/Tests/SwiftCodeCloudTests/` — Swift Testing, stub transport
 (`StubURLProtocol`, the Wave 10 pattern), hand-written JSON
 fixtures, no live network, no real credentials. Test counts are
 counted from `@Test` functions:
@@ -561,11 +561,11 @@ Xcode/Simulator observation was opened, read, or run.
 | BackupEngine's Appwrite usage (Storage via `CloudProvider` seam, `backups` bucket) | Legacy `Frameworks/Internal/Backups/Engine/BackupEngine.swift`, read directly |
 | No Legacy Swift file imports Supabase; `SupabaseService` is a URLSession PostgREST client | `grep ^import Supabase` over Legacy Swift sources (0 hits); `SupabaseService.swift` read directly (imports only Foundation) |
 | supabase-swift 2.1.0 / sdk-for-apple 15.0.0 dependency graphs; swift-crypto 5.0.1 attribution; Apple-platforms-only SDK | GitHub blob pages at the lockfile's pinned versions, verified live 2026-11-06 (see §1.2) |
-| Ycode swift-crypto range `"3.0.0"..<"5.0.0"`, pin 4.5.2; no Appwrite/Supabase in Ycode | `ycode/Package.swift` + `ycode/Package.resolved`, read directly |
-| No URL-scheme callback plumbing in Ycode | `grep` over `ycode/Sources` for `onOpenURL` / `handleOpenURL` / URL-scheme handling (no handler found) |
+| SwiftCode swift-crypto range `"3.0.0"..<"5.0.0"`, pin 4.5.2; no Appwrite/Supabase in SwiftCode | `swiftcode/Package.swift` + `swiftcode/Package.resolved`, read directly |
+| No URL-scheme callback plumbing in SwiftCode | `grep` over `swiftcode/Sources` for `onOpenURL` / `handleOpenURL` / URL-scheme handling (no handler found) |
 | No concrete `CloudProvider` and no `setProvider` caller in Legacy | `grep` over Legacy Swift sources (0 conformances, 0 callers) |
-| `SCCloudProvider` already covers SwiftCode Cloud model discovery | `ycode/Sources/YcodeAssistant/SCCloudProvider.swift`, read directly |
-| `SecretStore` pattern, `SecretAccount` cases | `ycode/Sources/YcodeAssistant/SecretStore.swift`, read directly |
+| `SCCloudProvider` already covers SwiftCode Cloud model discovery | `swiftcode/Sources/SwiftCodeAssistant/SCCloudProvider.swift`, read directly |
+| `SecretStore` pattern, `SecretAccount` cases | `swiftcode/Sources/SwiftCodeAssistant/SecretStore.swift`, read directly |
 | Google OAuth client id, scopes, endpoints, callback scheme, loopback ports | Legacy `Services/GoogleAccountAuthService.swift` (1,773 lines), read directly |
 | PKCE helpers, authorize-URL parameters, token exchange/refresh bodies, userinfo/tokeninfo | Legacy `GoogleAccountAuthService.swift`, read directly; RFC 7636 Appendix B vector in tests |
 | Loopback listener port order, request-line parsing, success page | Legacy `OAuthLoopbackServer` in `GoogleAccountAuthService.swift`, read directly |
@@ -573,12 +573,12 @@ Xcode/Simulator observation was opened, read, or run.
 | ADC file locations, `gcloud` CLI fallback, `agy` CLI discovery and Terminal launch | Legacy `GoogleAccountAuthService.swift`, read directly |
 | Error classification kinds, matching order, diagnostic fields | Legacy `GoogleAuthErrorClassification` in `GoogleAccountAuthService.swift`, read directly |
 | Client-secret requirement (exchange fails without it) and Settings field | Legacy `GoogleAccountAuthService.swift` + `Views/Settings/AssistSettingsView.swift` (client-id override, client-secret field), read directly |
-| No Ycode quota service, no assistant quarantine concept | `grep` over `ycode/Sources` (0 hits for `resetToFresh` / `clearAllQuarantines` / `restartEngine` / `quarantine` in `YcodeAssistant`) |
+| No SwiftCode quota service, no assistant quarantine concept | `grep` over `swiftcode/Sources` (0 hits for `resetToFresh` / `clearAllQuarantines` / `restartEngine` / `quarantine` in `SwiftCodeAssistant`) |
 | `extractOAuthURL(from:)` is dead code in Legacy | `grep` over `GoogleAccountAuthService.swift` (1 hit: the definition only) |
-| No URL-scheme callback plumbing in Ycode | `grep` over `ycode/Sources` for `onOpenURL` / `handleOpenURL` (no handler found; Wave 12 evidence) |
-| `swift-crypto` `Crypto` product name and package name | `ycode/Package.swift` (`YcodeSimLink` / `YcodeSDK` deps: `.product(name: "Crypto", package: "swift-crypto")`) |
+| No URL-scheme callback plumbing in SwiftCode | `grep` over `swiftcode/Sources` for `onOpenURL` / `handleOpenURL` (no handler found; Wave 12 evidence) |
+| `swift-crypto` `Crypto` product name and package name | `swiftcode/Package.swift` (`SwiftCodeSimLink` / `SwiftCodeSDK` deps: `.product(name: "Crypto", package: "swift-crypto")`) |
 
-## 10. Google account auth — the `YcodeGoogleAuth` target
+## 10. Google account auth — the `SwiftCodeGoogleAuth` target
 
 Wave 15 (slice C) of the Legacy → Mac migration. Legacy's
 `Services/GoogleAccountAuthService.swift` (1,773 lines) is a
@@ -586,7 +586,7 @@ separate Google-account auth system (Google Cloud / Antigravity),
 unrelated to Appwrite: OAuth2 authorization-code flow with PKCE,
 `ASWebAuthenticationSession`, a loopback redirect listener,
 token exchange + refresh, and fallback to ambient Application
-Default Credentials. This wave ports it faithfully onto Ycode,
+Default Credentials. This wave ports it faithfully onto SwiftCode,
 including the parts that only work on macOS — which fail honestly
 elsewhere instead of being faked.
 
@@ -596,22 +596,22 @@ and live sign-in against Google are pending on Dylan's Mac.
 Dylan must supply one thing to sign in end-to-end: his OAuth
 client's secret (see §10.2). No live sign-in was attempted.
 
-### 10.1 The target decision: a new target, not `YcodeCloud`
+### 10.1 The target decision: a new target, not `SwiftCodeCloud`
 
-`YcodeGoogleAuth` is a new SwiftPM target
-(`ycode/Sources/YcodeGoogleAuth/`, tests in
-`ycode/Tests/YcodeGoogleAuthTests/`), following the `YcodeCloud`
+`SwiftCodeGoogleAuth` is a new SwiftPM target
+(`swiftcode/Sources/SwiftCodeGoogleAuth/`, tests in
+`swiftcode/Tests/SwiftCodeGoogleAuthTests/`), following the `SwiftCodeCloud`
 model — plain `.target`, library product, test target — with one
-dependency: `YcodeAssistant`, for `SecretStore`. It additionally
+dependency: `SwiftCodeAssistant`, for `SecretStore`. It additionally
 uses the `Crypto` product of `swift-crypto` for the PKCE SHA-256
-(the `YcodeSimLink` / `YcodeSDK` precedent), so the target needs
+(the `SwiftCodeSimLink` / `SwiftCodeSDK` precedent), so the target needs
 no Apple-only cryptography import to stay Linux-buildable. The
-coordinator wires `ycode/Package.swift` (the slice does not edit
-it): the `YcodeGoogleAuth` target + product + test target, and the
-`YcodeGoogleAuth` dependency on `YcodeUI` (for the Accounts pane)
-and on `YcodeUITests` (for the pane tests).
+coordinator wires `swiftcode/Package.swift` (the slice does not edit
+it): the `SwiftCodeGoogleAuth` target + product + test target, and the
+`SwiftCodeGoogleAuth` dependency on `SwiftCodeUI` (for the Accounts pane)
+and on `SwiftCodeUITests` (for the pane tests).
 
-`YcodeCloud` was the serious alternative and lost on three
+`SwiftCodeCloud` was the serious alternative and lost on three
 counts. First, the Google service is a separate system from
 Appwrite — Wave 12's own words — with its own identity, its own
 endpoints, and its own Keychain accounts; folding it into the
@@ -621,10 +621,10 @@ Second, the service's Apple-only pieces (`AuthenticationServices`,
 currently free of platform-gated imports and Linux-buildable;
 isolated in its own target, the Apple-only code is fenced by
 `#if canImport(...)` in one place. Third, the Accounts pane
-already depends on `YcodeCloud`, so either home wires the UI the
+already depends on `SwiftCodeCloud`, so either home wires the UI the
 same way — the new target costs one extra `Package.swift` line
 and buys the separation. The shared pieces stay shared: the
-secret store (`YcodeAssistant`), the stub-transport test pattern
+secret store (`SwiftCodeAssistant`), the stub-transport test pattern
 (Wave 12), and the error style (§5).
 
 ### 10.2 Configuration (public identifiers) and the client secret (a Dylan-supplied prerequisite)
@@ -657,7 +657,7 @@ The client id resolves in Legacy's order: the
 `GOOGLE_CLIENT_ID` environment variable, then the
 `GOOGLE_CLIENT_ID` Info.plist key, then the user-editable
 override (Legacy read it from
-`AppSettings.assistGoogleOAuthClientIDOverride`; Ycode has no
+`AppSettings.assistGoogleOAuthClientIDOverride`; SwiftCode has no
 `AppSettings`, so the service reads the same UserDefaults key,
 `assist_google_oauth_client_id_override`, directly — same stored
 value, same behaviour), then the built-in id. The override is set
@@ -758,9 +758,9 @@ and sign-in fails with `.loopbackUnavailable`.
 ### 10.5 Token storage (Keychain, never files or logs)
 
 Tokens live in the injected `SecretStore` (Keychain on macOS, a
-0600 file on Linux — see `SecretStore`), under Ycode-style dotted
+0600 file on Linux — see `SecretStore`), under SwiftCode-style dotted
 account names in `GoogleSecretAccount` (the target does not edit
-`YcodeAssistant`'s `SecretAccount` — these keys belong to this
+`SwiftCodeAssistant`'s `SecretAccount` — these keys belong to this
 service, so they live here):
 
 | Account | Contents |
@@ -845,7 +845,7 @@ else the `account =` line of gcloud's active config
 Antigravity parsing is ported verbatim: the nested
 `{ "token": { "refresh_token", "access_token" } }` shape and the
 flat shape, the `go-keyring-base64:` wrapper, a missing
-`client_id` falling back to Ycode's own client id, and unknown
+`client_id` falling back to SwiftCode's own client id, and unknown
 scopes staying empty (never fabricated). The keychain fetch reads
 service `gemini`, accounts `antigravity` / `antigravity-acp`,
 first via `SecItemCopyMatching`, then via the `/usr/bin/security`
@@ -906,7 +906,7 @@ its injected secret store.
 ### 10.9 The Accounts pane wiring
 
 The Google section is added to the existing Accounts pane
-(`YcodeUI/App/CloudAccountsSettings.swift` — the pane is not
+(`SwiftCodeUI/App/CloudAccountsSettings.swift` — the pane is not
 duplicated, and the Appwrite section is untouched): a "Google
 Account" heading below the SwiftCode tabs, built by
 `buildGoogleAccountSection()`. It shows the signed-in email, the
@@ -960,18 +960,18 @@ Not ported, with the exact blocker or reason:
 
 | Legacy piece | Disposition |
 |---|---|
-| `AntigravityQuotaService.resetToFresh()` (called on sign-out) | No Ycode counterpart: no quota service exists in Ycode. Dropped, not faked. |
-| `AssistModelRouter.clearAllQuarantines()` (called after auth) | No Ycode counterpart: Ycode's assistant has no quarantine concept (`grep quarantine` over `YcodeAssistant` finds nothing). Dropped. |
-| `GoogleCloudSDKLifecycleManager.restartEngine()` (called after auth) | No Ycode counterpart: the Google Cloud SDK engine is not ported (it is a Legacy Assist framework, not this slice). Dropped; a later wave that ports the engine re-attaches it. |
-| `AppSettings.assistGoogleOAuthClientIDOverride` | Ycode has no `AppSettings`. The service reads the same UserDefaults key directly — same stored value, same behaviour. |
-| `KeychainService.shared` | Replaced by the injected `SecretStore` (`YcodeAssistant`). |
+| `AntigravityQuotaService.resetToFresh()` (called on sign-out) | No SwiftCode counterpart: no quota service exists in SwiftCode. Dropped, not faked. |
+| `AssistModelRouter.clearAllQuarantines()` (called after auth) | No SwiftCode counterpart: SwiftCode's assistant has no quarantine concept (`grep quarantine` over `SwiftCodeAssistant` finds nothing). Dropped. |
+| `GoogleCloudSDKLifecycleManager.restartEngine()` (called after auth) | No SwiftCode counterpart: the Google Cloud SDK engine is not ported (it is a Legacy Assist framework, not this slice). Dropped; a later wave that ports the engine re-attaches it. |
+| `AppSettings.assistGoogleOAuthClientIDOverride` | SwiftCode has no `AppSettings`. The service reads the same UserDefaults key directly — same stored value, same behaviour. |
+| `KeychainService.shared` | Replaced by the injected `SecretStore` (`SwiftCodeAssistant`). |
 | `GoogleAuthErrorClassification.classify(_:)` (keychain-reading overload) | Replaced by passing `storedScopes` explicitly; the service reads the scope from its injected store. |
 | `extractOAuthURL(from:)` | Dead code in Legacy (defined but never called anywhere in the file). Not ported. |
 | `GoogleAccountAuthService` as `NSObject` + `ObservableObject` with `@Published` | A plain `@MainActor` class with `onStateChange`; the Accounts pane is AppKit and rebuilds imperatively. |
 
 ### 10.11 Tests
 
-`ycode/Tests/YcodeGoogleAuthTests/` — Swift Testing, stub
+`swiftcode/Tests/SwiftCodeGoogleAuthTests/` — Swift Testing, stub
 transport (`StubURLProtocol`, the Wave 12 pattern),
 hand-written JSON fixtures, temp-home ADC fixtures, no live
 network, no real credentials, no real keychain (the Antigravity
@@ -987,7 +987,7 @@ functions:
 | `GoogleADCAndAntigravityTests.swift` | 14 | Antigravity nested/flat/base64 parsing and garbage, ADC file parsing, ADC path order, gcloud config account line, `agy` candidate order, ADC-file refresh under the file's own client, bare access-token ADC file, `GOOGLE_APPLICATION_CREDENTIALS`, explicit sign-out blocking ADC, `ambientADCEmail` |
 | `GoogleAccountAuthServiceTests.swift` | 20 (19 on macOS) | Stored-session restore, explicit sign-out blocking restore, sign-out clearing the store, valid/unexpired/no-expiry token accessors, sync accessor, expired-token refresh and refresh failure (nil, no dead token), no-token nil, callback exchange success / state mismatch / authorization error / missing secret / processed-once, tokeninfo verification and 401 token drop, scope checks, client-secret storage and environment source, client-id resolution order, `handleOpenURL` accept/reject, Linux sign-in honest failure (Linux only) |
 
-69 tests total in `YcodeGoogleAuthTests`. `ycode/Tests/YcodeUITests/GoogleAccountsPaneTests.swift`
+69 tests total in `SwiftCodeGoogleAuthTests`. `swiftcode/Tests/SwiftCodeUITests/GoogleAccountsPaneTests.swift`
 adds 6 pane tests: the Google section and its buttons when
 signed out, the email and scope status when signed in, the
 missing-scope status and re-authenticate button, saving the

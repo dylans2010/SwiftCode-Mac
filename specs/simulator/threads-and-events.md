@@ -5,7 +5,7 @@ a command-line program on one vCPU. `launchd_sim` and every daemon use
 libdispatch, and libdispatch needs real threads, the workqueue, kevent
 delivery to workqueue threads, workloops, and blocking synchronization.
 This spec gives the kernel-side behavior of those interfaces so that
-Ycode's VMM can supply them.
+SwiftCode's VMM can supply them.
 
 Scope and relation to other specs:
 
@@ -33,7 +33,7 @@ rules and tables. It contains no source.
 | BSD call return | Success: carry clear, `x0` = value. Failure: carry set, `x0` = errno (`darwin-process-start.md` §4) |
 | `ULF_NO_ERRNO` (ulock calls only) | A failure is returned as **success** with `x0 = −errno` (carry clear) |
 | Mach trap return | `x0` = `kern_return_t`. Carry is not used |
-| Thread port names | xnu port names always have the **low two bits set** (`name & 3 == 3`). User space uses those two bits as flags in lock words, and the kernel rebuilds the name with `value | 3` (ulock owners, workloop owners) or `value & ~3` (join gate). **Ycode's VMM must give every thread port name `name & 3 == 3`.** Ycode's names (`0x103`, `0x203`, `0x0503`, …) already follow this |
+| Thread port names | xnu port names always have the **low two bits set** (`name & 3 == 3`). User space uses those two bits as flags in lock words, and the kernel rebuilds the name with `value | 3` (ulock owners, workloop owners) or `value & ~3` (join gate). **SwiftCode's VMM must give every thread port name `name & 3 == 3`.** SwiftCode's names (`0x103`, `0x203`, `0x0503`, …) already follow this |
 | `thread_selfid` / "tid" | A unique, non-zero 64-bit thread ID, never reused while the process lives |
 | Page size | 16 KiB in the guest. All sizes below that depend on the page size are given for 16 KiB |
 
@@ -136,9 +136,9 @@ Rules:
    A joiner waits with `__ulock_wait(UL_UNFAIR_LOCK, gate, port)`, so it
    wakes only after the thread is gone, and it sees the gate value change.
 
-Note for Ycode: Ycode's `libsystem_pthread` decides which form it uses
+Note for SwiftCode: SwiftCode's `libsystem_pthread` decides which form it uses
 (semaphore, join gate, or neither). The kernel side must support the form
-Ycode's library chooses. The library of the same libpthread tag uses the
+SwiftCode's library chooses. The library of the same libpthread tag uses the
 semaphore form for custom stacks only, and wakes joiners itself with
 `__ulock_wake(UL_UNFAIR_LOCK)` on its `tl_exit_gate` word.
 
@@ -183,10 +183,10 @@ TIMESHARE `0x08`, WQ_KEVENT_UNBIND `0x10`, QOS_OVERRIDE `0x40`.
   for a non-workqueue thread that opted out of QoS; `EINVAL` for the manager
   thread; for workqueue threads the overcommit/cooperative type may not
   change in a forbidden direction).
-- `VOUCHER` adopts the voucher name. For Ycode: accept and record.
+- `VOUCHER` adopts the voucher name. For SwiftCode: accept and record.
 - The call returns an error if any requested part failed.
 
-Ycode: with `YCODE_SCHED_QOS=1` the QoS of SET_SELF, the overrides
+SwiftCode: with `SWIFTCODE_SCHED_QOS=1` the QoS of SET_SELF, the overrides
 (0x40, 0x80, 0x200, 0x400) and `PTHREAD_START_QOSCLASS` feed the thread's
 scheduling class (`scheduling-policy.md` §4.4). Without the switch they are
 accepted and have no effect.
@@ -195,8 +195,8 @@ accepted and have no effect.
 
 `thread_suspend`, `thread_resume`, `thread_abort`, `thread_abort_safely`,
 `thread_get_state`, `thread_set_state`, `task_suspend` and `task_resume`
-are MIG routines of `mach/thread_act.defs` and `mach/task.defs`. Ycode's
-`libsystem_kernel` serves them with Ycode-private traps
+are MIG routines of `mach/thread_act.defs` and `mach/task.defs`. SwiftCode's
+`libsystem_kernel` serves them with SwiftCode-private traps
 (`host-libraries.md` §11.7). Before this section they were generated stubs
 (KERN_NOT_SUPPORTED), and JavaScriptCore's collector could not stop the
 threads whose stacks it scans (`app-launch.md` §3.6).
@@ -226,10 +226,10 @@ and its user registers are those at the entry of its call. When its call
 completes while it is suspended, it does not return to user code: it stops
 with the call's results in its registers.
 
-**Ycode implementation.**
+**SwiftCode implementation.**
 
 - *The run gate.* Each thread has a gate (`GuestThreadGate`, in
-  `YcodeDarwinABI`), closed while its suspend count or its task's is above
+  `SwiftCodeDarwinABI`), closed while its suspend count or its task's is above
   zero. The counts change under L0; closing a gate also makes the thread's
   vCPU leave guest mode (`ThreadHost.kickThread`: `immediate_exit` and the
   kick signal, `docs/SIMULATOR-LINUX.md`).
@@ -346,7 +346,7 @@ with `EINVAL` if `bsdthread_register` has not run. Unknown ops: `EINVAL`.
 | 16 | 8 | label offset in a dispatch queue (version ≥ 2) |
 
 The offsets are used only for diagnostics (naming threads after the queue
-they run). Ycode can store and ignore them.
+they run). SwiftCode can store and ignore them.
 
 ### 2.4 Priority encoding
 
@@ -418,19 +418,19 @@ Decoding rules:
 8. Idle threads above a small threshold exit after about 5 s idle (longer
    when few are idle). Exiting uses the exit entry of §2.6.
 
-Note for Ycode: rules 3, 7, and 8 are scheduling policy. They change
+Note for SwiftCode: rules 3, 7, and 8 are scheduling policy. They change
 performance, not correctness, **except** that libdispatch relies on rule 3's
 "a blocked worker frees a slot" to avoid deadlock when work items block.
-Any Ycode policy must start another constrained worker when every
+Any SwiftCode policy must start another constrained worker when every
 admitted constrained worker is blocked and requests are pending.
 
-Ycode's limits (agent ICON-FREEZE, 2026-10-29): both bounds of rule 3 are
+SwiftCode's limits (agent ICON-FREEZE, 2026-10-29): both bounds of rule 3 are
 kept: unblocked constrained workers at a QoS below N (the guest CPU
 count), and constrained workers scheduled, blocked ones included, below
 max(64, 5 × N) (before, only the first; a constrained request whose
 workers all blocked could start workers without bound). Overcommit,
 kqworkq and workloop requests are limited only by the 512 threads of rule
-1. Every Ycode thread runs on a vCPU of its process (§6, the 1:1 model),
+1. Every SwiftCode thread runs on a vCPU of its process (§6, the 1:1 model),
 and a request that finds no vCPU stays pending (Addendum, stage 7), so a
 process must have a vCPU for each of those 512 threads: the vCPU pool
 holds 512 slots (`stage4a-contract.md` §4; 64 until 2026-10-29). With 64,
@@ -439,7 +439,7 @@ workloop that had not had its first servicer yet stopped for good:
 PosterBoard on the iOS 27.0 and 27.1 runtimes, with 63 such workers and
 90 or more workloop requests pending (`app-launch.md` §3.9).
 
-Ycode's cooperative pool (rule 5; speed work 2026-10-17): `QUEUE_REQTHREADS2`
+SwiftCode's cooperative pool (rule 5; speed work 2026-10-17): `QUEUE_REQTHREADS2`
 queues one cooperative request at its QoS. It is admitted while fewer
 cooperative workers are running than the guest has CPUs (N, the guest CPU
 count of `darwin-process-start.md`), or while no cooperative worker runs at its QoS (each QoS gets one
@@ -448,7 +448,7 @@ counts until it returns, **blocked or not**: the cooperative pool does not
 grow when its threads block (unlike rule 3). The thread starts with
 `COOPERATIVE` in `x4` (§2.6), is not constrained (`SHOULD_NARROW` is
 `EINVAL`), and its `THREAD_RETURN` takes the next admissible request, as
-for any worker. Before this, Ycode refused the op with `ENOTSUP`, and
+for any worker. Before this, SwiftCode refused the op with `ENOTSUP`, and
 `libsystem_pthread` turned every cooperative request into a constrained
 one (up to 8 threads per QoS; `host-libraries.md` §11.6). Swift-concurrency
 daemons then ran their request–return cycle on several threads at once,
@@ -546,7 +546,7 @@ Flag combinations the kernel produces:
 | Any case, not the first run | add `REUSE` |
 | Any case, first run | add `TSD_BASE_SET` (when a TSD offset is registered) |
 
-The user-side contract that Ycode's `libsystem_pthread` must meet (from
+The user-side contract that SwiftCode's `libsystem_pthread` must meet (from
 libpthread's workqueue header; level 1): `pthread_workqueue_setup` takes
 three callbacks: `workq_cb(pthread_priority_t)`, `kevent_cb(void **events,
 int *nevents)`, and `workloop_cb(uint64_t *workloop_id, void **events, int
@@ -581,7 +581,7 @@ count as its change list.
      thread is restarted with them as above (libpthread's kernel side
      applies the list with `STACK_DATA | IMMEDIATE | PARKING` and no
      `ERROR_EVENTS`, so errors are output events; level 1). Only an error
-     of the kevent call itself is returned to the caller. (Ycode until
+     of the kevent call itself is returned to the caller. (SwiftCode until
      2026-10-28: the first failure stopped the list and was returned as
      the errno; the changes after it were lost, and libdispatch later
      aborted with "BUG IN LIBDISPATCH: Invalid wlh state": assistantd in
@@ -918,7 +918,7 @@ libdispatch's receive options: `MACH_RCV_MSG | MACH_RCV_LARGE |
 MACH_RCV_LARGE_IDENTITY | MACH_RCV_TRAILER_TYPE(0) |
 MACH_RCV_TRAILER_ELEMENTS(MACH_RCV_TRAILER_AV) | MACH_RCV_VOUCHER`, with
 `ext[1]` = 0, on workloops and on the workqueue kqueue. This filter needs
-Ycode's Mach IPC (stage 5).
+SwiftCode's Mach IPC (stage 5).
 
 #### 3.7.4 `EVFILT_WORKLOOP` (−17)
 
@@ -1005,14 +1005,14 @@ Output `data` = the count since the last delivery.
 - VNODE: `ident` = fd. `fflags` in/out: `NOTE_DELETE` 1, `NOTE_WRITE` 2,
   `NOTE_EXTEND` 4, `NOTE_ATTRIB` 8, `NOTE_LINK` 0x10, `NOTE_RENAME` 0x20,
   `NOTE_REVOKE` 0x40, `NOTE_NONE` 0x80, `NOTE_FUNLOCK` 0x100. Which change
-  posts which note, and Ycode's implementation: §3.10.
+  posts which note, and SwiftCode's implementation: §3.10.
 
 #### 3.7.8 Others libdispatch can register
 
 `EVFILT_FS` (−9), `EVFILT_MEMORYSTATUS` (−14; memory-pressure source at
 startup), `EVFILT_EXCEPT` (−15), `EVFILT_SOCK` (−13; implemented for IP
-and local sockets since NET-IMPL, `networking-ycode.md` §2.5), `EVFILT_NW_CHANNEL`
-(−16), `EVFILT_EXCLAVES_NOTIFICATION` (−18). Ycode may refuse them with an
+and local sockets since NET-IMPL, `networking-swiftcode.md` §2.5), `EVFILT_NW_CHANNEL`
+(−16), `EVFILT_EXCLAVES_NOTIFICATION` (−18). SwiftCode may refuse them with an
 `EV_ERROR` event (`EINVAL`/`ENOTSUP`) until a client needs them; see Open
 question 4 for `EVFILT_MEMORYSTATUS`.
 
@@ -1041,7 +1041,7 @@ threads.
   suppressed until its `THREAD_KEVENT_RETURN` (K4); when they are released
   then, a knote that became active meanwhile (a Mach message arrived while it
   was suppressed) makes its bucket issue a new request at that moment, since
-  no bound worker will scan the bucket again. (Ycode missed this request
+  no bound worker will scan the bucket again. (SwiftCode missed this request
   until 2026-10-19: the reply then sat in the queue until the next message
   to the same bucket, found by agent SP-SNAP as the stall of an app install
   after a snapshot restore, `snapshot.md` §10.5.)
@@ -1065,7 +1065,7 @@ other errno as a crash. Per-change errors come back as `EV_ERROR` events;
 libdispatch accepts `ENOENT`, `ESTALE`, `EINTR`, `EINPROGRESS`, `EOWNERDEAD`
 only in specific cases.
 
-### 3.10 `EVFILT_VNODE`: notes and Ycode's implementation (agent VNODE-EVENTS, 2026-10-28)
+### 3.10 `EVFILT_VNODE`: notes and SwiftCode's implementation (agent VNODE-EVENTS, 2026-10-28)
 
 **Semantics (xnu).** A knote watches the vnode its descriptor names, not the
 name: it follows renames and outlives an unlink while the descriptor is
@@ -1092,17 +1092,17 @@ was asked for.
 | `unlink` | `NOTE_DELETE \| NOTE_LINK` | `NOTE_WRITE` |
 | `rmdir` | `NOTE_DELETE \| NOTE_LINK` | `NOTE_WRITE \| NOTE_LINK` |
 | `rename` | moved object `NOTE_RENAME`; a replaced target `NOTE_DELETE` | each directory `NOTE_WRITE`; `\| NOTE_LINK` when a directory moved to another directory without replacing one, or replaced one in the same directory |
-| `renameatx_np(RENAME_SWAP)` | both `NOTE_RENAME` | each directory `NOTE_WRITE` (**Ycode decision**: `\| NOTE_LINK` when a directory and a non-directory swap between two directories) |
+| `renameatx_np(RENAME_SWAP)` | both `NOTE_RENAME` | each directory `NOTE_WRITE` (**SwiftCode decision**: `\| NOTE_LINK` when a directory and a non-directory swap between two directories) |
 | `flock(LOCK_UN)` of a held lock | `NOTE_FUNLOCK` | — |
 
 `NOTE_EXTEND` for writes and size changes follows kqueue(2)'s meaning
 ("the file was extended"); xnu's VNOP_WRITE itself posts only `NOTE_WRITE`
-and leaves `NOTE_EXTEND` to the file system (**Ycode decision**: posted
-whenever the size grew). Ycode has no hard links (`link`), no revoke(2) and
+and leaves `NOTE_EXTEND` to the file system (**SwiftCode decision**: posted
+whenever the size grew). SwiftCode has no hard links (`link`), no revoke(2) and
 no unmount, so `NOTE_LINK` on a file comes only with its delete and
 `NOTE_REVOKE` only from a post of the host (nothing posts it today).
 
-**The registry** (`ycode/Sources/YcodeDarwinABI/VnodeNotes.swift`). Knotes
+**The registry** (`swiftcode/Sources/SwiftCodeDarwinABI/VnodeNotes.swift`). Knotes
 are registered by the watched object's host key (host `st_dev`, `st_ino`:
 the host keeps an open file's inode, renames and unlinks included), in one
 table for all processes of the host process, so a change made by any guest
@@ -1110,7 +1110,7 @@ process (or by the host, below) reaches every kqueue watching that object.
 `EV_ADD` on a descriptor of a host file or directory registers the knote
 (`fstat` of the host descriptor, once per open file); a descriptor that is
 not one (the console, a pipe, a socket, a device) is registered as before
-and never fires (xnu answers EINVAL there; **Ycode decision**: kept, so no
+and never fires (xnu answers EINVAL there; **SwiftCode decision**: kept, so no
 client sees a new error). The knote's drop (EV_DELETE, delivery of a
 oneshot, the descriptor's close, the kqueue's close, the image's end)
 removes the registration. After a snapshot restore each vnode knote is
@@ -1128,7 +1128,7 @@ change looks its file's key up in the table (an `fstat` for the old size
 only when that file is watched), and a post takes the table's mutex once.
 A post reaches a knote's image (its event lock) only when the knote asks
 for one of the notes (each registration keeps its interest mask in an
-atomic) or for a revoke. Counted in a full boot (`YCODE_DEBUG_VNODE=1`, run
+atomic) or for a revoke. Counted in a full boot (`SWIFTCODE_DEBUG_VNODE=1`, run
 `vnode/p2`, 200 s): about 6,000 path-operation captures, 12,900 write
 checks and 6,200 posts to watched objects, of which about 55 were asked
 for. A host micro-benchmark (x86-64 Linux, debug build, 1,000 objects
@@ -1137,7 +1137,7 @@ unlink cycle of 145 µs, so the boot's captures cost well under 0.1 s of
 CPU in all.
 
 **Boot time** (`timed.sh`, `bench.sh` on copies of the pristine device,
-time to the home screen with `YCODE_HOME_WATCH=1`; main line = FS-HOST's
+time to the home screen with `SWIFTCODE_HOME_WATCH=1`; main line = FS-HOST's
 tree, the branch merged as ecde653; three ABBA sets,
 2026-10-28, other agents' work kept the load at 2–30): main line 71.8,
 72.6, 73.2, 74.7, 74.9, 75.6 s (median 73.9 s); with vnode events 72.9,
@@ -1157,8 +1157,8 @@ Activation then wakes the kqueue's scanners or issues its thread request
 (workqueue kqueue, workloops) as any other filter does.
 
 **Host writes into the data tree.** `HostDataWrites` (same file) is the one
-hook for files that ycode-simd itself writes into a running device's data
-tree: `replace` (written to `.<name>.ycode-<pid>-<random>` in the same
+hook for files that swiftcode-simd itself writes into a running device's data
+tree: `replace` (written to `.<name>.swiftcode-<pid>-<random>` in the same
 directory, then renamed over the name, as audio-host.md §12 asks), `remove`
 and `makeDirectories`. Each posts the notes of the table above (replace:
 the old file `NOTE_DELETE`, the directory `NOTE_WRITE`, the new file
@@ -1167,19 +1167,19 @@ feeds the file-event service the same changes a guest process would make,
 with pid 0 (`fsevents-host.md` §10). The settings controller's files go
 through it: the audio settings files, the preference files written for a
 stopped device, the per-app Environment Overrides
-(`ycode-simd/SimSettings.swift`, `DeviceSettingsFiles`). Ycode has no
+(`swiftcode-simd/SimSettings.swift`, `DeviceSettingsFiles`). SwiftCode has no
 privacy (TCC) database writer today; one added later uses the same hook.
 
 **Writes by other host processes** (a user editing a device's files, a
-copy into DEV while the device runs) are not seen. **Ycode decision**: no
+copy into DEV while the device runs) are not seen. **SwiftCode decision**: no
 inotify watch. The only writer of a running device's data tree besides the
-guest is ycode-simd, whose writes go through the hook; an inotify watch per
+guest is swiftcode-simd, whose writes go through the hook; an inotify watch per
 watched object would cost a host watch per registration (a full boot keeps
 about 1,000 registrations at once and makes about 3,900 in 330 s, runs
 `vnode/p1`, `v1`) and a reader thread, and inotify reports
 names, not the objects a rename replaced, so its notes would be less exact
 than the hook's. Revisit if a host tool that changes a running device's
-files is added outside ycode-simd.
+files is added outside swiftcode-simd.
 
 **Tests.** `VnodeEventsTests` (each note type on a file, directories,
 accumulation and the interest mask, EV_CLEAR, EV_ONESHOT, EV_DISPATCH,
@@ -1198,7 +1198,7 @@ FeatureProbe's audio session watches `var/run/simulatoraudio` with a
 dispatch vnode source (`NOTE_WRITE`) and follows each volume change
 (`simulator-features.md` I.9; runs `v1`, `v2`). A host write reaches a
 guest watcher quickly: with `p_vnode watch` on `var/run/simulatoraudio`, each
-of five `ycode-simd --audio volume N` commands was printed by the guest
+of five `swiftcode-simd --audio volume N` commands was printed by the guest
 process 10 ms after the command process started (run `vnode/l1`; the
 command process itself takes about 15 ms). In a whole boot the system's own watchers
 get about 55 vnode events (UserEventAgent, weatherd, routined, locationd,
@@ -1283,7 +1283,7 @@ Wake rules:
    (`EALREADY` if it is not waiting on the key). Else wake one waiter.
 6. Return 0, with the `ULF_NO_ERRNO` rule as for wait.
 
-Note for Ycode: waking more threads than needed is always safe for these
+Note for SwiftCode: waking more threads than needed is always safe for these
 users, because every caller re-checks its word after a wake. A simple VMM
 may wake one waiter in rule 4 even when the caller is not the recorded
 owner. It must not wake **fewer**.
@@ -1293,16 +1293,16 @@ Users in the simulator runtime:
 | User | Opcodes and flags |
 |---|---|
 | libdispatch (Apple binary) | `UL_UNFAIR_LOCK` and `UL_COMPARE_AND_WAIT` via `__ulock_wait` (µs timeouts) and `__ulock_wake` (`ULF_WAKE_ALL`, `ULF_WAKE_ALLOW_NON_OWNER`), always `ULF_NO_ERRNO`; lock word = owner port name with flag bits `0x1` (waiters) and `0x2` (failed trylock). It crashes on `EOWNERDEAD` and on any unexpected errno, and reads `rc > 0` as "more waiters" |
-| Ycode `libsystem_platform` (`os_unfair_lock`, once, sync) | `UL_UNFAIR_LOCK`, `UL_COMPARE_AND_WAIT`, `ULF_WAKE_ALL`, `ULF_NO_ERRNO` |
-| Ycode `libsystem_pthread` | `UL_COMPARE_AND_WAIT` with `__ulock_wait2` (ns timeouts) |
+| SwiftCode `libsystem_platform` (`os_unfair_lock`, once, sync) | `UL_UNFAIR_LOCK`, `UL_COMPARE_AND_WAIT`, `ULF_WAKE_ALL`, `ULF_NO_ERRNO` |
+| SwiftCode `libsystem_pthread` | `UL_COMPARE_AND_WAIT` with `__ulock_wait2` (ns timeouts) |
 
 ### 4.2 `psynch` (BSD 297–312)
 
 These calls are the slow path of Apple's libpthread mutexes, condition
-variables, and rwlocks. **Ycode's `libsystem_pthread` does not use them**:
+variables, and rwlocks. **SwiftCode's `libsystem_pthread` does not use them**:
 its mutexes and condition variables are built on ulock. They matter only if
 another runtime image calls the `__psynch_*` stubs directly; see Open
-question 5. The summary below lets Ycode implement them if a trace shows a
+question 5. The summary below lets SwiftCode implement them if a trace shows a
 caller.
 
 | # | Call | Arguments |
@@ -1414,7 +1414,7 @@ signal whose default is "ignore") discards pending instances.
 ### 5.3 Delivery and the arm64 signal frame
 
 A pending, unblocked signal is delivered when the target thread next returns
-to user mode (for Ycode: at the thread's next trap return, or after a kick).
+to user mode (for SwiftCode: at the thread's next trap return, or after a kick).
 
 1. Mask during the handler = old mask | `sa_mask` | the signal itself
    (unless `SA_NODEFER`). `SA_RESETHAND` resets the action to SIG_DFL
@@ -1466,7 +1466,7 @@ to user mode (for Ycode: at the thread's next trap return, or after a kick).
 | sp | F |
 | cpsr | EL0 AArch64, NZCV = 0 |
 
-The trampoline (Ycode's `libsystem_platform` `_sigtramp`) calls the handler
+The trampoline (SwiftCode's `libsystem_platform` `_sigtramp`) calls the handler
 and then `__sigreturn(uctx, infostyle, token)`.
 
 ### 5.4 `sigreturn` (BSD 184)
@@ -1487,8 +1487,8 @@ and then `__sigreturn(uctx, infostyle, token)`.
 6. Return "just return": the restored registers are the result; the call
    does **not** write `x0` or carry.
 
-Note for Ycode: the trampoline, the `sigaction` wrapper, and the VMM are all
-Ycode's, so the token can be any value the two sides agree on. The **frame
+Note for SwiftCode: the trampoline, the `sigaction` wrapper, and the VMM are all
+SwiftCode's, so the token can be any value the two sides agree on. The **frame
 layout** must match exactly, because handlers in app code read
 `uc_mcontext`.
 
@@ -1548,7 +1548,7 @@ the Linux KVM API documentation and the Arm Architecture Reference Manual.
    SPSR_EL1, V0–V31, FPSR, FPCR, `TPIDRRO_EL0`, `TPIDR_EL0`. (While the
    shim handles a trap, the guest thread's PC and PSTATE are in ELR_EL1 and
    SPSR_EL1.)
-7. If Ycode adds an in-kernel GIC later (for example, to deliver
+7. If SwiftCode adds an in-kernel GIC later (for example, to deliver
    virtual-timer interrupts), it must be initialized **after all vCPUs are
    created**. vCPUs cannot be added after that.
 
@@ -1590,7 +1590,7 @@ against concurrent traps.
 
 ---
 
-## 7. Implementation checklist for Ycode
+## 7. Implementation checklist for SwiftCode
 
 Ordered by what `launchd_sim` and libdispatch need first. Each step depends
 on the steps above it.
@@ -1600,7 +1600,7 @@ on the steps above it.
    state); the vCPU model chosen from §6; per-vCPU shim blocks; locking for
    all shared kernel state; broadcast TLB invalidation after unmaps.
 2. **`bsdthread_create` / `bsdthread_terminate` / `thread_selfid`** (§1.1–§1.3),
-   with the slot-3 store, the TSD base, and the join form chosen by Ycode's
+   with the slot-3 store, the TSD base, and the join form chosen by SwiftCode's
    `libsystem_pthread`. `mach_thread_self` and `thread_self_trap` (−27)
    return the calling thread's port name.
 3. **ulock** (§4.1): all four private opcodes, `ULF_NO_ERRNO`, µs/ns
@@ -1641,7 +1641,7 @@ on the steps above it.
     advertised.
 14. **psynch** (§4.2), only if a trace shows a caller.
 
-Tests that need no Ycode library change: a guest program that creates
+Tests that need no SwiftCode library change: a guest program that creates
 threads and joins them; one that uses `dispatch_async` to a global queue
 and `dispatch_semaphore_wait`; one that uses a serial queue (workloop path)
 with `dispatch_sync` from two threads (sync wait/wake); one with
@@ -1663,18 +1663,18 @@ with `dispatch_sync` from two threads (sync wait/wake); one with
 3. **Cooperative pool.** libdispatch requests cooperative threads (op
    `0x030`) for Swift-concurrency root queues. Whether the runtime's
    libdispatch checks `COOPERATIVE_WORKQ` (`0x100`) before using them is not
-   visible in the open source. If not, Ycode's `libsystem_pthread` can map
-   cooperative requests onto constrained ones. Resolved for Ycode: the runtime's libraries
-   request cooperative threads whatever the mask says (Ycode traces), and
+   visible in the open source. If not, SwiftCode's `libsystem_pthread` can map
+   cooperative requests onto constrained ones. Resolved for SwiftCode: the runtime's libraries
+   request cooperative threads whatever the mask says (SwiftCode traces), and
    the kernel now runs the cooperative pool of §2.5 (rule 5 note).
 4. **`EVFILT_MEMORYSTATUS`.** libdispatch registers a memory-pressure source
    at initialization. Whether an `EV_ERROR` reply is tolerated there, or must
    be accepted silently, should be checked by trace.
 5. **psynch callers.** Does any image in the runtime (other than Apple's
-   libpthread, which Ycode replaces) call `__psynch_*`? A trace of
+   libpthread, which SwiftCode replaces) call `__psynch_*`? A trace of
    `launchd_sim` and its daemons answers this.
 6. **Idle-thread policy.** The 5-second reaping and the 200 µs "recently
-   blocked" window are policy. Ycode may use simpler values; the observable
+   blocked" window are policy. SwiftCode may use simpler values; the observable
    effect is only thread counts and latency.
 7. **vCPU model.** §6 lists the facts; the orchestrator decides between
    1:1 and M:N (or a pooled hybrid).
@@ -1698,13 +1698,13 @@ with `dispatch_sync` from two threads (sync wait/wake); one with
 | Signals, frame layout (§5) | xnu `bsd/kern/kern_sig.c`, `bsd/dev/arm/unix_signal.c`, `bsd/sys/signal.h`, `bsd/sys/ucontext.h`, `bsd/arm/_mcontext.h`, `osfmk/mach/arm/_structs.h`, `osfmk/mach/arm/thread_status.h`, `bsd/kern/kern_time.c` | 1 |
 | KVM facts (§6, facts 1–7) | Linux `Documentation/virt/kvm/api.rst` (sections on ioctl classes, `KVM_CREATE_VCPU` limits, `kvm_run.immediate_exit`, `KVM_SET_ONE_REG`), `Documentation/virt/kvm/devices/arm-vgic-v3.rst` (`CTRL_INIT` after all vCPUs) | 1 |
 | Arm facts (§6, facts 8–9) | Arm Architecture Reference Manual for A-profile (exclusives, broadcast TLB maintenance) | 1 |
-| Shim facts (§6, facts 10–11) | `specs/simulator/vm-shim-protocol.md` §5, §9 | Ycode design |
-| Cooperative pool trap counts and the timebase cause (§2.5 note) | Ycode boots on the Thor (SX harness, `IA2/si2`, `IA2/x`, `IA2/tb`, exit summaries); swift `DispatchGlobalExecutor.cpp` (`platform_time`) | 3; 1 |
+| Shim facts (§6, facts 10–11) | `specs/simulator/vm-shim-protocol.md` §5, §9 | SwiftCode design |
+| Cooperative pool trap counts and the timebase cause (§2.5 note) | SwiftCode boots on the Thor (SX harness, `IA2/si2`, `IA2/x`, `IA2/tb`, exit summaries); swift `DispatchGlobalExecutor.cpp` (`platform_time`) | 3; 1 |
 | EVFILT_VNODE notes per operation, accumulation, EV_CLEAR behaviour, NOTE_REVOKE (§3.10) | xnu `bsd/vfs/kpi_vfs.c` (VNOP_* posts), `bsd/vfs/vfs_subr.c` (`filt_vnode_common`, `filt_vntouch`), `bsd/sys/event.h`; kqueue(2) manual | 1 |
-| Ycode's vnode registry, host-write hook, the inotify decision (§3.10) | Ycode design; `VnodeEventsTests`; guest probe `p_vnode` on the Linux host | Ycode design; 3 |
+| SwiftCode's vnode registry, host-write hook, the inotify decision (§3.10) | SwiftCode design; `VnodeEventsTests`; guest probe `p_vnode` on the Linux host | SwiftCode design; 3 |
 | Suspension semantics: counts, KERN_FAILURE at zero, self-suspend, a thread in the kernel counts as stopped, task counts, start-suspended threads and tasks, thread_set_state hold/stop/release, flavors and counts, thread_abort (§1.6) | xnu `osfmk/kern/thread_act.c`, `osfmk/kern/task.c`, `osfmk/arm64/status.c`, `osfmk/mach/thread_act.defs`, `osfmk/mach/task.defs`, `osfmk/mach/arm/thread_status.h`, `bsd/kern/kern_exec.c` (START_SUSPENDED), `bsd/kern/kern_sig.c` (SIGCONT); the Mach `thread_suspend`/`task_suspend` manual pages | 1 |
 | What JavaScriptCore's collector needs: suspend returns only when the thread is stopped; registers including SP/FP/LR from ARM_THREAD_STATE64; a failed suspend skips the thread's stack; a failed `thread_get_state` after a successful suspend is fatal (§1.6) | WebKit `Source/WTF/wtf/posix/ThreadingPOSIX.cpp` (`Thread::suspend`, `getRegisters`), `Source/JavaScriptCore/heap/MachineStackMarker.cpp` | 1 |
-| Ycode's run gate, park points, kicks, waits (§1.6) | Ycode design; `ThreadSuspendTests`; guest probes `p_tsus`, `p_jsgc` on the Linux host (runs `tsus/p2`, `p3`, `pb1`, `pb2`) | Ycode design; 3 |
+| SwiftCode's run gate, park points, kicks, waits (§1.6) | SwiftCode design; `ThreadSuspendTests`; guest probes `p_tsus`, `p_jsgc` on the Linux host (runs `tsus/p2`, `p3`, `pb1`, `pb2`) | SwiftCode design; 3 |
 | A returning kevent/workloop worker's failed changes are output events, and the call succeeds (§2.7 step 3) | libpthread `kern/kern_support.c` (`workq_handle_stack_events`, `workq_kevent`); xnu `bsd/pthread/pthread_workqueue.c` (`workq_thread_return`) | 1 |
 
 Source tags (fetched with the GitHub API on 2026-10-11, kept outside the
@@ -1785,7 +1785,7 @@ Commands are CREATE (1) and DESTROY (2). It is 36 bytes, packed:
   `_WORKLOOP` (0x0040_0000), `_OUTSIDEQOS` (0x0080_0000), and
   `_COOPERATIVE` (0x0100_0000).
 
-## Addendum: Ycode workqueue rule (stage 7, 2026-10-12)
+## Addendum: SwiftCode workqueue rule (stage 7, 2026-10-12)
 
 A workqueue upcall delivers kevents (disabling `EV_DISPATCH` knotes and
 receiving Mach messages into the new thread's stack), so the VMM must

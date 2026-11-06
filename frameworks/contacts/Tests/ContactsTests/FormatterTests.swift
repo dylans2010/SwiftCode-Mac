@@ -120,7 +120,7 @@ struct ContactFormatterTests {
     @Test("§1: default attributes are kept on every run; delimiter runs carry no key")
     func defaultAttributes() {
         let c = person("Avery", "Example")
-        let marker = NSAttributedString.Key("ycode.test")
+        let marker = NSAttributedString.Key("swiftcode.test")
         let s = CNContactFormatter.attributedString(from: c, style: .fullName, defaultAttributes: [marker: 1])!
         var keyed = 0, plain = 0
         s.enumerateAttributes(in: NSRange(location: 0, length: s.length)) { attrs, _, _ in

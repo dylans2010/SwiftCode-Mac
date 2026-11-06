@@ -16,16 +16,16 @@ final class TestStore {
 
     init(zone: TimeZone = newYork, events: EKAuthorizationStatus = .fullAccess,
          reminders: EKAuthorizationStatus = .fullAccess) {
-        dir = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-ek-\(UUID().uuidString)")
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-ek-\(UUID().uuidString)")
         url = dir.appendingPathComponent("Calendar.sqlite")
-        store = EKEventStore(ycodeConfiguration: YcodeEventStoreConfiguration(
+        store = EKEventStore(swiftcodeConfiguration: SwiftCodeEventStoreConfiguration(
             databaseURL: url, timeZone: zone, eventAccess: events, reminderAccess: reminders))
     }
 
     /// Another store instance on the same database.
     func another(zone: TimeZone = newYork, events: EKAuthorizationStatus = .fullAccess,
                  reminders: EKAuthorizationStatus = .fullAccess) -> EKEventStore {
-        EKEventStore(ycodeConfiguration: YcodeEventStoreConfiguration(
+        EKEventStore(swiftcodeConfiguration: SwiftCodeEventStoreConfiguration(
             databaseURL: url, timeZone: zone, eventAccess: events, reminderAccess: reminders))
     }
 

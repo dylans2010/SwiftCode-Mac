@@ -1,6 +1,6 @@
 # xcodebuild: -exportLocalizations and -importLocalizations
 
-Ycode: `YcodeXcodebuild` (`Localization`, `StringsFile`). Projects only
+SwiftCode: `SwiftCodeXcodebuild` (`Localization`, `StringsFile`). Projects only
 (`-project` or the one project in the folder). XLIFF is the OASIS XLIFF
 1.2 standard; String Catalogs (`.xcstrings`) are JSON
 (`specs/ide/string-catalog.md`); `.strings` files are `"key" = "value";`
@@ -41,7 +41,7 @@ development-language file of each localized `.strings` group
 
 | Path | Content |
 |---|---|
-| `contents.json` | `developmentRegion`, `project` (`X.xcodeproj`), `targetLocale`, `toolInfo` {`toolBuildNumber`, `toolID`, `toolName`, `toolVersion`} (Ycode's own values), `version` `1.0` |
+| `contents.json` | `developmentRegion`, `project` (`X.xcodeproj`), `targetLocale`, `toolInfo` {`toolBuildNumber`, `toolID`, `toolName`, `toolVersion`} (SwiftCode's own values), `version` `1.0` |
 | `Localized Contents/<lang>.xliff` | the XLIFF document (below) |
 | `Source Contents/<source path>` | each source as the development language sees it: `.strings` copied; catalogs with only their source language's localizations, written as `JSON` with ` : ` separators, sorted keys, two-space indent, no final newline |
 | `Notes/` | empty |
@@ -89,7 +89,7 @@ Per `<file>` (target language ≠ the catalog's source language):
   on stderr. A generated Info.plist catalog is created from its sources,
   updated the same way, and added to its target: a file reference in the
   group of the target's first source file and a build file in the
-  target's resources phase (the project file is written with Ycode's
+  target's resources phase (the project file is written with SwiftCode's
   project writer).
 - `.strings`: `<lang>.lproj/<name>.strings` is written: per unit with a
   target, `/* <note> */` (when there is one), the pair, a blank line.
@@ -110,11 +110,11 @@ Exit 0.
 - XLIFF 1.2: the OASIS specification (level 1).
 - OPEN QUESTION: strings extracted from code that are not yet in a
   catalog (the reference merges the build's extracted strings into
-  catalogs; ycodebuild exports the catalogs as they are), `.stringsdict`,
+  catalogs; swiftcodebuild exports the catalogs as they are), `.stringsdict`,
   Interface Builder files, plural and device variations, other Info.plist
   keys, workspaces and packages.
 - OPEN QUESTION: XLIFF `state` values for catalog states not observed
   (`new` in a target language, `stale`).
 - OPEN QUESTION: the reference also rewrites the whole project file when
   it adds the generated catalog (and changed `objectVersion` to 60);
-  ycodebuild writes it with Ycode's writer and keeps the version.
+  swiftcodebuild writes it with SwiftCode's writer and keeps the version.

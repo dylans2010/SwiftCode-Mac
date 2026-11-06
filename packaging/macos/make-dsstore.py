@@ -7,7 +7,7 @@
 # and the alias record are taken from public descriptions of those formats.
 #
 # usage: make-dsstore.py <mounted volume> <background path inside the volume> <config.json>
-# config: {"window": [w, h], "icon_size": n, "icons": {"Ycode.app": [x, y], ...}}
+# config: {"window": [w, h], "icon_size": n, "icons": {"SwiftCode.app": [x, y], ...}}
 import json
 import os
 import plistlib

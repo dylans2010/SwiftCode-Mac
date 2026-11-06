@@ -10,15 +10,15 @@ formats, exit statuses and errors. It is written for the clean-room work in
 provisioning). Dirty-room notes: `research/notes/obs-runtime-onboarding-2026-11-04.md`.
 
 What this spec does **not** cover: how Apple delivers, packages, decrypts
-or unpacks runtime payloads, and the design of Ycode's own downloader. Both
+or unpacks runtime payloads, and the design of SwiftCode's own downloader. Both
 are in `runtime-downloads.md`. The owner decided on 2026-11-04 (#55,
-decisions O1 and O2 in `runtime-downloads.md` §4.1 and §4.3) that Ycode may
+decisions O1 and O2 in `runtime-downloads.md` §4.1 and §4.3) that SwiftCode may
 download runtimes from Apple itself, describing the machine honestly, and
 decrypt them with the key in the asset service's answer. Everything below
 about Apple's download buttons describes the reference's behavior; §2 and
-§11 say which Ycode route stands in for each.
+§11 say which SwiftCode route stands in for each.
 
-Markers: **Ycode guidance** marks advice for the implementer that is not a
+Markers: **SwiftCode guidance** marks advice for the implementer that is not a
 fact about the reference. **To confirm** marks reference behavior known
 only from documentation or strings, not yet seen on screen (§12 lists
 them all).
@@ -28,7 +28,7 @@ Related: `specs/ide/settings.md` (Components pane, today read-only),
 `specs/ide/device-hub.md` §I.12 (the headset checklist pattern #68 reuses),
 `specs/simulator/ipad.md` §2–§3 (runtime and device-type profiles),
 `specs/simulator/sim-link.md` (the remote host link), `docs/SIMULATOR.md` §3
-and `docs/SIMULATOR-LINUX.md` §5 (Ycode's runtime route on Linux).
+and `docs/SIMULATOR-LINUX.md` §5 (SwiftCode's runtime route on Linux).
 
 ## 1. Terms
 
@@ -40,7 +40,7 @@ and `docs/SIMULATOR-LINUX.md` §5 (Ycode's runtime route on Linux).
 | Runtime identifier | `com.apple.CoreSimulator.SimRuntime.<Platform>-<major>-<minor>`, `<Platform>` one of `iOS`, `tvOS`, `watchOS`, `xrOS`. A **device-specific** runtime adds a suffix naming the one model it serves, e.g. `…iOS-27-2-iPhone19-4`. The identifier is **not unique**: two builds of the same release (e.g. a beta and the release) share it. |
 | Build | The OS build string (`24A434`, beta builds end in a letter, e.g. `24M5291p`). The unique key of a runtime, together with the identifier. |
 | Disk image | How a runtime is installed on macOS: a registered image with a UUID, listed by `simctl runtime list`. |
-| Runtime bundle | `<Name>.simruntime` (e.g. `iOS 27.0.simruntime`) inside the mounted image; `Contents/Resources/RuntimeRoot/` is the simulated file system that Ycode's Linux simulator boots (§8.3). |
+| Runtime bundle | `<Name>.simruntime` (e.g. `iOS 27.0.simruntime`) inside the mounted image; `Contents/Resources/RuntimeRoot/` is the simulated file system that SwiftCode's Linux simulator boots (§8.3). |
 | Component | Anything in Settings ▸ Components: platform support, simulator runtimes, the Metal Toolchain, the documentation archive. |
 
 Display names: the image list and identifiers say `xrOS`; runtime names,
@@ -52,22 +52,22 @@ SDK lists and the GUI say `visionOS`. Simulator platform identifiers:
 
 ## 2. The routes to a runtime (overview)
 
-| # | Route (reference) | Who starts it | Network | Ycode equivalent |
+| # | Route (reference) | Who starts it | Network | SwiftCode equivalent |
 |---|---|---|---|---|
-| R1 | First-launch sheet: choose platforms, Download & Install (§3) | User, once per Xcode | Apple | Wizard on first launch (#68), offering Ycode's routes C → B → A (§11.6) |
+| R1 | First-launch sheet: choose platforms, Download & Install (§3) | User, once per Xcode | Apple | Wizard on first launch (#68), offering SwiftCode's routes C → B → A (§11.6) |
 | R2 | Settings ▸ Components ▸ Get on a platform row (§4) | User | Apple | Route C on a Mac, else B (`runtime-downloads.md` §6.1) |
-| R3 | Components ▸ Add Platforms… ▸ select versions ▸ Download & Install (§4.4) | User | Apple | Route C or B with a chosen version or build (`ycode runtime available`) |
+| R3 | Components ▸ Add Platforms… ▸ select versions ▸ Download & Install (§4.4) | User | Apple | Route C or B with a chosen version or build (`swiftcode runtime available`) |
 | R4 | Get next to a run destination / in the preview canvas (§5.1) | User, when a platform has no runtime | Apple | Wizard opened from the destination |
 | R5 | Get in the new-project template chooser banner (§5.4) | User | Apple | Wizard opened from the banner |
 | R6 | Run-time prompt "Download … support for <platform>?" (§5.2) | Xcode, on Run | Apple | Wizard opened from the prompt |
-| R7 | `xcodebuild -downloadPlatform` / `-downloadAllPlatforms` (§6.1) | User, Terminal | Apple | Route C: Ycode runs it on a Mac with the user's confirmation (`ycode runtime xcodebuild`) |
+| R7 | `xcodebuild -downloadPlatform` / `-downloadAllPlatforms` (§6.1) | User, Terminal | Apple | Route C: SwiftCode runs it on a Mac with the user's confirmation (`swiftcode runtime xcodebuild`) |
 | R8 | `xcodebuild -importPlatform <dmg>` (§6.2) | User, Terminal | none | Wizard: "use a runtime file you have" |
 | R9 | `xcrun simctl runtime add <dmg>` (§7.2) | User, Terminal | none | Same as R8 |
 | R10 | A runtime already registered on this Mac (any of the above, any Xcode) | — | none | Wizard: "use the runtimes your Xcode has" (§8, §11) |
 
 R1–R7 fetch from Apple. R8–R10 need no network. Since the owner's
-decision of 2026-11-04, Ycode has its own counterparts for both kinds:
-route C (Apple's `xcodebuild` on a Mac), route B (Ycode's direct download)
+decision of 2026-11-04, SwiftCode has its own counterparts for both kinds:
+route C (Apple's `xcodebuild` on a Mac), route B (SwiftCode's direct download)
 and route A (import an exported bundle or disk image), defined in
 `runtime-downloads.md` §6.1 and offered in that order on a Mac (§11.6).
 
@@ -111,7 +111,7 @@ doing its job whenever the installed simulator framework is missing or
 older than the one this Xcode expects, so the first `simctl` call after an
 Xcode install can be slow and can install packages.
 
-**Ycode guidance.** Offer the wizard on first launch with the same shape:
+**SwiftCode guidance.** Offer the wizard on first launch with the same shape:
 platform rows (iOS, watchOS, tvOS, visionOS) with a state each, macOS
 implicitly present, a primary action, and a way to finish with nothing
 selected ("Not Now"), after which the missing-runtime routes (§5) lead back
@@ -189,7 +189,7 @@ GiB, tvOS 3.4–3.5 GiB. The unpacked `RuntimeRoot` is about twice the image:
 iOS 27.0 ≈ 16 GiB, visionOS 27.0 ≈ 14 GiB, tvOS 27.0 and watchOS 26.5 ≈ 8
 GiB.
 
-**Ycode guidance.** Show size as the reference's command line does (one
+**SwiftCode guidance.** Show size as the reference's command line does (one
 decimal, binary units, written "GB" in the GUI is acceptable but state the
 convention once), and for a copy to Linux (#69) show both the image size and
 the unpacked size, since the RuntimeRoot is what lands on the host.
@@ -307,7 +307,7 @@ The docs call the result "the package" and import it with
 `-importPlatform <file>.dmg`. The exact file or folder name written by
 `-exportPath` is **to confirm** (an earlier, unmerged observation
 suggested a folder per runtime named after SDK platform, version and
-build). Ycode's wizard should accept a `.dmg` the user points at and treat
+build). SwiftCode's wizard should accept a `.dmg` the user points at and treat
 other shapes as "to confirm".
 
 ### 6.3 `-showComponent` format
@@ -373,7 +373,7 @@ JSON form: an object keyed by image UUID; each value:
 | `runtimeBundlePath` | string | `<mountPath>/Library/Developer/CoreSimulator/Profiles/Runtimes/<Name>.simruntime` |
 | `lastUsedAt` | string, optional | ISO 8601 UTC, only once used |
 
-Ycode uses `runtimeIdentifier`, `version`, `build`, `platformIdentifier`,
+SwiftCode uses `runtimeIdentifier`, `version`, `build`, `platformIdentifier`,
 `state`, `sizeBytes`, `deletable`, `supportedArchitectures`,
 `runtimeBundlePath` and `lastUsedAt`; paths other than the bundle path are
 the reference's internal storage and must not be relied on.
@@ -505,7 +505,7 @@ pane lists the others' under §4.1's last section).
 ### 8.2 A runtime file the user has
 
 A runtime disk image (`.dmg`) from Apple (the developer downloads site or
-an `-exportPath` run). Ycode does not open it; on a Mac it hands it to
+an `-exportPath` run). SwiftCode does not open it; on a Mac it hands it to
 `xcodebuild -importPlatform` or `simctl runtime add` with the user's
 consent (§11), then re-reads the listings.
 
@@ -517,20 +517,20 @@ consent (§11), then re-reads the listings.
 | `<Name>.simruntime/Contents/Resources/profile.plist` | `defaultVersionString`, `platformIdentifier`, `supportedArchs`, `supportedProductFamilyIDs`, `minHostVersion`, optional `restrictedToDeviceTypes` (see `ipad.md` §2.1) |
 | `RuntimeRoot/System/Library/CoreServices/SystemVersion.plist` | `ProductName` (`iPhone OS` for iOS), `ProductVersion`, `ProductBuildVersion` |
 
-A bare RuntimeRoot (as Ycode's Linux route copies it, `docs/SIMULATOR-LINUX.md`
+A bare RuntimeRoot (as SwiftCode's Linux route copies it, `docs/SIMULATOR-LINUX.md`
 §5) is identified by its `SystemVersion.plist`; the platform follows from
 `ProductName`. Version + build is the key, as on the Mac.
 
 ## 9. Error cases and recovery (consolidated)
 
-| Situation | Reference behavior | Level | Ycode check (guidance) |
+| Situation | Reference behavior | Level | SwiftCode check (guidance) |
 |---|---|---|---|
 | No runtime for the project's platform | Get on destination / canvas / new-project banner; run prompt; build issue | 1, 4 | "Runtime for <platform>" fails, fix: open wizard |
 | Runtime older than deployment target | destinations ineligible with "doesn't match … deployment target" | 3 | fail with both versions; fix: get a newer runtime or lower the target |
 | Device's runtime removed | device listed as unavailable, not a destination | 3 | list stale devices; fix: delete or retarget (`simctl upgrade` exists) |
-| Download in progress | destination and run prompt say it must finish; Show Downloads… | 4 | state "in progress" (only if Ycode ever drives a download) |
+| Download in progress | destination and run prompt say it must finish; Show Downloads… | 4 | state "in progress" (only if SwiftCode ever drives a download) |
 | No network | **to confirm** (no IDE string found; likely the system's own error text) | — | unknown → fail with reason; Retry |
-| Not enough disk space | **to confirm** | — | Ycode checks free space against §4.5 sizes **before** any copy or import |
+| Not enough disk space | **to confirm** | — | SwiftCode checks free space against §4.5 sizes **before** any copy or import |
 | Download cancelled | **to confirm** (GUI cancel control and resulting row state; ⌃C on the command line) | — | partial work removed, row back to "not installed", Retry |
 | Image unusable | state `Unusable` + reason (§7.1.1); Components shows "problem … download again" | 3, 4 | fail with the reason; fix: delete and re-add |
 | Platform unsupported on this Mac | "… is not supported on this Mac" / "platform is unsupported" | 4 | fail; no fix |
@@ -552,7 +552,7 @@ A bare RuntimeRoot (as Ycode's Linux route copies it, `docs/SIMULATOR-LINUX.md`
 
 ## 11. Notes for the clean-room implementers (#68–#70)
 
-(**Ycode guidance**, not reference facts.)
+(**SwiftCode guidance**, not reference facts.)
 
 1. **Checklist rows** (the headset pattern of `device-hub.md` §I.12: state
    ok / missing / unknown, a reason, at most one fix, Retry re-runs):
@@ -580,23 +580,23 @@ A bare RuntimeRoot (as Ycode's Linux route copies it, `docs/SIMULATOR-LINUX.md`
    offline hosts mark their rows unknown, not missing.
 6. **Getting a runtime** (owner decisions O1 and O2, 2026-11-04;
    replaces the earlier "never fetch"). Where the reference shows Get,
-   Ycode offers its three routes of `runtime-downloads.md` §6.1, on a Mac
+   SwiftCode offers its three routes of `runtime-downloads.md` §6.1, on a Mac
    in this order: **C** (run Apple's `xcodebuild -downloadPlatform` on this
    Mac, with confirmation, optionally `-exportPath` for a copy to a Linux
-   host), then **B** (Ycode downloads from Apple itself, describing this
+   host), then **B** (SwiftCode downloads from Apple itself, describing this
    machine honestly, verifies size and SHA-256, and decrypts with the key
    in the asset service's answer), then **A** (import an exported bundle
    or disk image the user already has). On Linux, where C is not
    possible, B comes first, then A. Nothing is fetched without an explicit
    click; the confirmation names the source (Apple), the size and the
-   route. If Apple's service refuses a route B query, Ycode says so and
+   route. If Apple's service refuses a route B query, SwiftCode says so and
    offers A or C (O1).
 
 7. **The wizard's look** (macOS window and the Linux IDE's sheet) is
-   `../ide/liquid-glass-ycode.md` §11, the paged assistant: one centred
+   `../ide/liquid-glass-swiftcode.md` §11, the paged assistant: one centred
    page per step, page dots for progress and jumping, Back / Re-check /
    Continue (Done on the last step). Step glyphs (`RuntimeSetupStep.glyph`,
-   names in Ycode's Linux symbol set too): Where to Run
+   names in SwiftCode's Linux symbol set too): Where to Run
    `arrow.triangle.branch`, Simulator Host `cpu`, Prepare Host
    `gearshape.2`, Runtimes `square.stack.3d.up`, Get a Runtime
    `square.and.arrow.down`, Add a Runtime `plus.circle`, Ready
@@ -634,9 +634,9 @@ A bare RuntimeRoot (as Ycode's Linux route copies it, `docs/SIMULATOR-LINUX.md`
 
 ## 13. Open questions for the owner
 
-1. ~~**#55**: may Ycode ever start a download from Apple on the user's
+1. ~~**#55**: may SwiftCode ever start a download from Apple on the user's
    behalf?~~ **Answered 2026-11-04** by decisions O1 (an honest description
-   of the machine in the asset query) and O2 (Ycode decrypts with the key
+   of the machine in the asset query) and O2 (SwiftCode decrypts with the key
    in the answer), `runtime-downloads.md` §4.1 and §4.3. Routes C → B → A
    are offered in that order on a Mac (§11.6).
 2. Should the wizard on a Mac run `xcodebuild -importPlatform` /
@@ -646,7 +646,7 @@ A bare RuntimeRoot (as Ycode's Linux route copies it, `docs/SIMULATOR-LINUX.md`
    real download on a test account or a test Mac (needed for progress,
    cancel and error states)?
 4. Deleting runtimes affects the user's Xcode too (they are shared). Should
-   Ycode's Remove be limited to runtimes Ycode copied (Linux, remote), and
+   SwiftCode's Remove be limited to runtimes SwiftCode copied (Linux, remote), and
    leave the Mac's to Xcode?
 
 ## Evidence
@@ -706,5 +706,5 @@ observed (no screen takeover; recording waits on #56).
 | §8.3 bundle and RuntimeRoot keys | 2 | `Info.plist`, `profile.plist`, `SystemVersion.plist` read with `plutil` |
 | §9 rows | as cited in §3–§7 | — |
 | §10 exit statuses | 3 | the runs above |
-| §11 | — | Ycode guidance; §11.6 and §13 Q1 follow the owner's decisions O1 and O2 of 2026-11-04 (#55, `runtime-downloads.md`) |
+| §11 | — | SwiftCode guidance; §11.6 and §13 Q1 follow the owner's decisions O1 and O2 of 2026-11-04 (#55, `runtime-downloads.md`) |
 | §12, §13 | — | open items |

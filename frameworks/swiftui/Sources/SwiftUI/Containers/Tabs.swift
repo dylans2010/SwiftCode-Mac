@@ -13,7 +13,7 @@ import SwiftUICore
 // `onAppear` again; tab content is laid out under the floating tab bar (the
 // bar does not add to the safe area).
 //
-// Design (Ycode's): tabs, once built, keep their state while not selected
+// Design (SwiftCode's): tabs, once built, keep their state while not selected
 // (they are suspended, like covered navigation pages). The tab bar is a
 // floating capsule centred 8 points above the bottom edge: one item per tab,
 // a symbol over a caption, the selected item in the tint.

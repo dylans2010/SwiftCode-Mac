@@ -1,4 +1,4 @@
-// Ycode's calendar database: our own SQLite schema (design.md §4), not
+// SwiftCode's calendar database: our own SQLite schema (design.md §4), not
 // Apple's. Timed values are stored as UTC instants plus a zone name; all-day
 // and floating values as wall-clock text plus no zone.
 
@@ -17,12 +17,12 @@ enum FixedIDs {
 }
 
 enum Colors {
-    static let defaultCalendar = YcodeRGBColor(red: 0.0, green: 0.5333, blue: 1.0)
-    static let birthdays = YcodeRGBColor(red: 0.5098, green: 0.5843, blue: 0.6863)
-    static let remindersList = YcodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0)
-    static let newEventCalendar = YcodeRGBColor(red: 0.7961, green: 0.1882, blue: 0.8784)
-    static let newReminderList = YcodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0)
-    static let virtualCalendar = YcodeRGBColor(red: 1.0, green: 0.2196, blue: 0.2353)
+    static let defaultCalendar = SwiftCodeRGBColor(red: 0.0, green: 0.5333, blue: 1.0)
+    static let birthdays = SwiftCodeRGBColor(red: 0.5098, green: 0.5843, blue: 0.6863)
+    static let remindersList = SwiftCodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0)
+    static let newEventCalendar = SwiftCodeRGBColor(red: 0.7961, green: 0.1882, blue: 0.8784)
+    static let newReminderList = SwiftCodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0)
+    static let virtualCalendar = SwiftCodeRGBColor(red: 1.0, green: 0.2196, blue: 0.2353)
 }
 
 /// A stored time: a UTC instant (timed) or a wall-clock value (floating).
@@ -178,7 +178,7 @@ final class CalendarDatabase {
 
     private func calendarRow(_ r: [SQLValue]) -> CalendarRow {
         CalendarRow(id: r[0].text ?? "", sourceID: r[1].text, title: r[2].text ?? "", type: r[3].int ?? 0,
-                    entityMask: UInt(r[4].int ?? 1), color: r[5].text.flatMap(YcodeRGBColor.init(text:)),
+                    entityMask: UInt(r[4].int ?? 1), color: r[5].text.flatMap(SwiftCodeRGBColor.init(text:)),
                     allowsModifications: r[6].bool, immutable: r[7].bool, subscribed: r[8].bool)
     }
 

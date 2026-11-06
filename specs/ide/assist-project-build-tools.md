@@ -1,6 +1,6 @@
 # Assist project / Xcode / build tools — behaviour (Wave 7)
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 65 Legacy Assist Project/Xcode/build
 tools ported in Wave 7 — the last family of the 291-tool Assist registry: build
@@ -18,8 +18,8 @@ spec is the single source of truth for how the tools behave.
 `build_system_detect`, `build_configuration_list`, `build_settings_diff`,
 `build_phase_scripts_list`, `xcresult_parser`, `derived_data_locate`,
 `xcode_toolchain_info`, `xcode_device_destination_finder` — ported onto
-Ycode's Assist host (`YcodeMCP`, `ycode/Sources/YcodeMCP/
-YcodeTools+ProjectBuild.swift`, array `projectBuildTools`).
+SwiftCode's Assist host (`SwiftCodeMCP`, `swiftcode/Sources/SwiftCodeMCP/
+SwiftCodeTools+ProjectBuild.swift`, array `projectBuildTools`).
 
 **Behaviour sources (read directly):** Legacy
 `SwiftCode/Backend/Assist/Tools/AssistBuildProjectTool.swift`
@@ -35,7 +35,7 @@ YcodeTools+ProjectBuild.swift`, array `projectBuildTools`).
 `AssistToolSharedHelpers.swift` (`AssistTextFormat.truncated`,
 `AssistWorkspaceScan.findPbxproj` / `fileSize`).
 
-**Clean-room note:** implementation in `ycode/` reads this spec, public
+**Clean-room note:** implementation in `swiftcode/` reads this spec, public
 docs, and Dylan's own Legacy code (direct porting authorised under MIT).
 No reference Xcode copy, Ghidra, simulator IPSW, `research/dirty/`, or
 Apple Xcode/Simulator observation was used.
@@ -45,14 +45,14 @@ Apple Xcode/Simulator observation was used.
 ### 1.1 Schemas are Legacy's verbatim, plus `workspace`
 
 Every tool's input schema is Legacy's `parametersSchema` verbatim, plus
-the `workspace` parameter every Ycode tool carries. Legacy's
-parameter-name aliases are NOT supported: Ycode's argument validation
+the `workspace` parameter every SwiftCode tool carries. Legacy's
+parameter-name aliases are NOT supported: SwiftCode's argument validation
 rejects unknown arguments before the handler runs.
 
 ### 1.2 Structured data keeps Legacy's keys, typed
 
 Structured data keeps Legacy's data keys, with typed JSON values
-(integers, booleans) the way Ycode's other tools do — Legacy's
+(integers, booleans) the way SwiftCode's other tools do — Legacy's
 string-only map is not reproduced. Tools whose Legacy result carries
 no data (`xcresult_parser`, `xcode_device_destination_finder`) return
 a plain text result instead. Legacy's `suggestedNextActions`,
@@ -74,10 +74,10 @@ coordinator owns — they are not added in the implementation file:
 
 **Collision warning for the coordinator:** `build` → `project_build`
 and `test` → `project_test` MUST NOT be added as aliases: they would
-collide with Ycode's existing native `build` and `test` tools (the
+collide with SwiftCode's existing native `build` and `test` tools (the
 same reason Wave 3 deliberately did not alias `search` →
 `search_text`). `build_project`, `run_build`, `xcodebuild`,
-`run_tests`, `xcresult` and `device_destinations` have no Ycode
+`run_tests`, `xcresult` and `device_destinations` have no SwiftCode
 collision and may be added. `project_clean`, `project_archive`,
 `build_log_analyze`, `build_system_detect`, `build_configuration_list`,
 `build_settings_diff`, `build_phase_scripts_list`, `derived_data_locate`
@@ -87,10 +87,10 @@ and `xcode_toolchain_info` have no Legacy aliases.
 
 `project_build`, `project_test` and the `derivedData` scope of
 `project_clean` run through the session — `s.build(.build)`,
-`s.runTests()`, `s.build(.clean)` — the same seam Ycode's native
+`s.runTests()`, `s.build(.clean)` — the same seam SwiftCode's native
 `build` / `test` / `clean` tools and Wave 6's `test_run_single` /
-`compiler_diagnostics_engine` use (ycodebuild / SwiftPM for packages,
-Ycode's Xcodebuild engine for Xcode projects). No second runner, no
+`compiler_diagnostics_engine` use (swiftcodebuild / SwiftPM for packages,
+SwiftCode's Xcodebuild engine for Xcode projects). No second runner, no
 directly spawned `xcodebuild` for these three, never a shell.
 Execution always runs the real command and reports its actual output
 — no result is ever invented. On a machine with no Swift toolchain
@@ -98,7 +98,7 @@ and no Xcode (this Linux environment), these tools fail honestly
 with the session's own failure, and the tests gate real-build
 assertions on `canBuildPackages` exactly like Wave 6's.
 
-`project_archive` is the one exception: Ycode's build seam has no
+`project_archive` is the one exception: SwiftCode's build seam has no
 archive action (`BuildRequest.Action` is build/clean/test/analyze/
 build-for-testing), so it runs the real `/usr/bin/xcodebuild archive`
 through the fixed-argv runner (`terminalRunFixed`, off the main
@@ -145,25 +145,25 @@ is part of that execution, not a separately approved write.
 
 `project_build` / `project_test` are `writes: false` (`execution`
 for `project_test`, `readOnly: false, idempotent: true` for
-`project_build`, matching Ycode's native `build` tool). Legacy's
+`project_build`, matching SwiftCode's native `build` tool). Legacy's
 `project_build` is approval-exempt by design in Legacy (it runs
 xcodebuild directly so it never triggers the terminal approval
-prompt); the Ycode port keeps the exemption in the only form Ycode
+prompt); the SwiftCode port keeps the exemption in the only form SwiftCode
 has — it is not a write tool, so the write policy never gates it —
 and it does not route through `use_terminal`.
 
-### 1.7 Overlap with Ycode-native tools (no duplication)
+### 1.7 Overlap with SwiftCode-native tools (no duplication)
 
-Ycode already has `build`, `test`, `clean` and `build_log`
-(`YcodeTools+Build.swift`) and `simulator_list` (with its Apple
+SwiftCode already has `build`, `test`, `clean` and `build_log`
+(`SwiftCodeTools+Build.swift`) and `simulator_list` (with its Apple
 `simctl` section). This slice does NOT duplicate them: `project_build`
 / `project_test` / `project_clean` are the Legacy-named forms of the
 same operations, routed through the same session seam with Legacy's
 schemas, messages and data keys; `build_log_analyze` parses a log
 *file* (the native `build_log` shows the session's in-memory log);
 `xcode_device_destination_finder` is Legacy's simctl-only listing
-with a platform filter, while `simulator_list` is Ycode's combined
-Ycode-Simulator + Apple listing.
+with a platform filter, while `simulator_list` is SwiftCode's combined
+SwiftCode-Simulator + Apple listing.
 
 ### 1.8 No `generate_xcodeproj`
 
@@ -195,13 +195,13 @@ needs its own approval story.)
   `project "<path>" is not the open workspace; open it with
   workspace_open first.`); when omitted the open workspace is built.
   Scheme/destination go through `applyScheme`, so `destination` is
-  a Ycode destination name/id/specifier (Legacy's default
+  a SwiftCode destination name/id/specifier (Legacy's default
   `platform=macOS` is the specifier of the "My Mac" destination and
   matches as-is) and an unknown scheme/destination fails with
   `applyScheme`'s message. The build runs through the session
   (`s.build(.build)`), with progress reported. Success and failure
   are both returned as a structured result, not a thrown error —
-  the Ycode `build` tool's shape: `status` `"Passed"` / `"Failed"`,
+  the SwiftCode `build` tool's shape: `status` `"Passed"` / `"Failed"`,
   the summary naming project / scheme / configuration / duration,
   the first errors/warnings listed, and the log tail when the build
   fails with no errors.
@@ -221,13 +221,13 @@ needs its own approval story.)
     configuration is honoured and the `configuration` argument is
     accepted but does not override it. (The session's
     `buildRequest` takes its configuration from the scheme; there
-    is no per-call configuration override in the Ycode seam.)
+    is no per-call configuration override in the SwiftCode seam.)
   - Legacy found the project by scanning the workspace root for
     `.xcodeproj` / `.xcworkspace`; the port builds the already-open
     workspace, as `compiler_diagnostics_engine` does.
   - Legacy's result is a success/failure `AssistToolResult` with
     `exitCode` and `suggestedNextActions`; the port returns the
-    Ycode `build` tool's structured result with `status`, and drops
+    SwiftCode `build` tool's structured result with `status`, and drops
     the envelope fields (see §1.2).
   - No `BuildOutputAccumulator` (the `** BUILD SUCCEEDED **` /
     `** BUILD FAILED **` line parser) is ported: the session
@@ -261,7 +261,7 @@ needs its own approval story.)
 - Deviations from Legacy, recorded here:
   - Legacy delegates to `AssistVerificationPipeline` (which runs
     `xcodebuild test`); the port runs the session test runner
-    (ycodebuild / SwiftPM), the same path the `test` tool and
+    (swiftcodebuild / SwiftPM), the same path the `test` tool and
     `test_run_single` use. No `xcodebuild test` is spawned and no
     `-only-testing:` / test-plan argv is built.
   - Legacy's failure output is the pipeline's diagnostic summary;
@@ -307,7 +307,7 @@ needs its own approval story.)
   - Legacy's `derivedData` scope ran `xcodebuild clean` against
     the project located at the workspace top level; the port runs
     the session clean, which removes the scheme's build products
-    through the Ycode build seam (no `xcodebuild clean` argv is
+    through the SwiftCode build seam (no `xcodebuild clean` argv is
     built). The `removed` value still says `"xcodebuild clean"`,
     as in Legacy.
   - Legacy's `derivedData` scope failed when no `.xcodeproj` /
@@ -402,7 +402,7 @@ needs its own approval story.)
 - Structured data (Legacy keys, typed): `result` (string),
   `errorCount` (int), `warningCount` (int).
 - Error cases: missing `path`; unreadable log file.
-- Deviations: none in behaviour. (The resolver is Ycode's
+- Deviations: none in behaviour. (The resolver is SwiftCode's
   `resolveFileReadingPath` rather than Legacy's
   `AssistWorkspacePaths.resolve`; a `..` that stays inside the
   workspace resolves, where Legacy rejected any `..` as text.)
@@ -444,7 +444,7 @@ needs its own approval story.)
   configurations (Debug/Release/custom) for the project and each
   target from the .pbxproj." No parameters.
 - Behaviour: finds the first `.pbxproj` under the workspace root
-  (Legacy's `AssistWorkspaceScan.findPbxproj`, same rule as Ycode's
+  (Legacy's `AssistWorkspaceScan.findPbxproj`, same rule as SwiftCode's
   `reviewDocsFindPbxproj`); none → `No .pbxproj found in the
   workspace.` Each `XCConfigurationList` block is matched by
   Legacy's regex `([0-9A-F]{24}) /\* Build configuration list for
@@ -598,7 +598,7 @@ needs its own approval story.)
 - Structured data: `sdkCount` (int).
 - Error cases: `xcodebuild` missing (empty `-version` output).
 - Deviations: none in behaviour (Legacy's `AssistArgvRunner`
-  60 s timeout is kept; the runner is Ycode's fixed-argv runner).
+  60 s timeout is kept; the runner is SwiftCode's fixed-argv runner).
 
 ## 14. `xcode_device_destination_finder` — Xcode Device Destination Finder
 
@@ -694,8 +694,8 @@ registration-level:
 | Legacy aliases for this slice (`build`/`build_project`/`run_build`/`xcodebuild` → `project_build`; `test`/`run_tests` → `project_test`; `xcresult` → `xcresult_parser`; `device_destinations` → `xcode_device_destination_finder`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly |
 | `AssistTextFormat.truncated` (first N chars + `\n… [label: showing first N of M characters]`), `AssistWorkspaceScan.findPbxproj` (first `.pbxproj` under root), `fileSize` (`.fileSizeKey`) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistToolSharedHelpers.swift`, read directly |
 | `build_system_detect`'s Xcode check looks for entries literally named `xcworkspace` / `xcodeproj` | 1 | Legacy `AssistBuildSystemDetectTool.swift` check list, read directly |
-| Session build/test seam (`s.build(.build/.clean)`, `s.runTests()`, `applyScheme`, `testPlanNames`), `BuildRequest.Action` has no archive action | 1 | Ycode `ycode/Sources/YcodeIDECore/Session/WorkspaceSession.swift`, `ycode/Sources/YcodeBuild/BuildEngine.swift`, `ycode/Sources/YcodeMCP/YcodeTools+Build.swift`, read directly |
-| Fixed-argv runner (`terminalRunFixed`, `runXcrun`), `approveFileWritingChange` / `noteFileWritingChanged`, `reviewDocsFindPbxproj`, shell-character guards | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+TerminalSupport.swift`, `YcodeTools+Simulator.swift`, `YcodeTools+FileWriting.swift`, `YcodeTools+ReviewDocs.swift`, `YcodeTools+TestingSupport.swift`, read directly |
+| Session build/test seam (`s.build(.build/.clean)`, `s.runTests()`, `applyScheme`, `testPlanNames`), `BuildRequest.Action` has no archive action | 1 | SwiftCode `swiftcode/Sources/SwiftCodeIDECore/Session/WorkspaceSession.swift`, `swiftcode/Sources/SwiftCodeBuild/BuildEngine.swift`, `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Build.swift`, read directly |
+| Fixed-argv runner (`terminalRunFixed`, `runXcrun`), `approveFileWritingChange` / `noteFileWritingChanged`, `reviewDocsFindPbxproj`, shell-character guards | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+TerminalSupport.swift`, `SwiftCodeTools+Simulator.swift`, `SwiftCodeTools+FileWriting.swift`, `SwiftCodeTools+ReviewDocs.swift`, `SwiftCodeTools+TestingSupport.swift`, read directly |
 | Single approval gate, `writes: true` = Legacy `safeMutation` / `potentiallyDestructive`, Autopilot rejection | 1 | `specs/ide/assist-approval-model.md`, read directly |
 | `generate_xcodeproj` lives in the same Legacy file but is a different tool ID, not in this slice | 1 | Legacy `AssistBuildProjectTool.swift` (`AssistGenerateXcodeprojTool`), read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol |
@@ -703,7 +703,7 @@ registration-level:
 
 ## Part B — Project model & pbxproj
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 19 Legacy Assist
 Project/Xcode/build tools ported in Wave 7, slice B:
@@ -716,18 +716,18 @@ Project/Xcode/build tools ported in Wave 7, slice B:
 `target_source_list`, `workspace_settings_read`,
 `xcode_build_settings_inspector`, `xcode_scheme_manager`. The
 implementation is
-`ycode/Sources/YcodeMCP/YcodeTools+ProjectModel.swift`; the tests
-are `ycode/Tests/YcodeMCPTests/YcodeProjectModelTests.swift`.
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ProjectModel.swift`; the tests
+are `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeProjectModelTests.swift`.
 
 The per-tool sections below are catalogue-ready: each gives the
 tool's description and input schema verbatim (Legacy's
-`parametersSchema` plus the `workspace` parameter every Ycode tool
+`parametersSchema` plus the `workspace` parameter every SwiftCode tool
 carries), its output shape, and its error cases, so the coordinator
 can merge them into `specs/ide/assist-tool-catalogue.md` without
 re-deriving anything.
 
 Scope: what each tool does once called, what it returns, what it
-refuses, and which Ycode seam it runs through. The approval model
+refuses, and which SwiftCode seam it runs through. The approval model
 itself (write policy, `commit()` / `approve()`, the rejected
 Autopilot bypass) is `specs/ide/assist-approval-model.md` and is
 not repeated here beyond the per-tool gate column.
@@ -736,9 +736,9 @@ not repeated here beyond the per-tool gate column.
 
 - **IDs, titles, descriptions, schemas are Legacy's verbatim**,
   verified live from each Legacy tool file (see Evidence). The
-  only additions are the `workspace` parameter and Ycode's
+  only additions are the `workspace` parameter and SwiftCode's
   `additionalProperties: false`. Legacy's parameter-name aliases
-  are NOT supported: Ycode's argument validation rejects unknown
+  are NOT supported: SwiftCode's argument validation rejects unknown
   arguments before the handler runs. Legacy's tool-name aliases
   for this slice are `xcode_scheme` → `xcode_scheme_manager` and
   `build_settings` → `xcode_build_settings_inspector` (Legacy's
@@ -746,7 +746,7 @@ not repeated here beyond the per-tool gate column.
   `MCPServer.toolAliases`, which the coordinator owns — they are
   not added here.
 - **Structured data keeps Legacy's keys, with typed JSON values**
-  (integers, booleans) the way Ycode's other tools do — Legacy's
+  (integers, booleans) the way SwiftCode's other tools do — Legacy's
   string-only map is not reproduced. Tools whose Legacy result
   carries no data return a plain text result instead.
 - **Paths resolve through the session resolvers**
@@ -755,10 +755,10 @@ not repeated here beyond the per-tool gate column.
   Legacy's own message for that tool. A `..` that stays inside the
   workspace resolves (the session resolver's rule) where Legacy's
   per-tool resolvers rejected any `..` as text.
-- **The project model is Ycode's own, not a parallel one.** All
-  pbxproj reads go through `YcodeProject` (`PBXProj` parsing,
+- **The project model is SwiftCode's own, not a parallel one.** All
+  pbxproj reads go through `SwiftCodeProject` (`PBXProj` parsing,
   `targets`, `buildConfigurations(listID:)`); all pbxproj edits go
-  through `YcodeProject`'s typed mutations (`setBuildSetting`,
+  through `SwiftCodeProject`'s typed mutations (`setBuildSetting`,
   `addFileReference`, `addBuildFile`, `removeFileReference`,
   `addTarget`, `addSourceGroup`) and are serialised with
   `PBXProjWriter` (`serialized(projectName:)`), then written
@@ -789,7 +789,7 @@ not repeated here beyond the per-tool gate column.
   recorded per tool below.
 - **Failures are thrown as `MCPToolError`** with Legacy's message
   text, so the caller sees an `isError` result carrying that
-  message. Legacy's `.failure(…)` and Ycode's throw are the same
+  message. Legacy's `.failure(…)` and SwiftCode's throw are the same
   observable outcome.
 - **Risk / gate.** `safeRead` tools are `writes: false`,
   `readOnly: true, idempotent: true`. `execution` tools are
@@ -813,7 +813,7 @@ not repeated here beyond the per-tool gate column.
 
 ## 2. The seams (read before implementing)
 
-- **Project model** (`YcodeProject`): `PBXProj(contentsOf:)`
+- **Project model** (`SwiftCodeProject`): `PBXProj(contentsOf:)`
   / `PBXProj(parsing:)`, `proj.targets` (in the project's
   `targets` list order), `buildConfigurations(listID:)`,
   `setBuildSetting(_:_:configuration:)` /
@@ -823,13 +823,13 @@ not repeated here beyond the per-tool gate column.
   `addSourceGroup(path:)`, `serialized(projectName:)`.
   Specs: `specs/ide/project-editor.md` §Mutations,
   `specs/formats/pbxproj.md`.
-- **Schemes** (`YcodeIDECore`): `WorkspaceModel.schemeNames`
+- **Schemes** (`SwiftCodeIDECore`): `WorkspaceModel.schemeNames`
   (shared + user `.xcscheme` files discovered per container;
   one scheme per target when a project has none) and
   `WorkspaceModel.projects` (loaded `PBXProj` by `.xcodeproj`
   path). `applyScheme` validates a scheme name against
   `schemeNames`.
-- **New projects** (`YcodeIDECore`): `ProjectTemplates.all`
+- **New projects** (`SwiftCodeIDECore`): `ProjectTemplates.all`
   (descriptors; `platform` + `title` select one),
   `TemplateOptionsForm` (`makeForm(values:)`),
   `ProjectGenerator.generate(_:_:)` (in-memory
@@ -839,20 +839,20 @@ not repeated here beyond the per-tool gate column.
   generated files through `commit()`, one per file, in sorted
   path order — it does not call `GeneratedProject.write(in:)`,
   which writes ungated.
-- **Git** (`YcodeTools+Git.swift`): `runGit(_:in:)` runs the
+- **Git** (`SwiftCodeTools+Git.swift`): `runGit(_:in:)` runs the
   `git` CLI with the Wave 3 environment (no pager, no prompts,
   `GIT_OPTIONAL_LOCKS=0`); a non-zero exit is returned, never
   thrown.
-- **Fixed-argv subprocess** (`YcodeTools+TerminalSupport.swift`):
+- **Fixed-argv subprocess** (`SwiftCodeTools+TerminalSupport.swift`):
   `terminalRunFixed` (off the main actor), for `xcodegen`.
-- **Snapshots**: Ycode keeps no workspace snapshots (the same
+- **Snapshots**: SwiftCode keeps no workspace snapshots (the same
   reason Wave 6's `safe_undo` fails honestly). This slice
   nevertheless ports `project_snapshot` / `project_restore`
   honestly, because their prerequisite is self-contained: a
   snapshot is a whole-tree copy plus a `metadata.json`, stored
   under the user's Application Support directory in
-  `YcodeSnapshots/<uuid>/` (mirroring Legacy's
-  `AssistSnapshots/<uuid>/` layout, renamed for Ycode). No
+  `SwiftCodeSnapshots/<uuid>/` (mirroring Legacy's
+  `AssistSnapshots/<uuid>/` layout, renamed for SwiftCode). No
   session store is needed. See §3.2 and §4.8/§4.9.
 
 ## 3. Deliberate deviations from Legacy
@@ -868,12 +868,12 @@ tools work at all, where Legacy failed outright ("Listing Xcode
 schemes requires macOS with xcodebuild."). The one fact lost is
 xcconfig/macro-resolved setting values (see §3.4).
 
-### 3.2 Snapshots live in `YcodeSnapshots`, and `project_snapshot` is a write
+### 3.2 Snapshots live in `SwiftCodeSnapshots`, and `project_snapshot` is a write
 
 Legacy stores snapshots in Application Support
 `AssistSnapshots/<uuid>/` (`files/` + `metadata.json` with `id`,
 `timestamp`, `message`, `rootPath`); the port stores them in
-`YcodeSnapshots/<uuid>/` with the same layout and the same
+`SwiftCodeSnapshots/<uuid>/` with the same layout and the same
 metadata keys. Legacy marks `project_snapshot` `safeRead`, but
 it writes a whole-tree copy to disk, so the port registers it
 `writes: true` (`safeMutation`): a read-only server must not
@@ -927,15 +927,15 @@ absent.
 
 Legacy writes the new project to an absolute `projectLocation`
 (default `~/Documents/<appName>`) and opens it into the
-session. Ycode tools never write outside the workspace, so the
+session. SwiftCode tools never write outside the workspace, so the
 port resolves `projectLocation` inside the workspace root
 (relative, or absolute but contained) and defaults to
 `<workspace>/<appName>`; an outside location fails with
 "<path> is outside the workspace folder <root>". The port
-scaffolds with Ycode's own template (`ProjectGenerator`: the
+scaffolds with SwiftCode's own template (`ProjectGenerator`: the
 `<platform> App` template, SwiftUI) instead of Legacy's
 `ProjectTemplateManager`, writes no `project.json` (Legacy
-metadata, not part of Ycode's project model), and does not
+metadata, not part of SwiftCode's project model), and does not
 open the new project into the session — the caller opens it
 with `workspace_open`. Legacy's `uiPreferences`,
 `architecturePreferences` and `additionalRequirements` are
@@ -993,7 +993,7 @@ output matches Legacy's.
 
 ### 3.9 `project_diff` counts from porcelain status
 
-Legacy's `GitService` status/diff is not available in Ycode;
+Legacy's `GitService` status/diff is not available in SwiftCode;
 the port runs `git status --porcelain`, `git diff HEAD` and
 `git branch --show-current` (falling back to
 `git rev-parse --abbrev-ref HEAD`, then `(detached)`). Staged
@@ -1037,7 +1037,7 @@ the diff. Modified files are the status paths'
 - **Behaviour:** defaults are Legacy's (`platform` macOS,
   `version` "1.0", `build` "1", bundle identifier
   `com.swiftcode.<appName without spaces, lowercased>` when
-  empty). The platform selects Ycode's `<platform> App`
+  empty). The platform selects SwiftCode's `<platform> App`
   template (iPadOS uses the iOS App template; any other value
   falls back to the macOS App template, as Legacy's
   `selectTemplate` defaults to `swiftui_app`). The form is
@@ -1048,13 +1048,13 @@ the diff. Modified files are the status paths'
   order, then the generated `.xcodeproj/project.pbxproj`
   (serialised from the generated `PBXProj`) and its
   `project.xcworkspace/contents.xcworkspacedata` (the
-  self-workspace wrapper every Ycode project carries).
+  self-workspace wrapper every SwiftCode project carries).
   The target directory must not already exist non-empty.
 - **Output:** plain text, Legacy's form:
   "Successfully initialized Create New App workflow for
   '<appName>'.\nTarget Directory: <path>\nBundle Identifier:
   <id>\nPlatform: <platform>\nVersion: <version> (<build>)\n
-  Scaffolded with Ycode's '<platform> App' template.\nReady
+  Scaffolded with SwiftCode's '<platform> App' template.\nReady
   for autonomous implementation and iteration."
   No data keys (Legacy returns none).
 - **Errors:** missing `appName` / `applicationDescription` →
@@ -1303,7 +1303,7 @@ the diff. Modified files are the status paths'
 - **Input:** `snapshot_id` (string, required, "Snapshot
   identifier from project_snapshot or project_changelog.").
 - **Behaviour:** §3.2. The snapshot must exist in the
-  `YcodeSnapshots` store; one `MCPChange` is presented for the
+  `SwiftCodeSnapshots` store; one `MCPChange` is presented for the
   workspace root (summary "Restore project to snapshot
   <id> — replaces all files in the workspace") and the restore
   proceeds only on approval; then every entry in the workspace
@@ -1343,7 +1343,7 @@ the diff. Modified files are the status paths'
   Default: \"Manual Snapshot\".").
 - **Behaviour:** §3.2. A fresh UUID identifies the snapshot;
   the whole workspace tree is copied to
-  `YcodeSnapshots/<uuid>/files/` and `metadata.json` records
+  `SwiftCodeSnapshots/<uuid>/files/` and `metadata.json` records
   `id`, `timestamp`, `message`, `rootPath`.
 - **Output:** structured, key `snapshot_id` (the UUID);
   summary "Successfully created project snapshot: <message>".
@@ -1586,8 +1586,8 @@ the diff. Modified files are the status paths'
 
 ## 5. Wiring
 
-`projectModelTools` is a computed property on `YcodeMCPHost`
-in `ycode/Sources/YcodeMCP/YcodeTools+ProjectModel.swift`. It
+`projectModelTools` is a computed property on `SwiftCodeMCPHost`
+in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ProjectModel.swift`. It
 is NOT wired into `installTools()` by this slice — that file
 is owned by the coordinator (19 tools, same IDs/schemas/
 behaviour/risk as Legacy; the coordinator adds
@@ -1606,14 +1606,14 @@ two Legacy aliases `xcode_scheme` →
 | Workspace scan semantics (skipped top-level dirs, 20,000-file cap, first pbxproj in enumerator order) and file-size helper | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistToolSharedHelpers.swift` (`AssistWorkspaceScan`), read directly |
 | Aliases `xcode_scheme` → `xcode_scheme_manager`, `build_settings` → `xcode_build_settings_inspector`; no other aliases target this slice's 19 IDs | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` (`toolAliases`), read directly |
 | No tool in this slice overrides `requiredPermission`, `prerequisites`, `outputFormat`, `supportedOperations`, or `knownLimitations` | 1 | grep over the 19 Legacy tool files (zero matches) |
-| Ycode seams: `PBXProj` parsing/targets/configurations, typed mutations, `PBXProjWriter` serialisation | 1 | Destination `ycode/Sources/YcodeProject/PBXProj.swift`, `Mutations.swift`, `TargetMutations.swift`, `PBXProjWriter.swift`, read directly |
-| Scheme model (`WorkspaceModel.schemeNames`, `projects`), new-project templates (`ProjectTemplates.all`, `ProjectGenerator.generate`), git runner (`runGit`), fixed-argv runner (`terminalRunFixed`), `commit()` / `approve()` gate | 1 | Destination `ycode/Sources/YcodeIDECore/Model/WorkspaceModel.swift`, `YcodeIDECore/Model/NewProject/ProjectGenerator.swift`, `ProjectTemplateDescriptors.swift`, `TemplateOptions.swift`, `ycode/Sources/YcodeMCP/YcodeTools+Git.swift`, `YcodeTools+TerminalSupport.swift`, `YcodeTools+Content.swift`, `specs/ide/assist-approval-model.md`, read directly |
+| SwiftCode seams: `PBXProj` parsing/targets/configurations, typed mutations, `PBXProjWriter` serialisation | 1 | Destination `swiftcode/Sources/SwiftCodeProject/PBXProj.swift`, `Mutations.swift`, `TargetMutations.swift`, `PBXProjWriter.swift`, read directly |
+| Scheme model (`WorkspaceModel.schemeNames`, `projects`), new-project templates (`ProjectTemplates.all`, `ProjectGenerator.generate`), git runner (`runGit`), fixed-argv runner (`terminalRunFixed`), `commit()` / `approve()` gate | 1 | Destination `swiftcode/Sources/SwiftCodeIDECore/Model/WorkspaceModel.swift`, `SwiftCodeIDECore/Model/NewProject/ProjectGenerator.swift`, `ProjectTemplateDescriptors.swift`, `TemplateOptions.swift`, `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Git.swift`, `SwiftCodeTools+TerminalSupport.swift`, `SwiftCodeTools+Content.swift`, `specs/ide/assist-approval-model.md`, read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 
 ## Part C — SPM, dependencies & docs
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 13 Legacy Assist
 SPM/dependency/docs tools ported in Wave 7, slice C:
@@ -1623,18 +1623,18 @@ SPM/dependency/docs tools ported in Wave 7, slice C:
 `spm_dependency_tree`, `carthage_cartfile_inspector`,
 `podfile_inspector`, `docc_build`, `docs_generate`,
 `docs_index_build`, `project_changelog`. The implementation is
-`ycode/Sources/YcodeMCP/YcodeTools+SPMDocs.swift`; the tests are
-`ycode/Tests/YcodeMCPTests/YcodeSPMDocsTests.swift`.
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+SPMDocs.swift`; the tests are
+`swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeSPMDocsTests.swift`.
 
 The per-tool sections below are catalogue-ready: each gives the
 tool's description and input schema verbatim (Legacy's
-`parametersSchema` plus the `workspace` parameter every Ycode tool
+`parametersSchema` plus the `workspace` parameter every SwiftCode tool
 carries), its output shape, and its error cases, so the coordinator
 can merge them into `specs/ide/assist-tool-catalogue.md` without
 re-deriving anything.
 
 Scope: what each tool does once called, what it returns, what it
-refuses, and which Ycode seam it runs through. The approval model
+refuses, and which SwiftCode seam it runs through. The approval model
 itself (write policy, `commit()` / `approve()`, the rejected
 Autopilot bypass) is `specs/ide/assist-approval-model.md` and is
 not repeated here beyond the per-tool gate column.
@@ -1643,12 +1643,12 @@ not repeated here beyond the per-tool gate column.
 
 - **IDs, titles, descriptions, schemas are Legacy's verbatim**,
   verified live from each Legacy tool file (see Evidence). The
-  only additions are the `workspace` parameter and Ycode's
+  only additions are the `workspace` parameter and SwiftCode's
   `additionalProperties: false`. Legacy's parameter-name aliases
-  are NOT supported: Ycode's argument validation rejects unknown
+  are NOT supported: SwiftCode's argument validation rejects unknown
   arguments before the handler runs.
 - **Structured data keeps Legacy's keys, with typed JSON values**
-  (integers, booleans) the way Ycode's other tools do — Legacy's
+  (integers, booleans) the way SwiftCode's other tools do — Legacy's
   string-only map is not reproduced. Tools whose Legacy result
   carries no data return a plain text result instead.
 - **Paths resolve through the session resolver**
@@ -1661,7 +1661,7 @@ not repeated here beyond the per-tool gate column.
   with Legacy's own message for that tool.
 - **Subprocess tools run a fixed argument vector, never a shell**,
   through the fixed-argv runner from
-  `YcodeTools+TerminalSupport.swift` (`terminalRunFixed`, off the
+  `SwiftCodeTools+TerminalSupport.swift` (`terminalRunFixed`, off the
   main actor), and report the tool's actual output — no result is
   ever invented. Legacy waited unboundedly; this port bounds
   `swift package` runs at 300 s and `xcodebuild docbuild` at
@@ -1673,7 +1673,7 @@ not repeated here beyond the per-tool gate column.
   `commit()`; the generated doc goes through `commit()` too. In
   `readOnly` mode both are refused in `run()` before the handler.
   There is no Autopilot bypass.
-- **YcodeProject reuse:** `YcodeProject.PackageDependencies`
+- **SwiftCodeProject reuse:** `SwiftCodeProject.PackageDependencies`
   (`SwiftPackageReference`, `SwiftPackageRequirement`,
   `PBXProj.addRemotePackage` / `addPackageProduct`) models
   package references *in a `.pbxproj`* — Xcode-project package
@@ -2103,7 +2103,7 @@ not repeated here beyond the per-tool gate column.
   `AssistSnapshotFunctions.listSnapshots()`, whose store is the
   global (not workspace-scoped)
   `<Application Support>/AssistSnapshots/<id>/metadata.json`
-  directory. Ycode has no snapshot store — no Ycode tool creates
+  directory. SwiftCode has no snapshot store — no SwiftCode tool creates
   snapshots (the same fact Wave 6 records for `safe_undo`) —
   so this port reads that same directory read-only and reports
   what is there, instead of inventing history: each
@@ -2153,7 +2153,7 @@ real tooling when it is present and fail honestly when it is not.
   outside the workspace.
 - `package_dependency_audit` / `spm_dependency_tree` /
   `docs_index_build`: Legacy's data values are strings
-  (`"true"`, `"3"`); Ycode returns typed booleans/integers.
+  (`"true"`, `"3"`); SwiftCode returns typed booleans/integers.
 - `package_dependency_add` already-present `alreadyPresent` is
   a typed boolean, not Legacy's `"true"` string.
 - `package_manifest_validate` carries the `execution`
@@ -2171,7 +2171,7 @@ real tooling when it is present and fail honestly when it is not.
   ported (approval-model §7.4).
 - `swift_package_manager` / `package_dependency_update` /
   `package_manifest_validate` / `package_dependency_audit`
-  (show-dependencies) / `docc_build` run through Ycode's
+  (show-dependencies) / `docc_build` run through SwiftCode's
   `terminalRunFixed` with a timeout; Legacy waited unboundedly
   and read its pipes directly.
 
@@ -2182,19 +2182,19 @@ real tooling when it is present and fail honestly when it is not.
 | All 13 IDs, titles, descriptions, schemas, capabilities, risk levels, error messages, output keys, and per-tool algorithms above | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistSwiftPackageTool.swift`, `AssistPackageManifestReadTool.swift`, `AssistPackageManifestValidateTool.swift`, `AssistPackageDependencyAddTool.swift`, `AssistPackageDependencyAuditTool.swift`, `AssistPackageDependencyUpdateTool.swift`, `AssistSPMDependencyTreeTool.swift`, `AssistCarthageCartfileInspectorTool.swift`, `AssistPodfileInspectorTool.swift`, `AssistDoccBuildTool.swift`, `AssistDocsGenerateTool.swift`, `AssistDocsIndexBuildTool.swift`, `AssistChangeLogTool.swift`, read directly |
 | Snapshot store shape (`AssistSnapshots` under Application Support, `metadata.json` with `id`/`timestamp`/`message`/`rootPath`, `listSnapshots` sorts newest-first, creates the directory) | 1 | Legacy `SwiftCode/Backend/Assist/Functions/AssistSnapshotFunctions.swift` and `Models/AssistSnapshotModels.swift`, read directly |
 | Legacy aliases for this slice | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` `toolAliases` (lines 430–554), read directly |
-| Ycode has no snapshot store; `safe_undo` honestly fails for that reason | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+ReviewDocs.swift` header + `safeUndo`, read directly |
-| `YcodeProject` models pbxproj package references, not `Package.swift` text | 1 | Ycode `ycode/Sources/YcodeProject/PackageDependencies.swift`, read directly |
-| `commit()` / `approve()` / `readOnlyMessage` / `rejectedMessage` / `terminalRunFixed` (fixed argv, timeout) / `resolveFileReadingPath` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Content.swift`, `YcodeTools+TerminalSupport.swift`, `YcodeTools+FileReadingSupport.swift`, `MCPServer.swift`, read directly |
+| SwiftCode has no snapshot store; `safe_undo` honestly fails for that reason | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ReviewDocs.swift` header + `safeUndo`, read directly |
+| `SwiftCodeProject` models pbxproj package references, not `Package.swift` text | 1 | SwiftCode `swiftcode/Sources/SwiftCodeProject/PackageDependencies.swift`, read directly |
+| `commit()` / `approve()` / `readOnlyMessage` / `rejectedMessage` / `terminalRunFixed` (fixed argv, timeout) / `resolveFileReadingPath` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Content.swift`, `SwiftCodeTools+TerminalSupport.swift`, `SwiftCodeTools+FileReadingSupport.swift`, `MCPServer.swift`, read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 
 ## Part D — Signing, entitlements & plist
 
 Date: 2026-11-06. Destination: `~/workspace/repos/SwiftCode-Mac`, main @
-`2e88bc04` (Ycode base, SwiftPM). Source (read-only): Legacy
+`2e88bc04` (SwiftCode base, SwiftPM). Source (read-only): Legacy
 `SwiftCode/Backend/Assist/Tools/`, main @ `d51a8f0d`.
-Implementation: `ycode/Sources/YcodeMCP/YcodeTools+Signing.swift`
-(`signingTools`); tests: `ycode/Tests/YcodeMCPTests/YcodeSigningToolsTests.swift`.
+Implementation: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift`
+(`signingTools`); tests: `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeSigningToolsTests.swift`.
 
 Scope: exactly these 11 Legacy Assist tool IDs, verified live from each
 Legacy tool file's `id` (no additions, no drops):
@@ -2207,8 +2207,8 @@ Legacy tool file's `id` (no additions, no drops):
 ## Conventions shared by the slice
 
 - IDs, titles, descriptions and schemas are Legacy's `parametersSchema`
-  verbatim, plus the `workspace` parameter every Ycode tool carries.
-  Legacy's parameter-name aliases are NOT supported: Ycode's argument
+  verbatim, plus the `workspace` parameter every SwiftCode tool carries.
+  Legacy's parameter-name aliases are NOT supported: SwiftCode's argument
   validation rejects unknown arguments before the handler runs (same as
   Waves 1–6).
 - Structured data keeps Legacy's keys. Typed JSON values (integers,
@@ -2236,7 +2236,7 @@ Legacy tool file's `id` (no additions, no drops):
   same documented consequence as Wave 6's `test_snapshot_manage`
   `list`.
 - External processes run through the fixed-argv runner from
-  `YcodeTools+TerminalSupport.swift` (`terminalRunFixed`, off the main
+  `SwiftCodeTools+TerminalSupport.swift` (`terminalRunFixed`, off the main
   actor, no shell, bounded timeout): `/usr/bin/codesign`,
   `/usr/bin/security`. No process is ever spawned from a shell string.
 - Signing/certificate/provisioning inspection reads the local keychain
@@ -2246,18 +2246,18 @@ Legacy tool file's `id` (no additions, no drops):
   hashes `security find-identity` itself prints; the provisioning
   tools report profile metadata and entitlements only — never the
   `DeveloperCertificates` blobs.
-- YcodeSigning seam check: `ycode/Sources/YcodeSigning` exists
+- SwiftCodeSigning seam check: `swiftcode/Sources/SwiftCodeSigning` exists
   (`ProvisioningProfile`, `SigningIdentity`, `CertificateSummary`,
-  `EntitlementPolicy`/`EntitlementValue`), but `YcodeMCP` has no target
+  `EntitlementPolicy`/`EntitlementValue`), but `SwiftCodeMCP` has no target
   dependency on it and `Package.swift` is out of scope for this slice,
   so no parallel signing model was built and those types are not
-  imported. The slice instead reuses seams `YcodeMCP` already depends
-  on directly: `YcodeProject` + `YcodeSettings`
+  imported. The slice instead reuses seams `SwiftCodeMCP` already depends
+  on directly: `SwiftCodeProject` + `SwiftCodeSettings`
   (`ProjectSettingsBuilder`, the same seam the `build_settings` tool
   uses) for `project_signing`, and Foundation
   `PropertyListSerialization` + the fixed-argv `security`/`codesign`
-  runners for the rest. If a later wave adds `YcodeSigning` to
-  `YcodeMCP`'s dependencies, `provisioning_profile_reader` /
+  runners for the rest. If a later wave adds `SwiftCodeSigning` to
+  `SwiftCodeMCP`'s dependencies, `provisioning_profile_reader` /
   `provisioning_check` are the candidates to move onto
   `ProvisioningProfile`'s pure-Swift CMS decode (which would also make
   them work on Linux); that is recorded here, not done here.
@@ -2284,17 +2284,17 @@ added in this slice.
 
 | Legacy path | Disposition | Destination | Status |
 |---|---|---|---|
-| `SwiftCode/Backend/Assist/Tools/AssistCodeSigningDiagnoseTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (code_signing_diagnose) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistEntitlementsDiffTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (entitlements_diff) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistEntitlementsTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (entitlements_manager) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistInfoPlistAuditTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (info_plist_audit) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistPlistTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (plist_editor) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistProjectEntitlementsTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (project_entitlements) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistProjectInfoPlistTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (project_info_plist) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistProjectSigningTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (project_signing) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistProvisioningCheckTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (provisioning_check) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistProvisioningProfileReaderTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (provisioning_profile_reader) | IMPLEMENTED |
-| `SwiftCode/Backend/Assist/Tools/AssistSigningCertificateInspectorTool.swift` | MIGRATE_AND_ADAPT | ycode/Sources/YcodeMCP/YcodeTools+Signing.swift (signing_certificate_inspector) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistCodeSigningDiagnoseTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (code_signing_diagnose) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistEntitlementsDiffTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (entitlements_diff) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistEntitlementsTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (entitlements_manager) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistInfoPlistAuditTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (info_plist_audit) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistPlistTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (plist_editor) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistProjectEntitlementsTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (project_entitlements) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistProjectInfoPlistTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (project_info_plist) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistProjectSigningTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (project_signing) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistProvisioningCheckTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (provisioning_check) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistProvisioningProfileReaderTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (provisioning_profile_reader) | IMPLEMENTED |
+| `SwiftCode/Backend/Assist/Tools/AssistSigningCertificateInspectorTool.swift` | MIGRATE_AND_ADAPT | swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift (signing_certificate_inspector) | IMPLEMENTED |
 
 ## 1. `code_signing_diagnose` — Code Signing Diagnose
 
@@ -2376,7 +2376,7 @@ added in this slice.
   the file (and parent directories) when it does not exist; the file
   is always written as XML. `remove_entitlement` requires
   `entitlementKey` and fails when the key is absent. No key is
-  validated against any entitlement policy (YcodeSigning's
+  validated against any entitlement policy (SwiftCodeSigning's
   `EntitlementPolicy` is not reachable from this target — see the
   seam note above); any key string is accepted, as in Legacy.
 - Outputs: plain text, no data keys (Legacy carries no data).
@@ -2539,7 +2539,7 @@ added in this slice.
 - Deliberate deviation from Legacy: Legacy spawns
   `xcodebuild -showBuildSettings` (macOS-only). This port resolves
   the settings from the workspace's own `.xcodeproj` through
-  Ycode's `ProjectSettingsBuilder` — the same seam the
+  SwiftCode's `ProjectSettingsBuilder` — the same seam the
   `build_settings` tool uses — so it works wherever the project
   opens (including Linux) and honours `.xcconfig` base
   configurations. Consequences: (a) a workspace with no
@@ -2684,17 +2684,17 @@ reuse `plist_edit`'s handler or resolver.
   `AssistProvisioningProfileReaderTool.swift`,
   `AssistSigningCertificateInspectorTool.swift`; alias table in
   `AssistToolRegistry.swift` (`toolAliases`, lines ~430–560).
-- Destination seams read: `ycode/Sources/YcodeMCP/YcodeTools.swift`
-  (`tool()`, `installTools()`), `YcodeTools+Testing.swift` (family
-  structure), `YcodeTools+FileWriting.swift` (`plist_edit` handler,
+- Destination seams read: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools.swift`
+  (`tool()`, `installTools()`), `SwiftCodeTools+Testing.swift` (family
+  structure), `SwiftCodeTools+FileWriting.swift` (`plist_edit` handler,
   `commit()`/`approveFileWritingChange`, strict resolvers),
-  `YcodeTools+TerminalSupport.swift` (`terminalRunFixed`),
-  `YcodeTools+Workspace.swift` (`buildSettings` →
-  `ProjectSettingsBuilder`), `YcodeTools+Content.swift` (`commit()`),
+  `SwiftCodeTools+TerminalSupport.swift` (`terminalRunFixed`),
+  `SwiftCodeTools+Workspace.swift` (`buildSettings` →
+  `ProjectSettingsBuilder`), `SwiftCodeTools+Content.swift` (`commit()`),
   `MCPServer.swift` (write policy, `run()`), `specs/ide/assist-approval-model.md`,
-  `specs/ide/assist-testing-tools.md`, `ycode/Sources/YcodeSigning/`
-  (seam survey — not imported), `ycode/Sources/YcodeProject/` and
-  `ycode/Sources/YcodeSettings/` (direct `YcodeMCP` dependencies).
+  `specs/ide/assist-testing-tools.md`, `swiftcode/Sources/SwiftCodeSigning/`
+  (seam survey — not imported), `swiftcode/Sources/SwiftCodeProject/` and
+  `swiftcode/Sources/SwiftCodeSettings/` (direct `SwiftCodeMCP` dependencies).
 - No Swift toolchain exists in this environment: no `swift build` /
   `swift test` was run and none is claimed. Static checks only
   (delimiter balance, duplicate-ID scan, TODO/FIXME scan, collision
@@ -2703,7 +2703,7 @@ reuse `plist_edit`'s handler or resolver.
 
 ## Part E — Asset catalogs & localization
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 9 Legacy Assist asset
 catalog / localization tools ported in Wave 7, slice E:
@@ -2711,18 +2711,18 @@ catalog / localization tools ported in Wave 7, slice E:
 `localization_audit`, `localization_manager`, `localize_app`,
 `string_catalog_migrator`, `strings_file_validate`,
 `strings_localization`. The implementation is
-`ycode/Sources/YcodeMCP/YcodeTools+AssetsLocalization.swift`; the
-tests are `ycode/Tests/YcodeMCPTests/YcodeAssetsLocalizationTests.swift`.
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AssetsLocalization.swift`; the
+tests are `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeAssetsLocalizationTests.swift`.
 
 The per-tool sections below are catalogue-ready: each gives the
 tool's description and input schema verbatim (Legacy's
-`parametersSchema` plus the `workspace` parameter every Ycode tool
+`parametersSchema` plus the `workspace` parameter every SwiftCode tool
 carries), its output shape, and its error cases, so the coordinator
 can merge them into `specs/ide/assist-tool-catalogue.md` without
 re-deriving anything.
 
 Scope: what each tool does once called, what it returns, what it
-refuses, and which Ycode seam it runs through. The approval model
+refuses, and which SwiftCode seam it runs through. The approval model
 itself (write policy, `commit()` / `approve()`, the rejected
 Autopilot bypass) is `specs/ide/assist-approval-model.md` and is
 not repeated here beyond the per-tool gate column.
@@ -2731,12 +2731,12 @@ not repeated here beyond the per-tool gate column.
 
 - **IDs, titles, descriptions, schemas are Legacy's verbatim**,
   verified live from each Legacy tool file (see Evidence). The
-  only additions are the `workspace` parameter and Ycode's
+  only additions are the `workspace` parameter and SwiftCode's
   `additionalProperties: false`. Legacy's parameter-name aliases
-  are NOT supported: Ycode's argument validation rejects unknown
+  are NOT supported: SwiftCode's argument validation rejects unknown
   arguments before the handler runs.
 - **Structured data keeps Legacy's keys, with typed JSON values**
-  (integers, booleans) the way Ycode's other tools do — Legacy's
+  (integers, booleans) the way SwiftCode's other tools do — Legacy's
   string-only map is not reproduced. Tools whose Legacy result
   carries no data, or whose data keys vary by action / file type,
   return a plain text result instead (`asset_catalog_manager`,
@@ -2750,7 +2750,7 @@ not repeated here beyond the per-tool gate column.
   `asset_image_add`, `strings_localization`), and no check at all
   (`asset_catalog_manager`, `localization_manager`,
   `string_catalog_migrator`, `localize_app` append to the
-  workspace root unchecked, so `..` escapes). Ycode does not
+  workspace root unchecked, so `..` escapes). SwiftCode does not
   reproduce the unchecked rule: every path goes through either
   the slice's strict resolver (same rule as
   `AssistWorkspacePaths.resolve`, preserving Legacy's
@@ -2760,8 +2760,8 @@ not repeated here beyond the per-tool gate column.
   stays inside the workspace is refused here, unlike Wave 6's
   session-resolver tools — because these tools' Legacy messages
   say `..` is forbidden, and the message must stay honest.
-- **`.xcstrings` goes through Ycode's own `StringCatalog` seam**
-  (`YcodeStrings`, re-exported by `YcodeIDECore`): parsing,
+- **`.xcstrings` goes through SwiftCode's own `StringCatalog` seam**
+  (`SwiftCodeStrings`, re-exported by `SwiftCodeIDECore`): parsing,
   `sourceLanguage`, `keys`, `languages`, `setTranslation`,
   `addKey`, `removeKey`, and `data()` for writing. Where Legacy's
   behaviour needs a shape `StringCatalog` has no setter for (a
@@ -2776,14 +2776,14 @@ not repeated here beyond the per-tool gate column.
   the line scan is the faithful port.
 - **Asset catalogs use plain `FileManager` directory work**, the
   way Legacy does: these tools only enumerate `.xcassets`
-  directories and write `Contents.json` text. Ycode's
-  `YcodeAssetCatalog` is a CAR compiler; its `CatalogInput`
-  directory loader is not visible to `YcodeMCP` (no target
+  directories and write `Contents.json` text. SwiftCode's
+  `SwiftCodeAssetCatalog` is a CAR compiler; its `CatalogInput`
+  directory loader is not visible to `SwiftCodeMCP` (no target
   dependency, and `Package.swift` is out of this slice's scope),
   and nothing here needs a compiled CAR.
 - **Failures are thrown as `MCPToolError`** with Legacy's message
   text, so the caller sees an `isError` result carrying that
-  message. Legacy's `.failure(…)` and Ycode's throw are the same
+  message. Legacy's `.failure(…)` and SwiftCode's throw are the same
   observable outcome.
 - **Risk / gate.** `safeRead` tools are `writes: false`,
   `readOnly: true, idempotent: true`. `safeMutation` tools are
@@ -2935,7 +2935,7 @@ Behaviour (Legacy's, in order):
    `switch`).
 2. The catalog path is confined with the strict resolver
    (§2): Legacy appended it unchecked, so `..` escaped the
-   workspace — Ycode refuses it with `Invalid catalog path
+   workspace — SwiftCode refuses it with `Invalid catalog path
    '<catalogPath>': must be inside the workspace and must not
    contain '..'.` (deliberate deviation, §9).
 3. `create_catalog`: writes the catalog's `Contents.json`
@@ -3159,7 +3159,7 @@ Behaviour (Legacy's, in order):
    '<ext>'. Expected .strings, .stringsdict, or .xcstrings.`
    The path is confined with the session resolver
    (`resolveFileReadingPath`): Legacy appended it unchecked,
-   so `..` escaped the workspace — Ycode refuses it
+   so `..` escaped the workspace — SwiftCode refuses it
    (deliberate deviation, §9).
 2. `list_languages`: for `.xcstrings`, the languages are the
    union of every entry's `localizations` keys plus the
@@ -3437,7 +3437,7 @@ Behaviour (Legacy's, in order):
    Both paths are confined with the session resolver
    (`resolveFileReadingPath`): Legacy used absolute paths
    as-is, so an absolute path outside the workspace was
-   honoured — Ycode refuses it (deliberate deviation, §1).
+   honoured — SwiftCode refuses it (deliberate deviation, §1).
 2. The source must exist: `Source .strings file not found:
    <srcPath>`. It must read as UTF-8: `Unable to read .strings
    content at <srcPath>`.
@@ -3605,15 +3605,15 @@ refusals (`rejectedMessage` / `readOnlyMessage`).
 
 | # | Deviation | Reason |
 |---|---|---|
-| 1 | Every path is confined to the workspace. Legacy's `asset_catalog_manager`, `localization_manager`, `string_catalog_migrator`, and `localize_app` appended paths unchecked, so `..` escaped. | Workspace confinement is the Ycode rule (approval model §7); the unchecked append is a sandbox hole, not a feature. |
+| 1 | Every path is confined to the workspace. Legacy's `asset_catalog_manager`, `localization_manager`, `string_catalog_migrator`, and `localize_app` appended paths unchecked, so `..` escaped. | Workspace confinement is the SwiftCode rule (approval model §7); the unchecked append is a sandbox hole, not a feature. |
 | 2 | A `..` that stays inside the workspace is still refused by the slice's strict resolver, where the session resolver would allow it. | These tools' Legacy messages say `..` is forbidden; the message must stay honest. |
 | 3 | `create_colorset` keeps Legacy's hardcoded colour components and ignores the hex arguments in the file (only the message uses them). | Preserving Legacy's exact file bytes; changing them is a behaviour change for a later wave (§4). |
 | 4 | `asset_catalog_manager` rejects an `assetName` containing `/`, `\`, or `..`; Legacy did not check it. | Confinement: the name is appended to the catalog path. |
 | 5 | `localization_manager`'s `.xcstrings` `add_translation` on a new file writes the seam's canonical empty catalog (`sourceLanguage` + `version`); Legacy's new file had neither key. | The `StringCatalog` seam's canonical form; the file is a valid catalog either way. |
 | 6 | `string_catalog_migrator` writes through `commit()`, which creates parent directories; Legacy's raw write failed when the parent was missing. | `commit()` is the only gate; refusing to create parents would make the tool unusable for nested destinations. |
 | 7 | `localize_app` `set_development_region` ignores a catalog-write failure (including a review refusal of the catalog change) after the plist is committed, as Legacy ignores its catalog-write failure. | Legacy's tolerant behaviour; the plist change stands either way. |
-| 8 | Structured data uses typed JSON values (ints, bools) where Legacy's map held strings only; `localize_app`'s `count`/`keysAdded`, the audit's counts, and the validator's counts are ints, `passed` is a bool. | The Ycode convention from Waves 1–6; keys are unchanged. |
-| 9 | Legacy's `suggestedNextActions: ["localization_audit"]` on `localize_app` is dropped (Ycode's `MCPToolResult` has no such field); the "Next: call localization_audit …" line in the summary keeps the pointer. | Same as Wave 2's dropped envelope fields (approval model §7.4). |
+| 8 | Structured data uses typed JSON values (ints, bools) where Legacy's map held strings only; `localize_app`'s `count`/`keysAdded`, the audit's counts, and the validator's counts are ints, `passed` is a bool. | The SwiftCode convention from Waves 1–6; keys are unchanged. |
+| 9 | Legacy's `suggestedNextActions: ["localization_audit"]` on `localize_app` is dropped (SwiftCode's `MCPToolResult` has no such field); the "Next: call localization_audit …" line in the summary keeps the pointer. | Same as Wave 2's dropped envelope fields (approval model §7.4). |
 | 10 | Legacy's `LiveDiffStreamer`, `XcodeProjWriter.addFileReference`, and `ProjectSessionStore.recordAssistFileMutation` side channels are not ported. | Approval model §7.4: no unreviewed side writes. New files are not auto-registered in any project file. |
 
 ## 13. What is NOT ported (honest gaps)
@@ -3649,10 +3649,10 @@ slice.
 | `AssistToolDataKey.count` / `.path` are `"count"` / `"path"` | 1 | Legacy `SwiftCode/Backend/Assist/AssistModels.swift:356` |
 | `AssistWorkspacePaths.resolve` rejects any `..` as text; absolute paths must be inside the workspace | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistToolSharedHelpers.swift:12` |
 | Aliases `asset_catalog`, `localization`, `string_catalog` | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift:430` (alias table) |
-| `StringCatalog` seam: parse/write, `sourceLanguage`, `keys`, `languages`, `setTranslation`, `addKey`, `removeKey`, `setState`, public `json` with a setting subscript | 1 | Destination `ycode/Sources/YcodeStrings/StringCatalog.swift`, read directly |
-| `YcodeStrings` is re-exported by `YcodeIDECore` (`@_exported import YcodeStrings`); `YcodeAssetCatalog` is not visible to `YcodeMCP` (no target dependency in `ycode/Package.swift`) | 1 | Destination `ycode/Sources/YcodeIDECore/Model/StringsExport.swift`, `ycode/Package.swift` |
-| `commit()` / `MCPChange` / `approve()` gate, `MCPWritePolicy` modes, `readOnlyMessage`, `rejectedMessage`, `run()` refusal/pre-grant/review wiring | 1 | Destination `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`commit`), `ycode/Sources/YcodeMCP/MCPServer.swift` (`run`, `readOnlyMessage`, `rejectedMessage`), `specs/ide/assist-approval-model.md` |
-| Session resolver `resolveFileReadingPath`, `fileReadingRelativePath`, `session(for:)`, `text(of:)` | 1 | Destination `ycode/Sources/YcodeMCP/YcodeTools+FileReadingSupport.swift`, `YcodeMCPHost.swift` |
-| Test format (`firstText`, never exact `resultText ==` on structured results; `opened` helper; `policy: .allow` for writes; `TempSample` fixtures) | 1 | Destination `ycode/Tests/YcodeMCPTests/TestSupport.swift`, `YcodeTestingToolsTests.swift` |
+| `StringCatalog` seam: parse/write, `sourceLanguage`, `keys`, `languages`, `setTranslation`, `addKey`, `removeKey`, `setState`, public `json` with a setting subscript | 1 | Destination `swiftcode/Sources/SwiftCodeStrings/StringCatalog.swift`, read directly |
+| `SwiftCodeStrings` is re-exported by `SwiftCodeIDECore` (`@_exported import SwiftCodeStrings`); `SwiftCodeAssetCatalog` is not visible to `SwiftCodeMCP` (no target dependency in `swiftcode/Package.swift`) | 1 | Destination `swiftcode/Sources/SwiftCodeIDECore/Model/StringsExport.swift`, `swiftcode/Package.swift` |
+| `commit()` / `MCPChange` / `approve()` gate, `MCPWritePolicy` modes, `readOnlyMessage`, `rejectedMessage`, `run()` refusal/pre-grant/review wiring | 1 | Destination `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Content.swift` (`commit`), `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`run`, `readOnlyMessage`, `rejectedMessage`), `specs/ide/assist-approval-model.md` |
+| Session resolver `resolveFileReadingPath`, `fileReadingRelativePath`, `session(for:)`, `text(of:)` | 1 | Destination `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+FileReadingSupport.swift`, `SwiftCodeMCPHost.swift` |
+| Test format (`firstText`, never exact `resultText ==` on structured results; `opened` helper; `policy: .allow` for writes; `TempSample` fixtures) | 1 | Destination `swiftcode/Tests/SwiftCodeMCPTests/TestSupport.swift`, `SwiftCodeTestingToolsTests.swift` |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 

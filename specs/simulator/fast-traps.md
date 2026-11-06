@@ -1,12 +1,12 @@
 # Spec: exit-free hot calls (clock, wall clock, credentials, fixed answers)
 
-Status: **implemented, default on** since 2026-10-17 (`YCODE_FAST_TRAPS=0`
-turns it off; the same for the HVC doorbell, `YCODE_HVC_DOORBELL=0`).
+Status: **implemented, default on** since 2026-10-17 (`SWIFTCODE_FAST_TRAPS=0`
+turns it off; the same for the HVC doorbell, `SWIFTCODE_HVC_DOORBELL=0`).
 Measured 2026-10-17 (§8): correct, removes about a third of all traps, and
 does not change the time to the home screen. Since the same day the guest
 mach time runs at 24 MHz (`darwin-process-start.md` §5, "Guest timebase");
 §3.2 gives the in-place scaling that keeps the two paths equal.
-This is Ycode's own design. It changes no Darwin interface: every value the
+This is SwiftCode's own design. It changes no Darwin interface: every value the
 guest computes is the value the kernel would have returned through the
 trap. The Darwin facts come from `darwin-process-start.md` §3–§4 (xnu open
 source, level 1); the Arm facts from the Arm Architecture Reference Manual;
@@ -18,7 +18,7 @@ Some traps answer from state that the guest can read itself. Each one still
 costs a VM exit and one acquisition of the global kernel lock (in one boot:
 about 15 M of 33 M traps were clock traps −3/−4, each waiting about
 130–190 µs for the lock). With the flag on, `libsystem_kernel` (our host
-library, `ycode/SimHostLibs/kernel`) answers these calls at EL0 from the
+library, `swiftcode/SimHostLibs/kernel`) answers these calls at EL0 from the
 virtual counter and the commpage, with no exception at all:
 
 | Call | Trap it replaces | Answer at EL0 |
@@ -27,7 +27,7 @@ virtual counter and the commpage, with no exception at all:
 | `mach_continuous_time` | −4 | the same + `CONT_TIMEBASE` (§3) |
 | `mach_approximate_time`, `mach_continuous_approximate_time` | −3 / −4 | the precise value (`APPROX_TIME_SUPPORTED` = 0) |
 | `__commpage_gettimeofday` (so `gettimeofday`) | BSD 116 | `NEWTIMEOFDAY_DATA` snapshot (§4) |
-| `getuid`, `geteuid`, `getgid`, `getegid` | BSD 24, 25, 47, 43 | Ycode credential block (§5) |
+| `getuid`, `geteuid`, `getgid`, `getegid` | BSD 24, 25, 47, 43 | SwiftCode credential block (§5) |
 
 `getpid` is already answered from a library variable after the first call
 (`host-libraries.md`, not part of this flag). §6 lists the calls that are
@@ -40,7 +40,7 @@ read costs no exception, and the shim stays a pure forwarder
 ## 2. The switch: commpage byte `0x0F8`
 
 RW-data page offset `0x0F8` lies in Darwin's `UNUSED1` padding
-(`darwin-process-start.md` §3.2, 0x0D9–0x0FF, kernel fill 0). Ycode uses it
+(`darwin-process-start.md` §3.2, 0x0D9–0x0FF, kernel fill 0). SwiftCode uses it
 as a private flag byte:
 
 | Bit | Name | Meaning when set |
@@ -88,7 +88,7 @@ EL0 may read `CNTVCT_EL0` because the shim sets `CNTKCTL_EL1.EL0VCTEN`
 The counter runs at `CNTFRQ_EL0` as the guest sees it (KVM does not
 virtualize the frequency; on the Thor 1 GHz). The guest's mach time runs at
 the guest timebase G (24 MHz by default, `mach_timebase_info` 125/3; the
-host frequency F with `YCODE_GUEST_TIMEBASE=host`). Both paths compute mach
+host frequency F with `SWIFTCODE_GUEST_TIMEBASE=host`). Both paths compute mach
 time from the guest counter c (`CNTVCT_EL0`, which equals host counter −
 system offset, §3.1) with one fixed-point formula:
 
@@ -106,7 +106,7 @@ division), so the in-place value equals the trapped one at the same counter
 value. The result is monotonic in c. Its rate is low by less than 1/M of
 the exact ratio G/F (F = 1 GHz, G = 24 MHz: below 3 × 10⁻¹⁸).
 
-The VMM publishes the pair in the Ycode-private block above
+The VMM publishes the pair in the SwiftCode-private block above
 `_COMM_PAGE_END` (§5 holds the credentials at 0x1000):
 
 | Offset | Size | Field |
@@ -121,8 +121,8 @@ s = 0), so an older VMM that leaves the block zero keeps the old meaning.
 `USER_TIMEBASE` (0x090) is 0 with the 24 MHz timebase: Apple code that
 reads the commpage itself (libsyscall's `mach_absolute_time.s`,
 `kdebug_trace.c`) must not use the raw counter, whose unit is not mach time.
-Ycode's library chooses the in-place path by `DIRECT_CLOCK`, not by
-`USER_TIMEBASE`. With `YCODE_GUEST_TIMEBASE=host` `USER_TIMEBASE` is 1.
+SwiftCode's library chooses the in-place path by `DIRECT_CLOCK`, not by
+`USER_TIMEBASE`. With `SWIFTCODE_GUEST_TIMEBASE=host` `USER_TIMEBASE` is 1.
 
 ### 3.3 The library's reads
 
@@ -132,9 +132,9 @@ The Darwin user path of `darwin-process-start.md` §3.6 with the scale of
 - `mach_absolute_time` = ⌊(`isb; mrs CNTVCT_EL0`) × M / 2^s⌋ +
   `TIMEBASE_OFFSET` (0x088).
   The offset is read before and after the counter; the read repeats if the
-  two differ. Ycode keeps `TIMEBASE_OFFSET` = 0 (no sleep).
+  two differ. SwiftCode keeps `TIMEBASE_OFFSET` = 0 (no sleep).
 - `mach_continuous_time` = absolute + `CONT_TIMEBASE` (0x098), repeated
-  while `CONT_TIMEBASE` changes. Ycode keeps it 0 (no sleep: continuous =
+  while `CONT_TIMEBASE` changes. SwiftCode keeps it 0 (no sleep: continuous =
   absolute, as the trap −4 answers).
 - `mach_approximate_time`: `APPROX_TIME_SUPPORTED` (0x0C8) stays 0, so the
   precise value is returned (any value no newer than the precise one is
@@ -150,7 +150,7 @@ ever sees time go back against another thread or process.
 `NEWTIMEOFDAY_DATA` (0x120, five u64) as `darwin-process-start.md` §3.6
 defines it:
 
-| +off | Field | Ycode value |
+| +off | Field | SwiftCode value |
 |---|---|---|
 | 0 | `TimeStamp_tick` | mach time of the snapshot (§3 clock, guest timebase units); 0 = invalid |
 | 8 | `TimeStamp_sec` | calendar seconds at the snapshot |
@@ -191,10 +191,10 @@ second (microseconds). `mach_get_times` uses the same path for its
 
 ## 5. Credentials from the commpage
 
-Ycode's kernel gives every guest process fixed credentials
+SwiftCode's kernel gives every guest process fixed credentials
 (`DarwinFileSystem.guestUID` / `guestGID`): `setuid` and its family are not
 implemented, and the kernel never changes a process's credentials. The VMM
-publishes them in a Ycode-private block on the RW-data page **above
+publishes them in a SwiftCode-private block on the RW-data page **above
 Darwin's `_COMM_PAGE_END` (0xFFF)**, where Darwin defines nothing:
 
 | Offset | Size | Field |
@@ -226,15 +226,15 @@ field; otherwise they make the BSD call.
 ## 5a. Calls with a fixed kernel answer; the sysctl cache (2026-10-27, agent GUEST-CPU-2)
 
 A boot's trap census (`guest-cpu.md` §6) found three calls whose answer
-Ycode's kernel computes from nothing that can change, made hundreds of
+SwiftCode's kernel computes from nothing that can change, made hundreds of
 thousands of times. Two more flag bits let the host library answer them:
 
 | Bit | Name | Switch (default on, `=0` off) | Meaning when set |
 |---|---|---|---|
-| 2 | `LOCAL_CALLS` | `YCODE_LOCAL_CALLS` | `madvise` and `issetugid` are answered in the library |
-| 3 | `SYSCTL_CACHE` | `YCODE_SYSCTL_CACHE` | the library keeps the name-to-OID and `kern.boottime` answers of `sysctl` |
+| 2 | `LOCAL_CALLS` | `SWIFTCODE_LOCAL_CALLS` | `madvise` and `issetugid` are answered in the library |
+| 3 | `SYSCTL_CACHE` | `SWIFTCODE_SYSCTL_CACHE` | the library keeps the name-to-OID and `kern.boottime` answers of `sysctl` |
 
-Both need `YCODE_FAST_TRAPS` (the byte is written only with it).
+Both need `SWIFTCODE_FAST_TRAPS` (the byte is written only with it).
 
 **`madvise(addr, len, advice)` (BSD 75), also `posix_madvise`.** The
 kernel answers advice 0…10 (`MADV_NORMAL` … `MADV_PAGEOUT`, including
@@ -246,7 +246,7 @@ the library returns the same: 0, or −1 with errno EINVAL. Only
 ever give advice 0…10 an effect (returning host memory, checking the
 range), it must clear the bit first.
 
-**`issetugid()` (BSD 327).** Always 0 in Ycode's kernel (credentials
+**`issetugid()` (BSD 327).** Always 0 in SwiftCode's kernel (credentials
 never change, §5): answered 0 with `LOCAL_CALLS`.
 
 **`sysctl` (BSD 202), `__sysctl` in the library.** With `SYSCTL_CACHE`:
@@ -307,8 +307,8 @@ switches off. Cost per call: `madvise` 3 ns (BSD 75: 3.4 µs),
   child; the wall clock agrees with BSD 116 within 5 ms; per-call cost of
   each path. The probe makes the trap with an inline `svc #0x80` so it can
   compare both paths in one run.
-- The per-trap-number counts of `YCODE_TRAP_PROFILE` show what moved.
-  `YCODE_TRAP_PROFILE_ROWS=<n>` (default 25) lists more rows per table, so
+- The per-trap-number counts of `SWIFTCODE_TRAP_PROFILE` show what moved.
+  `SWIFTCODE_TRAP_PROFILE_ROWS=<n>` (default 25) lists more rows per table, so
   that traps that become rare still appear with their counts.
 
 ## 8. Measurements (Thor, 2026-10-17)
@@ -316,7 +316,7 @@ switches off. Cost per call: `madvise` 3 ns (BSD 75: 3.4 µs),
 ### 8.1 Correctness: guest probe
 
 `p_fasttraps` ran 12 times, 3 times in each of the four modes (no switch,
-`YCODE_HVC_DOORBELL=1`, `YCODE_FAST_TRAPS=1`, both). Every run printed
+`SWIFTCODE_HVC_DOORBELL=1`, `SWIFTCODE_FAST_TRAPS=1`, both). Every run printed
 `fasttraps ok`. With the switch on, the flag byte was `0x03`. Without it,
 the byte was `0x00` and every path trapped. The checks were these:
 
@@ -328,23 +328,23 @@ the byte was `0x00` and every path trapped. The checks were these:
 | a 50 ms sleep, measured in mach time | 50 ms |
 | `gettimeofday` against BSD 116, also after a 1.2 s pause (stale snapshot) | worst difference 17–43 µs (limit 5 ms) |
 | `getuid`/`geteuid`/`getgid`/`getegid` against BSD 24/25/47/43, in the parent and in a spawned child | equal |
-| the same after `fork` | not testable: Ycode's kernel does not implement `fork` (BSD 2), so the probe reports `fork=unsupported`. §5 gives the rule for when `fork` is implemented |
+| the same after `fork` | not testable: SwiftCode's kernel does not implement `fork` (BSD 2), so the probe reports `fork=unsupported`. §5 gives the rule for when `fork` is implemented |
 
 ### 8.2 Cost per call (probe, ns, 3 runs each, the Thor under load ≈ 17)
 
-| Call | Trap (no switch) | With `YCODE_FAST_TRAPS=1` |
+| Call | Trap (no switch) | With `SWIFTCODE_FAST_TRAPS=1` |
 |---|---|---|
 | `mach_absolute_time` | 4908–5020 | 69–85 |
 | `mach_continuous_time` | 4707–4753 | 69–70 |
 | `gettimeofday` | 5527–5589 | 79–80 |
 | `geteuid` | 4746–4873 | 3 |
 
-### 8.3 Full boot (harness, `YCODE_LEAN_BOOT` unset, device in RAM)
+### 8.3 Full boot (harness, `SWIFTCODE_LEAN_BOOT` unset, device in RAM)
 
-Trap counts come from `YCODE_TRAP_PROFILE` with 400 rows. Each value is for
+Trap counts come from `SWIFTCODE_TRAP_PROFILE` with 400 rows. Each value is for
 one boot (set 2, interleaved, 19:03–20:42).
 
-| Trap | No switch | `YCODE_FAST_TRAPS=1` | Change |
+| Trap | No switch | `SWIFTCODE_FAST_TRAPS=1` | Change |
 |---|---|---|---|
 | −4 `mach_continuous_time` | 3 453 208 | 0 | −100 % |
 | −3 `mach_absolute_time` | 1 982 814 | 2 398 | −99.9 % |
@@ -389,14 +389,14 @@ gave the best combined means. Until the default changes, it stays opt-in.
 ### 8.4 With the 24 MHz guest timebase (2026-10-17, integrated build)
 
 `p_fasttraps` printed `fasttraps ok` with the scaled clock (default), with
-`YCODE_GUEST_TIMEBASE=host`, with `YCODE_FAST_TRAPS=0`, and with both
+`SWIFTCODE_GUEST_TIMEBASE=host`, with `SWIFTCODE_FAST_TRAPS=0`, and with both
 switches off: the in-place 24 MHz value lies between two trapped readings
 in every round, 8 threads × 200 000 reads never go back, a spawned child
 stays inside the parent's bracket, a 50 ms sleep measures 50 ms, and the
 wall clock is within 20–27 µs of BSD 116. Cost: `mach_absolute_time` 70 ns
 in place (the scale adds no measurable cost) against 4.4–4.6 µs trapped.
 
-Full boots (harness, `YCODE_LEAN_BOOT` unset, device in RAM, 700 s, two
+Full boots (harness, `SWIFTCODE_LEAN_BOOT` unset, device in RAM, 700 s, two
 boots at a time), both switches on:
 
 | Guest timebase, N | home_s | traps (M, 700 s) | kernel lock busy |
@@ -415,15 +415,15 @@ With the host timebase homed alone makes 4.8 M traps per boot (the Swift
 | Commpage time fields, reader/writer protocol, `UNUSED1` padding, `_COMM_PAGE_END` | 1 | `darwin-process-start.md` §3 (xnu `osfmk/arm/cpu_capabilities.h`, libsyscall) |
 | `KVM_ARM_SET_COUNTER_OFFSET` semantics (VM-wide, applies to later vCPUs) | 1 | Linux KVM API documentation; uapi `linux/kvm.h` (`KVM_CAP_COUNTER_OFFSET` = 227) |
 | Swift's fixed 24 MHz deadline conversion (why mach time is scaled) | 1 | `darwin-process-start.md` §5 "Guest timebase" (swift `DispatchGlobalExecutor.cpp`) |
-| Clock scale formula, block at 0x1010, `USER_TIMEBASE` = 0 with the scaled clock | — | Ycode design (§3.2) |
+| Clock scale formula, block at 0x1010, `USER_TIMEBASE` = 0 with the scaled clock | — | SwiftCode design (§3.2) |
 | Counter reset per new vCPU without it | 3 | `first-boot.md` §6 item 4 (`clockprobe.c` on the Thor) |
 | EL0 counter access through `CNTKCTL_EL1.EL0VCTEN`; counter monotonic and synchronized across PEs | 1 | Arm Architecture Reference Manual (generic timer) |
-| Trap counts and lock waits of clock and credential traps | 3 | `YCODE_TRAP_PROFILE` of a harness boot on the Thor |
+| Trap counts and lock waits of clock and credential traps | 3 | `SWIFTCODE_TRAP_PROFILE` of a harness boot on the Thor |
 | §8.4: probe and boots with the scaled clock | 3 | `p_fasttraps` (4 modes) and 8 harness boots on the Thor, agent A2b runs `SX/IA2/ig/runs`, 2026-10-17 |
 | §8: probe results, cost per call, trap counts, lock times and home-screen times in four modes | 3 | `p_fasttraps` (12 runs) and 14 valid harness boots on the Thor, 2026-10-17 (agent EXIT runs `SX/EXIT/runs`, `SX/EXITM/runs`; two later boots were discarded because the data drive was full) |
-| Send-right references from the self-port traps | 3 | Ycode's kernel (`MachIPCTraps.swift`); xnu `osfmk/kern/ipc_tt.c` behavior (level 1) |
-| Credentials fixed in Ycode's kernel | — | Ycode decision (`DarwinFileSystem.guestUID`) |
-| §5a: the kernel's fixed answers for `madvise`, `issetugid`, the sysctl name-to-OID query and `kern.boottime` | — | Ycode's kernel (`TaskLocalTraps.swift`, `DarwinKernel.swift`, `SysctlTable.swift`) |
+| Send-right references from the self-port traps | 3 | SwiftCode's kernel (`MachIPCTraps.swift`); xnu `osfmk/kern/ipc_tt.c` behavior (level 1) |
+| Credentials fixed in SwiftCode's kernel | — | SwiftCode decision (`DarwinFileSystem.guestUID`) |
+| §5a: the kernel's fixed answers for `madvise`, `issetugid`, the sysctl name-to-OID query and `kern.boottime` | — | SwiftCode's kernel (`TaskLocalTraps.swift`, `DarwinKernel.swift`, `SysctlTable.swift`) |
 | §5a: `sysctl` copy-out rules, `{0, 3}` name-to-OID, `{1, 21}` `kern.boottime`, `madvise` advice values | 1 | xnu `bsd/kern/kern_sysctl.c`, `bsd/sys/sysctl.h`, `bsd/sys/mman.h` (open source) |
 | §5a: equivalence and cost per call | 3 | `p_fasttraps` on the Thor, 2026-10-27 |
 

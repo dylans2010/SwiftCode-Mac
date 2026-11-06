@@ -1,9 +1,9 @@
 # Spec: snapshot and restore of a running simulator
 
 Status: **design + prototype (2026-10-17, agents SNAP and SNAPb).** Phase 1
-(this document) inventories the state of a running Ycode simulator, fixes the
+(this document) inventories the state of a running SwiftCode simulator, fixes the
 snapshot format, the quiesce protocol and the restore order. Phase 2 (the
-prototype behind `YCODE_SNAPSHOT_*` and `YCODE_RESTORE_*`, default off)
+prototype behind `SWIFTCODE_SNAPSHOT_*` and `SWIFTCODE_RESTORE_*`, default off)
 implements the subset of §9 and measures it (§10): a home-screen device is
 snapshotted and restored, with the GPU clients restarted (§8 option 1).
 Phase 3 (2026-10-19, agent SP-SNAP), the warm-boot path: the IOSurface,
@@ -23,7 +23,7 @@ the fast paths and the host services: hung restores and host crashes),
 calendar-time timers follow the wall clock, the launcher keeps logs and
 symbolized crash reports and checks that a restored guest runs (§12.5).
 
-This is Ycode's own design for Ycode's own VMM and kernel personality. It
+This is SwiftCode's own design for SwiftCode's own VMM and kernel personality. It
 describes no Apple internals. Darwin facts it relies on (trap numbers, the
 meaning of a Mach port name, `mach_absolute_time`) come from the xnu sources
 and headers and are already in `mach-ipc.md`, `processes.md` and
@@ -35,11 +35,11 @@ snapshots (versioned per-device state plus a guest-memory file) and CRIU
 ## 0. Goal and terms
 
 A developer pays the boot once: boot a device to the home screen, write a
-snapshot, and later start a new `ycode-simd` process from the snapshot and
+snapshot, and later start a new `swiftcode-simd` process from the snapshot and
 reach a running home screen in seconds (a boot of an already-migrated device
 takes 500–560 s on the Thor, `specs/simulator/home-screen.md`).
 
-- **Simulator state**: everything one `ycode-simd` host process holds for one
+- **Simulator state**: everything one `swiftcode-simd` host process holds for one
   device: the `DarwinSystem` (process table, the shared Mach state, the one
   kernel lock), one `DarwinKernel` per live process image, one KVM VM per
   image with its memory and vCPUs, the VMM's launcher records, and the host
@@ -113,7 +113,7 @@ The VM's guest-physical space (`vm-shim-protocol.md` §2,
 The address-space map itself (`GuestAddressSpace` regions: VA, size,
 protection, backing kind, file guest path, host path and offset, shared
 object and offset, `permanent`) is captured as one record per region.
-Permanent regions (the Ycode host page, the commpage, the main-thread
+Permanent regions (the SwiftCode host page, the commpage, the main-thread
 block) are created by the normal image build; the restore only rewrites
 their content. Workqueue thread allocations (560 KiB each) are ordinary
 anonymous regions.
@@ -182,12 +182,12 @@ anonymous regions.
 |---|---|---|
 | Host task (`MachHostTask`) | its Mach space (ports the VMM's services receive on: host bootstrap port, service ports, port sets), queued messages | captured like a guest task (it is one in the shared Mach state); its receiver threads are restarted |
 | Bootstrap logger, device session | the control channel port, the session binding, one-shot bookkeeping | the channel and session-port names are a `device-session` host-service record (§6.1); the restored run adopts the session without a new bind (700) and runs its app steps (§7 step 8). One-shot bookkeeping is not saved |
-| SCDynamicStore host service | the open sessions (session port, the notify rights each keeps); the store itself is empty in Ycode | captured (`scdynamicstore` record): without it every request on a restored session port is answered "no store session" |
+| SCDynamicStore host service | the open sessions (session port, the notify rights each keeps); the store itself is empty in SwiftCode | captured (`scdynamicstore` record): without it every request on a restored session port is answered "no store session" |
 | IOSurface host service | surfaces (id, memory entry, serial, name, creation properties, planes, layout, seed, values, attachments, lock and use counts, purgeable state, Method-14 ports), connections (client port, references per surface), next serial | captured with the guest quiesced (`iosurface` record, §3.1 step 4); surface memory is a shared memory object behind the host task's memory entry (§2.1), found again by the entry's name |
 | Metal host service | per process: connections, event port, ref tables (guest ref → handle, next, free list), objects (kind, ref, rights, heap sizes, GPU address, event value, how the object was made), recipes of released objects that live ones were made from; the contents of textures and buffers that live in GPU memory only | captured with the guest quiesced and no command buffer in flight (`metal-objects` record); the back end's Vulkan objects are made again from the recipes (§8 option 2). The client pids stay in a `metal` record (§8 option 1) |
 | HID host service (`hid-input.md` §7) | the guest bundle's registration: a send right in the host task's space | the host-task name is a `hid` record; the restored service takes it back (§12.4) |
 | Screen capture, display server | a path and timers | rebuilt from the configuration |
-| Framebuffer state file (`DEV/data/tmp/ycode-framebuffer.state`) | a guest file backboardd keeps open | kept by the restore (§12.4); its record names a restored surface |
+| Framebuffer state file (`DEV/data/tmp/swiftcode-framebuffer.state`) | a guest file backboardd keeps open | kept by the restore (§12.4); its record names a restored surface |
 
 ### 2.7 What cannot be captured
 
@@ -201,11 +201,11 @@ anonymous regions.
   wrote (caches, databases, mapped files), and guest paths contain the
   device directory's *host* path (the writable prefix is served at its own
   path). So the device directory is part of the snapshot: it is copied while
-  the guest is paused (`YCODE_SNAPSHOT_COPY_DEVICE=1`; 650 MB, 15 400 files
+  the guest is paused (`SWIFTCODE_SNAPSHOT_COPY_DEVICE=1`; 650 MB, 15 400 files
   at the home screen) and must be put back at the same host path before a
   restore. Files whose size or mtime changed are reported. Two ways back:
-  - *in place*: a snapshot taken with `YCODE_SNAPSHOT_EXIT=1` or at a stop
-    (`YCODE_SNAPSHOT_STOP_DIR`, §12.2) leaves the device directory exactly
+  - *in place*: a snapshot taken with `SWIFTCODE_SNAPSHOT_EXIT=1` or at a stop
+    (`SWIFTCODE_SNAPSHOT_STOP_DIR`, §12.2) leaves the device directory exactly
     in the snapshot's state (no guest instruction runs after the capture),
     and one restore can run on it directly. Every snapshot of a device
     records `device-path` and `device-inodes`, so an in-place restore of a
@@ -277,7 +277,7 @@ anonymous regions.
    the VMM's host mappings; no vCPU runs.
 6. **Release**: either resume (clear the pause flag, wake the gates; the
    simulator continues as if nothing happened) or end the host process
-   (`YCODE_SNAPSHOT_EXIT=1`).
+   (`SWIFTCODE_SNAPSHOT_EXIT=1`).
 
 Time stands still for the guest while it is paused only if the counter is
 also stopped; the prototype does not stop it (a pause of tens of ms looks
@@ -479,7 +479,7 @@ payload with the service's tags: `IOSurfaceHostService.SnapTag`,
 
 ### 6.3 Lazy restore
 
-With `YCODE_RESTORE_LAZY=1` the page files are not read at restore. For each
+With `SWIFTCODE_RESTORE_LAZY=1` the page files are not read at restore. For each
 run of consecutive saved pages that lie in one region and in the anonymous
 pool or a private file mapping (the private file window, a file memslot),
 the host memory behind the run is replaced by a private, writable mapping of
@@ -504,7 +504,7 @@ Two rules keep the mapped memory correct:
   map would call it absent or clean. The ranges mapped from page files are
   remembered, and a later snapshot counts their pages as resident and dirty.
 
-`YCODE_RESTORE_PREFETCH=1` adds a background request to the host to read
+`SWIFTCODE_RESTORE_PREFETCH=1` adds a background request to the host to read
 every page file ahead (`POSIX_FADV_WILLNEED`), so first touches find the
 pages in the page cache. The page files must stay unchanged while a run
 restored from them is alive.
@@ -545,7 +545,7 @@ restored from them is alive.
    after a boot.
 9. Threads: for each `pendingTrap`, `blocked` or `resume` thread, start a
    vCPU at an EL0 address that holds an `svc #0x80` (the first one in the
-   Ycode host page's code). When that first trap arrives, the restore hook
+   SwiftCode host page's code). When that first trap arrives, the restore hook
    writes the thread's FP/SIMD registers into the vCPU, replaces the frame
    with the recorded one, and either resumes it (`resume`) or passes it to
    the kernel as a new trap (`pendingTrap`, `blocked`). Suspended threads
@@ -665,25 +665,25 @@ Behind environment variables, all default off:
 
 | Variable | Effect |
 |---|---|
-| `YCODE_SNAPSHOT_DIR=<dir>` | where a snapshot is written |
-| `YCODE_SNAPSHOT_AT_MS=<ms>[,<ms>…]` | take a snapshot that many ms after the root process started (several: one subdirectory each) |
-| `YCODE_SNAPSHOT_WHEN_FILE=<host path>` | take a snapshot `YCODE_SNAPSHOT_DELAY_MS` (default 300, at most 60 000) after that file appears (a guest test creates it in its `/tmp`; the benchmark harness's home-screen result file) |
-| `YCODE_SNAPSHOT_DEADLINE_MS=<ms>` | how long the quiesce loop retries (default 5000) |
-| `YCODE_SNAPSHOT_EXIT=1` | end the host process after the snapshot (default: resume) |
-| `YCODE_SNAPSHOT_CENSUS=1` | quiesce, count every kind of state and the dirty memory, print the census, resume (no files) |
-| `YCODE_SNAPSHOT_COPY_DEVICE=1` | device mode: copy the device directory into `<dir>/device` while paused (§2.7) |
-| `YCODE_RESTORE_DIR=<dir>` | `--exec`/`--device`: restore the snapshot instead of spawning the root process |
-| `YCODE_RESTORE_MEASURE=1` | restore images, memory and kernel objects, print the timings, start no thread, exit |
-| `YCODE_RESTORE_KILL=<name>[,…]` | after a restore, SIGKILL the processes with these executable names (`*text*` matches names containing text; `auto` the Metal clients of the `metal` record): §8 option 1 |
-| `YCODE_RESTORE_LENIENT=1` | a host file that is gone since the snapshot does not fail the restore: an open file becomes an empty unlinked file, a shared file view plain shared memory, a file mapping anonymous memory (each is reported) |
-| `YCODE_RESTORE_LAZY=1` | page files are mapped as guest memory instead of read (§6.3) |
-| `YCODE_RESTORE_PREFETCH=1` | with lazy restore: ask the host to read the page files ahead in the background |
-| `YCODE_SNAPSHOT_GPU=0` | do not save the IOSurface and Metal state (default: saved; a restore of such a snapshot must restart the Metal clients, `YCODE_RESTORE_KILL=auto`) |
-| `YCODE_RESTORE_GPU=0` | do not restore the IOSurface and Metal state from the snapshot (diagnostics) |
-| `YCODE_SNAPSHOT_HOLD_APPS=<s>` | device mode, with `YCODE_SNAPSHOT_WHEN_FILE` and `YCODE_SNAPSHOT_DIR`: the `--install-app` / `--launch` steps wait until that snapshot is written or has failed (at most `s` seconds, or until the run ends), so the snapshot shows the home screen without the app. Without `YCODE_SNAPSHOT_DIR` (with `YCODE_SNAPSHOT_STOP_DIR`): the steps wait until `YCODE_SNAPSHOT_DELAY_MS` after the file appears, and no snapshot is taken then (§12.2). Ignored in a restore |
-| `YCODE_SNAPSHOT_STOP_DIR=<dir>` | device mode: SIGTERM, SIGINT or SIGHUP, or the end of `--timeout-ms`, stops the run with a snapshot: the launched app is killed (SIGKILL; it is waited for until reaped, at most 10 s), the device settles `YCODE_SNAPSHOT_STOP_SETTLE_MS` (default 2000), the snapshot is written to `dir` and the host process exits with status 0 without running another guest instruction ("snapshot: exiting after the snapshot"). No snapshot while the app steps still run, or when the quiesce fails: the guest is then shut down as at the end of `--timeout-ms` (§12.2) |
-| `YCODE_SNAPSHOT_STOP_CLOSE_FDS=<fd>[,<fd>…]` | with a stop snapshot: these inherited descriptors (the launcher's device lock and boot slot) are closed after the snapshot is written, before the host process exits, so nobody waits for its teardown |
-| `YCODE_RESTORE_NO_BARRIER=1` | diagnostics: the restore's start gate is off (§7 step 9: a thread runs as soon as it has a vCPU, and a start that finds its process ended fails the restore), the behavior before phase 5 |
+| `SWIFTCODE_SNAPSHOT_DIR=<dir>` | where a snapshot is written |
+| `SWIFTCODE_SNAPSHOT_AT_MS=<ms>[,<ms>…]` | take a snapshot that many ms after the root process started (several: one subdirectory each) |
+| `SWIFTCODE_SNAPSHOT_WHEN_FILE=<host path>` | take a snapshot `SWIFTCODE_SNAPSHOT_DELAY_MS` (default 300, at most 60 000) after that file appears (a guest test creates it in its `/tmp`; the benchmark harness's home-screen result file) |
+| `SWIFTCODE_SNAPSHOT_DEADLINE_MS=<ms>` | how long the quiesce loop retries (default 5000) |
+| `SWIFTCODE_SNAPSHOT_EXIT=1` | end the host process after the snapshot (default: resume) |
+| `SWIFTCODE_SNAPSHOT_CENSUS=1` | quiesce, count every kind of state and the dirty memory, print the census, resume (no files) |
+| `SWIFTCODE_SNAPSHOT_COPY_DEVICE=1` | device mode: copy the device directory into `<dir>/device` while paused (§2.7) |
+| `SWIFTCODE_RESTORE_DIR=<dir>` | `--exec`/`--device`: restore the snapshot instead of spawning the root process |
+| `SWIFTCODE_RESTORE_MEASURE=1` | restore images, memory and kernel objects, print the timings, start no thread, exit |
+| `SWIFTCODE_RESTORE_KILL=<name>[,…]` | after a restore, SIGKILL the processes with these executable names (`*text*` matches names containing text; `auto` the Metal clients of the `metal` record): §8 option 1 |
+| `SWIFTCODE_RESTORE_LENIENT=1` | a host file that is gone since the snapshot does not fail the restore: an open file becomes an empty unlinked file, a shared file view plain shared memory, a file mapping anonymous memory (each is reported) |
+| `SWIFTCODE_RESTORE_LAZY=1` | page files are mapped as guest memory instead of read (§6.3) |
+| `SWIFTCODE_RESTORE_PREFETCH=1` | with lazy restore: ask the host to read the page files ahead in the background |
+| `SWIFTCODE_SNAPSHOT_GPU=0` | do not save the IOSurface and Metal state (default: saved; a restore of such a snapshot must restart the Metal clients, `SWIFTCODE_RESTORE_KILL=auto`) |
+| `SWIFTCODE_RESTORE_GPU=0` | do not restore the IOSurface and Metal state from the snapshot (diagnostics) |
+| `SWIFTCODE_SNAPSHOT_HOLD_APPS=<s>` | device mode, with `SWIFTCODE_SNAPSHOT_WHEN_FILE` and `SWIFTCODE_SNAPSHOT_DIR`: the `--install-app` / `--launch` steps wait until that snapshot is written or has failed (at most `s` seconds, or until the run ends), so the snapshot shows the home screen without the app. Without `SWIFTCODE_SNAPSHOT_DIR` (with `SWIFTCODE_SNAPSHOT_STOP_DIR`): the steps wait until `SWIFTCODE_SNAPSHOT_DELAY_MS` after the file appears, and no snapshot is taken then (§12.2). Ignored in a restore |
+| `SWIFTCODE_SNAPSHOT_STOP_DIR=<dir>` | device mode: SIGTERM, SIGINT or SIGHUP, or the end of `--timeout-ms`, stops the run with a snapshot: the launched app is killed (SIGKILL; it is waited for until reaped, at most 10 s), the device settles `SWIFTCODE_SNAPSHOT_STOP_SETTLE_MS` (default 2000), the snapshot is written to `dir` and the host process exits with status 0 without running another guest instruction ("snapshot: exiting after the snapshot"). No snapshot while the app steps still run, or when the quiesce fails: the guest is then shut down as at the end of `--timeout-ms` (§12.2) |
+| `SWIFTCODE_SNAPSHOT_STOP_CLOSE_FDS=<fd>[,<fd>…]` | with a stop snapshot: these inherited descriptors (the launcher's device lock and boot slot) are closed after the snapshot is written, before the host process exits, so nobody waits for its teardown |
+| `SWIFTCODE_RESTORE_NO_BARRIER=1` | diagnostics: the restore's start gate is off (§7 step 9: a thread runs as soon as it has a vCPU, and a start that finds its process ended fails the restore), the behavior before phase 5 |
 
 Record kinds implemented: system, clock, process, image, thread, region,
 shared memory (anonymous objects with `shm-<id>.ypages`, and shared host-file
@@ -731,7 +731,7 @@ correct as well.
 | largest images | SpringBoard 96 MiB, Unity2025Poster 42, PosterBoard 38, homed 32, backboardd 30 |
 | quiesce | 0.7–0.8 s (3–5 attempts) |
 | capture | kernel records 0.3 s, memory scan 0.4 s, writing 3.1 GB 3.3 s (page cache) to 44 s (busy disk); manifest 21 MB, 63 546 records |
-| restore, measured (`YCODE_RESTORE_MEASURE`) | 268 images rebuilt 1.4–2.2 s, 27 579 regions replayed and 2.97 GB of pages written 4.9–6.4 s (serial, one thread) |
+| restore, measured (`SWIFTCODE_RESTORE_MEASURE`) | 268 images rebuilt 1.4–2.2 s, 27 579 regions replayed and 2.97 GB of pages written 4.9–6.4 s (serial, one thread) |
 
 ### 10.3 Restarting the UI stack
 
@@ -753,9 +753,9 @@ is about 3, the wallpapered home screen about 133); frames every 5 s for a
 cold boot, every 2–5 s after a restore.
 
 Snapshots: a cold boot, then a snapshot 60 s after the harness saw the
-home screen (`YCODE_SNAPSHOT_WHEN_FILE` = its result file,
-`YCODE_SNAPSHOT_DELAY_MS=60000`, `YCODE_SNAPSHOT_COPY_DEVICE=1`,
-`YCODE_SNAPSHOT_EXIT=1`).
+home screen (`SWIFTCODE_SNAPSHOT_WHEN_FILE` = its result file,
+`SWIFTCODE_SNAPSHOT_DELAY_MS=60000`, `SWIFTCODE_SNAPSHOT_COPY_DEVICE=1`,
+`SWIFTCODE_SNAPSHOT_EXIT=1`).
 
 | | c1 | c2 |
 |---|---|---|
@@ -768,7 +768,7 @@ home screen (`YCODE_SNAPSHOT_WHEN_FILE` = its result file,
 | total pause | 14.7 s | 25.5 s |
 | size on disk | 3.6 GB (pages 2.9 GB, device copy 0.65 GB) | 3.6 GB |
 
-Restores (`YCODE_RESTORE_KILL=auto,SpringBoard`, `YCODE_RESTORE_LENIENT=1`):
+Restores (`SWIFTCODE_RESTORE_KILL=auto,SpringBoard`, `SWIFTCODE_RESTORE_LENIENT=1`):
 
 | Run | Snapshot, device directory | Restore (images, memory, objects) | Home screen after the restore | Wall time to the home screen | Notes |
 |---|---|---|---|---|---|
@@ -813,9 +813,9 @@ holds on) plus this work, on the shared Thor (load 8–20 from other agents'
 boots). Snapshot: a cold boot, then a snapshot 60 s after the home screen,
 written to the RAM tmpfs (`/run/user/<uid>`) or copied to the USB data disk.
 Every restore runs `--install-app` (the probe app) and `--launch` with
-`YCODE_RESTORE_LAZY=1`, no `YCODE_RESTORE_KILL` (the UI processes keep
-running), `YCODE_RESTORE_LENIENT=1`. Times are wall seconds from the start
-of `ycode-simd`. "Home screen" is the first of two frames in a row brighter
+`SWIFTCODE_RESTORE_LAZY=1`, no `SWIFTCODE_RESTORE_KILL` (the UI processes keep
+running), `SWIFTCODE_RESTORE_LENIENT=1`. Times are wall seconds from the start
+of `swiftcode-simd`. "Home screen" is the first of two frames in a row brighter
 than 60 (frames every 2 s); after a restore the display surface is restored
 too, and that the UI is live shows in the frames that follow (the install's
 "Installing…" placeholder icon drawn by SpringBoard, rendered by backboardd)
@@ -861,7 +861,7 @@ Findings:
   several threads was slower (6.7 s against 4.0 s): the host mappings
   serialize on the process's memory-map lock.
 - **App install and launch after a restore work** (6 of 6 runs). The
-  blocker of §10.4 was a lost thread request in Ycode's kevent workqueue
+  blocker of §10.4 was a lost thread request in SwiftCode's kevent workqueue
   (`threads-and-events.md` K5): a worker that unbound itself early released
   its delivered knotes at its return without re-evaluating their bucket, so
   a message that had arrived meanwhile (filecoordinationd, servicing lsd for
@@ -906,26 +906,26 @@ Findings:
 
 The IDE's run on the remote simulator restores a snapshot by default
 (`specs/ide/run.md` §Warm boot); the policy lives in the host-side
-launcher `ycode/scripts/ycode-sim.sh`, and `ycode-simd` provides the
-mechanisms (§9: `YCODE_SNAPSHOT_STOP_DIR`, `YCODE_SNAPSHOT_HOLD_APPS`,
-`YCODE_RESTORE_*`). Per device, under the launcher's data directory (the
+launcher `swiftcode/scripts/swiftcode-sim.sh`, and `swiftcode-simd` provides the
+mechanisms (§9: `SWIFTCODE_SNAPSHOT_STOP_DIR`, `SWIFTCODE_SNAPSHOT_HOLD_APPS`,
+`SWIFTCODE_RESTORE_*`). Per device, under the launcher's data directory (the
 data volume, never the system disk):
 
 | Path | Content |
 |---|---|
-| `snapshots/<device>/current/` | the snapshot (§6, with `device-path` and `device-inodes`; no device copy) and `ycode-warm.stamp`: line 1 the fingerprint, line 2 the capture time, line 3 the snapshot's id |
+| `snapshots/<device>/current/` | the snapshot (§6, with `device-path` and `device-inodes`; no device copy) and `swiftcode-warm.stamp`: line 1 the fingerprint, line 2 the capture time, line 3 the snapshot's id |
 | `snapshots/<device>/device-sync` | the id of the snapshot whose state the device directory is in; absent while a run uses the device or after a run that ended without a save |
 | `snapshots/<device>/device-ino` | the inode number of the device directory the snapshot belongs to (a different or missing directory: erased or replaced) |
-| `snapshots/<device>/.lock` | `flock`: held from the start of a run until its save is in place (the launcher, `ycode-simd` and the save job share it) |
-| `runs/<device>/` | the last run's frames; `logs/<time>-<mode>.txt`, the last 10 runs' logs (`log-cold.txt` / `log-restore.txt` link to the latest of each mode); `crashes/`, the last 10 host crash reports with their symbolized copies (§12.5); `ycode-sim.log` |
+| `snapshots/<device>/.lock` | `flock`: held from the start of a run until its save is in place (the launcher, `swiftcode-simd` and the save job share it) |
+| `runs/<device>/` | the last run's frames; `logs/<time>-<mode>.txt`, the last 10 runs' logs (`log-cold.txt` / `log-restore.txt` link to the latest of each mode); `crashes/`, the last 10 host crash reports with their symbolized copies (§12.5); `swiftcode-sim.log` |
 
 **Per runtime and device type (IOS27, 2026-10-27).** The IDE gives every
 runtime root and device type its own device directory (`specs/ide/run.md`
 §Runtimes and device types), so snapshots, saves and erases are per
 runtime and type by the device name; the fingerprint also holds the runtime
 root, `--device-type` and the runtime's `ProductName` and
-`ProductBuildVersion`. `ycode-simd` refuses a device on an older runtime
-than the one it last booted (`DEV/ycode-runtime`, `ipad.md` §9.2), so a
+`ProductBuildVersion`. `swiftcode-simd` refuses a device on an older runtime
+than the one it last booted (`DEV/swiftcode-runtime`, `ipad.md` §9.2), so a
 snapshot can never be restored onto another runtime's device data. The GPU
 caches stay shared between runtimes (content-keyed).
 
@@ -938,7 +938,7 @@ launcher booted cold instead (about 100 s more).
 **Cause** (from the code, then reproduced below; the logs of the two
 IDE-WARM failures were not kept). §7 step 9 started the restored threads
 one by one, and each thread ran as soon as its vCPU existed: a prebuilt
-VM's precreated vCPUs (C22, `YCODE_VCPU_PREBUILT`) and the creator threads
+VM's precreated vCPUs (C22, `SWIFTCODE_VCPU_PREBUILT`) and the creator threads
 make that immediate. `VCPUPool.start` returns nil both when the pool is
 exhausted and when it has ended, and a process's pool ends as soon as the
 process ends. So guest code that ran while the loop was still going could
@@ -965,16 +965,16 @@ deterministically with a model pool (a thread at `exit` that runs before
 its siblings are started fails the old loop) and checks the gate. The
 restore also logs the threads that restart at a trap that can end their
 process (`exit`, `kill`, `__pthread_kill`, `terminate_with_payload`,
-`abort_with_payload`). `YCODE_RESTORE_NO_BARRIER=1` brings the old
+`abort_with_payload`). `SWIFTCODE_RESTORE_NO_BARRIER=1` brings the old
 behavior back for comparison.
 
 **Result.** One snapshot (a stop snapshot of a device that had run the probe
 app; 257 images, 376 threads, 2.9 GiB of pages) restored 10 times in a row
-from its device copy, each run installing and launching `YcodeProbe.app`
+from its device copy, each run installing and launching `SwiftCodeProbe.app`
 (load 25–37): **10 of 10 restored**, no fallback; restore 5.6–10.3 s
 (median 8.8), home screen 8.1–13.0 s, app launched 15.0–47.7 s (median
-28.1) after `ycode-simd` started. Through the launcher, every restore of
-§12.3 (6 runs, one of them through the IDE) succeeded as well. **Reproduced without the gate** (`YCODE_RESTORE_NO_BARRIER=1`, three
+28.1) after `swiftcode-simd` started. Through the launcher, every restore of
+§12.3 (6 runs, one of them through the IDE) succeeded as well. **Reproduced without the gate** (`SWIFTCODE_RESTORE_NO_BARRIER=1`, three
 home-screen snapshots taken 60 s after the home screen, three restores
 each, load 10–37): one snapshot failed 3 of 3 times with "pid 305: no vCPU
 for thread 4: 1 restored threads, pool 2 of 64 vCPUs, 0 parked (pool
@@ -996,16 +996,16 @@ erased: a booted device keeps running between runs, an app's data
 container (Documents, Library, its preferences) and keychain items stay
 when the app is installed again over itself, and `xcrun simctl erase`
 returns the device to a new state (Apple's `simctl` help and Xcode
-documentation, level 1; observable, level 3). Until phase 5 every Ycode
+documentation, level 1; observable, level 3). Until phase 5 every SwiftCode
 restore put the device back to the snapshot's state, so whatever the
 previous runs wrote was lost.
 
 **Design: save at the stop, restore in place.** A run of the IDE ends with
-Stop (Ycode's SIGINT to the launcher), the end of `--timeout-ms`, or the
-ssh channel going away. At that point the launcher has `ycode-simd` end
+Stop (SwiftCode's SIGINT to the launcher), the end of `--timeout-ms`, or the
+ssh channel going away. At that point the launcher has `swiftcode-simd` end
 the launched app (SIGKILL, as the reference IDE's Stop ends the app while
 the device keeps running), let the device settle 2 s, and write a
-snapshot (`YCODE_SNAPSHOT_STOP_DIR`, staged on the RAM file system); the
+snapshot (`SWIFTCODE_SNAPSHOT_STOP_DIR`, staged on the RAM file system); the
 host process then exits without running another guest instruction. The
 device directory is left exactly as the snapshot saw it, so the next run
 restores the snapshot **in place** (§2.7): no copy of the device
@@ -1021,9 +1021,9 @@ Rules (the launcher):
    older checks hold: fingerprint, device directory present with the
    recorded inode number, device path, complete files). Otherwise it is
    discarded and the device boots cold, with its data as it is.
-2. Every run removes `device-sync` before `ycode-simd` starts: from then
+2. Every run removes `device-sync` before `swiftcode-simd` starts: from then
    on the device directory changes.
-3. A stop is saved when `ycode-simd` reports "snapshot: exiting after the
+3. A stop is saved when `swiftcode-simd` reports "snapshot: exiting after the
    snapshot" with a complete directory; a background job (holding the
    device lock) moves it into `current/`, writes the stamp and then
    `device-sync`. Without that report (a crash, a quiesce that did not
@@ -1034,16 +1034,16 @@ Rules (the launcher):
    same run boots cold on the device directory as the failed restore left
    it.
 5. The device lock (fd 8) is held from the launcher's start until the save
-   is in place: `ycode-simd` inherits it and closes it right before it
-   exits after a save (`YCODE_SNAPSHOT_STOP_CLOSE_FDS=8,9`, with the boot
+   is in place: `swiftcode-simd` inherits it and closes it right before it
+   exits after a save (`SWIFTCODE_SNAPSHOT_STOP_CLOSE_FDS=8,9`, with the boot
    slot), the save job takes the launcher's copy over. A next run of the
    same device, or an erase, waits for it; the 14 s the host process needs
    to tear its VMs down hold nobody up.
 6. A cold boot holds the app steps until 60 s after the home screen
-   (`YCODE_SNAPSHOT_HOLD_APPS` without `YCODE_SNAPSHOT_DIR`; a cold boot that
+   (`SWIFTCODE_SNAPSHOT_HOLD_APPS` without `SWIFTCODE_SNAPSHOT_DIR`; a cold boot that
    installs the app before SpringBoard runs does not reach the home screen,
    §10.5) and takes no snapshot then: its stop saves it.
-7. `ycode-sim --erase --device DEV` (after the lock) discards the snapshot
+7. `swiftcode-sim --erase --device DEV` (after the lock) discards the snapshot
    and the device directory: the next run boots a new device.
 
 Alternatives considered:
@@ -1078,7 +1078,7 @@ Each row is one run of the launcher; "data" is what the probe found
 (defaults / file / keychain, the count of earlier launches whose writes
 survived); "stop" is the pause of the save, the time from the stop to the
 launcher's end, and the background move to the data volume. Times in
-seconds after `ycode-simd` started.
+seconds after `swiftcode-simd` started.
 
 | Run | Path | Home | App launched | Data found | Stop: pause / done / move |
 |---|---|---|---|---|---|
@@ -1092,7 +1092,7 @@ seconds after `ycode-simd` started.
 | e1 | cold through the IDE (`RemoteRunEndToEndTests`, new build) | 40.4 (46.7 from Run) | 120.4 (120.8 from Run) | 3 / 3 / 2 | 2.6 / 5.1 / 3 |
 | e2 | restore through the IDE | 6.5 (9.4 from Run) | 23.3 (23.6 from Run) | (stopped before the app ran its code) | 4.0 / 6.1 / – |
 | w8 | restore in place | 6.4 | 26.4 | 4 / 4 / 3 | 3.0 / 5.7 / – |
-| w9 | cold after `ycode-sim --erase` (a new device, first boot) | 180.0 | 296 (held 240 s) | 0 / 0 / 0 | 3.6 / 6.1 / – |
+| w9 | cold after `swiftcode-sim --erase` (a new device, first boot) | 180.0 | 296 (held 240 s) | 0 / 0 / 0 | 3.6 / 6.1 / – |
 
 ("–" for the keychain: the probe had no keychain entitlement yet and every
 keychain call returned -34018, errSecMissingEntitlement; with
@@ -1106,7 +1106,7 @@ Findings:
   directory name changes with each install; its contents move along).
   A cold boot — a new simulator build (w3, e1), a device directory that no
   longer matches (w5) — starts from the data as the last run left it.
-  `ycode-sim --erase` gives a new device (w9).
+  `swiftcode-sim --erase` gives a new device (w9).
 - **Restore in place:** 4.7–7.3 s for the restore, home screen 6.4–11.1 s,
   app launched 23–30 s after the start; the same as the home-screen
   snapshots of phase 4 (below). A stop snapshot is a little smaller
@@ -1148,14 +1148,14 @@ copy):
 
 ### 12.4 The viewer's sessions (agent SIM-INPUT2, 2026-10-19)
 
-The Mac viewer's host side (`scripts/ycode-sim-serve`, `display-stream.md`)
-runs the same launcher as the IDE (`ycode-sim.sh`, installed next to it as
-`ycode-sim`) with `--display-server` and no app options, so a session is
+The Mac viewer's host side (`scripts/swiftcode-sim-serve`, `display-stream.md`)
+runs the same launcher as the IDE (`swiftcode-sim.sh`, installed next to it as
+`swiftcode-sim`) with `--display-server` and no app options, so a session is
 saved when the viewer closes and the next session restores it in place
 (rules 1–7 of §12.2). The device lives at `<area>/devices/default`, its
 snapshot under `<area>/snapshots/default`. `--cold` (the launcher's
-`YCODE_WARM_FORCE_COLD=1`) discards the snapshot and boots the device as
-it is; `--erase` runs `ycode-sim --erase` (device and snapshot) before a new
+`SWIFTCODE_WARM_FORCE_COLD=1`) discards the snapshot and boots the device as
+it is; `--erase` runs `swiftcode-sim --erase` (device and snapshot) before a new
 copy of the pristine device. What the viewer needed besides:
 
 1. **Input after a restore.** The HID registration is a host-service
@@ -1172,14 +1172,14 @@ copy of the pristine device. What the viewer needed besides:
    SIGTERM/SIGINT/SIGHUP itself (session end, no save). With a stop
    snapshot configured it now leaves them to the stop trigger and only
    tells the viewer that the device is stopping (`display-stream.md` §6).
-4. **No save before the device has settled** (`YCODE_SNAPSHOT_STOP_REQUIRES`,
-   launcher `YCODE_WARM_SAVE_SETTLE_S`, default 30). A viewer can be closed
+4. **No save before the device has settled** (`SWIFTCODE_SNAPSHOT_STOP_REQUIRES`,
+   launcher `SWIFTCODE_WARM_SAVE_SETTLE_S`, default 30). A viewer can be closed
    at any time. A stop 20 s after the first frame of a cold boot (boot
    logo) was saved; its restore showed no home screen within the
    launcher's 120 s and the host process crashed, and the launcher booted
    cold. The launcher now creates `runs/<device>/settled` 30 s after the
    home screen of a cold boot (at the home screen of a restore), and
-   `ycode-simd` writes a stop snapshot only when that file exists;
+   `swiftcode-simd` writes a stop snapshot only when that file exists;
    otherwise the guest shuts down cleanly and the next run boots the
    device cold with its data.
 5. **"no vCPU for thread 1" (a second cause; §12.1 was the first).** Two
@@ -1200,19 +1200,19 @@ copy of the pristine device. What the viewer needed besides:
    others. Both snapshots that failed were stops with Settings (a UIKit
    app) in front.
 
-Measurements (Thor, release builds, Mac viewer through `ycode-sim-try
+Measurements (Thor, release builds, Mac viewer through `swiftcode-sim-try
 --script`, other agents' boots in parallel; times from the viewer's start
 unless noted):
 
 | Session | Path | Live (first frame) | Home screen | First input → first change |
 |---|---|---|---|---|
-| e1 | `--erase`, a new device (cold, first boot) | 40 s (17 s after `ycode-simd` started) | 89 s after `ycode-simd` started, with drawn icons | tap on Settings: 3.6 s (Settings launching) |
-| w1 | restore of e1's save | 14.2 s (0.9 s after the restore) | 8.8 s after `ycode-simd` started | tap: 3.1 s; Home 1.2 s |
+| e1 | `--erase`, a new device (cold, first boot) | 40 s (17 s after `swiftcode-simd` started) | 89 s after `swiftcode-simd` started, with drawn icons | tap on Settings: 3.6 s (Settings launching) |
+| w1 | restore of e1's save | 14.2 s (0.9 s after the restore) | 8.8 s after `swiftcode-simd` started | tap: 3.1 s; Home 1.2 s |
 | w2 | restore | 15.2 s (0.8 s) | 9.4 s | tap on Settings 1.4 s; Home 1.0 s |
 | c1 | `--cold` (the same device) | 29 s | 88 s | tap 0.5 s; Home 0.7 s |
 | w3 | restore of c1's save | 11.2 s (1.0 s) | 7.1 s | tap 0.67 s |
 | d1 | restore; Settings ▸ Appearance ▸ Dark, then Home | 0.6 s after the restore | 7.4 s | — |
-| c2 | `--cold` | 15.5 s after `ycode-simd` started | (not detected: item 6) | — |
+| c2 | `--cold` | 15.5 s after `swiftcode-simd` started | (not detected: item 6) | — |
 | k1 | cold (no save existed) | 12 s | 55.4 s | tap 0.02 s (Settings drawn after 9.6 s); Home 0.85 s |
 | k2 | restore of k1's save | 0.1 s after the restore | 6.6 s | tap 0.13 s; Home 0.6 s |
 
@@ -1240,18 +1240,18 @@ of the three restores of settled saves failed and fell back to a cold boot
 ### 12.5 Restore hardening (agent RESTORE-HARDEN, 2026-10-19)
 
 One of four IDE restores on the main line (1264ab2) ended with SIGSEGV in
-`ycode-simd` about 11–23 s after the restored home screen, before the app
+`swiftcode-simd` about 11–23 s after the restored home screen, before the app
 launched; Swift's crash handler then crashed in its own DWARF reader, so
 there was no stack, and the next run overwrote the run log.
 
 **Evidence kept (launcher).**
 
 - Every run's log is kept: `runs/<device>/logs/<time>-<mode>.txt`, the
-  newest `YCODE_WARM_KEEP_LOGS` (default 10); `log-restore.txt` and
+  newest `SWIFTCODE_WARM_KEEP_LOGS` (default 10); `log-restore.txt` and
   `log-cold.txt` link to the latest of their mode. The launcher's own
-  `ycode-sim.log` starts again past 1 MB.
+  `swiftcode-sim.log` starts again past 1 MB.
 - Host crashes leave a stack: unless the caller sets `SWIFT_BACKTRACE`,
-  the launcher runs `ycode-simd` with `enable=yes, interactive=no,
+  the launcher runs `swiftcode-simd` with `enable=yes, interactive=no,
   symbolicate=off, threads=all, images=all, registers=crashed,
   output-to=runs/<device>/crashes`. With `symbolicate=off` the handler only
   walks the stacks and lists the images (the default, `full`, reads DWARF
@@ -1261,15 +1261,15 @@ there was no stack, and the next run overwrote the run log.
   `swift-demangle`) into `<report>.sym.txt`, says where it is, and copies
   the crashing thread into the run log. A report of the 1 000-thread
   process is about 350 KB and symbolizes in about 11 s. The last
-  `YCODE_WARM_KEEP_LOGS` reports are kept. (Core dumps were not used: the
+  `SWIFTCODE_WARM_KEEP_LOGS` reports are kept. (Core dumps were not used: the
   host's `core_pattern` pipes them to apport, which is not configurable
   without privileges, and a core of the process would be several GB on the
   system disk.) A `kill -SEGV` makes the handler write a report but does
   not end the process (observed), so it also serves as an all-thread stack
   dump of a live run.
 - A restore that is about to be killed as failed (below) first gets
-  SIGUSR1: `ycode-simd` writes where every guest thread waits (the
-  `YCODE_THREAD_REPORT_AT_S` report) into the run log, then the launcher
+  SIGUSR1: `swiftcode-simd` writes where every guest thread waits (the
+  `SWIFTCODE_THREAD_REPORT_AT_S` report) into the run log, then the launcher
   kills it 3 s later.
 - The thread report names who can still send to a port a thread waits on,
   including notification requests and rights in message bodies, and
@@ -1285,13 +1285,13 @@ is in place), on the Thor while other agents' boots ran (load 8–25):
 | Build | App, stop after launch | Restores | Host crashes | Restores that hung |
 |---|---|---|---|---|
 | main line (1264ab2) | SnapPersist, 3–17 s | 44 | 0 | 1 (a first-boot save, below) |
-| main line | YcodeProbe, 0–2 s | 4 | 0 | 2 (one a first-boot save) |
-| + clock and liveness changes | YcodeProbe, 0–2 s | 45 | 1 (SIGSEGV 5 min after the restore) | 0 |
+| main line | SwiftCodeProbe, 0–2 s | 4 | 0 | 2 (one a first-boot save) |
+| + clock and liveness changes | SwiftCodeProbe, 0–2 s | 45 | 1 (SIGSEGV 5 min after the restore) | 0 |
 | + the rebuild under every fine lock (fix 2 below) | both | about 80 | 1 (SIGBUS in a stop's capture) | 2 (logd; plus first-boot saves) |
-| same, `YCODE_LOCK_ORDER_CHECK=1` | YcodeProbe, 0–2 s | 2 | 2 (the checker stopped both: fix 1 below) | – |
-| + restored observers under the event lock (fixes 1 and 2) | YcodeProbe, 0–2 s, `YCODE_LOCK_ORDER_CHECK=1` | 56 in a row | 0 | 0 |
+| same, `SWIFTCODE_LOCK_ORDER_CHECK=1` | SwiftCodeProbe, 0–2 s | 2 | 2 (the checker stopped both: fix 1 below) | – |
+| + restored observers under the event lock (fixes 1 and 2) | SwiftCodeProbe, 0–2 s, `SWIFTCODE_LOCK_ORDER_CHECK=1` | 56 in a row | 0 | 0 |
 | same | SnapPersist, 0–15 s | 34 in a row | 0 | 0 |
-| + the clock notification (final build) | YcodeProbe, 0–7 s | 34; 33 in a row after one whose stop was killed at the stop timeout (below) | 0 | 0 |
+| + the clock notification (final build) | SwiftCodeProbe, 0–7 s | 34; 33 in a row after one whose stop was killed at the stop timeout (below) | 0 | 0 |
 
 Every restore counted launched the app. The main-line crash rate was low
 in these loops (0 in 48); the IDE's 1 in 4 had a short history; the
@@ -1315,7 +1315,7 @@ kernel lock:
    logd's syslog socket, any process that logs. Every restore therefore
    ran unguarded changes of logd's kqueues and workqueue on other
    processes' threads, racing logd's own kevent fast paths. With
-   `YCODE_LOCK_ORDER_CHECK=1` every restore stopped at it at once ("a knote
+   `SWIFTCODE_LOCK_ORDER_CHECK=1` every restore stopped at it at once ("a knote
    touched without event lock (L_P)", from the observer in
    `SnapshotRestore.fillKQueues`, called by `datagramSend`). The effects
    match all three failures seen: a workloop of logd marked as requested
@@ -1352,11 +1352,11 @@ a restored pipe becomes readable; fails with the old observer),
 "interrupt trap: line 2: unexpected EOF while looking for matching `)'" at
 the Stop and exited: the SIGINT trap ran while the watch loop was expanding
 a `$(…)` (bash 5.2), and a syntax error ends a non-interactive shell.
-`ycode-simd` kept running without its launcher (and without a stop), held
+`swiftcode-simd` kept running without its launcher (and without a stop), held
 the device lock and the boot slot, and ran on unsaved; it is the run that
 crashed 5 minutes later. The watch loop and the trap now use no command
-substitution (`$EPOCHREALTIME`, `printf -v`, `read`), and `ycode-simd`
-started with `YCODE_EXIT_WITH_PARENT=1` asks the kernel for SIGTERM (a
+substitution (`$EPOCHREALTIME`, `printf -v`, `read`), and `swiftcode-simd`
+started with `SWIFTCODE_EXIT_WITH_PARENT=1` asks the kernel for SIGTERM (a
 stop) when its parent ends (`prctl(PR_SET_PDEATHSIG)`).
 
 **Restores that hung.** Two kinds were found (neither a crash):
@@ -1403,7 +1403,7 @@ second 9 of a minute and restored 58 s later showed the save's minute for
 at least 47 s on the main line, and the same with the timer change alone
 (the clock is redrawn by a timer on mach time, which waits out the 51 s it
 had left). After a restore whose calendar moved (the manifest's creation
-time against now, at least 1 s) `ycode-simd` therefore posts the Darwin
+time against now, at least 1 s) `swiftcode-simd` therefore posts the Darwin
 notification that announces a set clock, `com.apple.system.clock_set`
 (libnotify's `kNotifyClockSet`), once the guest answers the liveness
 request, with the runtime's `notifyutil -p` as a one-shot. With it the
@@ -1413,25 +1413,25 @@ timing, save at 18:48:09, restore at 18:49:06, "10:49" in the frame at
 4 s. (For the guest the restore is a set clock: the calendar jumps while
 mach time does not. Whether the reference runtime has other observers of a
 calendar change that should hear of it — the host calendar notification of
-`host_request_notification`, which Ycode accepts and never sends — is an
+`host_request_notification`, which SwiftCode accepts and never sends — is an
 open question for the dirty room.)
 
 **Liveness.** The restored frame is on the display before any guest
 thread runs, so "two lit frames" said nothing about a guest that hangs.
 
-- `ycode-simd`, after a restore, sends launchd_sim a 703 request through
-  the adopted session (the `user/<uid>` variable `YCODE_LIVENESS_PROBE`,
+- `swiftcode-simd`, after a restore, sends launchd_sim a 703 request through
+  the adopted session (the `user/<uid>` variable `SWIFTCODE_LIVENESS_PROBE`,
   never set) and logs "snapshot: restore: guest live: launchd_sim answered
   N ms after its session was adopted" (0.04–3.1 s); it also logs the first
   frame the guest presents after the restore ("first new frame",
   1.3–18 s after the root started in the runs above, with an app launch).
 - The launcher fails a restore whose guest has not answered within
-  `YCODE_WARM_LIVE_TIMEOUT_S` (default 60 s), as it fails one without a
+  `SWIFTCODE_WARM_LIVE_TIMEOUT_S` (default 60 s), as it fails one without a
   home screen or whose app steps do not finish; the device counts as
   settled (a stop saves it) only once the guest answered, so a hung restore
   is not saved again.
 - It also fails a restore whose guest has presented no new frame within
-  `YCODE_WARM_FRAME_TIMEOUT_S` (default 90 s; 0 turns the check off): a UI
+  `SWIFTCODE_WARM_FRAME_TIMEOUT_S` (default 90 s; 0 turns the check off): a UI
   that hangs keeps the restored frame. The status bar redraws at least at
   each minute boundary, and at once after a restore whose minute changed
   (the clock notification above), so a live home screen presents a frame
@@ -1449,7 +1449,7 @@ stops ("1 x running (trap 479)"); the device was not saved and the next run
 booted cold. A walk that a quiesce can interrupt and restart is the fix.
 Once (about 150 stops, a heavily loaded host: boot slots full) a stop
 quiesced and captured but had not written its files 120 s later
-(`YCODE_WARM_STOP_TIMEOUT_S`) and was killed; the files are written from
+(`SWIFTCODE_WARM_STOP_TIMEOUT_S`) and was killed; the files are written from
 the lazily mapped page files of the restore on the USB data volume and
 the device's inode list is walked there. The launcher now has Swift's
 handler write every host thread's stack (a `kill -SEGV`, which does not
@@ -1457,7 +1457,7 @@ end the process) before such a kill, so the next one shows where it
 stood.
 
 **Timings** (Thor, load 8–25, other agents' boots in parallel; seconds
-after `ycode-simd` started; the 90 restores with fixes 1 and 2, two devices,
+after `swiftcode-simd` started; the 90 restores with fixes 1 and 2, two devices,
 two apps): the restore itself 4.3–7.3 (median 5.2); the home screen
 (the restored frame) 6.7–10.3 (median 7.8); the guest's answer
 0.03–3.3 s after the session was adopted (median 1.5); the app running
@@ -1479,7 +1479,7 @@ each posted the clock notification (exit 0).
 | Trap numbers, Mach option bits (`MACH_SEND_MSG` = 1, `MACH_RCV_MSG` = 2), `WQOPS_THREAD_RETURN` | 1 | xnu `osfmk/mach/syscall_sw.h`, `bsd/kern/syscalls.master`, `osfmk/mach/message.h`, `bsd/pthread/workqueue_syscalls.h` (already in `darwin-trap-tables.md`, `mach-ipc.md`, `threads-and-events.md`) |
 | Restart of interrupted system calls as the model for §4 | 1 | Linux `signal(7)` (SA_RESTART, ERESTARTSYS), CRIU documentation (public) |
 | Snapshot shape (per-device state + memory file) | 1 | Firecracker public documentation (snapshot support) |
-| Where each piece of Ycode state lives (§2) | — | Ycode's own code (`ycode/Sources`), design, this document |
+| Where each piece of SwiftCode state lives (§2) | — | SwiftCode's own code (`swiftcode/Sources`), design, this document |
 | Measurements (§10) | 3 | our runs on the Thor |
 | SQLite reports a database whose file's inode no longer matches the path as moved (extended result code 1032, `SQLITE_READONLY_DBMOVED`) | 1 | SQLite documentation (result codes); observed in a restore (§10.4, rest2) |
 | `mmap(MAP_PRIVATE \| MAP_FIXED)` of a file gives a copy-on-write view read on first touch; `MADV_DONTNEED` on a private file mapping makes later reads return the file's contents again; `POSIX_FADV_WILLNEED` / `POSIX_FADV_DONTNEED` start a read-ahead / drop clean cached pages; `vm.max_map_count` bounds the mappings of a process | 1 | Linux man pages `mmap(2)`, `madvise(2)`, `posix_fadvise(2)`, `Documentation/admin-guide/sysctl/vm.rst` |
@@ -1488,13 +1488,13 @@ each posted the clock notification (exit 0).
 | Measurements and the stall of §10.5 | 3 | our runs on the Thor (thread reports, knote histories) |
 | The IDE's warm boot: settle time, "no vCPU" restore failures, pause, save and fallback costs (§12) | 3 | our runs on the Thor, directly and through the IDE (`RemoteRunEndToEndTests`), 2026-10-19 |
 | `flock(1)` locks belong to the open file description; `ionice -c3` (idle class) needs no privilege for one's own processes | 1 | util-linux man pages `flock(1)`, `ionice(1)` |
-| The restore's start gate and the cause of "no vCPU for thread N" (§7 step 9, §12.1) | — / 3 | Ycode's own code (`VCPUPool.start` returns nil for an ended pool and for an exhausted one); `SnapshotRestoreStartTests` (a model pool); our restores on the Thor (§12.1) |
+| The restore's start gate and the cause of "no vCPU for thread N" (§7 step 9, §12.1) | — / 3 | SwiftCode's own code (`VCPUPool.start` returns nil for an ended pool and for an exhausted one); `SnapshotRestoreStartTests` (a model pool); our restores on the Thor (§12.1) |
 | The reference simulator keeps a device's data until it is erased; `simctl erase` returns it to a new state; an app's data container and keychain items survive an install over the app | 1 / 3 | `xcrun simctl help erase`; Apple's documentation of app updates (Documents and Library are kept) and of keychain items; observable on the Mac |
-| Save at the stop, restore in place, the launcher's rules (§12.2) | — | Ycode's own design |
+| Save at the stop, restore in place, the launcher's rules (§12.2) | — | SwiftCode's own design |
 | `/proc/self/fd/<n>` is a link to the open file's current path, with " (deleted)" appended when it was unlinked | 1 | Linux man page `proc(5)` |
 | A flock is released only when every descriptor of its open file description is closed (inherited copies share it); `tee -p` (`--output-error=warn-nopipe`) keeps writing to its files when its output pipe closes; a non-interactive shell cannot trap a signal that was ignored when it started (background commands of a non-interactive shell start with SIGINT ignored) | 1 | Linux man page `flock(2)`; GNU coreutils manual (`tee`); GNU Bash manual (Signals, `trap`). The IDE runs the launcher in the foreground of its ssh command, so Stop's SIGINT is trappable |
 | Device state across runs: data found, restore, stop and save times (§12.3) | 3 | our runs on the Thor through the launcher and `RemoteRunEndToEndTests`, 2026-10-19 |
-| The viewer's sessions: the frame-record, signal, settle and HID changes, the restore-time worker storm and its fix, timings (§12.4) | — / 3 | Ycode's own code and design; viewer `--script` sessions on the Thor (failure reports with the new vCPU listing), 2026-10-19 |
+| The viewer's sessions: the frame-record, signal, settle and HID changes, the restore-time worker storm and its fix, timings (§12.4) | — / 3 | SwiftCode's own code and design; viewer `--script` sessions on the Thor (failure reports with the new vCPU listing), 2026-10-19 |
 | Swift's crash handler settings (`SWIFT_BACKTRACE`: `enable`, `interactive`, `symbolicate=off` / `fast` / `full`, `threads`, `images`, `registers`, `timeout`, `output-to`) | 1 | Swift runtime documentation (`docs/Backtracing.rst` in the Swift repository) |
 | `llvm-symbolizer --obj --functions=linkage --no-inlines` maps image offsets to functions and lines | 1 | LLVM command guide (`llvm-symbolizer`) |
 | `prctl(PR_SET_PDEATHSIG)`: a signal when the parent ends; the kernel's `core_pattern` pipes cores to a helper | 1 | Linux man pages `prctl(2)`, `core(5)` |
@@ -1502,4 +1502,4 @@ each posted the clock notification (exit 0).
 | A trap during a command substitution made bash 5.2 report "unexpected EOF while looking for matching `)'" and exit, or lost the Stop | 3 | Our launcher runs on the Thor (bash 5.2.21), §12.5 |
 | `open(2)` with `O_RDWR` checks the file's mode at the open, not later: a descriptor or mapping opened before a `chmod` keeps its access; the owner may change the mode | 1 | POSIX `open`, `chmod`; Linux man pages `open(2)`, `chmod(2)` |
 | A kevent `NOTE_ABSOLUTE` timer without `NOTE_MACHTIME` is a calendar (wall-clock) deadline; libdispatch's wall-clock timers use it | 1 | `threads-and-events.md` §3.7.2 (xnu `bsd/kern/kern_event.c`; libdispatch `src/event/event_kevent.c`) |
-| Restore hardening: the two lock-split gaps, their symptoms (lost workloop requests in logd, the heap corruption, the lock-order checker's stop), the fixes, the first-boot hang of the live guest, the clock and liveness measurements, timings (§12.5) | — / 3 | Ycode's own code and design; symbolized crash reports and thread reports of restore loops on the Thor, 2026-10-19 |
+| Restore hardening: the two lock-split gaps, their symptoms (lost workloop requests in logd, the heap corruption, the lock-order checker's stop), the fixes, the first-boot hang of the live guest, the clock and liveness measurements, timings (§12.5) | — / 3 | SwiftCode's own code and design; symbolized crash reports and thread reports of restore loops on the Thor, 2026-10-19 |

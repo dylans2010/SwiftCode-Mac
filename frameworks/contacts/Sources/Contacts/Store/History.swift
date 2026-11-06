@@ -136,7 +136,7 @@ public final class CNChangeHistoryRemoveSubgroupFromGroupEvent: CNChangeHistoryE
     public override func accept(_ visitor: CNChangeHistoryEventVisitor) { visitor.visit(self) }
 }
 
-/// Ycode's history token: "YCNH1:<database id>:<journal sequence>" in UTF-8.
+/// SwiftCode's history token: "YCNH1:<database id>:<journal sequence>" in UTF-8.
 /// Apps treat tokens as opaque data.
 enum HistoryToken {
     static func make(databaseID: String, seq: Int64) -> Data {

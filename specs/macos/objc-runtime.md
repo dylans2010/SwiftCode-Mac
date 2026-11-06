@@ -1,24 +1,24 @@
-# Spec: Ycode's Objective-C runtime (`libobjc.A.dylib`) for macOS programs
+# Spec: SwiftCode's Objective-C runtime (`libobjc.A.dylib`) for macOS programs
 
 Status: **design, wave 1 implemented (1.0.0-beta.3, #86)** in
-`ycode/MacUserland/objc/`; conformance tests pass on the Mac and under
-`ycode-simd --macos`; benchmarks in §14. The Swift runtime's entry points
-(§15) were added for stage B (#87). Ycode design, clean room.
+`swiftcode/MacUserland/objc/`; conformance tests pass on the Mac and under
+`swiftcode-simd --macos`; benchmarks in §14. The Swift runtime's entry points
+(§15) were added for stage B (#87). SwiftCode design, clean room.
 
 Sources, and only these: clang's Objective-C code generation as documented
 by the open LLVM project (Apache-2.0 with LLVM exception) and as observed in
-object files that Ycode compiles itself with clang; the public macOS SDK
+object files that SwiftCode compiles itself with clang; the public macOS SDK
 headers `objc/runtime.h`, `objc/message.h`, `objc/objc.h`, `objc/NSObject.h`,
 `objc/objc-sync.h`, `objc/objc-exception.h` and `Block.h` (declarations,
 constants and layouts are interoperability facts); the public Mach-O headers
 (`mach-o/loader.h`); Apple's public *Objective-C Runtime Programming Guide*
-and *Advanced Memory Management Programming Guide*; the Ycode specs
+and *Advanced Memory Management Programming Guide*; the SwiftCode specs
 `dyld.md` and `libsystem.md`. **No Objective-C runtime source was read**
 (not Apple's objc4, not GNUstep's libobjc2, not the GNU runtime). Upstream
 objc4 is at most a benchmark baseline (§12).
 
-Context: `macos-apps.md` §6 (the owner's decision 2: Ycode writes its own
-runtime in Rust; objc4 ships instead only if Ycode's runtime cannot match
+Context: `macos-apps.md` §6 (the owner's decision 2: SwiftCode writes its own
+runtime in Rust; objc4 ships instead only if SwiftCode's runtime cannot match
 it on the benchmarks).
 
 ## 1. Scope
@@ -73,7 +73,7 @@ must be accepted.
 
 ### 2.2 Class object (5 words)
 
-| Word | Compiler writes | Ycode runtime use |
+| Word | Compiler writes | SwiftCode runtime use |
 |---|---|---|
 | 0 `isa` | Metaclass | Same |
 | 1 `superclass` | Superclass or 0 for a root | Same |
@@ -136,7 +136,7 @@ to `objc_retainAutoreleasedReturnValue` (§8.3).
 
 ## 3. Objects and the `isa` word
 
-An object starts with its `isa` word. Ycode uses a **packed isa** for
+An object starts with its `isa` word. SwiftCode uses a **packed isa** for
 objects it allocates and accepts a **plain isa** (a bare class pointer,
 bit 0 clear) for everything else (class objects, static objects):
 
@@ -208,7 +208,7 @@ introspection, a subclass's realization). Under the runtime lock:
 
 ### 4.3 Method table and lookup
 
-Each realized class owns its methods as Ycode `MethodEntry { SEL name;
+Each realized class owns its methods as SwiftCode `MethodEntry { SEL name;
 const char *types; IMP imp }` records (the `Method` type of the API, taken
 from a bump arena: classes are never unloaded), in priority order:
 categories, last attached first, then the base list. A
@@ -441,7 +441,7 @@ address, so an atomic getter that tail-calls it hands off too.
 
 libobjc depends on libSystem only. Its initializer (a `__mod_init_func`
 entry) registers the built-in selectors and classes, then calls
-`_dyld_register_func_for_add_image`; Ycode's dyld calls back for every
+`_dyld_register_func_for_add_image`; SwiftCode's dyld calls back for every
 image already loaded and for each image `dlopen` adds later
 (`dyld.md` §7.2). For each image with `__objc_imageinfo`, under the
 runtime lock: selector references, protocols, protocol references,
@@ -470,14 +470,14 @@ An inline lock for the runtime lock and the side-table stripes: one
 32-bit word (0 free, 1 held, 2 held with waiters), an inline
 compare-and-swap to take it, a short spin, then the kernel's
 compare-and-wait (`__ulock_wait`/`__ulock_wake` with `UL_COMPARE_AND_WAIT`
-1, which both Darwin and Ycode's libsystem_kernel export).
+1, which both Darwin and SwiftCode's libsystem_kernel export).
 `os_unfair_lock` (libsystem_platform) for the selector table,
 associations and `@synchronized`; a `pthread_mutex_t` and `pthread_cond_t`
 for `+initialize` waits.
 
 ## 11. Build
 
-- Crate `ycode/MacUserland/objc/` (`ycode-objc`): `no_std`,
+- Crate `swiftcode/MacUserland/objc/` (`swiftcode-objc`): `no_std`,
   `crate-type = ["staticlib"]`, `panic = "abort"`, fat LTO, one codegen
   unit, target `aarch64-apple-darwin`.
 - `MacUserland/build.sh` (step `build_objc`): `cargo build --release`,
@@ -515,10 +515,10 @@ take the median over alternating process runs:
 | category first send | afterwards, the first send of a category method to each of the 1,000 classes |
 
 Baselines: the same binary run natively on the Mac against the Mac's
-shipped `libobjc` (built by Apple from objc4) and against Ycode's runtime
+shipped `libobjc` (built by Apple from objc4) and against SwiftCode's runtime
 loaded natively on the Mac (the benchmark's `__objc_*` sections renamed to
 `__ycob_*` so the Mac's own runtime ignores them, which the bench build of
-Ycode's runtime accepts); and Ycode's runtime under `ycode-simd --macos` on
+SwiftCode's runtime accepts); and SwiftCode's runtime under `swiftcode-simd --macos` on
 the arm64 Linux host. Results: §14.
 
 ## 13. Not yet implemented
@@ -538,7 +538,7 @@ through `objc_retain` (blocks that capture objects under ARC need it).
 
 Conformance: `run-tests.sh` — the five programs print exactly what they
 print with the Mac's own runtime: 10/10 on the Mac (Mac runtime and
-Ycode's, native), 5/5 under `ycode-simd --macos` on the arm64 Linux host.
+SwiftCode's, native), 5/5 under `swiftcode-simd --macos` on the arm64 Linux host.
 
 Benchmarks. Mac: Apple M3 Max, macOS 27.2; "Mac runtime" is the
 `libobjc.A.dylib` the Mac ships (Apple's build of objc4), **not** objc4
@@ -546,10 +546,10 @@ built from source; both columns run the same benchmark object code on the
 same machine, median of 7 alternating process runs. The Mac was shared
 with other build jobs (load average 9–30), which mostly affects the
 millisecond-scale category measurements. Linux: the arm64 host (Neoverse
-V3AE) under `ycode-simd --macos`, shared (load average 8–23), median of 3
+V3AE) under `swiftcode-simd --macos`, shared (load average 8–23), median of 3
 runs; it has no objc4 baseline.
 
-| Benchmark | Mac runtime (ns) | Ycode, Mac native (ns) | Ycode / Mac | Ycode, ycode-simd (ns) |
+| Benchmark | Mac runtime (ns) | SwiftCode, Mac native (ns) | SwiftCode / Mac | SwiftCode, swiftcode-simd (ns) |
 |---|---:|---:|---:|---:|
 | send, cached | 1.67 | 1.40 | 0.84 | 1.63 |
 | send, nil | 1.67 | 1.40 | 0.84 | 1.55 |
@@ -569,7 +569,7 @@ runs; it has no objc4 baseline.
 | first send after attachment, per class | 40.00 | 36.00 | 0.90 | 74.92 |
 
 Category attachment, measured separately over 20 alternating runs (only
-that benchmark): Mac runtime median 103 ns (quartiles 98–115), Ycode 94 ns
+that benchmark): Mac runtime median 103 ns (quartiles 98–115), SwiftCode 94 ns
 (74–108); first send after attachment 40 ns (40–42) and 35 ns (34–36).
 Across all measurement sets the attachment ratio ranged from 0.9 to 1.25:
 call it a tie within the noise of a shared machine.
@@ -579,7 +579,7 @@ noise): both runtimes are bound by the latency of one atomic
 read-modify-write each (an LL/SC variant measured the same on both
 machines, so the CAS form stays). Everything else is faster. The Linux
 column is slower for memory-heavy cases because the guest's allocation
-and locking go through Ycode's libSystem (which maps memory with VM exits
+and locking go through SwiftCode's libSystem (which maps memory with VM exits
 and has one allocator lock) and because atomics cost more on that core
 (about 10 ns per read-modify-write), not because of the runtime's own
 code: cached sends cost the same as on the Mac.
@@ -589,10 +589,10 @@ code: cached sends cost the same as on the Mac.
 With Objective-C interop, the Swift runtime (`swift-runtime.md` §2) makes
 every Swift class an Objective-C class and calls these functions. Their
 names and C signatures are the ones the open Swift runtime declares;
-their behavior here is Ycode's, from how that runtime uses them
-(`ycode/MacUserland/objc/src/swift.rs`):
+their behavior here is SwiftCode's, from how that runtime uses them
+(`swiftcode/MacUserland/objc/src/swift.rs`):
 
-| Function | Ycode's behavior |
+| Function | SwiftCode's behavior |
 |---|---|
 | `objc_addLoadImageFunc(fn)` | Calls `fn(header)` at once for every image the runtime has seen (with or without Objective-C metadata), then for each image added later, after the runtime has read its classes. The Swift runtime scans each image's Swift sections from here |
 | `objc_readClassPair(cls, info)` | Registers (by name, when it has one) and realizes, in place, a class pair the Swift runtime built at run time (a generic class instance); returns `cls` |
@@ -619,12 +619,12 @@ holds. None of the stage-B programs has such a class.
 
 | Claim | Level (AGENTS.md rule 4) |
 |---|---|
-| §2 section names, structure layouts, method-list formats, emitted calls, ARC marker | 1 (open-source clang's Objective-C code generation) and 2 (Ycode's own object files compiled with clang and inspected with `otool`) |
+| §2 section names, structure layouts, method-list formats, emitted calls, ARC marker | 1 (open-source clang's Objective-C code generation) and 2 (SwiftCode's own object files compiled with clang and inspected with `otool`) |
 | Public function signatures, policy constants, `objc_super`, `OBJC_SYNC_*` | 1 (macOS SDK public headers) |
 | Message, `+initialize`, `+load`, forwarding and memory-management semantics | 1 (Apple's public programming guides and header comments) |
 | Mach-O load commands, `_dyld_register_func_for_add_image`, TSD at `TPIDRRO_EL0` | 1 (public headers; `dyld.md`, `host-library-init.md`) |
-| The linker-stub form of the return-value hand-off (`bl` to a stub of `objc_claimAutoreleasedReturnValue`, no marker) | 2 (Ycode's own test programs, linked by the Mac's linker, disassembled with `otool`) |
-| Expected outputs of the conformance tests | 3 (Ycode's own programs run against the Mac's runtime) |
-| `__ulock_wait`/`__ulock_wake`, `UL_COMPARE_AND_WAIT` | 1 (xnu's public `sys/ulock.h`; Ycode's `syscalls-map.tsv`) |
+| The linker-stub form of the return-value hand-off (`bl` to a stub of `objc_claimAutoreleasedReturnValue`, no marker) | 2 (SwiftCode's own test programs, linked by the Mac's linker, disassembled with `otool`) |
+| Expected outputs of the conformance tests | 3 (SwiftCode's own programs run against the Mac's runtime) |
+| `__ulock_wait`/`__ulock_wake`, `UL_COMPARE_AND_WAIT` | 1 (xnu's public `sys/ulock.h`; SwiftCode's `syscalls-map.tsv`) |
 | §15 function names and signatures; how the Swift runtime uses them | 1 (the open Swift runtime source, Apache-2.0) |
-| Everything else (isa layout, cache, side tables, flags, page layout, locks) | Ycode design |
+| Everything else (isa layout, cache, side tables, flags, page layout, locks) | SwiftCode design |

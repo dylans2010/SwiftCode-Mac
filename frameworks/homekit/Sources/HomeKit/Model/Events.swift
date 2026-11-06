@@ -8,7 +8,7 @@ import Foundation
 // system framework's module.
 @_exported import CoreLocation
 #else
-/// Minimal Core Location types for platforms without it (Ycode shim:
+/// Minimal Core Location types for platforms without it (SwiftCode shim:
 /// coordinates and circular regions only).
 public typealias CLLocationDegrees = Double
 public typealias CLLocationDistance = Double
@@ -42,7 +42,7 @@ open class CLCircularRegion: CLRegion, @unchecked Sendable {
 #endif
 
 /// A fresh event identifier. Observed identifiers carry version nibble 5
-/// (simulator-baseline.md §7); Ycode draws random bits and sets that nibble
+/// (simulator-baseline.md §7); SwiftCode draws random bits and sets that nibble
 /// and the RFC 4122 variant.
 func freshEventIdentifier() -> UUID {
     var u = UUID().uuid
@@ -79,9 +79,9 @@ open class HMEvent: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
     open func copy(with zone: NSZone? = nil) -> Any { HMEvent() }
     open func mutableCopy(with zone: NSZone? = nil) -> Any { HMEvent() }
 
-    func record() -> YcodeEventRecord? { nil }
+    func record() -> SwiftCodeEventRecord? { nil }
 
-    static func make(_ r: YcodeEventRecord, home: HMHome) -> HMEvent? {
+    static func make(_ r: SwiftCodeEventRecord, home: HMHome) -> HMEvent? {
         switch r.kind {
         case .characteristic(let cid, let value):
             guard let c = home.characteristic(cid) else { return nil }
@@ -123,7 +123,7 @@ open class HMCharacteristicEvent<TriggerValueType: NSCopying>: HMEvent, @uncheck
     public internal(set) var characteristic: HMCharacteristic
     public internal(set) var triggerValue: TriggerValueType?
     /// Stored form of a value received from the store for another client's event.
-    var storedValue: YcodeHomeValue?
+    var storedValue: SwiftCodeHomeValue?
 
     public init(characteristic: HMCharacteristic, triggerValue: TriggerValueType?) {
         self.characteristic = characteristic
@@ -131,7 +131,7 @@ open class HMCharacteristicEvent<TriggerValueType: NSCopying>: HMEvent, @uncheck
         super.init()
     }
 
-    init(id: UUID, characteristic: HMCharacteristic, value: YcodeHomeValue?) {
+    init(id: UUID, characteristic: HMCharacteristic, value: SwiftCodeHomeValue?) {
         self.characteristic = characteristic
         self.storedValue = value
         self.triggerValue = value?.apiValue as? TriggerValueType
@@ -146,9 +146,9 @@ open class HMCharacteristicEvent<TriggerValueType: NSCopying>: HMEvent, @uncheck
         HMMutableCharacteristicEvent(characteristic: characteristic, triggerValue: triggerValue)
     }
 
-    override func record() -> YcodeEventRecord? {
-        let v = triggerValue.flatMap { YcodeHomeValue(any: $0) } ?? storedValue
-        return YcodeEventRecord(id: uniqueIdentifier, kind: .characteristic(characteristicID: characteristic.uniqueIdentifier,
+    override func record() -> SwiftCodeEventRecord? {
+        let v = triggerValue.flatMap { SwiftCodeHomeValue(any: $0) } ?? storedValue
+        return SwiftCodeEventRecord(id: uniqueIdentifier, kind: .characteristic(characteristicID: characteristic.uniqueIdentifier,
                                                                             triggerValue: v))
     }
 }
@@ -189,8 +189,8 @@ open class HMCharacteristicThresholdRangeEvent: HMEvent, @unchecked Sendable {
         HMMutableCharacteristicThresholdRangeEvent(characteristic: characteristic, thresholdRange: thresholdRange)
     }
 
-    override func record() -> YcodeEventRecord? {
-        YcodeEventRecord(id: uniqueIdentifier, kind: .thresholdRange(
+    override func record() -> SwiftCodeEventRecord? {
+        SwiftCodeEventRecord(id: uniqueIdentifier, kind: .thresholdRange(
             characteristicID: characteristic.uniqueIdentifier,
             minimum: thresholdRange.minValue?.doubleValue, maximum: thresholdRange.maxValue?.doubleValue))
     }
@@ -236,16 +236,16 @@ open class HMLocationEvent: HMEvent, @unchecked Sendable {
     open override func copy(with zone: NSZone? = nil) -> Any { HMLocationEvent(copying: region) }
     open override func mutableCopy(with zone: NSZone? = nil) -> Any { HMMutableLocationEvent(copying: region) }
 
-    override func record() -> YcodeEventRecord? {
-        var rr: YcodeRegionRecord?
+    override func record() -> SwiftCodeEventRecord? {
+        var rr: SwiftCodeRegionRecord?
         if let c = region as? CLCircularRegion {
-            rr = YcodeRegionRecord(identifier: c.identifier, latitude: c.center.latitude, longitude: c.center.longitude,
+            rr = SwiftCodeRegionRecord(identifier: c.identifier, latitude: c.center.latitude, longitude: c.center.longitude,
                                    radius: c.radius, notifyOnEntry: c.notifyOnEntry, notifyOnExit: c.notifyOnExit)
         } else if let r = region {
-            rr = YcodeRegionRecord(identifier: r.identifier, latitude: 0, longitude: 0, radius: 0,
+            rr = SwiftCodeRegionRecord(identifier: r.identifier, latitude: 0, longitude: 0, radius: 0,
                                    notifyOnEntry: r.notifyOnEntry, notifyOnExit: r.notifyOnExit)
         }
-        return YcodeEventRecord(id: uniqueIdentifier, kind: .location(rr))
+        return SwiftCodeEventRecord(id: uniqueIdentifier, kind: .location(rr))
     }
 }
 
@@ -281,8 +281,8 @@ open class HMPresenceEvent: HMEvent, @unchecked Sendable {
         HMMutablePresenceEvent(presenceEventType: presenceEventType, presenceUserType: presenceUserType)
     }
 
-    override func record() -> YcodeEventRecord? {
-        YcodeEventRecord(id: uniqueIdentifier, kind: .presence(type: presenceEventType.rawValue, userType: presenceUserType.rawValue))
+    override func record() -> SwiftCodeEventRecord? {
+        SwiftCodeEventRecord(id: uniqueIdentifier, kind: .presence(type: presenceEventType.rawValue, userType: presenceUserType.rawValue))
     }
 }
 
@@ -319,7 +319,7 @@ open class HMCalendarEvent: HMTimeEvent, @unchecked Sendable {
     open override func copy(with zone: NSZone? = nil) -> Any { HMCalendarEvent(fire: fireDateComponents) }
     open override func mutableCopy(with zone: NSZone? = nil) -> Any { HMMutableCalendarEvent(fire: fireDateComponents) }
 
-    override func record() -> YcodeEventRecord? { YcodeEventRecord(id: uniqueIdentifier, kind: .calendar(fireDateComponents)) }
+    override func record() -> SwiftCodeEventRecord? { SwiftCodeEventRecord(id: uniqueIdentifier, kind: .calendar(fireDateComponents)) }
 }
 
 open class HMMutableCalendarEvent: HMCalendarEvent, @unchecked Sendable {
@@ -354,8 +354,8 @@ open class HMSignificantTimeEvent: HMTimeEvent, @unchecked Sendable {
         HMMutableSignificantTimeEvent(significantEvent: significantEvent, offset: offset)
     }
 
-    override func record() -> YcodeEventRecord? {
-        YcodeEventRecord(id: uniqueIdentifier, kind: .significantTime(event: significantEvent.rawValue, offset: offset))
+    override func record() -> SwiftCodeEventRecord? {
+        SwiftCodeEventRecord(id: uniqueIdentifier, kind: .significantTime(event: significantEvent.rawValue, offset: offset))
     }
 }
 
@@ -387,7 +387,7 @@ open class HMDurationEvent: HMTimeEvent, @unchecked Sendable {
     open override func copy(with zone: NSZone? = nil) -> Any { HMDurationEvent(duration: duration) }
     open override func mutableCopy(with zone: NSZone? = nil) -> Any { HMMutableDurationEvent(duration: duration) }
 
-    override func record() -> YcodeEventRecord? { YcodeEventRecord(id: uniqueIdentifier, kind: .duration(duration)) }
+    override func record() -> SwiftCodeEventRecord? { SwiftCodeEventRecord(id: uniqueIdentifier, kind: .duration(duration)) }
 }
 
 open class HMMutableDurationEvent: HMDurationEvent, @unchecked Sendable {

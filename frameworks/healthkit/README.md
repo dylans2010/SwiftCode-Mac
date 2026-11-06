@@ -1,4 +1,4 @@
-# ycode-healthkit — open HealthKit (clean room)
+# swiftcode-healthkit — open HealthKit (clean room)
 
 A Linux-buildable reimplementation of Apple's HealthKit, written only from
 `specs/frameworks/healthkit/` (plus public documentation) under the clean-room
@@ -50,7 +50,7 @@ exported under an Objective-C name, so nothing clashes in the Objective-C runtim
     HKHealthStore / HKQuery (API, validation, callback queues)
           │  value-type records (Codable), predicate nodes
           ▼
-    YcodeHealthDaemon (engine: SQLite store, authorization store, change journal,
+    SwiftCodeHealthDaemon (engine: SQLite store, authorization store, change journal,
                        query back end) ──► StatisticsEngine (pure functions)
 
 - **Objects** are thin immutable wrappers over `Codable` records
@@ -62,7 +62,7 @@ exported under an Objective-C name, so nothing clashes in the Objective-C runtim
   or XPC daemon without touching the API layer. Predicate nodes are
   serialisable except block predicates (`NSPredicate(block:)`), which a remote
   daemon would evaluate client-side after a coarse server-side filter.
-- **Schema** (`Store/Schema.swift`): Ycode's own, after `design.md` §4 —
+- **Schema** (`Store/Schema.swift`): SwiftCode's own, after `design.md` §4 —
   objects keyed by their anchor, typed side tables, metadata rows, associations,
   tombstones sharing the anchor sequence, sync identifiers, authorization,
   source priority, background-delivery registrations, settings.
@@ -72,16 +72,16 @@ exported under an Objective-C name, so nothing clashes in the Objective-C runtim
   the public API turns it into a trap — a real `NSException` with the interop
   name on Darwin, `fatalError` with the same name and reason on Linux.
 
-## Ycode extensions (not Apple API)
+## SwiftCode extensions (not Apple API)
 
 | Name | Purpose |
 |---|---|
-| `YcodeHealthClient` | The app identity (bundle identifier, name, version, product type, OS version) that becomes `HKSource`/`HKSourceRevision`. `.processDefault` comes from `YCODE_HEALTHKIT_BUNDLE_IDENTIFIER` / `YCODE_HEALTHKIT_APP_NAME`, else the main bundle, else `local.<process name>`. |
-| `YcodeHealthDaemon` | The engine. `.shared` opens `YCODE_HEALTHKIT_STORE`, else `~/Library/Application Support/ycode-healthkit/healthdb.sqlite` (macOS) or `$XDG_DATA_HOME`/`~/.local/share/ycode-healthkit/healthdb.sqlite` (Linux); `init(databaseURL: nil)` is in memory. |
-| `YcodeHealthDaemon.setConsentResponder` | Answers authorization requests (the R6 consent UI does not exist yet). Default: allow everything requested, all recorded data. Return `nil` to cancel (code 7). |
+| `SwiftCodeHealthClient` | The app identity (bundle identifier, name, version, product type, OS version) that becomes `HKSource`/`HKSourceRevision`. `.processDefault` comes from `SWIFTCODE_HEALTHKIT_BUNDLE_IDENTIFIER` / `SWIFTCODE_HEALTHKIT_APP_NAME`, else the main bundle, else `local.<process name>`. |
+| `SwiftCodeHealthDaemon` | The engine. `.shared` opens `SWIFTCODE_HEALTHKIT_STORE`, else `~/Library/Application Support/swiftcode-healthkit/healthdb.sqlite` (macOS) or `$XDG_DATA_HOME`/`~/.local/share/swiftcode-healthkit/healthdb.sqlite` (Linux); `init(databaseURL: nil)` is in memory. |
+| `SwiftCodeHealthDaemon.setConsentResponder` | Answers authorization requests (the R6 consent UI does not exist yet). Default: allow everything requested, all recorded data. Return `nil` to cancel (code 7). |
 | `setSourcePriority(_:for:)`, `setCharacteristic(_:value:)`, `objectCounts()` | Developer tools: the Health app's source list, characteristics, store census. |
-| `HKHealthStore(ycodeDaemon:client:)`, `ycodeClient` | A store acting as a given client on a given engine (tests, tools, multi-app simulations). |
-| `ycodeCalendar` on collection queries/descriptors | Calendar for bucket layout (default `Calendar.current`). |
+| `HKHealthStore(swiftcodeDaemon:client:)`, `swiftcodeClient` | A store acting as a given client on a given engine (tests, tools, multi-app simulations). |
+| `swiftcodeCalendar` on collection queries/descriptors | Calendar for bucket layout (default `Calendar.current`). |
 
 ## Differences from the reference to know about
 

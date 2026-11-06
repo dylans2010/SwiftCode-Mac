@@ -10,7 +10,7 @@ all verified live from the CSV (counts are not from memory).
 | `TEST_MIGRATION` | 34 | 26 IMPLEMENTED (18 new tests in 5 files; rest already ported in Waves 1–16) | — | 8 |
 | `PRESERVE_LICENSE_OR_ATTRIBUTION` | 820 | 780 placed | 40 deduped | 0 |
 
-MCP tool count unchanged at 433. No `ycode/Package.swift` changes in this
+MCP tool count unchanged at 433. No `swiftcode/Package.swift` changes in this
 wave. No commits or pushes by this wave; the parent integrates, verifies,
 commits and pushes.
 
@@ -41,7 +41,7 @@ standalone-swift `template.json`, and the `package.json` / `snippets.json` /
   identical except doc-path rewording (`Docs/Intro-to-SDK.md` →
   `specs/ide/sdk-platform.md`, `SwiftCode/SDK/Documentation/` → `sdk/docs/`).
 - `sdk/runtime-adapter/package.json` — same, doc-path rewording only.
-- `ycode/Sources/YcodeSDK/Resources/SwiftCodeSDK.json` — same keys, same
+- `swiftcode/Sources/SwiftCodeSDK/Resources/SwiftCodeSDK.json` — same keys, same
   `sdkVersion` 1.2.0, but Legacy's `releaseNotes` is a JSON **list** while
   the destination's is a **dict**. `SDKConfigStore.swift:19` decodes
   `releaseNotes: [String: String]` — copying Legacy's file would break
@@ -52,9 +52,9 @@ standalone-swift `template.json`, and the `package.json` / `snippets.json` /
 
 1. **477 — `SwiftCode/Assets.xcassets/**`**: consumer is Legacy
    `AppIconManager` (alternate app icons, Settings). No `AppIconManager` /
-   alternate-icon feature exists anywhere in the destination. Ycode's app
-   icon is `packaging/icon/Ycode.icns` via `packaging/macos/Info.plist.in`.
-   Placing the catalog in `YcodeApp/Resources/` would be inert (nothing
+   alternate-icon feature exists anywhere in the destination. SwiftCode's app
+   icon is `packaging/icon/SwiftCode.icns` via `packaging/macos/Info.plist.in`.
+   Placing the catalog in `SwiftCodeApp/Resources/` would be inert (nothing
    references it). All Legacy-branded; if the feature is ever ported, these
    need the rebrand wave first.
 2. **203 — `SwiftCode/Resources/Documentation Assets/**`**: offline docs
@@ -64,23 +64,23 @@ standalone-swift `template.json`, and the `package.json` / `snippets.json` /
    `IDEDocViewer.framework`, `IDEDocumentation.framework` resources), and
    68 loose doccarchive-root files. Additional blocker:
    `XcodeFrameworks/*` and `apple-logo.svg` are Apple Xcode framework
-   resources / Apple artwork — copying them into `ycode/` would violate the
+   resources / Apple artwork — copying them into `swiftcode/` would violate the
    destination `AGENTS.md` clean-room rules 1 and 5 (no copied Apple
    resources, no Apple trademarks/artwork).
 3. **5 — `SwiftCode/SDK/Examples/RepositoryBuildExtension/*`**: deliberate
    non-ship decision. `SDKExampleManager.swift` and
    `specs/ide/sdk-platform.md` §25 record the example files as spec
-   reference material only ("Ycode ships no bundled example project"); the
+   reference material only ("SwiftCode ships no bundled example project"); the
    example identity is carried in code and instantiated from
    `sdk/templates/extension-typescript`.
 4. **5 — `SwiftCode/Resources/Themes/*.json`** (`MidnightTerminal`, `Paper`,
    `SolarFlare`, `SwiftCodeDark`, `SwiftCodeLight`): Legacy theme schema
    (`id/name/background/foreground/keywordColor/stringColor/commentColor/
-   numberColor/typeColor/accentColor/isBuiltIn`) is incompatible with Ycode
-   `EditorTheme` (`.ycodetheme`: requires `fontName`, `fontSize`, `tokens`
+   numberColor/typeColor/accentColor/isBuiltIn`) is incompatible with SwiftCode
+   `EditorTheme` (`.swiftcodetheme`: requires `fontName`, `fontSize`, `tokens`
    map, `consoleFontName`, `consoleFontSize`, etc.); the destination has no
    bundled-theme loader (built-ins hardcoded, user themes load from a user
-   directory as `.ycodetheme`). A verbatim copy would be inert; converting
+   directory as `.swiftcodetheme`). A verbatim copy would be inert; converting
    schemas is out of scope for a copy-exact wave.
 5. **1 — `SwiftCode/Resources/DocSymbols.json`**: consumed only by Legacy
    `DocumentationBrowserView` (not ported).
@@ -107,64 +107,64 @@ standalone-swift `template.json`, and the `package.json` / `snippets.json` /
 
 ### Package.swift changes needed from resources
 
-None. Nothing was placed into any `ycode/Sources/*/Resources/` dir. (If
+None. Nothing was placed into any `swiftcode/Sources/*/Resources/` dir. (If
 the skipped icon/theme/docs subsystems are ported later, their resource
 wiring will need deciding then — including whether `.xcassets` belongs in
-`YcodeApp/Resources/` with an explicit `resources:` declaration.)
+`SwiftCodeApp/Resources/` with an explicit `resources:` declaration.)
 
 ## 2. Tests (34)
 
 ### Outcome: 26 IMPLEMENTED, 8 SKIPPED
 
 Most of the 34 were **already ported by Waves 1–16** under new names —
-verified test-by-test against the live Ycode tree, not by trusting the CSV
+verified test-by-test against the live SwiftCode tree, not by trusting the CSV
 (whose statuses are all stale `NOT STARTED`). Where a file was only partly
 covered, the genuinely missing, portable assertions were ported as new
 tests: **18 new tests in 5 new files**, all in existing test targets.
 
 New files (destination only, uncommitted):
 
-- `ycode/Tests/YcodeMCPTests/LegacyReverseGapTests.swift` — 5
+- `swiftcode/Tests/SwiftCodeMCPTests/LegacyReverseGapTests.swift` — 5
   swift-testing tests: Reverse allow-list (exactly 11 ops, no forbidden
   execution surface), objdump sub-ops (7), target validator direct checks
   (system path / traversal / relative / nil rejected; in-scope file
   accepted), disclaimer refusal (DRM + license-check refused, legitimate
   task allowed).
-- `ycode/Tests/YcodeSDKTests/LegacySDKGapTests.swift` — 2 XCTest: keyless
+- `swiftcode/Tests/SwiftCodeSDKTests/LegacySDKGapTests.swift` — 2 XCTest: keyless
   cloud-model caller keeps the grant path → `.permissionDenied`; all 32
-  Legacy canonical capability ids parse as `SDKCapabilityID` (Ycode adds
+  Legacy canonical capability ids parse as `SDKCapabilityID` (SwiftCode adds
   `assist.main`, asserted as a lower bound).
-- `ycode/Tests/YcodeSDKTests/LegacySDKInstallerGapTests.swift` — 6 XCTest:
+- `swiftcode/Tests/SwiftCodeSDKTests/LegacySDKInstallerGapTests.swift` — 6 XCTest:
   inspect corrupt when version/name missing; install succeeds with a stub
   npm only after verification; install fails when stub npm exits 0 but
   writes nothing; install fails honestly when stub npm exits non-zero even
   though it wrote files (real error text preserved in log); install falls
   back to the bundled copy when GitHub is unreachable.
-- `ycode/Tests/YcodeAssistantTests/LegacyAssistGapTests.swift` — 4
+- `swiftcode/Tests/SwiftCodeAssistantTests/LegacyAssistGapTests.swift` — 4
   swift-testing tests: `HermesConfiguration.normalisedToolsets`
   (whitespace-only → nil); `AssistantSettings.provider = .openCode` JSON
   round-trip; explicit Claude/GPT SDK configs never use Antigravity/Gemini;
   failover after a Claude failure attributes to the Claude model and picks
   the other Claude candidate, never the eligible Gemini candidate.
-- `ycode/Tests/YcodeGitHubTests/LegacyGitHubRepoGapTests.swift` — 1
+- `swiftcode/Tests/SwiftCodeGitHubTests/LegacyGitHubRepoGapTests.swift` — 1
   swift-testing test: `GitHubRepoReference.parse` accepts valid
   owner/repo characters (`org_1.2` / `r-e_p.o`).
 
 IMPLEMENTED rows (26): `GoogleCloudSDKTests.swift` (partial — auth/error-
-classification/routing intents covered by `YcodeGoogleAuthTests` +
+classification/routing intents covered by `SwiftCodeGoogleAuthTests` +
 `AntigravitySDKCatalogTests` + `AssistModelRoutingTests`; 12
-runtime/bridge/process/session checks skipped, no Ycode type),
+runtime/bridge/process/session checks skipped, no SwiftCode type),
 `AssistModelRouterTests.swift` (18/21 covered; 3 gap tests added),
 `AssistProviderTests.swift` (7.5/8; 1 gap test),
 `HermesProviderTests.swift` (7/10; locator covered by `CLIAgentTests`;
 1 gap test), `ExtV2TestSuite.swift` (11/14; 3 `use_extension` checks
-skipped — tool intentionally unwired in Ycode),
+skipped — tool intentionally unwired in SwiftCode),
 `SDKAssistApplicationTests.swift` (covered + extended by Wave 15: 11
-Legacy → 14 Ycode tests), `SDKAssistEnforcementTests.swift` (14/16; "no
+Legacy → 14 SwiftCode tests), `SDKAssistEnforcementTests.swift` (14/16; "no
 key" case = unentitled-key case per the file's own deviation note; 1 gap
 test), `SDKInstallerTests.swift` (partial: 8 existing + 6 gap tests; 2
 real-tarball/network tests skipped), `SDKTestRunner/main.swift` (all 7
-checks live in `YcodeSDKTests`; canonical caps added),
+checks live in `SwiftCodeSDKTests`; canonical caps added),
 `SDKTests/SDKTests.swift` (5/5), `ReverseTests.swift` (partial: 3/11
 checks ported; rest skipped, see below),
 `AssistDocsGitHubToolsTestSuite.swift` (15/17; 1 gap test), and all 13
@@ -179,13 +179,13 @@ SKIPPED rows (8):
   the destination does not have): `AssistRuntimeTestSuite.swift` (40 own
   tests on `AssistAgentSession` / `AssistToolRegistry` / `AssistFileSystem` /
   workers / goals / notes — superseded by the MCP host + MetaAssist
-  executor, whose behaviour is covered by `YcodeMCPTests` /
-  `YcodeAssistantTests`); `SDKProviderTests.swift` (all 8; no
+  executor, whose behaviour is covered by `SwiftCodeMCPTests` /
+  `SwiftCodeAssistantTests`); `SDKProviderTests.swift` (all 8; no
   `AssistSDKSessionRunner` / `SDKToolEventStore` / `SDKToolSourceSetting`
-  in Ycode); `SystemIndexTestSuite.swift` (no `SystemIndexService` by
+  in SwiftCode); `SystemIndexTestSuite.swift` (no `SystemIndexService` by
   design — stated in `MetaAssistTurnExecutor.swift`);
   `AppUpdateSupportTests.swift` (no `AppUpdateSupport` /
-  `ReleaseNotesFormatter` / `RemindLaterGate` in Ycode).
+  `ReleaseNotesFormatter` / `RemindLaterGate` in SwiftCode).
 - **Misclassified rows — production helpers, not tests:**
   `TestCoverageManager.swift` (fabricates coverage from a filename hash,
   `getRealLineCount` returns placeholder 100 — porting it would enshrine
@@ -194,12 +194,12 @@ SKIPPED rows (8):
 - **Example extension not ported:**
   `RepositoryBuildExtension/tests/extension.test.mjs` and
   `.../manifest.test.mjs` (only the example's manifest survives, as a
-  `YcodeSDKTests` fixture).
+  `SwiftCodeSDKTests` fixture).
 
 ### Package.swift changes needed from tests
 
-None. All new tests are in existing test targets (`YcodeMCPTests`,
-`YcodeSDKTests`, `YcodeAssistantTests`, `YcodeGitHubTests`).
+None. All new tests are in existing test targets (`SwiftCodeMCPTests`,
+`SwiftCodeSDKTests`, `SwiftCodeAssistantTests`, `SwiftCodeGitHubTests`).
 
 ### Pending (Mac build/test)
 
@@ -251,7 +251,7 @@ destination disk — 780/780 matched.
 
 Generator / `THIRD_PARTY_NOTICES.md`: no generator change needed, no
 regeneration pending. `packaging/generate-notices.py`'s `COMPONENTS` list
-covers third-party components Ycode ships/links. The SPDX corpus is
+covers third-party components SwiftCode ships/links. The SPDX corpus is
 license *templates* a user adds to their own project, not a shipped
 component, so it is deliberately not a `COMPONENTS` entry and does not
 change `THIRD_PARTY_NOTICES.md`. The generated file was not hand-edited.
@@ -261,7 +261,7 @@ change `THIRD_PARTY_NOTICES.md`. The generated file was not hand-edited.
 1. **Corpus not wired into any SwiftPM target yet.**
    `LicenseCatalog.swift` loads `.txt` files from `Bundle.main` resources;
    the texts currently sit in `packaging/` (not a target resource dir) and
-   `ycode/Package.swift` was off-limits in this wave. The wave that ports
+   `swiftcode/Package.swift` was off-limits in this wave. The wave that ports
    `LicencesAddView` (MIGRATE_AND_ADAPT) must wire the corpus in as a
    target resource and adapt the catalog — the preserved catalog is in
    `packaging/licenses/spdx/LicenseCatalog.swift`, unadapted by design.

@@ -1,7 +1,7 @@
 # Gap closure: Wave 17 follow-ups + remaining view windows + Artboards UI
 
 Slice spec for the gap-closure wave (family 7+8+9). Destination:
-SwiftCode-Mac (Ycode base, SwiftPM, main @ `f9f66c05`). Legacy is
+SwiftCode-Mac (SwiftCode base, SwiftPM, main @ `f9f66c05`). Legacy is
 read-only at `d51a8f0d`; all Legacy evidence below is Dylan's own code,
 direct porting authorised under MIT. Clean-room protocol applies:
 implementation reads only `specs/`, public docs, and open-source /
@@ -53,7 +53,7 @@ things, and left five view windows honestly unavailable:
 
 The toggle is implemented with Legacy's default (`true`). It gates
 both the popup and the typed-command intercept: when off, `/…` text
-is sent to the model as-is (there is no skill popup in Ycode for it
+is sent to the model as-is (there is no skill popup in SwiftCode for it
 to fall through to, so off means "no slash handling at all", never a
 silent reinterpretation).
 
@@ -72,7 +72,7 @@ public var useMetaSlashCommands = true
 useMetaSlashCommands = (try? c.decode(Bool.self, forKey: .useMetaSlashCommands)) ?? d.useMetaSlashCommands
 ```
 
-### 1.3 Palette state (pure, `YcodeAssistant`)
+### 1.3 Palette state (pure, `SwiftCodeAssistant`)
 
 `SlashCommandPaletteState` (`MetaSlashCommandManager.swift`): owns
 the query, the filtered list from the manager's existing
@@ -86,7 +86,7 @@ the popup triggers the same once-only capture the intercept uses
 (`CodingAssistantModel.ensureSlashCommandsCaptured()`, public,
 wrapping the existing private `refreshMetaSlashCommands()`).
 
-### 1.4 Popup UI (`YcodeUI/Assistant/SlashCommandPopup.swift`)
+### 1.4 Popup UI (`SwiftCodeUI/Assistant/SlashCommandPopup.swift`)
 
 `SlashCommandPopupController`: an `NSPopover` anchored to the
 composer text view, containing an `NSTableView` (command name,
@@ -217,10 +217,10 @@ forward. `eligibleCandidates` + `selectNextModel` + the
 ### 4.1 The gap (verified live)
 
 Wave 17 Slice B: extension reads run live against the window's
-published server (`YcodeSDKToolServerRegistry.current`), but the
+published server (`SwiftCodeSDKToolServerRegistry.current`), but the
 published server's policy is read-only, so every extension write
 is refused with `readOnlyMessage`. The grant check (`MCPServer.run`
-+ `MCPToolCaller`) and the runner (`YcodeSDKToolRunner`) were
++ `MCPToolCaller`) and the runner (`SwiftCodeSDKToolRunner`) were
 already in place; what was missing was a review-policy server with
 a presenter for extension changes — there is no conversation to
 propose into, unlike agent mode.
@@ -248,7 +248,7 @@ policy; the CLI builds its own server), so the policy change only
 affects extension tool calls. Verified by grep over
 `mcpHost.server` uses.
 
-### 4.3 Presenter (`YcodeUI/Assistant/ExtensionChangeReviewPresenter.swift`)
+### 4.3 Presenter (`SwiftCodeUI/Assistant/ExtensionChangeReviewPresenter.swift`)
 
 `ExtensionChangeReviewPresenter` (`@MainActor`): `review(_ change:
 MCPChange) async -> Bool`.
@@ -269,7 +269,7 @@ MCPChange) async -> Bool`.
 
 ### 4.4 What this unblocks, honestly
 
-`YcodeSDKToolRunner` → published server → `.review` → presenter
+`SwiftCodeSDKToolRunner` → published server → `.review` → presenter
 sheet → user decision → write or `rejectedMessage`. Reads are
 unchanged. The full composed path (backend → runner → live server
 with seeded grants) is still covered in pieces, not end-to-end in
@@ -312,7 +312,7 @@ reviewed, not modified.
   `.output/public`), Astro (`astro.config.mjs`, `dist`), Node.js
   (`package.json`, `dist`), else Static (no build, `.`).
 
-### 5.2 Port (`YcodeUI/Deploy/`)
+### 5.2 Port (`SwiftCodeUI/Deploy/`)
 
 `DeploymentService` (no key shipped; tokens live in the secret
 store; no token → honest failure before anything runs):
@@ -320,7 +320,7 @@ store; no token → honest failure before anything runs):
 - Providers: `.netlify`, `.vercel`, `.githubPages` (same three,
   same raw values as Legacy's `DeploymentPlatform`).
 - Token accounts (shared-file patch, coordinator applies —
-  `SecretAccount` in `YcodeAssistant/SecretStore.swift` is outside
+  `SecretAccount` in `SwiftCodeAssistant/SecretStore.swift` is outside
   this slice's owned set):
   `netlifyToken = "netlify.api-key"`,
   `vercelToken = "vercel.api-key"`. GitHub Pages reuses the
@@ -345,7 +345,7 @@ store; no token → honest failure before anything runs):
   `generateBuildSteps`) → poll deployments (12 × 5s; `succeeded`
   → return `html_url` or the custom domain; `failed`/`cancelled`/
   timeout → honest failure). The contents-API write is why this
-  lives in the service's own adapter rather than `YcodeGitHub`
+  lives in the service's own adapter rather than `SwiftCodeGitHub`
   (whose client has no contents write — see the patch below).
 - Framework detection is ported verbatim from Legacy (same files,
   same outputs).
@@ -353,7 +353,7 @@ store; no token → honest failure before anything runs):
   step logs through the caller's log handler, as Legacy did.
 
 `DeploymentWindowController` (manager + window, 1100×700,
-autosave `YcodeDeploymentWindow`): platform segmented picker,
+autosave `SwiftCodeDeploymentWindow`): platform segmented picker,
 custom-domain toggle + field, per-provider token status ("Stored"
  / "Not stored") + secure token field with Save (writes the secret
 store; the token is never displayed back), Deploy button (disabled
@@ -361,7 +361,7 @@ while deploying or without a token), log view, result URL + Open
 In Browser, error line. Follows the `SQLiteExplorerWindowManager`
 pattern (shared manager, raise-or-create).
 
-### 5.3 `YcodeGitHub` patch (coordinator applies — that target is owned by another slice)
+### 5.3 `SwiftCodeGitHub` patch (coordinator applies — that target is owned by another slice)
 
 Deliver the needed client endpoints as a patch description (the
 service's own adapter covers the calls until it lands):
@@ -400,7 +400,7 @@ matters:
   `WorkflowManager`: `loadWorkflows` / `saveWorkflows` /
   `createWorkflow` / `deleteWorkflow` / `duplicateWorkflow` /
   `toggleFavorite` / `resolveVariables` / `runWorkflow` /
-  `executeIndividualStep` / `cancelExecution`). Ycode has no
+  `executeIndividualStep` / `cancelExecution`). SwiftCode has no
   workflow/automation concept; porting that engine is a separate
   subsystem and is **not** this slice (recorded in §9).
 - The **real GitHub Actions** surface is `WorkflowRunsView` /
@@ -411,7 +411,7 @@ matters:
   **This** is what the task asked for ("the MINIMAL real one
   against the GitHub Actions API") and what this slice builds.
 
-### 6.2 Port (`YcodeUI/CI/`)
+### 6.2 Port (`SwiftCodeUI/CI/`)
 
 `GitHubActionsService`: a thin adapter over `URLSession`
 (injectable; stubbed in tests) with the stored GitHub token
@@ -427,15 +427,15 @@ dashboard shows an empty state — never fake runs — when the repo
 has none.
 
 `CIWindowController` (manager + window, 1100×700, autosave
-`YcodeCIWindow`): owner/repo fields (defaulted from the
+`SwiftCodeCIWindow`): owner/repo fields (defaulted from the
 workspace's git remote, editable, persisted in UserDefaults
-`com.ycode.ci.repository`), Refresh, runs table (name, branch,
+`com.swiftcode.ci.repository`), Refresh, runs table (name, branch,
 status, conclusion, event, age), jobs + steps list for the
 selected run, Logs button (fetches the selected job's logs into
 the log view), Re-run button (POST rerun, then refresh). Follows
 the `SQLiteExplorerWindowManager` pattern.
 
-The `YcodeGitHub` endpoints for this live in the §5.3 patch
+The `SwiftCodeGitHub` endpoints for this live in the §5.3 patch
 description; the service's own adapter is used until it lands.
 
 ## 7. Virtualization console (`virtualization.view`)
@@ -455,10 +455,10 @@ description; the service's own adapter is used until it lands.
   Managers: snapshots, backups, images, monitoring, network,
   shared folders.
 
-### 7.2 What Ycode's engine actually exposes (verified live)
+### 7.2 What SwiftCode's engine actually exposes (verified live)
 
-`YcodeHypervisor` is a **Linux KVM** engine, consumed only by
-`ycode-simd` internals: `Hypervisor.isAvailable`,
+`SwiftCodeHypervisor` is a **Linux KVM** engine, consumed only by
+`swiftcode-simd` internals: `Hypervisor.isAvailable`,
 `VirtualMachine(ramGPA:ramSize:)` (a bare KVM VM with RAM only),
 `makeVCPU`, memory slots, `close()`. There is no named-VM model,
 no guest-kernel loading, no disk image handling, no display, no
@@ -466,13 +466,13 @@ VZ wrapper — and on macOS (Dylan's Mac) KVM does not exist at all,
 so `isAvailable` is false there. A console that claimed to boot
 Legacy-style VMs over this engine would be fake.
 
-### 7.3 Port (`YcodeUI/Virtualization/`)
+### 7.3 Port (`SwiftCodeUI/Virtualization/`)
 
 `VirtualMachineRegistry`: a persisted registry of VM definitions
 (ported subset of Legacy's `VirtualMachine`: id, name, osType,
 version, status, cpuCores, memoryMB, storageGB, imagePath,
 createdDate, bootCount), JSON in Application Support
-`Ycode/VirtualMachines/registry.json`. Create / duplicate / delete
+`SwiftCode/VirtualMachines/registry.json`. Create / duplicate / delete
 / rename; image paths are validated to exist. The registry is real
 state, not a mock list.
 
@@ -484,7 +484,7 @@ requested core, then `close()`), returning the outcome or the real
 error, and the window says so.
 
 `VirtualizationWindowController` (manager + window, 1100×750,
-autosave `YcodeVirtualizationWindow`): VM list sidebar, detail
+autosave `SwiftCodeVirtualizationWindow`): VM list sidebar, detail
 pane (config, image, boot count, status), host-capability line,
 Create wizard (name, OS, CPU, RAM, disk image picker), Allocate /
 Release buttons, Probe Host button. **Allocate / Release — not
@@ -495,9 +495,9 @@ this is not a boot. Guest boot (a VZ wrapper on macOS, or a
 kernel+disk boot path on KVM) is the missing runtime — recorded
 in §9, not faked here.
 
-Package wiring (coordinator applies): add `"YcodeHypervisor"` to
-the `YcodeUI` target dependencies in `ycode/Package.swift`.
-(`YcodeUI` does not depend on it today.)
+Package wiring (coordinator applies): add `"SwiftCodeHypervisor"` to
+the `SwiftCodeUI` target dependencies in `swiftcode/Package.swift`.
+(`SwiftCodeUI` does not depend on it today.)
 
 ## 8. Sandboxed terminal (`sandbox.view`)
 
@@ -536,7 +536,7 @@ Shipping an extension-openable unsandboxed shell under the name
   an SDK view or an MCP tool. `use_terminal` remains the extension
   path, with its own terminal-approval allow-list.
 
-What this is **not**: a macOS Seatbelt sandbox. `YcodeSubprocess`
+What this is **not**: a macOS Seatbelt sandbox. `SwiftCodeSubprocess`
 enforces no sandboxing at all (verified live — zero
 `sandbox`/`seatbelt` hits in its sources), and this runner adds
 in-process confinement, not a kernel profile. A true Seatbelt
@@ -547,7 +547,7 @@ Until then the window is labelled honestly as a workspace-confined
 command runner, and the `sandbox.view` SDK ID stays unavailable
 to extensions.
 
-### 8.3 Port (`YcodeUI/Terminal/`)
+### 8.3 Port (`SwiftCodeUI/Terminal/`)
 
 `SandboxedCommandRunner`: `SandboxPolicy` (allowlist, git
 subcommands, timeout, output cap) + `run(commandLine:workingDirectory:policy:)`
@@ -558,7 +558,7 @@ and returns exit status + `timedOut`. Errors are `SandboxError`
 `launchFailed`) — never a fake success.
 
 `SandboxTerminalWindowController` (manager + window, 900×600,
-autosave `YcodeSandboxTerminalWindow`): command field + Run/Stop,
+autosave `SwiftCodeSandboxTerminalWindow`): command field + Run/Stop,
 monospaced output view (command / output / error / info lines, as
 Legacy's `TerminalLine`), cwd label, policy note ("Workspace-confined
 — no shell, allowlisted commands only"), session log. One session
@@ -594,10 +594,10 @@ per window; tabs/SSH are Legacy scope, not this slice.
   inspector, source editor, preview render, persistence, fix —
   not the animations/bindings/assets/AI panels (recorded in §9).
 
-### 9.2 Format (`YcodeMCP/YcodeTools+Artboards.swift`, owned)
+### 9.2 Format (`SwiftCodeMCP/SwiftCodeTools+Artboards.swift`, owned)
 
 New public, Codable model in the owned tools file (the MCP host and
-the UI share one store — YcodeUI already depends on YcodeMCP):
+the UI share one store — SwiftCodeUI already depends on SwiftCodeMCP):
 
 - `ArtboardComponentType`: Legacy's `VisualComponentType`, all 57
   cases with the same raw values + `systemIcon` (SF Symbol names,
@@ -614,9 +614,9 @@ the UI share one store — YcodeUI already depends on YcodeMCP):
 - `ArtboardDocument`: `{ version: 1, artboards, activeArtboardID,
   framework, zoomScale, panOffsetX, panOffsetY }`, JSON
   pretty-printed — Legacy's `save` shape. File extension
-  **`.ycode-artboard`**.
+  **`.swiftcode-artboard`**.
 - `ArtboardStore`: file URL per workspace — Application Support
-  `Ycode/Artboards/<sha256(workspace path)[:12]>.ycode-artboard`
+  `SwiftCode/Artboards/<sha256(workspace path)[:12]>.swiftcode-artboard`
   (the same hashing scheme as
   `CodingAssistantModel.archiveURL(forWorkspace:)`); `load` /
   `save` (atomic write); host-extension `ensureArtboardsLoaded`
@@ -627,18 +627,18 @@ the UI share one store — YcodeUI already depends on YcodeMCP):
   instead of silently resetting.
 - `fix_artboards` pass 2 is now real for previews: when the scope
   includes previews, the preview-render cache
-  (`XDG_CACHE_HOME ?? ~/.cache` + `ycode/preview-render` — the
+  (`XDG_CACHE_HOME ?? ~/.cache` + `swiftcode/preview-render` — the
   exact directory `PreviewRenderRunner` writes) is deleted and the
   action is recorded. For `full_app` scope the action still points
-  at the `clean` tool (Ycode has no DerivedData). Pass 1 stays
+  at the `clean` tool (SwiftCode has no DerivedData). Pass 1 stays
   audit-only (no destination to realign, no simulator booted by
   the tool itself).
 
-### 9.3 Window (`YcodeUI/Artboards/ArtboardWindowController.swift`)
+### 9.3 Window (`SwiftCodeUI/Artboards/ArtboardWindowController.swift`)
 
 `ArtboardWindowManager` (shared, raise-or-create; takes the
 workspace folder) + `ArtboardWindowController` (1200×750, autosave
-`YcodeArtboardsWindow`):
+`SwiftCodeArtboardsWindow`):
 
 - Sidebar: artboard list (name + device frame), New / Duplicate /
   Delete, active artboard.
@@ -654,14 +654,14 @@ workspace folder) + `ArtboardWindowController` (1200×750, autosave
   Preview + Fix (runs the `fix_artboards` tool through the
   window's MCP server when one is supplied; otherwise disabled
   with the reason). Save is automatic on change (debounced) to the
-  `.ycode-artboard` file; Open… loads one.
+  `.swiftcode-artboard` file; Open… loads one.
 - Undo/redo: JSON-scene snapshots, ported from Legacy's
   `checkpoint()` (undo stack of encoded scenes).
 
 ### 9.4 Live preview session
 
 No second preview engine is built. Rendering reuses
-`YcodePreviews.PreviewRenderRunner` exactly as
+`SwiftCodePreviews.PreviewRenderRunner` exactly as
 `artboard_compile` already does (write the source to a temp file,
 render the `#Preview`, show the PNG). The editor-area live canvas
 (`showLivePreview` / `setCanvasShown`) is the project's canvas,
@@ -672,7 +672,7 @@ keystroke against a persistent preview host) is follow-up scope.
 
 ## 10. View-host wiring (patch, coordinator applies)
 
-`YcodeSDKViewHost.swift` is outside this slice's owned set. The
+`SwiftCodeSDKViewHost.swift` is outside this slice's owned set. The
 patch adds four surface actions + routes four IDs, and shrinks
 `unavailableReasons` from 5 entries to 1 (`docs.search` — Wave 19):
 
@@ -689,7 +689,7 @@ func showSandboxTerminal(workspaceFolder: URL) throws
 //   CIWindowManager.shared.showWindow(workspaceFolder:)
 //   VirtualizationWindowManager.shared.showWindow()
 //   SandboxTerminalWindowManager.shared.showWindow(workspaceFolder:)
-// YcodeSDKViewHost.open: route "deployConsole.view", "ci.VisualWF",
+// SwiftCodeSDKViewHost.open: route "deployConsole.view", "ci.VisualWF",
 // "virtualization.view", "sandbox.view" to the new actions; remove
 // those four keys from unavailableReasons. "docs.search" stays.
 // Artboards has no SDK view ID (Legacy's 12 IDs cover
@@ -700,18 +700,18 @@ func showSandboxTerminal(workspaceFolder: URL) throws
 
 ## 11. Tests
 
-- `YcodeAssistantTests/SlashMenuGapTests.swift`: palette state
+- `SwiftCodeAssistantTests/SlashMenuGapTests.swift`: palette state
   (filtering, leading `/`, empty query, wraparound, empty list),
   `searchCommands` behaviour, `useMetaSlashCommands` default true
   (needs the §1.2 patch), Meta settings defaults, router
   `handleTurnFailure` (auto-switch off → nil; timeout fails over;
   quota excludes the whole provider; no candidates → nil).
-- `YcodeMCPTests/LiveExtensionWriteGapTests.swift`: granted write
+- `SwiftCodeMCPTests/LiveExtensionWriteGapTests.swift`: granted write
   asks with the caller attached (ask sees `caller.extensionID`),
   accept writes, reject writes nothing, ungranted write refused
   before any ask, read-only policy refuses extension writes,
   host calls unchanged.
-- `YcodeUITests/Wave17FollowUpGapTests.swift`: settings pane
+- `SwiftCodeUITests/Wave17FollowUpGapTests.swift`: settings pane
   controls round-trip (slash toggle, timeout, other-model fields);
   extension presenter with an injected reviewer (accept/reject,
   no-window refuse); deploy service with a stub `URLSession`
@@ -779,18 +779,18 @@ direct porting under MIT was authorised by him):
   `VisualUIScene` / `VisualUIDocument` (JSON scene format,
   component types, undo snapshots); `AssistFixArtboardsTool`
   (passes 1–4).
-- **Destination source, read directly** (Ycode's own code):
+- **Destination source, read directly** (SwiftCode's own code):
   `MetaSlashCommandManager.searchCommands` / `executeCommand`;
   `AssistantSettings` field names and defaults;
   `AssistModelRouter.handleTurnFailure` / `classify` /
   `eligibleCandidates`; `CodingAssistantModel.send` /
   `handleMetaSlashCommand`; `MCPServer.run` grant check + review
-  policy; `YcodeSDKToolRunner` + `YcodeSDKToolServerRegistry`;
-  `YcodeGitHub/GitHubClient` endpoint list (no workflow-runs or
-  Pages endpoints); `YcodeHypervisor` (KVM-only API surface);
-  `YcodeSubprocess` (no sandboxing); `YcodePreviews.
+  policy; `SwiftCodeSDKToolRunner` + `SwiftCodeSDKToolServerRegistry`;
+  `SwiftCodeGitHub/GitHubClient` endpoint list (no workflow-runs or
+  Pages endpoints); `SwiftCodeHypervisor` (KVM-only API surface);
+  `SwiftCodeSubprocess` (no sandboxing); `SwiftCodePreviews.
   PreviewRenderRunner` (headless render + cache directory);
-  `YcodeTools+Artboards` (in-memory records, fix passes 3–4).
+  `SwiftCodeTools+Artboards` (in-memory records, fix passes 3–4).
 
 No reference Xcode copy, Ghidra output, simulator IPSW, or
 `research/dirty/` material was opened or used. No Apple code or

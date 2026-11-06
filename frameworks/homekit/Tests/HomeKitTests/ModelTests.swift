@@ -118,7 +118,7 @@ struct RoomZoneTests {
     @Test("HK-A04: service groups add, rename, membership, remove")
     func serviceGroups() async throws {
         let (store, _, h) = try await homeFixture()
-        let lamp = try await pair(YcodeTestAccessory.lightbulb(name: "Lamp"), into: h, store: store)
+        let lamp = try await pair(SwiftCodeTestAccessory.lightbulb(name: "Lamp"), into: h, store: store)
         let light = lamp.services.first { $0.serviceType == HMServiceTypeLightbulb }!
         let g = try await h.addServiceGroup(named: "Evening")
         try await g.addService(light)
@@ -196,10 +196,10 @@ struct FanOutTests {
 struct PersistenceTests {
     @Test("A relaunch on the same store file sees the same identifiers and names; accessories wait for their endpoint")
     func relaunch() async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-hk-\(UUID().uuidString)")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-hk-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("homes.json")
-        let lamp = YcodeTestAccessory.lightbulb(name: "Desk Lamp")
+        let lamp = SwiftCodeTestAccessory.lightbulb(name: "Desk Lamp")
         var ids: [UUID] = []
         do {
             let store = newStore(url: url)

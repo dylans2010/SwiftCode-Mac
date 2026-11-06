@@ -6,7 +6,7 @@
 // empty when absent); DER signature.
 //
 // The configuration's own key (`_subscriptionOffersKeyPair`) has an
-// unobserved format (testing-session.md §12 q5), so Ycode takes the public
+// unobserved format (testing-session.md §12 q5), so SwiftCode takes the public
 // keys from its caller.
 import Crypto
 import Foundation

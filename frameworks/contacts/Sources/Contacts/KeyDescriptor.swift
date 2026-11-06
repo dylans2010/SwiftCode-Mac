@@ -6,7 +6,7 @@ import Foundation
 /// Something that names contact keys to fetch: a key string (`String` or
 /// `NSString`) or a composite descriptor.
 public protocol CNKeyDescriptor {
-    /// The plain keys this descriptor stands for (Ycode-internal).
+    /// The plain keys this descriptor stands for (SwiftCode-internal).
     var _cnKeys: Set<String> { get }
 }
 

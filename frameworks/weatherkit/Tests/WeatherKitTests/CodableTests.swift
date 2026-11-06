@@ -394,7 +394,7 @@ struct CodableTests {
         #expect((back["weatherAlerts"] as! [[String: Any]])[0]["importance"] as? String == "high")
     }
 
-    @Test("codable.md §5: other non-public products of Weather are accepted (Ycode keeps them)")
+    @Test("codable.md §5: other non-public products of Weather are accepted (SwiftCode keeps them)")
     func otherProducts() throws {
         var object = encoded
         object["airQuality"] = ["index": 42, "scale": "made-up"]

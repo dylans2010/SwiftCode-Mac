@@ -1,6 +1,6 @@
 # EventKit spec: implementation rounds and conformance tests
 
-Part of `specs/frameworks/eventkit/`. This plan is Ycode's own. Each round is
+Part of `specs/frameworks/eventkit/`. This plan is SwiftCode's own. Each round is
 sized for one clean-room agent. Clean-room agents read only `specs/`, public
 documentation and permissively licensed open source; they must not open the
 reference tools (the Xcode copy, Ghidra, the IPSW), `research/dirty/`, or
@@ -8,7 +8,7 @@ Ghidra projects, and must not run Apple's simulator or Xcode.
 
 ## 1. Targets
 
-1. **Baseline in Ycode's simulator** with Apple's EventKit and daemons
+1. **Baseline in SwiftCode's simulator** with Apple's EventKit and daemons
    (`design.md` §2).
 2. **Open EventKit / EventKitUI**: drop-in frameworks for the guest
    (binary-compatible: same install names, class names, selectors, enum
@@ -21,14 +21,14 @@ Ghidra projects, and must not run Apple's simulator or Xcode.
 | Round | Owner | Scope | Done when |
 |---|---|---|---|
 | R0 | KIT-EVENTKIT-CONTACTS (this) | Specification and probe | this directory reviewed and merged |
-| R1 | simulator track | **Baseline in Ycode**: dependencies G1–G10 of `design.md` §2; run `EKProbe` phases basic → reqfull → reqrem → reqwo [WO] → reqlegacy [Legacy] → status → events → reminders → wo [WO] → count → ui*, answering prompts by taps | every row K1–K12 of `simulator-baseline.md` §7 matches (modulo UUIDs, addresses, times) |
+| R1 | simulator track | **Baseline in SwiftCode**: dependencies G1–G10 of `design.md` §2; run `EKProbe` phases basic → reqfull → reqrem → reqwo [WO] → reqlegacy [Legacy] → status → events → reminders → wo [WO] → count → ui*, answering prompts by taps | every row K1–K12 of `simulator-baseline.md` §7 matches (modulo UUIDs, addresses, times) |
 | R2 | clean room | **Model and store**: object classes with change tracking, identifiers (§3.1), sources/calendars with the fixed identifiers, SQLite store and daemon, save/remove/commit/reset/rollback/refresh, staged batches, change journal and `EKEventStoreChangedNotification` (main thread, one per commit, cross-process) | C-EK-STORE passes on Linux and in the guest |
 | R3 | clean room | **Recurrence engine**: RFC 5545 expander, normalizations, detached occurrences, splits, future deletes, predicate window rules and the four-year cap, floating and all-day rules | C-EK-REC passes (all golden rows of `recurrence.md` §5.1) |
 | R4 | clean room | **Reminders**: reminder model, lists, async fetch with cancel, the three predicates, recurring completion | C-EK-REM passes |
-| R5 | clean room | **Authorization**: per-entity states incl. write-only, usage-string checks, Ycode's three alerts, the write-only virtual source/calendar, `ycode-simctl privacy` verbs | C-EK-AUTH passes (taps in the guest, recorded answers on Linux) |
+| R5 | clean room | **Authorization**: per-entity states incl. write-only, usage-string checks, SwiftCode's three alerts, the write-only virtual source/calendar, `swiftcode-simctl privacy` verbs | C-EK-AUTH passes (taps in the guest, recorded answers on Linux) |
 | R6 | clean room | **EventKitUI**: `EKEventEditViewController`, `EKEventViewController`, `EKCalendarChooser` with their delegate calls (`ui.md`) | C-EK-UI passes |
-| R7 | clean room (optional) | **Accounts and derived calendars**: Birthdays calendar fed by Ycode Contacts, subscribed calendars (read-only ICS), CalDAV sync (open protocol, RFC 4791) | C-EK-SYNC passes against a local CalDAV test server |
-| R8 | simulator track + clean room | **Drop-in switch**: load Ycode's frameworks and daemon in the guest instead of Apple's (opt-in), side-car seeding | the whole suite passes with both stacks |
+| R7 | clean room (optional) | **Accounts and derived calendars**: Birthdays calendar fed by SwiftCode Contacts, subscribed calendars (read-only ICS), CalDAV sync (open protocol, RFC 4791) | C-EK-SYNC passes against a local CalDAV test server |
+| R8 | simulator track + clean room | **Drop-in switch**: load SwiftCode's frameworks and daemon in the guest instead of Apple's (opt-in), side-car seeding | the whole suite passes with both stacks |
 
 ## 3. Conformance tests
 
@@ -88,5 +88,5 @@ callbacks and actions.
 
 ## Evidence
 
-Plan and test selection are Ycode's own. Golden values are level 3 from
+Plan and test selection are SwiftCode's own. Golden values are level 3 from
 the topic files (`EKProbe` on iOS 27.1).

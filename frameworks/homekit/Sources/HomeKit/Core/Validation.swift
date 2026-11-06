@@ -6,7 +6,7 @@ import Foundation
 
 /// Metadata of one characteristic in wire form (the fields of
 /// `HMCharacteristicMetadata`, object-model.md §7).
-public struct YcodeCharacteristicMetadata: Codable, Hashable, Sendable {
+public struct SwiftCodeCharacteristicMetadata: Codable, Hashable, Sendable {
     public var format: String?
     public var units: String?
     public var minimumValue: Double?
@@ -30,12 +30,12 @@ public struct YcodeCharacteristicMetadata: Codable, Hashable, Sendable {
     }
 }
 
-/// The validation rules. Ycode's reading of the spec where it is silent
+/// The validation rules. SwiftCode's reading of the spec where it is silent
 /// (README "Spec questions"): the format check comes first (43), then the
 /// minimum (44), maximum (45) and string length (46); a value off the step grid
 /// or outside `validValues` is 43; a missing value is 43; strings without a
 /// `maxLength` are limited to HAP's default of 64 characters.
-public enum YcodeValueValidation {
+public enum SwiftCodeValueValidation {
     /// HAP's default maximum string length.
     public static let defaultMaxLength = 64
 
@@ -53,15 +53,15 @@ public enum YcodeValueValidation {
 
     /// Converts an API value to the wire form for `metadata`, or the error an
     /// app gets from `writeValue` (no I/O happens on failure).
-    public static func validate(_ value: Any?, metadata: YcodeCharacteristicMetadata?) -> Result<YcodeHomeValue, HMError> {
+    public static func validate(_ value: Any?, metadata: SwiftCodeCharacteristicMetadata?) -> Result<SwiftCodeHomeValue, HMError> {
         guard let value else { return .failure(HMError(.invalidValueType)) }
         let format = metadata?.format
-        let converted: YcodeHomeValue
+        let converted: SwiftCodeHomeValue
         switch format {
         case HMCharacteristicMetadataFormatBool:
             if let b = value as? Bool, type(of: value) == Bool.self {
                 converted = .bool(b)
-            } else if let d = YcodeHomeValue.number(value), d == 0 || d == 1 {
+            } else if let d = SwiftCodeHomeValue.number(value), d == 0 || d == 1 {
                 converted = .bool(d == 1)
             } else {
                 return .failure(HMError(.invalidValueType))
@@ -69,8 +69,8 @@ public enum YcodeValueValidation {
         case HMCharacteristicMetadataFormatUInt8, HMCharacteristicMetadataFormatUInt16,
              HMCharacteristicMetadataFormatUInt32, HMCharacteristicMetadataFormatUInt64,
              HMCharacteristicMetadataFormatInt:
-            guard type(of: value) != Bool.self, let ints = YcodeHomeValue.integer(value),
-                  let d = YcodeHomeValue.number(value) else {
+            guard type(of: value) != Bool.self, let ints = SwiftCodeHomeValue.integer(value),
+                  let d = SwiftCodeHomeValue.number(value) else {
                 return .failure(HMError(.invalidValueType))
             }
             if let r = checkBounds(d, metadata) { return .failure(r) }
@@ -84,7 +84,7 @@ public enum YcodeValueValidation {
             }
             if let r = checkStepAndValidValues(d, metadata) { return .failure(r) }
         case HMCharacteristicMetadataFormatFloat:
-            guard type(of: value) != Bool.self, let d = YcodeHomeValue.number(value), d.isFinite else {
+            guard type(of: value) != Bool.self, let d = SwiftCodeHomeValue.number(value), d.isFinite else {
                 return .failure(HMError(.invalidValueType))
             }
             if let r = checkBounds(d, metadata) { return .failure(r) }
@@ -100,26 +100,26 @@ public enum YcodeValueValidation {
             guard let d = value as? Data else { return .failure(HMError(.invalidValueType)) }
             converted = .data(d)
         case HMCharacteristicMetadataFormatArray:
-            guard value is [Any], let v = YcodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
+            guard value is [Any], let v = SwiftCodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
             converted = v
         case HMCharacteristicMetadataFormatDictionary:
-            guard value is [String: Any], let v = YcodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
+            guard value is [String: Any], let v = SwiftCodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
             converted = v
         default:
             // No or unknown format: accept any representable value.
-            guard let v = YcodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
+            guard let v = SwiftCodeHomeValue(any: value) else { return .failure(HMError(.invalidValueType)) }
             converted = v
         }
         return .success(converted)
     }
 
-    private static func checkBounds(_ d: Double, _ m: YcodeCharacteristicMetadata?) -> HMError? {
+    private static func checkBounds(_ d: Double, _ m: SwiftCodeCharacteristicMetadata?) -> HMError? {
         if let lo = m?.minimumValue, d < lo { return HMError(.valueLowerThanMinimum) }
         if let hi = m?.maximumValue, d > hi { return HMError(.valueHigherThanMaximum) }
         return nil
     }
 
-    private static func checkStepAndValidValues(_ d: Double, _ m: YcodeCharacteristicMetadata?) -> HMError? {
+    private static func checkStepAndValidValues(_ d: Double, _ m: SwiftCodeCharacteristicMetadata?) -> HMError? {
         if let step = m?.stepValue, step > 0 {
             let steps = (d - (m?.minimumValue ?? 0)) / step
             if abs(steps - steps.rounded()) > 1e-6 { return HMError(.invalidValueType) }

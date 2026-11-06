@@ -11,8 +11,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Ycode version
-      description: From the About window, or `ycode --version`.
+      label: SwiftCode version
+      description: From the About window, or `swiftcode --version`.
       placeholder: 1.0.0-beta.2
     validations:
       required: true

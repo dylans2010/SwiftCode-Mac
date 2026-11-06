@@ -21,7 +21,7 @@ import SwiftUICore
 // below moves at 30 % (x = −0.3 W + 0.3 dx). The bar adds 82 points to the
 // top (inline and large titles alike).
 //
-// Design (Ycode's): the stack keeps a view node per page (the root, the
+// Design (SwiftCode's): the stack keeps a view node per page (the root, the
 // path's values and pages pushed by destination links); covered pages are
 // *suspended* (their state stays; `ViewNode.setSuspended`) rather than
 // removed. Transitions run on a frame driver for 0.5 s with the ease-in-out

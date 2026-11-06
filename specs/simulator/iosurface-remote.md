@@ -177,7 +177,7 @@ The connection ends when the client process exits (the client holds the
 only send rights to the connection port). The real service then **drops
 the surfaces that the process held**: a surface created by a process that
 exited without releasing it could no longer be looked up by ID from another
-process (`kIOReturnNotFound`). A Ycode service can detect the end with a
+process (`kIOReturnNotFound`). A SwiftCode service can detect the end with a
 no-senders notification on the connection port (`mach-ipc.md` §3); that is
 how our test server does it.
 
@@ -396,7 +396,7 @@ A dictionary of the stored values (§3.1). It may contain any of the types of
   child's write.
 - The macOS service's memory carries VM tag 88 (`VM_MEMORY_IOSURFACE`,
   public `vm_statistics.h`); with our test server's untagged memory the
-  clients behaved the same. A Ycode service should tag it 88 anyway.
+  clients behaved the same. A SwiftCode service should tag it 88 anyway.
 - The surface Mach port from Method 14 is **not** a memory entry (mapping it
   failed). It is only a handle that the service recognises in Method 2.
 - No locking protocol guards the memory: lock and unlock are messages to
@@ -442,7 +442,7 @@ the `com.apple.metal.simulator*` names denied (§8).
   (`-[MTLSimDevice newTextureWithDescriptor:iosurface:plane:]`, crash report
   frames): the host Metal service cannot use surfaces it does not know.
 
-## 8. What a Ycode host service must implement
+## 8. What a SwiftCode host service must implement
 
 Requirements, in priority order. Items 1–7 are the minimum with which
 `backboardd` and SpringBoard start and Settings launches (§7.2: every other
@@ -497,16 +497,16 @@ stage 8, which reads pixels.
 Design notes (not observations):
 
 - The service's memory is guest memory shared between guest processes;
-  in Ycode the VMM can implement the memory entry as one host allocation
+  in SwiftCode the VMM can implement the memory entry as one host allocation
   mapped into each guest task. Stage 8's display path reads the display
   buffers (§1.2) from the same allocation.
-- Ycode must not offer `com.apple.metal.simulator*` host names unless its
+- SwiftCode must not offer `com.apple.metal.simulator*` host names unless its
   Metal service understands its own surfaces (§7.3); with them absent,
   `backboardd` renders without Metal (`simframebuffer.md` §7 item 11).
 
-### Surfaces made by a Ycode host (2026-10-27)
+### Surfaces made by a SwiftCode host (2026-10-27)
 
-Ycode's Metal host answers `metal-sim-protocol.md` §5.10 (`messageType`
+SwiftCode's Metal host answers `metal-sim-protocol.md` §5.10 (`messageType`
 19, shared textures) with a surface it makes itself in the IOSurface
 service (`IOSurfaceHostService.makeSharedTextureSurface`), shaped as the
 reference's (visionos.md §10.10.2, §10.11.3): width, height, bytes per
@@ -568,7 +568,7 @@ and numeric creation properties behind a Method-14 port
 | Requirements and refusal results (§7.2, §8) | 3 | `isserver.h` (in `ismitm.c` and as `isserve.c` job), `run-fake-restart.sh`, `backboardd` log lines, crash reports |
 | `SimRenderServer` serves the name on macOS | 3 | sender pid of the replies in the receive trailer, `ps` |
 | Metal abort with foreign surfaces (§7.3) | 3 | crash reports (frame names, black-box output) |
-| Design notes (§8) | — | Ycode design |
+| Design notes (§8) | — | SwiftCode design |
 
 No disassembly or decompilation was used (level 5 not used). No
 `.claude/Xcode.app`, `research/dirty/`, or Ghidra project was opened. No

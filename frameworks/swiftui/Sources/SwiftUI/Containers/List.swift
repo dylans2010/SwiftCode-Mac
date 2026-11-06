@@ -18,13 +18,13 @@ import SwiftUICore
 // offset of `scrollTo(500, anchor: .top)`, 500 × 52 + 13.33, which puts the
 // first row 13.33 points below the list's top (06 §3; golden `list.two`, an
 // informative row, shows 35, the form's first-row offset). Plain lists inset
-// rows 20 points (golden `list.plain`). Everything else is Ycode's look
+// rows 20 points (golden `list.plain`). Everything else is SwiftCode's look
 // (09-open-design.md §4.2 palette): separators inset like the row content,
 // rounded section groups (radius 10), footnote headers, 20 points between
-// sections; the sidebar style is Ycode's desktop navigator: 28-point rows,
+// sections; the sidebar style is SwiftCode's desktop navigator: 28-point rows,
 // 16 points of indentation per outline level, a rounded selection.
 //
-// Selection (Ycode's desktop rules): a click selects the row (and focuses
+// Selection (SwiftCode's desktop rules): a click selects the row (and focuses
 // the list); with a multiple selection, Ctrl (or Super) toggles the row and
 // Shift extends from the last clicked row. When the list has keyboard focus,
 // Up and Down move the selection (Shift extends), Home and End go to the
@@ -40,7 +40,7 @@ public protocol ListStyle {
     var _ovListKind: ListKind { get }
 }
 
-/// Ycode's list looks.
+/// SwiftCode's list looks.
 public enum ListKind: Sendable, Equatable {
     case plain, insetGrouped, grouped, inset, sidebar
 }

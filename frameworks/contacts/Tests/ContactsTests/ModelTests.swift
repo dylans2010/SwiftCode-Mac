@@ -10,8 +10,8 @@ struct ConstantTests {
     @Test("identifiers.md string constants: every value of the table")
     func stringConstants() throws {
         // The spec's table, read at test time: name → value.
-        #expect(ycodeAllStringConstants.count == 309)
-        let byName = Dictionary(uniqueKeysWithValues: ycodeAllStringConstants.map { ($0.name, $0.value) })
+        #expect(swiftcodeAllStringConstants.count == 309)
+        let byName = Dictionary(uniqueKeysWithValues: swiftcodeAllStringConstants.map { ($0.name, $0.value) })
         #expect(byName["CNContactPostalAddressesKey"] == "postalAddresses")
         #expect(byName["CNContactRelationsKey"] == "contactRelations")
         #expect(byName["CNContactPropertyAttribute"] == "contactProperty")
@@ -53,7 +53,7 @@ struct ConstantTests {
         #expect(CNLabelDateAnniversary == "_$!<Anniversary>!$_")
         #expect(CNLabelContactRelationSpouse == "_$!<Spouse>!$_")
         #expect(CNLabelContactRelationGranddaughterOrNiece == "_$!<GranddaughterOrNiece>!$_")
-        #expect(ycodeAllLabelConstants.count == 231)
+        #expect(swiftcodeAllLabelConstants.count == 231)
     }
 
     @Test("identifiers.md: enumeration raw values")
@@ -107,7 +107,7 @@ struct LocalizationTests {
         for (label, word) in expected {
             #expect(CNLabeledValue<NSString>.localizedString(forLabel: label) == word)
         }
-        // Ycode's rule for relation labels the spec does not list.
+        // SwiftCode's rule for relation labels the spec does not list.
         #expect(CNLabeledValue<NSString>.localizedString(forLabel: CNLabelContactRelationSisterInLawBrothersWife) == "sister-in-law")
         #expect(CNLabeledValue<NSString>.localizedString(forLabel: CNLabelContactRelationElderBrother) == "older brother")
         #expect(CNLabeledValue<NSString>.localizedString(forLabel: CNLabelContactRelationParentsSibling) == "parent's sibling")
@@ -183,7 +183,7 @@ struct ContactModelTests {
         let e = raised { c.note = "Bring the blue folder." }
         #expect(e?.name == "CNPropertyNotFetchedException")
         #expect(e?.reason == "A property was not requested when contact was fetched.")
-        YcodeContactsEnvironment.$notesOverride.withValue(true) {
+        SwiftCodeContactsEnvironment.$notesOverride.withValue(true) {
             let n = CNMutableContact()
             n.note = "Bring the blue folder."
             #expect(n.note == "Bring the blue folder.")

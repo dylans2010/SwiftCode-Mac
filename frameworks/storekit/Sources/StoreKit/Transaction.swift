@@ -5,13 +5,13 @@ import StoreKitEngine
 import StoreKitSigning
 
 /// A signed in-app transaction, decoded from its JWS payload.
-public struct Transaction: Identifiable, Hashable, Sendable, YcodeSignedValue {
+public struct Transaction: Identifiable, Hashable, Sendable, SwiftCodeSignedValue {
     public typealias ID = UInt64
 
     let jws: String
     let payload: JSONValue
 
-    public var ycodeJWS: String { jws }
+    public var swiftcodeJWS: String { jws }
 
     init(jws: String, payload: JSONValue) {
         self.jws = jws
@@ -71,12 +71,12 @@ public struct Transaction: Identifiable, Hashable, Sendable, YcodeSignedValue {
     public var signedDate: Date { date("signedDate") ?? .distantPast }
 
     /// `Transaction.finish()`: tells the store the content was delivered.
-    public func finish() async { YcodeStoreKit.shared.store.finish(transactionID: id) }
+    public func finish() async { SwiftCodeStoreKit.shared.store.finish(transactionID: id) }
 
     /// The status of the subscription this transaction belongs to.
     public var subscriptionStatus: Product.SubscriptionInfo.Status? {
         get async {
-            let rt = YcodeStoreKit.shared
+            let rt = SwiftCodeStoreKit.shared
             guard let s = rt.store.subscriptionStatus(forTransaction: id) else { return nil }
             return Product.SubscriptionInfo.Status.make([s], runtime: rt).first
         }
@@ -88,46 +88,46 @@ public struct Transaction: Identifiable, Hashable, Sendable, YcodeSignedValue {
     // MARK: Lists (testing-session.md §10 item 4)
 
     /// Every transaction, newest first; finished consumables left out.
-    public static var all: Transactions { list(YcodeStoreKit.shared.store.transactionHistory()) }
+    public static var all: Transactions { list(SwiftCodeStoreKit.shared.store.transactionHistory()) }
 
     /// One entry per non-consumable and active subscription.
-    public static var currentEntitlements: Transactions { list(YcodeStoreKit.shared.store.currentEntitlements()) }
+    public static var currentEntitlements: Transactions { list(SwiftCodeStoreKit.shared.store.currentEntitlements()) }
 
     /// Every unfinished transaction, renewals included.
-    public static var unfinished: Transactions { list(YcodeStoreKit.shared.store.unfinishedTransactions()) }
+    public static var unfinished: Transactions { list(SwiftCodeStoreKit.shared.store.unfinishedTransactions()) }
 
     /// The transactions of one product.
     public static func all(for productID: String) -> Transactions {
-        list(YcodeStoreKit.shared.store.transactionHistory().filter { $0.productID == productID })
+        list(SwiftCodeStoreKit.shared.store.transactionHistory().filter { $0.productID == productID })
     }
 
     /// The entitlements of one product.
     public static func currentEntitlements(for productID: String) -> Transactions {
-        list(YcodeStoreKit.shared.store.currentEntitlements().filter { $0.productID == productID })
+        list(SwiftCodeStoreKit.shared.store.currentEntitlements().filter { $0.productID == productID })
     }
 
     public static func currentEntitlement(for productID: String) async -> VerificationResult<Transaction>? {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         return rt.store.currentEntitlements().first { $0.productID == productID }.flatMap(rt.verificationResult)
     }
 
     /// The newest transaction of a product.
     public static func latest(for productID: String) async -> VerificationResult<Transaction>? {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         return rt.store.latestTransaction(for: productID).flatMap(rt.verificationResult)
     }
 
     /// Transactions created outside a purchase call: renewals, approvals,
     /// refunds, off-device purchases; it starts with the unfinished transactions.
-    public static var updates: Transactions { Transactions(stream: YcodeStoreKit.shared.updatesStream()) }
+    public static var updates: Transactions { Transactions(stream: SwiftCodeStoreKit.shared.updatesStream()) }
 
     /// Signs and verifies one store record (for StoreKitTest).
-    @_spi(Ycode) public static func ycodeVerified(_ record: TransactionRecord) async -> VerificationResult<Transaction>? {
-        YcodeStoreKit.shared.verificationResult(record)
+    @_spi(SwiftCode) public static func swiftcodeVerified(_ record: TransactionRecord) async -> VerificationResult<Transaction>? {
+        SwiftCodeStoreKit.shared.verificationResult(record)
     }
 
     static func list(_ records: [TransactionRecord]) -> Transactions {
-        let results = YcodeStoreKit.shared.verificationResults(records)
+        let results = SwiftCodeStoreKit.shared.verificationResults(records)
         return Transactions(stream: AsyncStream { c in
             for r in results { c.yield(r) }
             c.finish()

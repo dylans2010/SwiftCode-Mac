@@ -3,9 +3,9 @@
 Status: round 0 (OBS-RCP, 2026-10-29), with the migration (OBS-RCP2)
 and the owner's app-made sample (OBS-RCP4) folded in. Goal from the owner: a
 clean-room tool so that developers can make RealityKit scenes outside
-macOS. These files are the boundary: what Ycode's scene editor must read
+macOS. These files are the boundary: what SwiftCode's scene editor must read
 and write, and what the build must produce, to interoperate with Reality
-Composer Pro ("RCP", the reference; Ycode's tool has its own name) and
+Composer Pro ("RCP", the reference; SwiftCode's tool has its own name) and
 with Xcode builds.
 
 Reference versions: Reality Composer Pro 3.0 (1A153), Xcode 27.1
@@ -20,7 +20,7 @@ Reference versions: Reality Composer Pro 3.0 (1A153), Xcode 27.1
 | `particles-audio.md` | particle emitters, audio files, audio components |
 | `compile.md` | `realitytool compile` / `create-schema` / `image`, Xcode's build tasks, the `.reality` container |
 | `editor-behavior.md` | windows, menus, shortcuts, viewport, import/export, Xcode link, plug-ins, CLI |
-| `ycode-design.md` | Ycode-original decisions of the composer (names, what Ycode writes, preservation, validation codes); architecture in `docs/SCENE-COMPOSER.md` |
+| `swiftcode-design.md` | @@SWIFTCODE_ORIGINAL@@ decisions of the composer (names, what SwiftCode writes, preservation, validation codes); architecture in `docs/SCENE-COMPOSER.md` |
 
 ## The one decision that shapes everything
 
@@ -31,11 +31,11 @@ own template puts plain `.usda` scenes in the app. The RCP 1/2 format —
 a Swift package with a `.rkassets` folder of USDA scenes — is still
 compiled by every Xcode build and is migrated by RCP 3 on open.
 
-**Ycode writes the RCP 1/2 content-package format** (USD source,
+**SwiftCode writes the RCP 1/2 content-package format** (USD source,
 `project-format.md` §3). That gives: builds with stock Xcode on macOS;
 openable (by migration) in RCP 3; readable by any USD tool; loadable
 directly by the open RealityKit on Linux. RCP 3's native projects are a
-later read-only import (`project-format.md` §4.6); until then Ycode
+later read-only import (`project-format.md` §4.6); until then SwiftCode
 imports RCP 3's USD or `.reality` exports.
 
 ## Answers in brief
@@ -102,7 +102,7 @@ verified.
 **Compile and build.** `realitytool compile` takes `.rkassets` (every USD
 inside becomes a scene named by relative path) and writes `.reality`;
 deployment target picks `minVersion`; it never reports USD errors (exit
-0), so Ycode must validate. Xcode runs `RealityAssetsSchemaGen`
+0), so SwiftCode must validate. Xcode runs `RealityAssetsSchemaGen`
 (`create-schema` over the package's Swift files, via
 `ModuleWithDependencies.json` → `CustomComponentUSDInitializers.usda`)
 then `RealityAssetsCompile` into the package resource bundle (swift-build,
@@ -117,7 +117,7 @@ for byte with the open-source encoder); method 32867 is a `CHNK` frame
 of raw/LZFSE chunks. The macOS loader accepts a re-packed, uncompressed
 container. The payloads (`CA01`) are RealityKit's internal serialization
 and were **not** analysed: levels 2–3 settled the container; payloads
-would need levels 4–5, and Ycode does not need them (on macOS it runs
+would need levels 4–5, and SwiftCode does not need them (on macOS it runs
 Apple's `realitytool`; on Linux it ships validated USD).
 
 **Editor.** RCP 3: docked tabs/workspaces (Hierarchy, Viewport,
@@ -146,8 +146,8 @@ dirty room, or run Apple's Simulator.
    (test harness provided by the round, using public API only).
 2. **SC-PROJECT** — create/open/save the content package
    (`project-format.md` §3, §5, §6) and shape A. Done when: a new package
-   made by Ycode builds with `xcodebuild` and `Entity(named:in:)` finds
-   its scenes; files outside Ycode's ownership are preserved.
+   made by SwiftCode builds with `xcodebuild` and `Entity(named:in:)` finds
+   its scenes; files outside SwiftCode's ownership are preserved.
 3. **SC-EDITOR** (with COMPOSER-CORE's editor) — hierarchy, inspector
    generated from the catalogue, transform gizmos, selection, undo,
    copy/paste, import of USDZ/USD/images/audio, the menu and shortcut map

@@ -1,7 +1,7 @@
 # ARKit spec: coordinate systems, math, units, timing
 
 Part of `specs/frameworks/arkit/`. Where a formula is marked **derived**, it
-follows from the documented conventions by Ycode's own derivation and must be
+follows from the documented conventions by SwiftCode's own derivation and must be
 checked numerically on hardware with our probe (conformance test C-MATH in
 `plan.md`).
 
@@ -36,7 +36,7 @@ relative to the camera (**derived** reading of "locked to the camera's
 orientation"; verify on hardware).
 
 Geo tracking uses gravity-and-heading axes (x east, y up, z south). Its origin
-is not documented; Ycode places it at the device position when geo tracking
+is not documented; SwiftCode places it at the device position when geo tracking
 starts.
 
 Orientation tracking (3DoF) uses the gravity frame with the translation
@@ -89,7 +89,7 @@ H, intrinsics fx, fy, px, py) with no far plane. The x and y rows are
 edges are at integer positions in the renderer; this detail must be fixed by
 the hardware check.) The depth row (row 2) depends on the clip-space depth
 convention ARKit uses (0…1 as in Metal, or reversed); that is an **open
-question** for hardware. Until then Ycode uses Metal's 0…1 range with near at
+question** for hardware. Until then SwiftCode uses Metal's 0…1 range with near at
 0 and infinite far at 1: row 2 = [0, 0, −1, −zNear].
 
 ### 4.2 Viewport projection
@@ -153,7 +153,7 @@ inverse transform to a texture coordinate in the captured image.
 - `ARFrame.timestamp`, `capturedDepthDataTimestamp`: seconds on the system
   host-time clock, the same base as `CACurrentMediaTime()` and as
   AVFoundation capture timestamps (ARKit's documentation says only "time of
-  capture"; the clock base is a Ycode decision consistent with capture
+  capture"; the clock base is a SwiftCode decision consistent with capture
   pipelines, to be checked on hardware by comparing with
   `CACurrentMediaTime()` in `didUpdateFrame`).
 - Frame rate: the video format's `framesPerSecond` (typically 60 or 30).
@@ -184,5 +184,5 @@ inverse transform to a texture coordinate in the captured image.
 | Camera axes relative to `UIDeviceOrientation.landscapeLeft` | 1 | `ARCamera.transform` documentation |
 | Intrinsics layout and pixel origin | 1/4 | header documentation of `intrinsics` |
 | View-rotation angle values and their orientations | 4 | iOS 27 SDK header documentation |
-| Projection rows, view matrix, rotation table, aspect-fill formula | **derived** | Ycode derivation; hardware check C-MATH |
+| Projection rows, view matrix, rotation table, aspect-fill formula | **derived** | SwiftCode derivation; hardware check C-MATH |
 | Clock base of timestamps, depth convention | open | to be measured on hardware |

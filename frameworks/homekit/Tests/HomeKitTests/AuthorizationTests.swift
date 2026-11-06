@@ -21,7 +21,7 @@ struct AuthorizationTests {
         let prompts = Counter()
         let store = newStore(consent: { _ in prompts.bump(); return true })
         let r = Recorder()
-        let m = HMHomeManager(ycodeStore: store, client: client())
+        let m = HMHomeManager(swiftcodeStore: store, client: client())
         m.delegate = r
         #expect(m.authorizationStatus.rawValue == 0)
         #expect(m.homes.isEmpty)
@@ -33,7 +33,7 @@ struct AuthorizationTests {
 
         // Later launches: 5 right after init, homes callback, no prompt.
         let r2 = Recorder()
-        let m2 = HMHomeManager(ycodeStore: store, client: client())
+        let m2 = HMHomeManager(swiftcodeStore: store, client: client())
         m2.delegate = r2
         #expect(m2.authorizationStatus.rawValue == 5)
         await settle(store)
@@ -45,14 +45,14 @@ struct AuthorizationTests {
     func deny() async {
         let store = newStore(consent: { _ in false })
         let r = Recorder()
-        let m = HMHomeManager(ycodeStore: store, client: client())
+        let m = HMHomeManager(swiftcodeStore: store, client: client())
         m.delegate = r
         await settle(store)
         #expect(r.log == ["auth 1"])
         #expect(m.authorizationStatus == [.determined])
 
         let r2 = Recorder()
-        let m2 = HMHomeManager(ycodeStore: store, client: client())
+        let m2 = HMHomeManager(swiftcodeStore: store, client: client())
         m2.delegate = r2
         #expect(m2.authorizationStatus.rawValue == 1)
         await settle(store)
@@ -68,13 +68,13 @@ struct AuthorizationTests {
     func missingEntitlement() async {
         let store = newStore()
         let r = Recorder()
-        let m = HMHomeManager(ycodeStore: store, client: client(entitled: false))
+        let m = HMHomeManager(swiftcodeStore: store, client: client(entitled: false))
         m.delegate = r
         await settle(store)
         #expect(r.log == ["auth 5"])
 
         let r2 = Recorder()
-        let m2 = HMHomeManager(ycodeStore: store, client: client(entitled: false))
+        let m2 = HMHomeManager(swiftcodeStore: store, client: client(entitled: false))
         m2.delegate = r2
         #expect(m2.authorizationStatus.rawValue == 0)
         await settle(store)
@@ -88,7 +88,7 @@ struct AuthorizationTests {
         let store = newStore(consent: { _ in prompts.bump(); return true })
         _ = await loadedManager(store)
         store.resetAuthorization(bundleIdentifier: client().bundleIdentifier)
-        let m = HMHomeManager(ycodeStore: store, client: client())
+        let m = HMHomeManager(swiftcodeStore: store, client: client())
         #expect(m.authorizationStatus.rawValue == 0)
         await settle(store)
         #expect(prompts.value == 2)
@@ -142,17 +142,17 @@ struct UsageStringTests {
     @Test("Creating a manager without NSHomeKitUsageDescription stops the process")
     func missingUsageStringAborts() async {
         await #expect(processExitsWith: .failure) {
-            let store = YcodeLocalHomeStore(configuration: .init())
-            _ = HMHomeManager(ycodeStore: store, client: YcodeHomeClient(bundleIdentifier: "local.no-usage",
+            let store = SwiftCodeLocalHomeStore(configuration: .init())
+            _ = HMHomeManager(swiftcodeStore: store, client: SwiftCodeHomeClient(bundleIdentifier: "local.no-usage",
                                                                          usageDescription: nil))
         }
     }
 
     @Test("A process without an Info.plist is not held to the requirements")
     func lenientClient() {
-        let c = YcodeHomeClient(bundleIdentifier: "local.tool", usageDescription: nil, hasHomeKitEntitlement: false,
+        let c = SwiftCodeHomeClient(bundleIdentifier: "local.tool", usageDescription: nil, hasHomeKitEntitlement: false,
                                 enforcesRequirements: false)
-        let m = HMHomeManager(ycodeStore: YcodeLocalHomeStore(configuration: .init()), client: c)
+        let m = HMHomeManager(swiftcodeStore: SwiftCodeLocalHomeStore(configuration: .init()), client: c)
         #expect(m.authorizationStatus.rawValue == 0)
     }
 }

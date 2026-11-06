@@ -1,22 +1,22 @@
-# Gauge: Ycode's performance profiler
+# Gauge: SwiftCode's performance profiler
 
-**Status:** Ycode's own design (clean room), round 1 (agent PROFILER,
+**Status:** SwiftCode's own design (clean room), round 1 (agent PROFILER,
 2026-10-29). Round 1 builds the time profiler, signposts, hangs, frames and
-GPU tracks, the trace format, the analysis core, `ycode profile` and the IDE
+GPU tracks, the trace format, the analysis core, `swiftcode profile` and the IDE
 window; §9 lists what later rounds add. Implementation status per part:
 §10.
 
 **Name.** The profiler is **Gauge**. Its recordings are **Gauge traces**
 (`.gaugetrace`). What it records are **probes** (Time Sampler, Signposts,
 Hangs, Frames, GPU); each probe draws one or more **tracks** on the
-timeline. Gauge is a feature of Ycode, not a separate application: it opens
-in a window of Ycode (§6) and from the command line (`ycode profile`, §7).
+timeline. Gauge is a feature of SwiftCode, not a separate application: it opens
+in a window of SwiftCode (§6) and from the command line (`swiftcode profile`, §7).
 
-Sources: Ycode's existing profiling machinery (`specs/simulator/
+Sources: SwiftCode's existing profiling machinery (`specs/simulator/
 boot-profile.md` §1.3 and §5, the guest PC samples with frame-pointer call
 chains; `frame-profile.md`, presents; `stage8-contract.md` §14, the Metal
 trace), the IDE specs (`schemes.md` Profile action, `menus.md` ⌘I,
-`run.md` remote runs, `liquid-glass-ycode.md`), public documentation (the
+`run.md` remote runs, `liquid-glass-swiftcode.md`), public documentation (the
 `os_signpost` and `os_log` headers of the iOS SDK; the Linux
 `perf_event_open(2)` man page and `linux/perf_event.h`; the ELF and DWARF 5
 standards; the Mach-O `nlist_64` layout in the SDK's `mach-o/nlist.h`),
@@ -28,9 +28,9 @@ implementation; the feature set is the common one of sampling profilers.
 
 | Target | Where it runs | Back end | Round 1 |
 |---|---|---|---|
-| **App on a Ycode simulator** (the main target) | the simulator host (arm64 Linux, KVM) | `ycode-simd --profile` (§3.1): the VMM samples the guest's vCPUs | built |
+| **App on a SwiftCode simulator** (the main target) | the simulator host (arm64 Linux, KVM) | `swiftcode-simd --profile` (§3.1): the VMM samples the guest's vCPUs | built |
 | **Linux process** (SwiftPM executables and tests) | any Linux host | `perf_event_open` sampling (§3.2) | built |
-| **macOS process** launched by Ycode | the Mac | debugserver-based sampler (§3.3) | design only |
+| **macOS process** launched by SwiftCode | the Mac | debugserver-based sampler (§3.3) | design only |
 | Mac simulator (`simctl`) apps | the Mac | as macOS processes (simulator apps are host processes) | later, with §3.3 |
 
 A recording has one **target process** (the app; for Linux, the launched
@@ -66,7 +66,7 @@ Each sample of a thread has one state:
 | State | Meaning (simulator back end) | CPU? |
 |---|---|---|
 | `user` | the vCPU was running guest code at EL0 | yes |
-| `kernel` | the thread was in a trap: in Ycode's kernel (the VMM's trap handler) or in the EL1 shim; the stack is the user stack at the trap with a leaf frame naming the trap | yes |
+| `kernel` | the thread was in a trap: in SwiftCode's kernel (the VMM's trap handler) or in the EL1 shim; the stack is the user stack at the trap with a leaf frame naming the trap | yes |
 | `blocked` | the thread slept in a kernel wait (a `WaitQueue`), other than an idle wait | no |
 | `idle` | the thread slept waiting for messages (`mach_msg` receive: Mach traps −31 and −47): a run loop with nothing to do | no |
 
@@ -99,9 +99,9 @@ an end lasts to the end of the recording and is marked `open`.
 
 ## 3. Back ends
 
-### 3.1 Apps on a Ycode simulator (`ycode-simd --profile`)
+### 3.1 Apps on a SwiftCode simulator (`swiftcode-simd --profile`)
 
-`ycode-simd` options (device mode, with `--launch`):
+`swiftcode-simd` options (device mode, with `--launch`):
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -113,9 +113,9 @@ an end lasts to the end of the recording and is marked `open`.
 | `--profile-no-signposts` | off | do not insert the signpost agent |
 
 These are app options: the warm-boot launcher (`run.md` §Warm boot) passes
-them to `ycode-simd` and leaves them out of the snapshot's fingerprint.
+them to `swiftcode-simd` and leaves them out of the snapshot's fingerprint.
 
-**Sampler.** One host thread (`ycode gauge sampler`) wakes every
+**Sampler.** One host thread (`swiftcode gauge sampler`) wakes every
 1/`rate` s (absolute deadlines, so the rate does not drift) and, for every
 live thread of every recorded process:
 
@@ -151,16 +151,16 @@ touched and resolves what it can on the host:
 |---|---|---|
 | the main executable and `dyld_sim` | `ImageMap.fixed` | their Mach-O symbol tables (host path of the installed app; runtime root) |
 | a shared-cache image | the cache's image list (`ImageMap`) | the image's `LC_SYMTAB` inside the cache (§4.2) |
-| a file-backed mapping (app frameworks, inserted libraries, Ycode's host libraries) | the address space's file regions; the image base is the region's address minus its file offset | the file's Mach-O symbol table (host path) |
-| the trap leaf | `Ycode kernel` (kind `kernel`) | trap names |
+| a file-backed mapping (app frameworks, inserted libraries, SwiftCode's host libraries) | the address space's file regions; the image base is the region's address minus its file offset | the file's Mach-O symbol table (host path) |
+| the trap leaf | `SwiftCode kernel` (kind `kernel`) | trap names |
 | anything else | `?` (absolute address kept) | — |
 
 Each image carries its UUID (from its `LC_UUID`), so the IDE can find the
 matching dSYM and add source lines (§4.3).
 
 **Signposts.** Unless `--profile-no-signposts`, the app is launched with
-Ycode's signpost agent, `libYcodeGauge.dylib` (`SimGuestAgents/gauge/`,
-original Ycode code, built with the iOS simulator SDK's public headers),
+SwiftCode's signpost agent, `libSwiftCodeGauge.dylib` (`SimGuestAgents/gauge/`,
+original SwiftCode code, built with the iOS simulator SDK's public headers),
 inserted with `DYLD_INSERT_LIBRARIES` (after any other inserted library).
 The agent interposes, through dyld's public interposing section, three
 public functions of `<os/log.h>` and `<os/signpost.h>`:
@@ -172,7 +172,7 @@ public functions of `<os/log.h>` and `<os/signpost.h>`:
 - `_os_signpost_emit_with_name_impl`: writes one record (below) and calls
   the original.
 
-Records go to the file named by `YCODE_GAUGE_SIGNPOSTS` (a guest path the
+Records go to the file named by `SWIFTCODE_GAUGE_SIGNPOSTS` (a guest path the
 recorder chooses in the device's data volume, `O_APPEND`, one `write` per
 record, so a killed app loses nothing written). Record: magic `YGS1`,
 u16 record length, u8 type (0 event, 1 begin, 2 end), u8 0, u64
@@ -186,7 +186,7 @@ macros and any call bound from the app's own image are.
 
 **Frames and GPU.** With `--profile` the recorder polls the device's frame
 record every 1 ms while the target lives (a present = a new frame counter)
-and sets `YCODE_METAL_TRACE` (unless already set) to a file next to the
+and sets `SWIFTCODE_METAL_TRACE` (unless already set) to a file next to the
 trace, whose command-buffer lines (`stage8-contract.md` §14.1) become the
 GPU track (`pid`, submit = `submitted_ns`, end = `done_ns`, GPU duration =
 `gpu_end_ns − gpu_begin_ns` scaled by the timestamp period).
@@ -194,7 +194,7 @@ GPU track (`pid`, submit = `submitted_ns`, end = `done_ns`, GPU duration =
 **Cost.** Measured in §10.2: the sampler's time per sample and the
 profiled app's slowdown at 1000 Hz.
 
-### 3.2 Linux processes (`ycode profile record --linux`)
+### 3.2 Linux processes (`swiftcode profile record --linux`)
 
 Two back ends; `--backend auto` (the default) picks perf when
 `/proc/sys/kernel/perf_event_paranoid` is 2 or less, else the agent (and
@@ -212,7 +212,7 @@ only the agent works without changing a system setting.
   `enable_on_exec` for a launched command (every thread it creates is
   sampled into the same ring), `sample_id_all`, `comm`, `mmap` records for
   image tracking.
-- **Launch**: Ycode forks, the child waits on a pipe; the parent opens the
+- **Launch**: SwiftCode forks, the child waits on a pipe; the parent opens the
   event for the child's pid, maps its ring (`mmap`, 1 + 2ⁿ pages), then lets
   the child `execvp`. **Attach** (`--pid`): one event per thread in
   `/proc/<pid>/task`, rescanned every 100 ms.
@@ -231,9 +231,9 @@ only the agent works without changing a system setting.
   `swift-demangle` when it is on the path.
 - Every sample is `user` or `kernel` (a call chain with kernel frames).
 
-**Agent back end** (`libYcodeGaugeAgent.so`, built by SwiftPM next to
-`ycode`, original Ycode C): the command is launched with `LD_PRELOAD` and
-`YCODE_GAUGE_SAMPLES=<file>`. Its constructor arms `ITIMER_PROF` (process
+**Agent back end** (`libSwiftCodeGaugeAgent.so`, built by SwiftPM next to
+`swiftcode`, original SwiftCode C): the command is launched with `LD_PRELOAD` and
+`SWIFTCODE_GAUGE_SAMPLES=<file>`. Its constructor arms `ITIMER_PROF` (process
 CPU time) at the rate; the kernel sends `SIGPROF` to the thread that was
 running, whose handler takes PC and frame pointer from the signal context,
 walks the frame records reading memory with `process_vm_readv` on its own
@@ -249,14 +249,14 @@ caller (the leaf's own frame is correct); `perf` has the same limit.
 
 Public mechanisms only. The choice: **LLDB's open-source `debugserver`**
 (Apache 2.0 with LLVM exceptions, shipped with the Command Line Tools as
-part of LLDB) driven over the GDB remote serial protocol, which Ycode's
+part of LLDB) driven over the GDB remote serial protocol, which SwiftCode's
 debugger support already speaks to through lldb-dap. Per sample: interrupt
 (`\x03`), `jThreadsInfo` (every thread's registers in one reply), read the
 frame-pointer chains with `x`/`m` packets, continue (`vCont;c`). Each sample
 stops the process (≈ 100 µs–1 ms per stop), so the default rate would be
 100 Hz and the slowdown must be measured. Alternatives considered: the
 Mach `task_for_pid` + `thread_get_state` path (needs the debugger
-entitlement, which Ycode as an unsigned developer tool does not have);
+entitlement, which SwiftCode as an unsigned developer tool does not have);
 `dtrace` (needs root and SIP changes). Not built in round 1: no clean
 mechanism is cheap enough to meet a 1000 Hz default without a signed
 helper.
@@ -266,16 +266,16 @@ helper.
 ### 4.1 Format, version 1
 
 One UTF-8 JSON document. Open and versioned (a gzip-compressed file is
-refused with a message; compression is a later minor addition): `format` must be `"ycode-gauge-trace"`;
+refused with a message; compression is a later minor addition): `format` must be `"swiftcode-gauge-trace"`;
 `version` is an integer, readers accept equal or lower versions and refuse
 higher major versions with a message. Unknown keys are ignored (later minor
 additions). Times are integer nanoseconds since the recording began.
 
 ```text
 {
-  "format": "ycode-gauge-trace", "version": 1,
+  "format": "swiftcode-gauge-trace", "version": 1,
   "recording": {
-    "target": "ycode-simulator" | "linux" | "macos",
+    "target": "swiftcode-simulator" | "linux" | "macos",
     "recorder": "<tool and version>", "host": "<os> <arch>",
     "command": "<what was launched>", "device": "<device type and runtime, simulator only>",
     "startDate": "<ISO 8601>", "durationNs": N,
@@ -286,7 +286,7 @@ additions). Times are integer nanoseconds since the recording began.
   "processes": [{"pid": N, "name": "…", "path": "…", "target": true}],
   "threads":   [{"id": N, "pid": N, "name": "…", "main": true, "kind": "main|pthread|workqueue|thread"}],
   "images":    [{"id": N, "name": "…", "path": "…", "uuid": "…",
-                 "kind": "app|system|runtime|ycode|kernel|unknown",
+                 "kind": "app|system|runtime|swiftcode|kernel|unknown",
                  "base": N, "size": N,
                  "symbols": [[start, end, "name"], …],      // offsets from base, sorted
                  "files": ["…"], "lines": [[offset, fileIndex, line], …]}],
@@ -313,13 +313,13 @@ additions). Times are integer nanoseconds since the recording began.
   (end = start of the next symbol when the symbol table gives no size).
   A frame resolves to the symbol with `start ≤ offset < end`.
 - **kind** drives "Hide System Libraries": `system` and `runtime` (the
-  simulator runtime's and the OS's libraries), `ycode` (Ycode's host
+  simulator runtime's and the OS's libraries), `swiftcode` (SwiftCode's host
   libraries and agents) and `kernel` are system; `app` (the app's
   executable and anything inside its bundle or build folder) is not.
 - `samples.state` is stored as strings in version 1 for readability; a
   later version may move to integers (version bump).
 
-### 4.2 Symbol tables (`YcodeMachO.SymbolTable`)
+### 4.2 Symbol tables (`SwiftCodeMachO.SymbolTable`)
 
 From `LC_SYMTAB` (`symoff`, `nsyms`, `stroff`, `strsize`) and `nlist_64`
 entries (`n_strx` u32, `n_type` u8, `n_sect` u8, `n_desc` u16, `n_value`
@@ -343,7 +343,7 @@ the binary itself (ELF `.debug_line`, Mach-O `__DWARF,__debug_line`). The
 rows give address → (file, line); a lookup takes the row with the largest
 address ≤ the query within one sequence.
 
-### 4.4 Analysis (`YcodeProfiler`)
+### 4.4 Analysis (`SwiftCodeProfiler`)
 
 Every view is computed from the trace by pure functions (tested with
 synthetic traces):
@@ -385,12 +385,12 @@ synthetic traces):
   recording starts. Product ▸ Perform Action ▸ Profile Without Building
   (⌃⌘I) does the same without building.
 - **Destinations**:
-  - a **Ycode simulator** row (`run.md` §Remote Ycode simulator): the run's
+  - a **SwiftCode simulator** row (`run.md` §Remote SwiftCode simulator): the run's
     remote command plus `--profile '<data>/profiles/<App>-<time>.gaugetrace'`
     and the scheme's `--profile-rate` (Settings ▸ Profiling, below); Stop
     (⌘. or the window's Stop button) stops the run like a Run's Stop; when
     the run ends, the trace is copied back (`rsync` over the same
-    BatchMode ssh) to `~/Library/Developer/Ycode/Gauge/` and opened;
+    BatchMode ssh) to `~/Library/Developer/SwiftCode/Gauge/` and opened;
   - **My Mac** and Mac simulators: not available in round 1 (the window
     says "Profiling this destination needs the macOS sampler, which is not
     built yet"; §3.3).
@@ -402,7 +402,7 @@ synthetic traces):
 
 A document window per trace (title: the trace's file name; opening a
 `.gaugetrace` from File ▸ Open or the command line opens it). Liquid
-Glass as `liquid-glass-ycode.md` §1–§3: unified toolbar, no custom fills.
+Glass as `liquid-glass-swiftcode.md` §1–§3: unified toolbar, no custom fills.
 
 ```text
 ┌ toolbar: ● Record/■ Stop │ <App> on <device> │ 00:12.4 │ 1 kHz ───────── Inspector ┐
@@ -440,21 +440,21 @@ Glass as `liquid-glass-ycode.md` §1–§3: unified toolbar, no custom fills.
 - **Inspector**: the heaviest stack of the selection (frames with image),
   and for the selection: samples, weight, self, image path, UUID.
 
-## 7. The command line: `ycode profile`
+## 7. The command line: `swiftcode profile`
 
 ```text
-ycode profile record --linux [--rate HZ] [--seconds S] -o out.gaugetrace -- <command> [args…]
-ycode profile record --linux --pid N [--rate HZ] [--seconds S] -o out.gaugetrace
-ycode profile record --simd <ycode-simd> -o out.gaugetrace -- <ycode-simd device-mode args…>
-ycode profile summary <trace> [--top N]
-ycode profile tree <trace> [--invert] [--threads] [--hide-system] [--flatten] [--charge LIB|FUNC]…
+swiftcode profile record --linux [--rate HZ] [--seconds S] -o out.gaugetrace -- <command> [args…]
+swiftcode profile record --linux --pid N [--rate HZ] [--seconds S] -o out.gaugetrace
+swiftcode profile record --simd <swiftcode-simd> -o out.gaugetrace -- <swiftcode-simd device-mode args…>
+swiftcode profile summary <trace> [--top N]
+swiftcode profile tree <trace> [--invert] [--threads] [--hide-system] [--flatten] [--charge LIB|FUNC]…
                            [--range BEGIN_MS:END_MS] [--all-states] [--depth N] [--min-percent P]
-ycode profile flame <trace> -o out.svg [same filters]
-ycode profile annotate <trace> <function> [--dsym PATH]
-ycode profile symbolicate <trace> [--dsym PATH]… [--binary PATH]… -o out.gaugetrace
+swiftcode profile flame <trace> -o out.svg [same filters]
+swiftcode profile annotate <trace> <function> [--dsym PATH]
+swiftcode profile symbolicate <trace> [--dsym PATH]… [--binary PATH]… -o out.gaugetrace
 ```
 
-`record --simd` runs a local `ycode-simd` with `--profile` added (on the
+`record --simd` runs a local `swiftcode-simd` with `--profile` added (on the
 simulator host). `symbolicate` adds names and lines from local dSYMs and
 binaries (matched by UUID, else by file name), which is what the IDE does
 after copying a trace from the simulator host.
@@ -492,7 +492,7 @@ after copying a trace from the simulator host.
   documents (`.trace` bundles) into Gauge: their on-disk structure (bundle
   layout, the run and track stores, sample and symbol tables) is not
   publicly documented. A dirty-room spec of the bundle format would let
-  `ycode profile import <x.trace>` convert one to a Gauge trace. Gauge
+  `swiftcode profile import <x.trace>` convert one to a Gauge trace. Gauge
   needs no reference behavior otherwise.
 - **OPEN QUESTION:** the reference's default hang threshold and its
   definition of a hang on the main thread (Gauge uses 250 ms and §2.2).
@@ -507,20 +507,20 @@ after copying a trace from the simulator host.
 
 | Part | Code |
 |---|---|
-| Trace model, JSON codec, builder | `YcodeProfiler/Trace.swift`, `TraceCodec.swift` |
+| Trace model, JSON codec, builder | `SwiftCodeProfiler/Trace.swift`, `TraceCodec.swift` |
 | Call tree, top functions, flame graph (+ SVG), source annotation, hangs, signpost matching, text reports | `CallTree.swift`, `FlameGraph.swift`, `SourceAnnotation.swift`, `Timeline.swift`, `Report.swift` |
-| Mach-O symbol tables (files and cache images) | `YcodeMachO/SymbolTable.swift` (`MachOImage.symtab`, `functionStarts`) |
+| Mach-O symbol tables (files and cache images) | `SwiftCodeMachO/SymbolTable.swift` (`MachOImage.symtab`, `functionStarts`) |
 | DWARF line programs, ELF files, `/proc` maps, UUID matching, `swift-demangle` | `DWARFLines.swift`, `ELFFile.swift`, `Symbolicate.swift` |
-| Linux recording (perf, agent) | `LinuxRecorder.swift`, C targets `CYcodeGauge` (spawn held, perf ring) and `CYcodeGaugeAgent` (`libYcodeGaugeAgent.so`) |
-| Command line | `YcodeProfiler/CLI.swift` (`GaugeCLI`), `ycode profile` |
-| Simulator recorder | `ycode-simd/GaugeRecorder.swift`; `VCPUPool.activeWorkers()`/`kickForSample(_:)`; options in `main.swift`; staging and environment in `SettingsAgentStaging.swift`/`ExecHost.swift`; the trace is written before a stop's save (`SnapshotSupport`) and at the run's end |
-| In-app signpost agent | `SimGuestAgents/gauge/YcodeGauge.c` → `libYcodeGauge.dylib` (`SimGuestAgents/build.sh`; copy it into the host's guest tools next to `ylaunch`) |
-| Launcher | `scripts/ycode-sim.sh`: `--profile*` are app options |
-| IDE | `YcodeUI/Gauge/` (`GaugeModel`, `GaugeTimelineView`, `GaugeFlameView`, `GaugeWindowController`); `profileProduct:`, `profileProductEditingScheme:`, `profileWithoutBuilding:` (`WorkspaceWindowController+Product.swift`); `RemoteProfile` and the trace copy in `RemoteRun.swift`; `GaugeSettings` (`Ycode.gauge.sampleRate`) |
+| Linux recording (perf, agent) | `LinuxRecorder.swift`, C targets `CSwiftCodeGauge` (spawn held, perf ring) and `CSwiftCodeGaugeAgent` (`libSwiftCodeGaugeAgent.so`) |
+| Command line | `SwiftCodeProfiler/CLI.swift` (`GaugeCLI`), `swiftcode profile` |
+| Simulator recorder | `swiftcode-simd/GaugeRecorder.swift`; `VCPUPool.activeWorkers()`/`kickForSample(_:)`; options in `main.swift`; staging and environment in `SettingsAgentStaging.swift`/`ExecHost.swift`; the trace is written before a stop's save (`SnapshotSupport`) and at the run's end |
+| In-app signpost agent | `SimGuestAgents/gauge/SwiftCodeGauge.c` → `libSwiftCodeGauge.dylib` (`SimGuestAgents/build.sh`; copy it into the host's guest tools next to `ylaunch`) |
+| Launcher | `scripts/swiftcode-sim.sh`: `--profile*` are app options |
+| IDE | `SwiftCodeUI/Gauge/` (`GaugeModel`, `GaugeTimelineView`, `GaugeFlameView`, `GaugeWindowController`); `profileProduct:`, `profileProductEditingScheme:`, `profileWithoutBuilding:` (`WorkspaceWindowController+Product.swift`); `RemoteProfile` and the trace copy in `RemoteRun.swift`; `GaugeSettings` (`SwiftCode.gauge.sampleRate`) |
 | Samples | `Tools/gauge-samples/HotLoop` (SwiftPM, Linux), `Tools/gauge-samples/GaugeDemo` (UIKit app: `Work.c` deliberate work with signposts) |
 
 Settings ▸ Profiling (§5) is not a pane yet: the rate is the user default
-`Ycode.gauge.sampleRate` (1000 when unset).
+`SwiftCode.gauge.sampleRate` (1000 when unset).
 
 ### 10.2 Measurements (2026-10-29; shared hosts, load averages noted)
 
@@ -606,7 +606,7 @@ thread of the app; 25–40 s per run):
 | `perf_event_open` attributes, ring buffer, record types, call-chain markers | 1 | Linux man page `perf_event_open(2)`, uapi `linux/perf_event.h` |
 | ELF symbol tables and program headers | 1 | System V ABI / ELF specification |
 | DWARF line programs | 1 | DWARF Debugging Information Format, version 5 (and 4 for older tables) |
-| Guest kick, frame-pointer reads, trap-entry registers | 3 | Ycode's own VMM (`boot-profile.md` §1.3, §5.1; `VCPUPool`, `ThreadContext`) |
+| Guest kick, frame-pointer reads, trap-entry registers | 3 | SwiftCode's own VMM (`boot-profile.md` §1.3, §5.1; `VCPUPool`, `ThreadContext`) |
 | Presents, Metal trace fields | 3 | `frame-profile.md` §1, `stage8-contract.md` §14.1 |
 | debugserver and the GDB remote protocol packets | 1 | LLVM/LLDB open source (`docs/lldb-gdb-remote.txt`) |
-| What a sampling profiler shows (call tree, inverted tree, flame graph, source annotation, hangs) | 1 | public profiler documentation; Ycode's own design |
+| What a sampling profiler shows (call tree, inverted tree, flame graph, source annotation, hangs) | 1 | public profiler documentation; SwiftCode's own design |

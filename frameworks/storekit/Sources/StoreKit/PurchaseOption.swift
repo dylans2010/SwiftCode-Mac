@@ -5,7 +5,7 @@ import StoreKitEngine
 extension Product {
     /// An option of `purchase(options:)`.
     public struct PurchaseOption: Hashable, Sendable, CustomDebugStringConvertible {
-        @_spi(Ycode) public enum Kind: Hashable, Sendable {
+        @_spi(SwiftCode) public enum Kind: Hashable, Sendable {
             case appAccountToken(UUID)
             case quantity(Int)
             case custom(String, String)
@@ -17,9 +17,9 @@ extension Product {
             case purchaseDate(Date, BackdatedRenewalBehavior)
         }
 
-        @_spi(Ycode) public let kind: Kind
+        @_spi(SwiftCode) public let kind: Kind
 
-        @_spi(Ycode) public init(kind: Kind) { self.kind = kind }
+        @_spi(SwiftCode) public init(kind: Kind) { self.kind = kind }
 
         public static func appAccountToken(_ token: UUID) -> PurchaseOption { .init(kind: .appAccountToken(token)) }
         public static func quantity(_ quantity: Int) -> PurchaseOption { .init(kind: .quantity(quantity)) }

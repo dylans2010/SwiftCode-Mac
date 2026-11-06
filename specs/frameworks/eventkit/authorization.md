@@ -59,7 +59,7 @@ Not exercised in the probe (C-AUTH-Q1).
 All prompts are system alerts drawn over the app (the app stays in the
 foreground; dimmed background). Layout: the app's icon with a small
 privacy-hand badge, a bold title naming the app's **display name** in curly
-quotes, the usage string in a secondary color, then buttons. Ycode draws its
+quotes, the usage string in a secondary color, then buttons. SwiftCode draws its
 own artwork and words its own titles with the same structure.
 
 ### 5.1 Full calendar access
@@ -100,8 +100,8 @@ The legacy events request shows the same prompt with the legacy string.
 Rows written by `simctl privacy` instead of a prompt: `grant` → `auth_value` 2,
 `auth_reason` 4, `flags` 0; `revoke` → `auth_value` 0, `auth_reason` 4.
 
-Ycode's own authorization store does not have to use this database; it is
-recorded so that a Ycode guest running Apple's runtime can pre-seed or read
+SwiftCode's own authorization store does not have to use this database; it is
+recorded so that a SwiftCode guest running Apple's runtime can pre-seed or read
 grants (plan R1).
 
 ## 7. `simctl privacy`
@@ -118,7 +118,7 @@ the app terminated before each step):
 | `grant reminders` | reminders 3 |
 | `grant calendar` on the write-only app (only the write-only string) after `reset` | events 3 (full access, not 4) |
 
-There is no `simctl` service for write-only access. Ycode's `simctl`
+There is no `simctl` service for write-only access. SwiftCode's `simctl`
 equivalent must offer the same verbs and services with the same results.
 
 ## 8. Changing grants later

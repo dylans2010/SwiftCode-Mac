@@ -362,7 +362,7 @@ struct RESTBackendTests {
         #expect(withURL is AppleRESTWeatherBackend)
         let missingKey = WeatherService.environmentBackend([
             "WEATHERKIT_BACKEND": "apple-rest", "WEATHERKIT_TEAM_ID": "T", "WEATHERKIT_SERVICE_ID": "S",
-            "WEATHERKIT_KEY_ID": "K", "WEATHERKIT_KEY_FILE": "/nonexistent-ycode-key.p8",
+            "WEATHERKIT_KEY_ID": "K", "WEATHERKIT_KEY_FILE": "/nonexistent-swiftcode-key.p8",
         ])
         #expect(missingKey is UnconfiguredWeatherBackend)
     }

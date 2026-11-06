@@ -117,14 +117,14 @@ reported in left-to-right absolute coordinates):
   protocol are declared in the `SwiftUI` module; the shared preview
   vocabulary (preview registry and trait types) lives in
   `DeveloperToolsSupport` (SDK, level 4). Xcode renders previews in
-  a separate simulator-hosted agent. Ycode's own preview design for the IDE
+  a separate simulator-hosted agent. SwiftCode's own preview design for the IDE
   is `specs/ide/previews.md`; it compiles preview bodies into a host app
   and does not need anything from this spec beyond a working SwiftUI.
 - For the simulator track: a preview host is an ordinary SwiftUI app as far
   as the simulator is concerned (same services as `01`); nothing
   preview-specific was probed in this round.
 - For the open implementation: `#Preview` must expand to something the
-  Ycode preview host can discover lexically (`specs/ide/previews.md`); the
+  SwiftCode preview host can discover lexically (`specs/ide/previews.md`); the
   macro can be implemented with swift-syntax (Apache-2.0).
 
 ## Evidence

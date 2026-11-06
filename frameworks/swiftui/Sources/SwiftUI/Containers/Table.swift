@@ -17,7 +17,7 @@ import SwiftUICore
 // binding changes. Selection works as in `List` (one or several rows, by
 // the elements' IDs; click, Shift and Ctrl, the arrow keys).
 //
-// Look and widths (Ycode's): a 28-point header row with the titles in
+// Look and widths (SwiftCode's): a 28-point header row with the titles in
 // footnote weight, the first sort column's chevron, and a divider between
 // columns; 24-point rows with alternating backgrounds. A column with a fixed
 // width keeps it; the others share what is left, within their minimums and

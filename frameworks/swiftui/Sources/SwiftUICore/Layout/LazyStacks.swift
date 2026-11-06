@@ -9,7 +9,7 @@ import Foundation
 // `scrollTo` creates the rows at the new position and removes the old ones;
 // a plain `VStack` creates everything.
 //
-// Design (Ycode's):
+// Design (SwiftCode's):
 // - Content is *enumerated*, not built: tuples, groups, conditionals and
 //   `AnyView` are walked; a `ForEach` contributes a collection whose
 //   element views are made only for the materialised indices
@@ -737,7 +737,7 @@ public struct PinnedScrollableViews: OptionSet, Sendable {
     public static let sectionFooters = PinnedScrollableViews(rawValue: 1 << 1)
 }
 
-// MARK: - Initial outline expansion (R13, Ycode's own API)
+// MARK: - Initial outline expansion (R13, SwiftCode's own API)
 
 private enum OutlineInitialExpansionKey: EnvironmentKey {
     static let defaultValue: (@MainActor (AnyHashable) -> Bool)? = nil

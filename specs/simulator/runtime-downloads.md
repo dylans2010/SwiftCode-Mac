@@ -3,14 +3,14 @@
 Status: **accepted** (OBS-RUNTIME, 2026-10-31; owner decisions recorded 2026-11-04). It says where Apple
 publishes simulator runtimes and the Metal Toolchain, what the catalogs look
 like, how a runtime is chosen for an SDK and CPU, what the downloaded file
-is, how Apple's tools install it, and what Ycode's own downloader must do on
+is, how Apple's tools install it, and what SwiftCode's own downloader must do on
 a Linux arm64 host. Observations behind it: `research/notes/runtime-downloads.md`.
 It uses the RuntimeRoot layout of `ipad.md` and `docs/SIMULATOR-LINUX.md`.
-**Ycode decision** marks design choices; **Owner decision** marks open
+**SwiftCode decision** marks design choices; **Owner decision** marks open
 questions that this spec does not settle.
 
 **Licensing.** Runtimes and the Metal Toolchain are Apple software. Each
-user fetches them from Apple, for themselves. Ycode never hosts, mirrors,
+user fetches them from Apple, for themselves. SwiftCode never hosts, mirrors,
 caches for others, or redistributes them, and its repository holds no
 runtime file, key, hash list or image.
 
@@ -23,7 +23,7 @@ runtime file, key, hash list or image.
 | Payload CDN | The asset archive | `https://updates.cdn-apple.com/MobileAssets<year>/mobileassets/<part>/<UUID>/<relative path>.aar` | none |
 | Legacy (pre-cryptex runtimes only) | Old `.dmg` runtimes | `https://download.developer.apple.com/...` (`source` key) | Apple developer sign-in (`authentication = virtual`) |
 
-Ycode supports only the first three. Legacy entries are listed but marked
+SwiftCode supports only the first three. Legacy entries are listed but marked
 "needs Apple sign-in; not supported".
 
 ## 2. Downloadable index format
@@ -89,7 +89,7 @@ Metal Toolchain 27A266a.
 ## 3. Selection rule
 
 Input: platform, wanted OS version or build (optional), CPU architecture,
-SDK build (Ycode's chosen SDK, optional), host facts.
+SDK build (SwiftCode's chosen SDK, optional), host facts.
 
 1. Candidates = `downloadables` with the platform, `category = simulator`,
    `downloadMethod = mobileAsset`.
@@ -103,18 +103,18 @@ SDK build (Ycode's chosen SDK, optional), host facts.
 4. Drop entries whose `architectures` lacks the wanted arch (absent means
    the legacy universal/x86 kind; skip for arm64 hosts). Apple's
    `-architectureVariant arm64` prefers arm64-only entries; `universal`
-   prefers `[arm64, x86_64]`. **Ycode decision:** always arm64-only.
-5. Drop entries whose `hostRequirements` exclude the host. For Ycode,
-   `min/maxXcodeVersion` is compared against the Xcode version Ycode
+   prefers `[arm64, x86_64]`. **SwiftCode decision:** always arm64-only.
+5. Drop entries whose `hostRequirements` exclude the host. For SwiftCode,
+   `min/maxXcodeVersion` is compared against the Xcode version SwiftCode
    declares parity with (27.1); `min/maxHostVersion` (macOS versions) is
    ignored on Linux.
 6. Ties: highest build.
 
 **Default (owner decision, 2026-11-04):** with no build, no version and no
-SDK given, Ycode chooses the **newest release** of the platform: the
+SDK given, SwiftCode chooses the **newest release** of the platform: the
 highest `simulatorVersion.version` among entries whose 4th `version` part
 is 0, after steps 4 and 5, ties by step 6. Betas (4th part ≠ 0) are chosen
-only when the user names their build or version. `ycode runtime available`
+only when the user names their build or version. `swiftcode runtime available`
 lists the candidates newest first, so the default is its first release row.
 
 Observed: with SDK `iphoneos27.1` build 24A94403, Apple preferred runtime
@@ -143,10 +143,10 @@ a `RequestedBuild` query). Apple caches it as
 with `Assets`, `AssetType`, `DownloadedFromLive`, `postedDate`,
 `lastTimeChecked`), which is a readable example of the asset record.
 
-**Owner decision (O1, 2026-11-04):** Ycode sends an honest description of
+**Owner decision (O1, 2026-11-04):** SwiftCode sends an honest description of
 the machine it runs on: on a Mac, that Mac's own values; on Linux, its real
-OS, architecture and Ycode's client name, with no Mac model fields. It never
-presents itself as a Mac it is not. If the server refuses the query, Ycode
+OS, architecture and SwiftCode's client name, with no Mac model fields. It never
+presents itself as a Mac it is not. If the server refuses the query, SwiftCode
 says so and offers route A or C (§6.1) instead.
 
 ### 4.2 Asset record
@@ -170,10 +170,10 @@ says so and offers route A or C (§6.1) instead.
 2. Check length = `_DownloadSize` and SHA-256 = `_Measurement-SHA256`.
 3. Decrypt and extract the Apple Archive to a directory with the layout of
    §5.1, with the key that Apple's server returns to this user in the asset
-   record. **Owner decision (O2, 2026-11-04):** Ycode does this itself, as
+   record. **Owner decision (O2, 2026-11-04):** SwiftCode does this itself, as
    Apple's own client does. On macOS it uses the system's public Apple Archive
    API. On Linux it uses an open-source Apple Encrypted Archive
-   implementation under a license compatible with Ycode's (MIT), linked or run
+   implementation under a license compatible with SwiftCode's (MIT), linked or run
    as a separate program. This spec does not describe the encryption.
 
 **The downloaded file (outer container).** The file starts with the magic
@@ -186,7 +186,7 @@ padded: the Metal Toolchain 27A266a download was exactly 800 MiB
 plaintext. Decryption yields the **asset archive** of §5.0, not a plain
 Apple Archive of files: a generic Apple Archive extractor that is given
 the plaintext extracts nothing (Apple's own `aa extract` reports four
-entries and no files), so Ycode must handle §5.0's parts itself.
+entries and no files), so SwiftCode must handle §5.0's parts itself.
 
 ## 5. What the payload contains
 
@@ -227,7 +227,7 @@ tool's help, except `YOP` and `LBL`, which neither documents):
 | `MOD` | mode. Observed values carry the file-type bits too (`0o100644`, `0o100444`) although the header documents only the low 12 bits; apply `MOD & 0o7777` |
 | `SH2` | SHA-256 of the file's data |
 | `IDX`, `IDZ` | offset and size of an entry (see the manifest, below) |
-| `YEC` | "file data error correcting codes" (`aa` help); its blob starts with `BXECC010` and the data size. Ycode does not need it and skips it |
+| `YEC` | "file data error correcting codes" (`aa` help); its blob starts with `BXECC010` and the data size. SwiftCode does not need it and skips it |
 | `YOP` | **part operation**: `M` manifest, `E` extract, `O` fix-up. Apple's `aa list` prints these as `manifest`, `extract`, `dst-fixup` |
 | `LBL` | part label (`main` for every part here) |
 
@@ -243,7 +243,7 @@ tool's help, except `YOP` and `LBL`, which neither documents):
 The manifest's offsets check out exactly against the parts that follow
 (entry 2 at offset 0 after the manifest, entry 3 after entry 2, entry 4
 after entry 3), and the four entries end exactly at the end of the
-plaintext. Paths never start with `/` and contain no `..`. **Ycode
+plaintext. Paths never start with `/` and contain no `..`. **SwiftCode
 decision:** reject an archive whose paths do, or whose manifest offsets do
 not match its parts.
 
@@ -312,7 +312,7 @@ Library/Developer/CoreSimulator/Profiles/Runtimes/<Name> <ver>.simruntime/
   Contents/Resources/{SampleContent, update_dyld_sim_shared_cache, dylib-order.txt, dirty-data-segments-order.txt, en.lproj}
 ```
 
-`profile.plist` keys Ycode reads: `platformIdentifier`
+`profile.plist` keys SwiftCode reads: `platformIdentifier`
 (`com.apple.platform.iphonesimulator`), `defaultVersionString`,
 `supportedArchs`, `supportedProductFamilyIDs` (1 iPhone, 2 iPad, 3 TV, 4
 Watch, 7 Vision), `restrictedToDeviceTypes` (optional list of device-type
@@ -334,57 +334,57 @@ Image"), `state` ("Ready"), `signatureState` ("Verified"/"Unknown"),
 `sizeBytes`, `supportedArchitectures`, `path` (asset dir or DMG),
 `mountPath`, `runtimeBundlePath`, `deletable`, `lastUsedAt`. Note:
 `-downloadPlatform … -exportPath` installs **and** exports; `-importPlatform
-<dmg>` / `simctl runtime add` import a DMG. Ycode does not emulate this
+<dmg>` / `simctl runtime add` import a DMG. SwiftCode does not emulate this
 registry on Linux; it keeps its own (§6.3).
 
-## 6. What Ycode does
+## 6. What SwiftCode does
 
 ### 6.1 Routes
 
 - **Route A (always available): import an exported bundle.** The user runs
   `xcodebuild -downloadPlatform iOS -exportPath <dir>` on their own Mac and
   copies the `.exportedBundle` (or just its DMG) to the Linux host;
-  `ycode runtime import <path>` does §6.2 from step 3.
+  `swiftcode runtime import <path>` does §6.2 from step 3.
 - **Route B: direct download** (owner decision, 2026-11-04; offered as an
-  explicit choice, never automatic). `ycode runtime download
+  explicit choice, never automatic). `swiftcode runtime download
   <platform> [--build B | --version V]` does §6.2 from step 1.
 
 - **Route C (a Mac with Xcode): Apple's own tool.** With the user's
-  confirmation, Ycode runs `xcodebuild -downloadPlatform <platform>`
+  confirmation, SwiftCode runs `xcodebuild -downloadPlatform <platform>`
   (optionally `-exportPath` for a copy to a Linux host) and shows its
   progress; Apple's tool does the download. Offered first on a Mac.
 
 ### 6.2 Steps
 
 1. Fetch the index (§1), honour ETag and `refreshInterval`; cache under
-   `$YCODE_DATA/runtimes/.index/`.
+   `$SWIFTCODE_DATA/runtimes/.index/`.
 2. Select (§3); query (§4.1); download and verify (§4.3) into
-   `$YCODE_DATA/runtimes/.partial/` with resume.
+   `$SWIFTCODE_DATA/runtimes/.partial/` with resume.
 3. Validate the bundle: `ExportedMetadata.plist` (or `Restore.plist`) build
    and version equal the selected ones; `Restore/*.dmg` exists.
 4. Read the DMG: UDIF parser (koly trailer, block map, lzfse/zlib/raw
    chunks) → raw GPT image → `Apple_APFS` partition → read-only APFS reader.
-   **Ycode decision:** use or write an APFS reader under a license
-   compatible with Ycode (MIT); if only a GPL tool exists, run it as a
+   **SwiftCode decision:** use or write an APFS reader under a license
+   compatible with SwiftCode (MIT); if only a GPL tool exists, run it as a
    separate program, never link it.
 5. Copy `…/<Name>.simruntime/Contents/Resources/RuntimeRoot` to
-   `$YCODE_DATA/runtimes/<OS>-<version>-<build>/RuntimeRoot` (the layout
+   `$SWIFTCODE_DATA/runtimes/<OS>-<version>-<build>/RuntimeRoot` (the layout
    `ipad.md` already uses, e.g. `iOS-27.1-24A94425`), keeping modes,
    symlinks, hard links and extended attributes the simulator needs. Copy
    `profile.plist` and the runtime `Info.plist` beside it, under
-   `$YCODE_DATA/runtimes/<OS>-<version>-<build>/` as `profile.plist` and
+   `$SWIFTCODE_DATA/runtimes/<OS>-<version>-<build>/` as `profile.plist` and
    `runtime-Info.plist`.
-6. Write `$YCODE_DATA/runtimes/<OS>-<version>-<build>/ycode-runtime.json`:
+6. Write `$SWIFTCODE_DATA/runtimes/<OS>-<version>-<build>/swiftcode-runtime.json`:
    platform, version, build, arch, runtime identifier, source (index entry
    identifier, URL host, SHA-256 checked, or "imported"), date. This is
-   Ycode's registry; `ycode runtime list [--json]` reads these files.
+   SwiftCode's registry; `swiftcode runtime list [--json]` reads these files.
 7. Delete the `.aar`, DMG and partial files unless `--keep` is given.
 
 ### 6.3 Metal Toolchain
 
-Ycode lists the matching Metal Toolchain (§2.3) for information only. The
+SwiftCode lists the matching Metal Toolchain (§2.3) for information only. The
 toolchain is macOS executables (`Metal.xctoolchain/usr/bin/air-*`, `metal*`)
-and does not run on Linux; Ycode's shader path is in `metal-shaders.md`.
+and does not run on Linux; SwiftCode's shader path is in `metal-shaders.md`.
 If a later round needs files from it (e.g. headers), it is fetched like a
 runtime (asset type `com.apple.MobileAsset.MetalToolchain`) and only the
 needed files are extracted.

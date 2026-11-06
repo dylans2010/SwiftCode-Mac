@@ -21,7 +21,7 @@ math are in `geometry.md`; search, directions and geocoding models in
   (an XPC service of type "System" with two extension points named
   `com.apple.maps.services` and `com.apple.maps.ui-services`), localized
   strings for ~40 languages, an asset catalog and `CountryRegions.plist`.
-  Ycode writes its own resources.
+  SwiftCode writes its own resources.
 - Related frameworks an app links implicitly: `CoreLocation` (coordinates,
   `CLGeocoder`, `CLPlacemark`), `GeoToolbox` (`PlaceDescriptor`, 26.0+),
   `_LocationEssentials` (`CLLocationCoordinate2D` animatable data for
@@ -137,7 +137,7 @@ host), an annotation container, the Apple Maps logo at the bottom left
 (10 pt inset, ≈50 × 39 pt; hidden when a tile overlay replaces the map
 content) and a "Legal" attribution link next to it, and a
 compass (44 × 44 pt) at the top trailing corner of the safe area when the
-heading is not 0. The logo and legal link stay inside the safe area. Ycode's
+heading is not 0. The logo and legal link stay inside the safe area. SwiftCode's
 own implementation shows its data attribution in the same corner
 (`design.md` §4).
 

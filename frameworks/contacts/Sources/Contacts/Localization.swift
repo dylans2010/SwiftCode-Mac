@@ -1,6 +1,6 @@
 // English names for predefined labels and contact keys (interface.md §2.4).
 // The listed words are the spec's; the relation labels that the spec does
-// not list are rendered by Ycode's own rule (camel-case words, lower case,
+// not list are rendered by SwiftCode's own rule (camel-case words, lower case,
 // "InLaw" as "-in-law", "Elder" as "older", the qualifying tail dropped).
 
 import Foundation
@@ -26,7 +26,7 @@ enum Localization {
 
     private static let relations: [String: String] = {
         var out: [String: String] = [:]
-        for (_, value) in ycodeAllLabelConstants where value.hasPrefix("_$!<") && value.hasSuffix(">!$_") {
+        for (_, value) in swiftcodeAllLabelConstants where value.hasPrefix("_$!<") && value.hasSuffix(">!$_") {
             if fixed[value] != nil { continue }
             let inner = String(value.dropFirst(4).dropLast(4))
             out[value] = relationWords(inner)

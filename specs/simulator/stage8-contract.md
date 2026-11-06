@@ -1,7 +1,7 @@
 # Contract: simulator stage 8a — Metal for the simulator, on Vulkan
 
 Status: **active (2026-10-12)**, research phase 8a-r. Requested by the
-owner: build Ycode's Metal translation layer before taking the first
+owner: build SwiftCode's Metal translation layer before taking the first
 screenshot, so the screenshot shows real rendering.
 
 ## 1. Goal
@@ -10,7 +10,7 @@ In the simulator, Metal (and QuartzCore's compositing, which uses it)
 runs in guest processes through the runtime's simulator Metal driver,
 which sends work to a **host** service (`com.apple.metal.simulator` and
 per-client names, `launchd-sim.md` §6.3). On the Mac that service runs the
-work on the Mac's GPU. Ycode will implement that host service itself and
+work on the Mac's GPU. SwiftCode will implement that host service itself and
 execute the work on the host GPU through **Vulkan**, translating shaders
 just in time to SPIR-V.
 
@@ -21,8 +21,8 @@ buffers and images directly), `VK_KHR_external_memory_fd`,
 32; `glslangValidator` and `spirv-val` installed.
 
 Exit criterion for stage 8a (to be refined after research): backboardd
-composites the SpringBoard home screen through Ycode's Metal host service
-on the Thor's GPU, and `ycode-simd --screenshot` saves it as a PNG with
+composites the SpringBoard home screen through SwiftCode's Metal host service
+on the Thor's GPU, and `swiftcode-simd --screenshot` saves it as a PNG with
 real pixels.
 
 ## 2. Research phase 8a-r
@@ -41,12 +41,12 @@ Metal names point at our own forwarding port, recording both directions —
 plus our own Metal test programs), level 4 (symbol, class, selector names).
 **No disassembly or decompilation** of any Apple binary; no
 `.claude/Xcode.app`; no `research/dirty/`; no Ghidra. Shaders inside the
-runtime are input data: Ycode translates them at run time and never
+runtime are input data: SwiftCode translates them at run time and never
 copies them into the repository.
 
 ## 3. Implementation (phase 8a-i)
 
-Pinned after research: likely a `YcodeMetal` host service in the VMM (host
+Pinned after research: likely a `SwiftCodeMetal` host service in the VMM (host
 task, XPC/Mach per R7), a shader translator module (AIR → SPIR-V), a
 Vulkan back end (resources over guest-shared memory, command replay,
 synchronization), and presentation into the IOSurfaces that the headless
@@ -74,24 +74,24 @@ SimFramebuffer presents, captured by `--screenshot`.
 
 ### 5.1 Exit criterion
 
-On the Thor, release build, `ycode-simd --device D --runtime-paths
+On the Thor, release build, `swiftcode-simd --device D --runtime-paths
 --timeout-ms 240000 --screenshot home.png --screenshot-at 200` (no debug
-flags): backboardd composites through Ycode's Metal host service on the
+flags): backboardd composites through SwiftCode's Metal host service on the
 Thor's GPU, and `home.png` shows the SpringBoard home screen (wallpaper and
 icons), comparable to a Mac `simctl io screenshot` of the same device type.
-Then the probe app launched with `--launch dev.ycode.probe` shows its UI
+Then the probe app launched with `--launch dev.swiftcode.probe` shows its UI
 in a second capture.
 
 ### 5.2 Modules and owners
 
 | Owner | Module | Contents |
 |---|---|---|
-| **MT** | `Sources/YcodeMetalHost/` (Swift; deps YcodeXPC, YcodeDarwinKernel) + `Tests/YcodeMetalHostTests/` | The host service: names, the three connections and handshake, object creation/release, the keyed pipeline-descriptor decoder, the command-buffer segment/record decoder into a backend-neutral command model, events 100/101 ordering, read-backs and `replaceRegion`. Talks to a `MetalBackend` (§5.3) and an `IOSurfaceResolver`. Unit tests from the spec's layouts. |
-| **VK** | `Sources/CVulkan/` (C; loads `libvulkan.so.1` with `dlopen`, so macOS still builds) + `Sources/YcodeVulkan/` (Swift) + tests | `MetalBackend` on Vulkan 1.3+: device, buffers over guest-shared memory (`VK_EXT_external_memory_host`), host-owned images, IOSurface images over the surface's shared memory, bindless descriptor heap + device addresses (per `metal-shaders.md` §4), pipelines from SPIR-V, command replay, fences/timeline semaphores for events. Runs on the Thor; on other hosts reports "no GPU". |
-| **SH** | `ycode/Translator/` (C++17 against LLVM 18 + SPIRV-Tools; CMake; built on Linux by `Translator/build.sh`) | `ycode-airc`: metallib function → SPIR-V + JSON reflection (stage, entry, bindings/argument table, vertex inputs, varyings by name, workgroup size), per `metal-shaders.md`. Starts from R8's PoC (`research/experiments/simulator/metal-shaders/airc/`, our own code). Coverage target: every function in QuartzCore's metallibs translates and passes `spirv-val` (runtime shaders read at test time, never copied into the repo), then the rest of the home-screen set. A persistent mode (requests over stdin/stdout) and a cache keyed by `HASH`. |
-| **I3** | everything else in `ycode/` | Wiring: register the Metal names (`com.apple.metal.simulator` and the per-client names) via 701 before jobs start, start the service with the Vulkan backend, provide `IOSurfaceResolver` from its IOSurface service and the guest-memory host pointers `YcodeVulkan` imports; frame capture (`--screenshot`). Must not edit MT/VK/SH files; Package.swift entries for the new targets are added by I3 once, then left alone. |
+| **MT** | `Sources/SwiftCodeMetalHost/` (Swift; deps SwiftCodeXPC, SwiftCodeDarwinKernel) + `Tests/SwiftCodeMetalHostTests/` | The host service: names, the three connections and handshake, object creation/release, the keyed pipeline-descriptor decoder, the command-buffer segment/record decoder into a backend-neutral command model, events 100/101 ordering, read-backs and `replaceRegion`. Talks to a `MetalBackend` (§5.3) and an `IOSurfaceResolver`. Unit tests from the spec's layouts. |
+| **VK** | `Sources/CVulkan/` (C; loads `libvulkan.so.1` with `dlopen`, so macOS still builds) + `Sources/SwiftCodeVulkan/` (Swift) + tests | `MetalBackend` on Vulkan 1.3+: device, buffers over guest-shared memory (`VK_EXT_external_memory_host`), host-owned images, IOSurface images over the surface's shared memory, bindless descriptor heap + device addresses (per `metal-shaders.md` §4), pipelines from SPIR-V, command replay, fences/timeline semaphores for events. Runs on the Thor; on other hosts reports "no GPU". |
+| **SH** | `swiftcode/Translator/` (C++17 against LLVM 18 + SPIRV-Tools; CMake; built on Linux by `Translator/build.sh`) | `swiftcode-airc`: metallib function → SPIR-V + JSON reflection (stage, entry, bindings/argument table, vertex inputs, varyings by name, workgroup size), per `metal-shaders.md`. Starts from R8's PoC (`research/experiments/simulator/metal-shaders/airc/`, our own code). Coverage target: every function in QuartzCore's metallibs translates and passes `spirv-val` (runtime shaders read at test time, never copied into the repo), then the rest of the home-screen set. A persistent mode (requests over stdin/stdout) and a cache keyed by `HASH`. |
+| **I3** | everything else in `swiftcode/` | Wiring: register the Metal names (`com.apple.metal.simulator` and the per-client names) via 701 before jobs start, start the service with the Vulkan backend, provide `IOSurfaceResolver` from its IOSurface service and the guest-memory host pointers `SwiftCodeVulkan` imports; frame capture (`--screenshot`). Must not edit MT/VK/SH files; Package.swift entries for the new targets are added by I3 once, then left alone. |
 
-### 5.3 Pinned interface (`YcodeMetalHost`, Swift; MT writes it first)
+### 5.3 Pinned interface (`SwiftCodeMetalHost`, Swift; MT writes it first)
 
 ```
 public protocol MetalBackend: AnyObject {
@@ -123,7 +123,7 @@ orchestrator.
 Clean room as before: levels 1–4, no disassembly, no `.claude/Xcode.app`,
 no `research/dirty/`, no Ghidra; runtime shaders are input data, never
 copied into the repository. Builds: macOS `--scratch-path /tmp/yc-8-<X>`;
-Thor `$YCODE_DATA/work/8-<X>/`; scripts in the session
+Thor `$SWIFTCODE_DATA/work/8-<X>/`; scripts in the session
 scratchpad `agent-<X>/`; SSH keys only; no sudo; no commits.
 
 ## 6. Note from R6 (`headless-rendering.md`, 2026-10-12)
@@ -134,11 +134,11 @@ apps and the home-screen chrome draw correctly; the **wallpaper** (poster
 extensions) and some **icons** (CoreImage in iconservicesagent) need Metal
 in their own processes. So the Metal layer's first visible payoff is the
 wallpaper and icons, not the compositor. With a Metal device present,
-backboardd switches to its Metal path, so Ycode's service must then be
+backboardd switches to its Metal path, so SwiftCode's service must then be
 complete enough for backboardd's render records (§4). Denied Metal
-look-ups are frequent (8,469 per boot): Ycode's answer must be cheap.
+look-ups are frequent (8,469 per boot): SwiftCode's answer must be cheap.
 
-## 7. MT done (2026-10-12): the `YcodeMetalHost` API as built
+## 7. MT done (2026-10-12): the `SwiftCodeMetalHost` API as built
 
 Refinements of §5.3 (agreed): the backend gets host-global, never-reused
 `MetalHandle`s (guest refs are per process/kind and reused; the service maps
@@ -156,7 +156,7 @@ the guest; unknown handles in commands are skipped; `release` may arrive
 while submitted work uses the object; `getBytes` sees all earlier work;
 command buffers on one queue run in order; `scheduled` only after IOSurface
 writes are in surface memory (else the service sends 100 then 101 at
-`completed`). **If `backend.isAvailable` is false, Ycode registers no
+`completed`). **If `backend.isAvailable` is false, SwiftCode registers no
 Metal names** (backboardd then renders on the CPU, R6).
 
 Coverage: every record of the minimal home-screen set plus most others
@@ -166,11 +166,11 @@ Coverage: every record of the minimal home-screen set plus most others
 ## 8. Milestone 8a-T: hello triangle (owner request, 2026-10-12)
 
 Before the home screen: our own guest program draws the classic hello
-triangle with Metal inside a Ycode device on the Thor, through
-`YcodeMetalHost` → `YcodeVulkan` → `ycode-airc` on the Thor's GPU.
+triangle with Metal inside a SwiftCode device on the Thor, through
+`SwiftCodeMetalHost` → `SwiftCodeVulkan` → `swiftcode-airc` on the Thor's GPU.
 
 - **Probe** `p_metal_triangle` (our own code, owned by VK, in
-  `ycode/SimShim/guest-tests/stage8/`, built on macOS like the other
+  `swiftcode/SimShim/guest-tests/stage8/`, built on macOS like the other
   probes): a command-line tool (no UIKit, no display services) that gets
   `MTLCreateSystemDefaultDevice`, loads a **precompiled** metallib bundled
   next to it (`newLibraryWithURL:`, so the guest's shader compiler service
@@ -178,23 +178,23 @@ triangle with Metal inside a Ycode device on the Thor, through
   512×512 BGRA8 texture cleared to a dark background, reads it back with
   `getBytes`, writes it as a PNG (or raw + header) under `/tmp`, and prints
   `triangle ok` plus the device name and a few sampled pixels.
-- **Run:** `ycode-simd --device D --oneshot "<path>/p_metal_triangle"`
+- **Run:** `swiftcode-simd --device D --oneshot "<path>/p_metal_triangle"`
   (with the runtime's job set or a minimal one; the Metal names must be
   registered — I3's wiring) on the Thor, release build.
 - **Done when** the PNG shows the triangle with correct colors and
   orientation (compared with the same probe run under CoreSimulator on the
   Mac), and the orchestrator sends it to the owner.
 
-## 9. SH done, first round (2026-10-12): `ycode-airc`
+## 9. SH done, first round (2026-10-12): `swiftcode-airc`
 
-`ycode/Translator/` (C++17, LLVM 18, SPIRV-Tools; built on Linux). CLI:
+`swiftcode/Translator/` (C++17, LLVM 18, SPIRV-Tools; built on Linux). CLI:
 `version | list | decls | translate | serve | corpus`; `serve` speaks
 little-endian frames (u32 length, u32 JSON-header length, JSON header,
 payload) with requests `translate | ping | version | shutdown`, runs each
 translation in a forked child (a crash or timeout becomes an `internal`
 error), and caches by SHA-256 of the module plus options. The binding ABI
 (push constants, the 192-entry argument table, bindless set 0, input
-attachments in set 1, specialization-constant ids) is Ycode's own design
+attachments in set 1, specialization-constant ids) is SwiftCode's own design
 and lives in `Translator/src/abi.h` (version 1); the reflection JSON schema
 is documented at the top of `Translator/src/translate.cpp` and in SH's
 report. Coverage: QuartzCore 226/228 (2 kernels call `discard_fragment`),
@@ -209,7 +209,7 @@ creation and a persistent pipeline cache are required.
 
 On the Thor (patched kernel, release, `--gpu-cache-dir`), backboardd takes
 its Metal path. It wraps the three LCD IOSurfaces and composites through
-`YcodeMetalHost` → `YcodeVulkan`. Over 11,197 command buffers in 325 s there
+`SwiftCodeMetalHost` → `SwiftCodeVulkan`. Over 11,197 command buffers in 325 s there
 were 0 translation failures, unknown records, refusals, backend errors or
 Vulkan errors. The boot UI needs only 3–4 Core Animation pipelines. The
 worst one takes 5.4 s to compile cold and 4.3 ms with the persistent cache.
@@ -219,7 +219,7 @@ differ). A Core Animation probe of ours,
 `CARenderer` into an `MTLTexture`; 16 features: gradients, shadows, masks,
 text, perspective, replicator…), matches a real iOS 27.1 simulator within 3
 levels in 15 of 16 cells. The 16th is nearest-filter texel ties, where the
-two GPUs round differently. `YCODE_METAL_STATS=<s>` prints per-client and
+two GPUs round differently. `SWIFTCODE_METAL_STATS=<s>` prints per-client and
 backend statistics. The home screen is still gated by SpringBoard (I4).
 Next for G: backdrop blur, filters and materials; RenderBox,
 CoreMaterial3D and CoreImage coverage for posters and icons; the per-frame
@@ -229,7 +229,7 @@ full-surface copy cost.
 
 The home screen shows the real Settings and Safari icons, drawn by
 iconservicesagent (IconRendering → RenderBox → Metal) through
-`YcodeMetalHost` → `YcodeVulkan` on the Thor's GPU
+`SwiftCodeMetalHost` → `SwiftCodeVulkan` on the Thor's GPU
 (`9-H/runs/p1a/shots/home-540s.png`). What it took (`home-screen.md` §2,
 §4): coherent `MAP_SHARED` file mappings (iconservicesagent's icon store;
 its "status 70" crash loop), a device-capabilities plist for MobileGestalt
@@ -251,7 +251,7 @@ record of this device lacks its platform and extension point
 **Observed (level 3, Thor runs).** Two of eight 700 s boots of the
 integrated build ended with status 139 *after* the run summary
 (`IA2/tb/d0`; the earlier `IB2I/v2r1` crash was a different one, in
-`Process.run` while a shader translator started). `ycode-simd` called
+`Process.run` while a shader translator started). `swiftcode-simd` called
 `exit()` while the back end's completion thread was still waiting in
 the driver for a timeline value. `exit()` runs the NVIDIA driver's own
 teardown (its `atexit` handlers); the waiting thread then got
@@ -286,7 +286,7 @@ Metal service and its back end in this order:
      back-end thread inside the driver;
    - otherwise: `vkDeviceWaitIdle`, every object destroyed, the device and
      instance destroyed.
-4. `ycode-simd` prints "Metal host service: shut down in N ms", then the
+4. `swiftcode-simd` prints "Metal host service: shut down in N ms", then the
    other services stop and the process exits.
 
 Paths that end with `_exit()` (snapshot capture) or a signal skip the
@@ -301,11 +301,11 @@ nothing abandoned, a second call returns at once).
 Evidence: level 3 (Thor runs `IA2/tb/d0`, `IB2I/v2r1`: backtraces of the
 host process, exit status); Vulkan 1.3 specification (level 1: objects in
 use by pending command buffers must not be destroyed; `vkDeviceWaitIdle`);
-Ycode design.
+SwiftCode design.
 
 ## 13. The GPU side of a boot and of a frame (agent SP-GPU, 2026-10-19)
 
-Question: how much of a full boot (`YCODE_LEAN_BOOT` unset, about
+Question: how much of a full boot (`SWIFTCODE_LEAN_BOOT` unset, about
 200–250 s on the Thor today) and of a home-screen frame is spent on the
 GPU side (shader translation, Vulkan pipeline builds, command recording,
 IOSurface copies), and does the headless framebuffer let `backboardd`
@@ -313,7 +313,7 @@ render at full rate for nobody?
 
 ### 13.1 Measurements (Thor, harness boots, device in RAM, load average 15–36)
 
-New counters in the `YCODE_METAL_STATS=<s>` backend line (diagnostics,
+New counters in the `SWIFTCODE_METAL_STATS=<s>` backend line (diagnostics,
 nothing changes otherwise): translator calls (calls answered by the back
 end's in-memory cache counted apart), whole-pipeline compiles, compute
 variants, submissions that waited more than 1 ms for a pipeline, CPU time
@@ -325,7 +325,7 @@ frame record (`simframebuffer.c`, `frame <n>`) once per second.
 | What | Warm caches (5 boots) | Cold caches (2 boots: empty `--gpu-cache-dir` and empty driver cache) |
 |---|---|---|
 | Metal command buffers per boot | 160–260 | same |
-| translator calls | 48–56, 0.18–1.9 s in all (most are `ycode-airc` disk-cache hits) | 54–58, 1.3–1.6 s |
+| translator calls | 48–56, 0.18–1.9 s in all (most are `swiftcode-airc` disk-cache hits) | 54–58, 1.3–1.6 s |
 | pipelines linked (graphics pipeline libraries) | 36–45, 18–230 ms in all | 40–45, 10.5–12.4 s: one Core Animation uber-pipeline (`PBGRA_Xgc`) alone 9.5–11.4 s |
 | submissions that waited for a pipeline | 0–1, at most 0.29 s (0.15 s with the translators started early, §13.2) | 4, the first frame waits 9.4–11.6 s |
 | recording CPU per command buffer | 0.6–0.8 ms | same |
@@ -364,10 +364,10 @@ frame record (`simframebuffer.c`, `frame <n>`) once per second.
 
 | Change | Switch | Why |
 |---|---|---|
-| A device boot keeps its GPU caches by default in `${XDG_CACHE_HOME:-~/.cache}/ycode/gpu` | `--gpu-cache-dir <dir>` (other place), `--no-gpu-cache`; the variables `YCODE_VULKAN_PIPELINE_CACHE` / `YCODE_AIRC_CACHE`, when set, win | Without `--gpu-cache-dir` every boot compiled the uber-pipeline again (8.5 s measured with the driver's own disk cache warm: that cache does not cover it); the reference simulator keeps its shader caches across boots. Checked: first boot 0 bytes loaded and 8.5 s compile, second boot 355,583 bytes loaded and no compile over 1 s. Concurrent processes are safe: every cache file is written to a temporary name and renamed. |
-| `ycode-airc` cache keys include the translator build (version, size and modification time of the executable) | — | The key held only the version string `0.1`, so a rebuilt translator read translations made by an earlier build. The first boot after a translator change now translates again (about 1–2 s, §13.1). |
+| A device boot keeps its GPU caches by default in `${XDG_CACHE_HOME:-~/.cache}/swiftcode/gpu` | `--gpu-cache-dir <dir>` (other place), `--no-gpu-cache`; the variables `SWIFTCODE_VULKAN_PIPELINE_CACHE` / `SWIFTCODE_AIRC_CACHE`, when set, win | Without `--gpu-cache-dir` every boot compiled the uber-pipeline again (8.5 s measured with the driver's own disk cache warm: that cache does not cover it); the reference simulator keeps its shader caches across boots. Checked: first boot 0 bytes loaded and 8.5 s compile, second boot 355,583 bytes loaded and no compile over 1 s. Concurrent processes are safe: every cache file is written to a temporary name and renamed. |
+| `swiftcode-airc` cache keys include the translator build (version, size and modification time of the executable) | — | The key held only the version string `0.1`, so a rebuilt translator read translations made by an earlier build. The first boot after a translator change now translates again (about 1–2 s, §13.1). |
 | The translator processes start with `posix_spawn` (closing every other descriptor in the child) instead of Foundation's `Process`, one start at a time | — | `Process.run` scans `/proc/self/fd` in the parent; while four translators started at once and the VMM opened and closed descriptors, that scan crashed the host once (`IB2I/v2r1`, `findMaximumOpenFromProcSelfFD`). Writes to a dead translator give `EPIPE`, never `SIGPIPE`. |
-| The translator processes start in the background when the back end starts | `YCODE_AIRC_PRESTART=0`: at the first request | The first pipeline waited 0.29 s for the translator to load. |
+| The translator processes start in the background when the back end starts | `SWIFTCODE_AIRC_PRESTART=0`: at the first request | The first pipeline waited 0.29 s for the translator to load. |
 | GPU-hang reports (`serial … still running after N s`) name the first four dispatches: grid, threadgroup size, and every bound buffer's length (the bytes of buffers of at most 64 bytes) | — | For §13.3. |
 
 ### 13.3 The `astc` kernel that runs for minutes (found and fixed: §13.5)
@@ -402,7 +402,7 @@ client so that one client's hang does not stall the others.
 
 Evidence: level 3 (Thor runs `SX/SPGPU/runs/{p1,w0,n1–n3,f1,d1,d2}`,
 `SX/SPGPU/base/runs/b1–b3`, `SX/SPGPU/cold{1,2}/runs/c`; archived logs
-of other agents' runs for §13.3; the `astc` reflection is `ycode-airc`'s
+of other agents' runs for §13.3; the `astc` reflection is `swiftcode-airc`'s
 own output metadata, no shader was disassembled); level 1 (Vulkan
 specification and extension texts: pipeline caches,
 `VK_EXT_external_memory_host`, `VK_EXT_image_drm_format_modifier`,
@@ -413,11 +413,11 @@ specification and extension texts: pipeline caches,
 
 #### 13.5.1 Reproduction outside a boot
 
-`KernelHangProbeTests` (opt-in, `ycode/Tests/YcodeVulkanTests`) runs one
+`KernelHangProbeTests` (opt-in, `swiftcode/Tests/SwiftCodeVulkanTests`) runs one
 translated kernel through `VulkanMetalBackend` on random inputs with an
 8 s limit per dispatch, saves the inputs of a dispatch that does not
 finish, and replays them with chosen blocks kept and placed at chosen
-thread positions. The kernel was `ycode-airc`'s own SPIR-V of
+thread positions. The kernel was `swiftcode-airc`'s own SPIR-V of
 944ee7b6 (the one GPU-cache entry every harness tree used: it was made
 on 2026-10-13, and before e57bc14 the cache key did not change with the
 translator build) and, for experiments that need retranslation, the
@@ -440,7 +440,7 @@ sizes 4–12, the parameter words the kernel's reflection and SPIR-V read
 | only one of the two helpers inlined | does not finish |
 
 So the hang needs two lanes of one subgroup on different paths, each
-reaching one of the kernel's two helpers, which `ycode-airc` keeps out of
+reaching one of the kernel's two helpers, which `swiftcode-airc` keeps out of
 line as `DontInline` SPIR-V functions (since 906c290, for driver compile
 time). The Thor's driver compiles `DontInline` functions as real calls;
 with lanes of one subgroup inside them on different paths the subgroup
@@ -486,7 +486,7 @@ before, 159 ms after. Warm boots read both from the pipeline cache.
 #### 13.5.3 Containment: the loop guard
 
 Independent of the cause, a kernel whose loop never ends would hold the
-single queue the same way. `ycode-airc --loop-limit N` (serve request
+single queue the same way. `swiftcode-airc --loop-limit N` (serve request
 `"loop_limit"`) guards every loop whose trip count scalar evolution
 cannot bound by a constant: at each guarded loop header the invocation
 counts one pass in a private counter; past N passes in all (over every
@@ -495,7 +495,7 @@ block, with zero for the values the exit's phis would take from inside
 the loop. After the budget is spent, every loop ends at its next header,
 so an invocation finishes along an acyclic path. The reflection reports
 `"loop_limit": N`; the cache key includes N. The host sends 2^20
-(`YCODE_GPU_LOOP_LIMIT` overrides, `0` turns it off). No boot shader
+(`SWIFTCODE_GPU_LOOP_LIMIT` overrides, `0` turns it off). No boot shader
 has a loop without a constant bound today (none of the 53 boot
 translations is guarded), so a normal boot runs the same shaders as
 before. Checked on the GPU (`LoopGuardGPUTests`: a loop that waits for a
@@ -533,9 +533,9 @@ work fails until the host restarts). Both stay open; with §13.5.2 and
 §13.5.3 no known shader needs them.
 
 Evidence: level 3 (Thor: `KernelHangProbeTests` and `LoopGuardGPUTests`
-runs over `ycode-airc`'s own SPIR-V; boots `SX/SPASTC/runs/sp-astc-0–6`
+runs over `swiftcode-airc`'s own SPIR-V; boots `SX/SPASTC/runs/sp-astc-0–6`
 against `SX/IDE/runs/sp-astc-base-0–6`, cold boots
-`SX/SPASTC/cold{A,B}/runs`; corpus runs of `ycode-airc` over the
+`SX/SPASTC/cold{A,B}/runs`; corpus runs of `swiftcode-airc` over the
 runtime's metallibs as input data; `airc-gpu --compile` timings). The
 kernel was studied only through our translator's output and reflection
 and through its behaviour on random inputs; no Apple binary or shader
@@ -552,7 +552,7 @@ and what can the back end remove without changing what the guest sees?
 
 ### 14.1 Instruments (diagnostics; nothing changes without them)
 
-`YCODE_METAL_TRACE=<file>` writes one line per Metal command buffer to
+`SWIFTCODE_METAL_TRACE=<file>` writes one line per Metal command buffer to
 `<file>`, space-separated, `-` for a value that is absent:
 
 | Field | Meaning |
@@ -570,23 +570,23 @@ and what can the back end remove without changing what the guest sees?
 message type, device-operation record (12) or −1, whether a reply was
 sent, and the host monotonic ns when the receive thread got it, when its
 connection queue started it, and when it was done. The
-`YCODE_METAL_STATS=<s>` backend line adds: copy-ins skipped, the bytes
+`SWIFTCODE_METAL_STATS=<s>` backend line adds: copy-ins skipped, the bytes
 whole-surface copy-outs would have moved, completion waits that timed out
 although the GPU had reached the value ("late wake-ups"), command buffers
 reported scheduled at submission, and CPU waits for pending GPU writes to
-a surface. `YCODE_GPU_DAMAGE_LOG=<n>` logs the first n render-pass writes
+a surface. `SWIFTCODE_GPU_DAMAGE_LOG=<n>` logs the first n render-pass writes
 to IOSurfaces with the area that is copied back.
 
 ### 14.2 Changes
 
 | # | Change | Switch (default on) |
 |---|---|---|
-| 1 | **Copy-in skipped** while the Vulkan image already holds the surface's pixels (rules in §14.3) | `YCODE_GPU_SURFACE_SKIP_IN=0` |
-| 2 | **Copy-back limited to what was drawn**: for a color, depth or stencil attachment of level 0, slice 0 with load action *load*, only the union of the scissor rectangles in force at each draw of the pass (a pass starts with the whole target as its scissor). Clears and don't-care loads, other levels and slices, resolve targets, shader writes and blits copy the whole surface | `YCODE_GPU_SURFACE_DAMAGE=0` |
-| 3 | **Completion polled in short slices**: the completion thread waits for the timeline semaphore 1 ms at a time and reads its counter after each slice | `YCODE_GPU_COMPLETION_POLL_US=<µs>` (minimum 50; 1000000 restores one blocking wait per second) |
-| 4 | **`scheduled` at queue submission**: a command buffer's scheduled handler runs once its recording is on the Vulkan queue behind every earlier submission (Metal's meaning of scheduled), not at completion. Held work (event waits, VulkanEventWaits.swift) reports it when it is submitted. Scheduled handlers run in submission order, outside the back-end lock, and always before the same command buffer's completion handler | `YCODE_GPU_EARLY_SCHEDULED=0` |
+| 1 | **Copy-in skipped** while the Vulkan image already holds the surface's pixels (rules in §14.3) | `SWIFTCODE_GPU_SURFACE_SKIP_IN=0` |
+| 2 | **Copy-back limited to what was drawn**: for a color, depth or stencil attachment of level 0, slice 0 with load action *load*, only the union of the scissor rectangles in force at each draw of the pass (a pass starts with the whole target as its scissor). Clears and don't-care loads, other levels and slices, resolve targets, shader writes and blits copy the whole surface | `SWIFTCODE_GPU_SURFACE_DAMAGE=0` |
+| 3 | **Completion polled in short slices**: the completion thread waits for the timeline semaphore 1 ms at a time and reads its counter after each slice | `SWIFTCODE_GPU_COMPLETION_POLL_US=<µs>` (minimum 50; 1000000 restores one blocking wait per second) |
+| 4 | **`scheduled` at queue submission**: a command buffer's scheduled handler runs once its recording is on the Vulkan queue behind every earlier submission (Metal's meaning of scheduled), not at completion. Held work (event waits, VulkanEventWaits.swift) reports it when it is submitted. Scheduled handlers run in submission order, outside the back-end lock, and always before the same command buffer's completion handler | `SWIFTCODE_GPU_EARLY_SCHEDULED=0` |
 | 5 | **CPU access to a surface waits for pending GPU writes** (needed by 4): the IOSurface service calls the back end's wait before a guest lock without `kIOSurfaceLockAvoidSync` (read-only locks included) and before a host read (`surface(id:)` for the display server, `snapshot(surfaceID:)` for screenshots). The wait is for the last submitted serial that copies back to that surface, at most 0.5 s, never under the IOSurface service's lock | with 4 |
-| 6 | **A pool of translator processes for `--metal-translator`** (the path the launcher uses), started when the back end starts | `YCODE_AIRC_PROCESSES=<n>` (default 4), `YCODE_AIRC_PRESTART=0` |
+| 6 | **A pool of translator processes for `--metal-translator`** (the path the launcher uses), started when the back end starts | `SWIFTCODE_AIRC_PROCESSES=<n>` (default 4), `SWIFTCODE_AIRC_PRESTART=0` |
 | 7 | **A stuck GPU costs one timeout**: when a wait of change 5 times out and the timeline counter has not moved, later waits take only a 5 ms look until the counter moves again (a submission that never completes, `app-launch.md` §3.7, would otherwise cost 0.5 s per lock and per display read) | with 4 |
 
 Why 3: on the Thor a blocking `vkWaitSemaphores` sometimes returned long
@@ -670,9 +670,9 @@ slots 2–4 held.
 | R4 (2.9 / 2.5) | 18.0 / 1541 vs 16.3 / 18.1 (see below) | 14.6 / 33.4 vs 16.0 / 35.1 | 4.03 vs 4.81 | 11.1 MB vs 38.4 MB | 70 vs 70 |
 
 The "GPU completion wait" is the sum of the critical-path steps "host
-thread: DispatchWorker (woke backboardd …)" and "host thread: ycode-simd
+thread: DispatchWorker (woke backboardd …)" and "host thread: swiftcode-simd
 (woke backboardd …)" (`frame-profile.md` §2 item 7). Bytes per present:
-the `YCODE_METAL_STATS` counters over the window divided by its presents.
+the `SWIFTCODE_METAL_STATS` counters over the window divided by its presents.
 
 1. **Bytes copied fall by about 65 % in every round** (11–13 MB against
    32–38 MB per present). Almost all of it is change 1: per session
@@ -711,7 +711,7 @@ the `YCODE_METAL_STATS` counters over the window divided by its presents.
 
 1. Unlocked CPU writes to an IOSurface are not seen after a skipped
    copy-in (§14.3). No client in these sessions depended on them (the
-   screenshots match the base); `YCODE_GPU_SURFACE_SKIP_IN=0` is the way
+   screenshots match the base); `SWIFTCODE_GPU_SURFACE_SKIP_IN=0` is the way
    out if one does.
 2. `replaceRegion` of an IOSurface texture writes the surface memory at
    once; a copy-back of earlier GPU work still on the queue can overwrite
@@ -739,8 +739,8 @@ the `YCODE_METAL_STATS` counters over the window divided by its presents.
    branch's changes, so it is not attributed to it; too few boots to say
    more. The GPU work behind it is the open item, with §3.7's.
 
-Evidence: Ycode design (§14.1–§14.4); level 3 (Thor sessions and boots
-of Ycode's simulator, §14.5); level 1: Vulkan specification
+Evidence: SwiftCode design (§14.1–§14.4); level 3 (Thor sessions and boots
+of SwiftCode's simulator, §14.5); level 1: Vulkan specification
 (`vkWaitSemaphores`, timeline semaphores, queue submission order),
 Metal documentation (`MTLCommandBuffer` scheduled and completed handlers,
 `MTLRenderCommandEncoder` scissor rectangle), the public IOSurface
@@ -748,7 +748,7 @@ headers (`kIOSurfaceLockReadOnly`, `kIOSurfaceLockAvoidSync`, seeds).
 
 ## 15. Device loss, GPU hangs and the host side of a frame (agent GPU-2, 2026-10-23)
 
-Questions: why do Ycode trees still lose the Vulkan device now and then,
+Questions: why do SwiftCode trees still lose the Vulkan device now and then,
 and why does a Safari session sometimes keep one submission running for
 ever (`app-launch.md` §3.7)? What is left of the "GPU completion wait"
 of a frame (`frame-profile.md` §7 item 2), and what does the GPU part of a
@@ -759,7 +759,7 @@ boot cost?
 The host kernel log (readable by the `adm` group, `journalctl -k`) names
 the driver's reason for every loss. From 2026-10-10 to 2026-10-23 it has
 85 GPU errors, all of them Xid 109, `CTX SWITCH TIMEOUT`, all in
-`ycode-simd` processes (36 of them, on 2026-10-19 10:06–10:40, are
+`swiftcode-simd` processes (36 of them, on 2026-10-19 10:06–10:40, are
 SP-ASTC's deliberate hang probes). There is no MMU fault (Xid 31) or
 graphics exception (Xid 13): the losses are not stray memory accesses.
 A context-switch timeout is what the driver reports when it must switch
@@ -793,25 +793,25 @@ counter once a second and treats `VK_ERROR_DEVICE_LOST` there as the loss
 
 | Switch | What it adds |
 |---|---|
-| `YCODE_GPU_HANG_REPORT_S=<s>` (default 2, 0 off) | A submission still running after that long is logged once with a description of its Metal command buffer: every pass with its attachments (texture size, format, samples, load and store actions, resolve), every draw with its pipeline's shaders, primitive, counts, viewport, scissor and the buffers and textures bound (lengths, offsets), indirect arguments as the CPU sees them, every dispatch and blit. The back end keeps the decoded command buffer with each pending submission for this (no copy; the strings are built only for a report). |
-| VK_NV_device_diagnostic_checkpoints (on when the device has it; `YCODE_GPU_CHECKPOINTS=0` off) | A marker before every pass, draw, dispatch and blit and around the IOSurface copies. On device loss the back end logs the pending submissions (described as above) and the last markers the queue passed at the top and the bottom of the pipe, resolved to the process, command buffer, pass and command. |
-| `YCODE_GPU_HANG_CAPTURE=<dir>` | A hang report also saves the command buffer's translated shaders (SPIR-V and reflection) and the bytes of every buffer it binds that the CPU can read (256 MiB at most), for offline replay. |
-| `YCODE_METAL_TRACE_SEGMENTS=1` (with `YCODE_METAL_TRACE`) | A GPU timestamp after the IOSurface copy-ins, after every pass and after the copy-outs; the trace line gets `label=ns` pairs (`in`, `R<w>x<h>[s<samples>]/<draws>/<load L, C, D>[/res]`, `C<dispatches>`, `B<blits>`, `out`). |
-| `YCODE_METAL_RECORD_PROFILE=1` | Host time of the parts of recording a command buffer, in the `YCODE_METAL_STATS` line. |
-| `YCODE_GPU_PROBE=<function names>` (visionos.md §10.20.3) | A command buffer that draws or dispatches with a named function is described and its passes read back: before each pass the textures it binds and the attachments it loads, after it the attachments it stores or resolves, the textures its kernels may write and its blit destinations, and the buffers of compute and blit passes; one line per copy with texels not zero, channel means and ranges, and the texture's slot, views and usage; skipped draws. `YCODE_GPU_PROBE_MAX`, `_INTERVAL_S`, `_AFTER_S`, `_MB`, `_BUFFER_KB`, `_DUMP=<dir>` (raw bytes for `ProbeReplayTests`). |
-| `YCODE_DEBUG_PASS_DRAWS=<w>x<h>` (visionos.md §10.20.3) | Render passes of that size whose draw list changed: host monotonic time, load/store actions, the visibility buffer's first slots, per draw the functions, counts, base instance, index buffer and first fragment texture. `_ALL=<s>` every pass from that many seconds after the first, `_BUFFERS=1` the fragment buffers. |
-| `YCODE_METAL_ARGUMENT_ENCODER=0` | Argument-encoder set calls (op 19) are refused instead of written into the argument buffer (visionos.md §10.20.7). |
-| `scripts/ycode-gpu-trace <trace> [--windows] [--pid P]` | Per Metal client: command buffers, recording (receive → submitted), GPU time, queue latency (submitted → completion seen), receive → handlers, GPU ms per second, IOSurface MB; per segment kind the mean, p90 and per-command-buffer GPU time. Python standard library. |
+| `SWIFTCODE_GPU_HANG_REPORT_S=<s>` (default 2, 0 off) | A submission still running after that long is logged once with a description of its Metal command buffer: every pass with its attachments (texture size, format, samples, load and store actions, resolve), every draw with its pipeline's shaders, primitive, counts, viewport, scissor and the buffers and textures bound (lengths, offsets), indirect arguments as the CPU sees them, every dispatch and blit. The back end keeps the decoded command buffer with each pending submission for this (no copy; the strings are built only for a report). |
+| VK_NV_device_diagnostic_checkpoints (on when the device has it; `SWIFTCODE_GPU_CHECKPOINTS=0` off) | A marker before every pass, draw, dispatch and blit and around the IOSurface copies. On device loss the back end logs the pending submissions (described as above) and the last markers the queue passed at the top and the bottom of the pipe, resolved to the process, command buffer, pass and command. |
+| `SWIFTCODE_GPU_HANG_CAPTURE=<dir>` | A hang report also saves the command buffer's translated shaders (SPIR-V and reflection) and the bytes of every buffer it binds that the CPU can read (256 MiB at most), for offline replay. |
+| `SWIFTCODE_METAL_TRACE_SEGMENTS=1` (with `SWIFTCODE_METAL_TRACE`) | A GPU timestamp after the IOSurface copy-ins, after every pass and after the copy-outs; the trace line gets `label=ns` pairs (`in`, `R<w>x<h>[s<samples>]/<draws>/<load L, C, D>[/res]`, `C<dispatches>`, `B<blits>`, `out`). |
+| `SWIFTCODE_METAL_RECORD_PROFILE=1` | Host time of the parts of recording a command buffer, in the `SWIFTCODE_METAL_STATS` line. |
+| `SWIFTCODE_GPU_PROBE=<function names>` (visionos.md §10.20.3) | A command buffer that draws or dispatches with a named function is described and its passes read back: before each pass the textures it binds and the attachments it loads, after it the attachments it stores or resolves, the textures its kernels may write and its blit destinations, and the buffers of compute and blit passes; one line per copy with texels not zero, channel means and ranges, and the texture's slot, views and usage; skipped draws. `SWIFTCODE_GPU_PROBE_MAX`, `_INTERVAL_S`, `_AFTER_S`, `_MB`, `_BUFFER_KB`, `_DUMP=<dir>` (raw bytes for `ProbeReplayTests`). |
+| `SWIFTCODE_DEBUG_PASS_DRAWS=<w>x<h>` (visionos.md §10.20.3) | Render passes of that size whose draw list changed: host monotonic time, load/store actions, the visibility buffer's first slots, per draw the functions, counts, base instance, index buffer and first fragment texture. `_ALL=<s>` every pass from that many seconds after the first, `_BUFFERS=1` the fragment buffers. |
+| `SWIFTCODE_METAL_ARGUMENT_ENCODER=0` | Argument-encoder set calls (op 19) are refused instead of written into the argument buffer (visionos.md §10.20.7). |
+| `scripts/swiftcode-gpu-trace <trace> [--windows] [--pid P]` | Per Metal client: command buffers, recording (receive → submitted), GPU time, queue latency (submitted → completion seen), receive → handlers, GPU ms per second, IOSurface MB; per segment kind the mean, p90 and per-command-buffer GPU time. Python standard library. |
 
 ### 15.3 Where the host time of a frame went
 
-The frame trace of a restored session (load 15 at the probe, `YCODE_METAL_RECORD_FAST=0`, i.e. before the changes below) split the
+The frame trace of a restored session (load 15 at the probe, `SWIFTCODE_METAL_RECORD_FAST=0`, i.e. before the changes below) split the
 render server's command buffers (median 41–48 draws and 21 passes per
 frame during swipes) like this, p50: decode (service receive → back end)
 0.23 ms, recording under the back-end lock 1.27 ms, GPU 0.6–1.3 ms, queue
 latency (submitted → completion seen) 0.8–1.4 ms. Recording grew by about
 30 µs per draw and decoding by about 8 µs per draw (1.0–1.3 ms at
-120 draws). The recording profile (`YCODE_METAL_RECORD_PROFILE`) put 95 %
+120 draws). The recording profile (`SWIFTCODE_METAL_RECORD_PROFILE`) put 95 %
 of recording in the preparation of each draw (2,104 ms for 63,152 draws,
 33 µs each), outside the argument tables (1.4 µs each). Three causes:
 
@@ -819,8 +819,8 @@ of recording in the preparation of each draw (2,104 ms for 63,152 draws,
    debugging switch) was a computed property over
    `ProcessInfo.processInfo.environment`, which builds a dictionary of the
    whole environment on every call (Foundation on Linux). Read once now;
-   the same for `YCODE_VULKAN_LOG`, `YCODE_VULKAN_DUMP_FUNCTIONS` and
-   `YCODE_VULKAN_LIBRARY_LTO`.
+   the same for `SWIFTCODE_VULKAN_LOG`, `SWIFTCODE_VULKAN_DUMP_FUNCTIONS` and
+   `SWIFTCODE_VULKAN_LIBRARY_LTO`.
 2. **Quadratic decoding.** `MetalCommandDecoder.apply` took the open
    pass's command list out of the `Open` enum while the enum still held
    it, so every append copied the whole list. The list is now taken out
@@ -840,7 +840,7 @@ every process); the refs resolve through a copy of the process's ref
 tables taken under the lock, which is what the lock would have shown at
 that moment.
 
-`YCODE_METAL_RECORD_FAST=0` restores causes 1–3 for A/B measurements
+`SWIFTCODE_METAL_RECORD_FAST=0` restores causes 1–3 for A/B measurements
 (the decoder's copying append included).
 
 ### 15.4 Copies and fetches stay inside their buffers
@@ -849,7 +849,7 @@ Recorded work that is invalid Vulkan usage is undefined behaviour for the
 GPU, and on the Thor a copy engine or a draw that runs off the end of its
 memory is a candidate for exactly the hang of §15.1. Metal validates
 these before a command buffer is encoded, so they can come only from
-records Ycode decodes wrongly or from garbage arguments; they are now
+records SwiftCode decodes wrongly or from garbage arguments; they are now
 skipped (counted in `skipped`, the first 20 copies logged with their
 region):
 
@@ -897,7 +897,7 @@ unchanged), which takes the trigger away whatever the translation:
 | current translation (inlined, guarded) | 450 dispatches, slowest 2 ms | 300 dispatches, slowest 4 ms |
 
 The kernel runs only when a client uploads ASTC data (a poster at
-boot); 4,096 blocks take 4 ms this way. `YCODE_GPU_LANE_ISOLATED=<names>`
+boot); 4,096 blocks take 4 ms this way. `SWIFTCODE_GPU_LANE_ISOLATED=<names>`
 (default `astc`, empty: none) names the kernels; a kernel whose reflection
 reads workgroup-relative built-ins, uses threadgroup memory, barriers or
 subgroup operations is never isolated, and an indirect dispatch keeps its
@@ -945,8 +945,8 @@ imports that overlap other imports (or, outside the arena, the driver's
 own mappings) make later allocations fail with
 `VK_ERROR_OUT_OF_DEVICE_MEMORY` (59–92 failed allocations per Safari boot,
 textures and pipelines missing, thousands of draws skipped); without it
-none. It stays as an experiment (`YCODE_GPU_IMPORT_SLACK_KB`, default 0;
-only inside the window ycode-simd passes, the arena).
+none. It stays as an experiment (`SWIFTCODE_GPU_IMPORT_SLACK_KB`, default 0;
+only inside the window swiftcode-simd passes, the arena).
 
 The captured buffers do not show the read outside: replaying the two
 text draws of the first capture through CVulkan with the captured bytes
@@ -972,7 +972,7 @@ each over full Safari boots of the final build:
 | Variant | Hangs |
 |---|---|
 | as built (`sa1–3`, `sd1–4`) | 3 of 7 |
-| monolithic pipelines instead of library parts (`YCODE_VULKAN_NO_PIPELINE_LIBRARY=1`, `se1–6`) | 2 of 6 |
+| monolithic pipelines instead of library parts (`SWIFTCODE_VULKAN_NO_PIPELINE_LIBRARY=1`, `se1–6`) | 2 of 6 |
 | every translator helper inlined (`AIRC_INLINE_ALL=1`, own GPU cache; `Xgc` became 215,902 words, no call, 25 s to compile; `sg1–3`) | 1 of 3 |
 
 So neither the library linking nor the out-of-line helpers of §13.5 are
@@ -997,8 +997,8 @@ behaviour (the draw sees the earlier draws' results). Passes that
 resolve or do not store skip it. Only the draw's scissor rectangle (two
 texels wider, for filtering) is copied: Core Animation reads the
 destination where it draws, and texels outside keep an older copy.
-`YCODE_GPU_FEEDBACK_COPY=whole` copies the whole attachment level (the
-first version, validated in the boots below), `YCODE_GPU_FEEDBACK_COPY=0`
+`SWIFTCODE_GPU_FEEDBACK_COPY=whole` copies the whole attachment level (the
+first version, validated in the boots below), `SWIFTCODE_GPU_FEEDBACK_COPY=0`
 turns the copies off; the stats line counts `feedback copies` and the
 texels copied. Tests:
 `VulkanBackendTests.drawSamplingItsOwnTargetReadsASnapshot`,
@@ -1056,12 +1056,12 @@ are the range over the 3 sessions of each arm; GPU numbers per
 `backboardd` command buffer from the frame trace: recording = locked →
 submitted, GPU = timestamps, queue = submitted → completion seen,
 receive → handlers; present intervals and the critical path's GPU wait
-per frame from `scripts/ycode-frame-profile`; probe load 2.2–5.9).
+per frame from `scripts/swiftcode-frame-profile`; probe load 2.2–5.9).
 
 Series R (main line 3aeaa9c merged; feedback copies of the whole level).
-Arm A: everything on. Arm B: `YCODE_METAL_RECORD_FAST=0
-YCODE_GPU_SURFACE_WAIT_POLL_US=0` (§15.3's recording and decoding
-changes and the sliced surface wait off). Arm C: `YCODE_GPU_FEEDBACK_COPY=0`.
+Arm A: everything on. Arm B: `SWIFTCODE_METAL_RECORD_FAST=0
+SWIFTCODE_GPU_SURFACE_WAIT_POLL_US=0` (§15.3's recording and decoding
+changes and the sliced surface wait off). Arm C: `SWIFTCODE_GPU_FEEDBACK_COPY=0`.
 
 | Swipes (ms) | A | B | C |
 |---|---|---|---|
@@ -1092,8 +1092,8 @@ time per command buffer at p50 and 5 ms at p90 in the pull-downs (10,300–
 cadence did not change measurably.
 
 Series S (the build with scissor-limited copies). Arm A: as built
-(scissor-limited copies). Arm B: `YCODE_GPU_FEEDBACK_COPY=whole`. Arm C:
-`YCODE_GPU_FEEDBACK_COPY=0`.
+(scissor-limited copies). Arm B: `SWIFTCODE_GPU_FEEDBACK_COPY=whole`. Arm C:
+`SWIFTCODE_GPU_FEEDBACK_COPY=0`.
 
 | (ms) | A (scissor) | B (whole) | C (off) |
 |---|---|---|---|
@@ -1231,7 +1231,7 @@ previous owner, or nowhere).
    with it, in the same deferred step that frees the slot). A write to a
    texture without a storage view now lands in the dummy image.
 3. A kernel that reads or writes level L of a storage texture with an
-   explicit level argument uses slot *h* + L (ycode-airc's convention,
+   explicit level argument uses slot *h* + L (swiftcode-airc's convention,
    reflection `uses: storage_mip_levels`; the guest's `SiriBlur`,
    `generateLatLongMap`, `fsCalculateBlendedSpecularIBL`), and the back end
    gave those slots to other textures. A texture with a storage view and
@@ -1246,9 +1246,9 @@ Diagnostics added (off unless named): the running checkpoints and
 after-dispatch markers, the dispatch tables (`dispatch tables:` in a hang
 report, with `SHARED`, `no storage view`, `NOT LIVE` notes), a log line
 the first 16 times a kernel writes a texture Metal did not mark
-`shaderWrite` (none in any boot), `YCODE_GPU_STORAGE_USAGE=all` (storage
+`shaderWrite` (none in any boot), `SWIFTCODE_GPU_STORAGE_USAGE=all` (storage
 usage for every texture whose format allows it, for guests that write
-such textures), ycode-airc `AIRC_EXP=imgwrite`.
+such textures), swiftcode-airc `AIRC_EXP=imgwrite`.
 
 **Tests.** `VulkanBackendTests.kernelWritesAViewInAReusedSlot` (a one-level
 view takes the slot of a released, written texture and a kernel writes
@@ -1267,27 +1267,27 @@ average 5–100):
 | decoder experiments `x-psb`, `x-imgwrite` | 2 | 2, in `generatePrefilteredSpecularMapFast` | 120 s |
 | this change (`f1`–`f6`) | 6 | 0 | to their limits (2 × 400 s, 4 × 600 s, 3 200 s in all), 637–919 `astc` dispatches each |
 
-Evidence: level 3 — Ycode boots on the Thor (`ide-remote/visionos8/runs/r1`–`r6`,
+Evidence: level 3 — SwiftCode boots on the Thor (`ide-remote/visionos8/runs/r1`–`r6`,
 `x-psb`, `x-imgwrite`, `f1`–`f6`; R4a's `visionos5/runs/c1`–`c4`, R5's
 `visionos7/runs/v2`, `v3`): hang reports with running checkpoints and
 dispatch tables, captures of our own translations and of guest buffers
 (`ide-remote/visionos8/cap/`), the host kernel log (Xid 109 only); probes
 over CVulkan (`scripts/gpu-probes/areplay.c`, `pollute.comp`,
-`imgoob.c`/`.comp`, `pinprobe.c`/`.comp`: our own GLSL and ycode-airc's
+`imgoob.c`/`.comp`, `pinprobe.c`/`.comp`: our own GLSL and swiftcode-airc's
 own SPIR-V); `CaptureReplayTests`; the new unit tests on the Thor's GPU,
 the window test also against the code before the change. Level 1 —
 Vulkan specification (descriptor indexing, `UPDATE_AFTER_BIND` and
 partially bound arrays, storage image views require the identity
 swizzle), `madvise(2)` (`MADV_COLLAPSE`). No shader logic was read: the
-guest kernels were seen through ycode-airc's reflection and by switching
+guest kernels were seen through swiftcode-airc's reflection and by switching
 classes of their operations off.
 
 Evidence: level 3 — the host kernel log (`journalctl -k`, Xid lines),
-run logs of Ycode's simulator (this agent's `SX/GPU2/runs/sa*`, `sd*`,
+run logs of SwiftCode's simulator (this agent's `SX/GPU2/runs/sa*`, `sd*`,
 `se*`, `sg*`, `sh*`, `sj*`, `ip1`, sessions `ide-remote/gpu2/out/*`; other agents'
 logs named in §15.1 and §15.5), hang reports, checkpoint markers and
 captures of our own translations, probes over CVulkan
-(`scripts/gpu-probes/`: our own GLSL and `ycode-airc`'s own SPIR-V,
+(`scripts/gpu-probes/`: our own GLSL and `swiftcode-airc`'s own SPIR-V,
 random or captured inputs), the frame trace and recording profile of
 §15.2, `vulkaninfo` and format queries of the Thor's driver, devfreq
 files under `/sys/class/devfreq`. Level 1 — the Vulkan specification and
@@ -1296,6 +1296,6 @@ extension texts (`VK_NV_device_diagnostic_checkpoints`,
 `residencyNonResidentStrict`, `VK_EXT_attachment_feedback_loop_layout`,
 `VkBufferImageCopy` valid usage, render-pass feedback loops), the Metal
 documentation (render-target memory barriers, `MTLTextureUsage`), the
-NVIDIA Xid table (Xid 109: context switch timeout). Ycode design for the
+NVIDIA Xid table (Xid 109: context switch timeout). SwiftCode design for the
 rest. No Apple binary, the reference tools or `research/` were opened;
 Apple's simulator was not run.

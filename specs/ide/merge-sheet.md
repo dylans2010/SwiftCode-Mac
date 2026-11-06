@@ -2,8 +2,8 @@
 
 **Status:** boundary spec (council round 3, 2026-11-05). It tells a clean
 implementer how the reference starts a merge from the Source Control
-navigator and how its merge sheet looks and behaves, so that Ycode's
-conflict editor (`comparison.md`, "Ycode implementation") can be rebuilt
+navigator and how its merge sheet looks and behaves, so that SwiftCode's
+conflict editor (`comparison.md`, "SwiftCode implementation") can be rebuilt
 to match. Reference: Xcode 27.1 (27A9269) on macOS 27.2, light appearance,
 window key. The checklist rows are in `fidelity-council.md` (round 3, rows
 52–61). The git side of a merge (stages, labels, `add` on resolve) stays
@@ -19,7 +19,7 @@ precision) and 120 fps recordings. Positions are in window coordinates
 edge".
 
 **Rules for the implementer.** Labels in quotation marks are exact.
-Symbols are described in words; Ycode draws its own (AGENTS.md rule 5).
+Symbols are described in words; SwiftCode draws its own (AGENTS.md rule 5).
 Colours are sRGB hex values measured from fully covered pixels.
 
 ## 1. Starting the merge
@@ -53,7 +53,7 @@ top-left corner at the pointer.
 | 12 | Delete… | yes |
 
 The names are the clicked branch and the current branch, in curly
-quotes; "project" is the repository's name. Ycode's own row menu
+quotes; "project" is the repository's name. SwiftCode's own row menu
 (`source-control.md`, `SourceControlRowMenu`) has a different item set and
 order ("Check Out", Rebase and Push items): the reference's set above
 replaces it for a local branch row.
@@ -78,7 +78,7 @@ the 1400 × 880 window (x 490–910.5, y 373–506), white, corner radius about
 
 | Part | Value |
 |---|---|
-| Icon | the application's icon, 55 × 55, its top-left at (28.5, 22) inside the alert. Ycode shows its own icon. |
+| Icon | the application's icon, 55 × 55, its top-left at (28.5, 22) inside the alert. SwiftCode shows its own icon. |
 | Title | bold, #262626, starting 106 from the alert's left edge (22.5 after the icon), first cap top 20 below the alert's top; wraps to two lines at the alert's inner width. Text: Are you sure you want to merge from “<branch>”? |
 | Message | regular, black, 2 lines, starting 59.5 below the alert's top, same left edge as the title. Text: Changes from “<branch>” will be merged into your current branch (“<current>”). |
 | Buttons | right-aligned, 20 tall, bottom row at y 468–488 (18 above the alert's bottom edge): **Cancel** (58 wide, fill #EDEDED, text #232323) then **Merge** (79 wide, accent fill #007AFF, white text), 14.5 apart, the Merge button's right edge 20.5 inside the alert's right edge |
@@ -296,10 +296,10 @@ while the sheet fades in and **slides down from under the toolbar**:
 | 187 ms | 51 | 1.0 |
 | 245 ms | 52.5 (rest) | 1.0 |
 
-**Disappear:** not captured (Cancel and Merge were not clicked). Ycode
+**Disappear:** not captured (Cancel and Merge were not clicked). SwiftCode
 should reverse the appear transition until it is measured.
 
-## 11. What Ycode did at round 3 (`0c3ae33f`; replaced by §12)
+## 11. What SwiftCode did at round 3 (`0c3ae33f`; replaced by §12)
 
 - No way to start a merge in the UI: branch rows in the Source Control
   navigator have no context menu on macOS (the row menu is attached only
@@ -316,10 +316,10 @@ should reverse the appear transition until it is measured.
   the left pane, and moves to "Change 2 of 3".
 - The editor appears in one frame.
 
-## 12. Ycode implementation (B3-MERGE, 2026-11-05)
+## 12. SwiftCode implementation (B3-MERGE, 2026-11-05)
 
 Both IDEs draw one shared model, so they behave the same:
-`YcodeIDECore/SourceControl/MergeSheet.swift` (`MergeSheetMetrics`: every
+`SwiftCodeIDECore/SourceControl/MergeSheet.swift` (`MergeSheetMetrics`: every
 length above; `MergeSheetPalette`: the colours above, light, and a dark
 set; `MergeSheetMotion`; `MergeSheetText`; `MergeSheetToken`;
 `MergeSheetLayout`: aligned rows, changed words, wrapping, highlighting;
@@ -328,19 +328,19 @@ its choices while another is shown, Choose keeping the selection, the
 tokens, the stepper, the ruler marks, the file list, Merge's enablement)
 and `SourceControlRowMenu` (§1.1's items for a local branch).
 
-- **macOS** (`YcodeUI/SourceControl/`): `MergeOverlayView` is the window
+- **macOS** (`SwiftCodeUI/SourceControl/`): `MergeOverlayView` is the window
   frame's top view, so the veil covers the toolbar and the window stays
   key; `MergeAlertView` (§1.2), `MergeSheetController` with
   `MergeCanvasView` (both panes and the gutter in one scroll view),
   `MergeRulerView`, the file list, jump bar and footer views;
   `SourceControlCoordinator+Merge.swift` runs the flow. The Source
   Control navigator's rows now have their context menu. Alert and sheet
-  are drawn by Ycode (no system sheet), so the geometry and motion are
+  are drawn by SwiftCode (no system sheet), so the geometry and motion are
   exact; the Choose menu is a native menu (its dismissal is the
   system's).
-- **Linux** (`ycode-ide/MergeOverlay.swift`, `MergeAlertCard.swift`,
+- **Linux** (`swiftcode-ide/MergeOverlay.swift`, `MergeAlertCard.swift`,
   `MergeSheetView.swift`, `MergeComparisonView.swift`; the model is
-  `YcodeIDEShell/ConflictEditorShellModel.swift`): the same flow over the
+  `SwiftCodeIDEShell/ConflictEditorShellModel.swift`): the same flow over the
   window's content. The in-window conflict editor of #75 is gone.
 - **Flow.** The branch row's "Merge “b” into “c”…" (or Integrate ▸
   Merge…) shows the alert; Merge fades it out over 90 ms and runs `git
@@ -350,10 +350,10 @@ and `SourceControlRowMenu` (§1.1's items for a local branch).
   menu), Integrate ▸ Continue and Abort and the Linux banner still work
   with the sheet up.
 
-Ycode's choices for the open questions (each marked so a later round
+SwiftCode's choices for the open questions (each marked so a later round
 can measure it):
 
-| Question | Ycode's choice, open question |
+| Question | SwiftCode's choice, open question |
 |---|---|
 | 1. Height and bottom margin | The sheet follows the window: its bottom is 24 above the window's (the side inset). The buttons sit 21.5 below the box with an 18-point margin below them. At 1x the box's 11.5 rounds to whole pixels. |
 | 2. Button height; Merge as default | 24 tall. Merge is drawn as the default (accent) button once it is enabled; disabled it is #F5F5F5 with #B6B6B6. A stopped rebase, cherry-pick or revert titles it "Continue Rebase" (…), a stash apply "Resolve"; the button widens to its title. |
@@ -361,7 +361,7 @@ can measure it):
 | 4. Token glyphs | "?" undecided; Choose Right "1"; Choose Left "2"; a change taken automatically "3"; Left Then Right "4"; Right Then Left "5"; the ancestor "6"; written by hand "7". The chevron sits in its circle whenever a choice is in effect (open question 9 read as a state). |
 | 5. Blocks of different lengths | The shorter side is padded with empty rows, so every row lines up; padding rows carry the change's shading and no line number. |
 | 6. Word fills after a choice | They stay at the cells of the original sides' words, as captured. |
-| 7. Other menus; Integrate ▸ Merge | The current branch's row: Switch (disabled), New Branch from, Rename, Tag — the remote group with Pull and Push when there is a remote — View on Host — the stash items — Delete (disabled); no merge group. Remote branch, tag and stash rows keep Ycode's menus (`source-control.md`). Integrate ▸ **Merge…** follows Cherry-Pick…: the alert for the branch selected in the navigator (else the first other branch), with a pop-up of the local branches below the message (the alert is 30 taller). "View on Host…" opens the first remote with a web address at `/tree/<branch>`; the stash items act on the newest stash; "New “repo” Remote…" stays disabled (no hosting integration) and "Add Existing Remote…" is disabled on branch rows as captured (it stays on the repository row and the Remotes group). |
+| 7. Other menus; Integrate ▸ Merge | The current branch's row: Switch (disabled), New Branch from, Rename, Tag — the remote group with Pull and Push when there is a remote — View on Host — the stash items — Delete (disabled); no merge group. Remote branch, tag and stash rows keep SwiftCode's menus (`source-control.md`). Integrate ▸ **Merge…** follows Cherry-Pick…: the alert for the branch selected in the navigator (else the first other branch), with a pop-up of the local branches below the message (the alert is 30 taller). "View on Host…" opens the first remote with a web address at `/tree/<branch>`; the stash items act on the newest stash; "New “repo” Remote…" stays disabled (no hosting integration) and "Add Existing Remote…" is disabled on branch rows as captured (it stays on the repository row and the Remotes group). |
 | 8. Flat mode, several files | Flat lists the conflicted files without folders; Hierarchical groups them under one folder row per directory. Each file keeps its choices while another is shown; Merge needs every file decided. |
 | Current line | Line 1 of each pane until a line is clicked. |
 | Hand editing | Double-clicking a change's left lines opens an editor over that change's rows (Edit's text: both sides for an undecided conflict); its token reads "7". |
@@ -369,20 +369,20 @@ can measure it):
 | Dark appearance | `MergeSheetPalette.dark` (the same roles on dark surfaces; the veil black at 32 %). |
 | Linux | The menu bar is part of the window there: the veil leaves it uncovered (so Integrate stays usable) and the alert is centred below it. The Choose menu opens at the token's left edge, where the toolkit places menus, and closes as the toolkit's menus close. |
 
-Tests: `YcodeIDECoreTests/MergeSheetTests.swift` (geometry against §2,
+Tests: `SwiftCodeIDECoreTests/MergeSheetTests.swift` (geometry against §2,
 alignment and padding, changed words, Choose, tokens, files, wrapping,
 the motion against §10's keyframes) and `ThreeWayMergeTests.swift`
-(§1.1's menu); `YcodeUITests/MergeSheetUITests.swift` (the row menu and
+(§1.1's menu); `SwiftCodeUITests/MergeSheetUITests.swift` (the row menu and
 its enablement, the alert's frame, texts, buttons, veil and keys,
 Integrate ▸ Merge…, the sheet's frame and columns, token sizes, shading,
 rule and token colours read back from the window's pixels in light and
 dark, the Choose menu and its effect, the animations and Reduce Motion;
-`YCODE_MERGE_SHOTS=<folder>` writes snapshots) and
+`SWIFTCODE_MERGE_SHOTS=<folder>` writes snapshots) and
 `SourceControlBranchWorkflowTests.swift` (a merge through Choose, hand
 editing and Merge; Mark as Resolved then Continue; Cancel aborting; a
-rebase aborted from Integrate); `YcodeIDEShellTests/ConflictEditorShellTests.swift`
+rebase aborted from Integrate); `SwiftCodeIDEShellTests/ConflictEditorShellTests.swift`
 on Linux. End to end on Linux: `scripts/linux-conflict/run.sh`
-(`YCODE_IDE_CONFLICT`, `ShellDriver+Conflicts.swift`; `OV_COLOR_SCHEME`
+(`SWIFTCODE_IDE_CONFLICT`, `ShellDriver+Conflicts.swift`; `OV_COLOR_SCHEME`
 picks light or dark): the branch menu through the pointer, the alert,
 the sheet, Choose through tokens and the menu, hand editing, Merge, a
 cherry-pick through the sheet and a rebase cancelled and aborted, then
@@ -390,7 +390,7 @@ checked with git.
 
 ## Open questions
 
-Each has a Ycode answer in §12, marked "Ycode's choice, open question".
+Each has a SwiftCode answer in §12, marked "SwiftCode's choice, open question".
 
 
 1. The sheet's height rule and its bottom margin. In an 880-point window
@@ -423,6 +423,6 @@ Each has a Ycode answer in §12, marked "Ycode's choice, open question".
 | Sheet frame, veil, content box, file list, panes, gutter, tokens, shading, ruler, footers, buttons | 3 | Council round 3 still `03-conflict-at-rest` (2x), colour runs and ink boxes |
 | Choose menu items, placement, effect, dismissal timing | 3 | Recording `04-conflict-choose-right` and still `04-conflict-choose-right-after`; the measured progress table of the 330 ms segment |
 | Sheet appear transition | 3 | Recording `02-merge-start`, frames 3.875–4.15 s: the sheet's top edge and opacity per frame |
-| Ycode's behaviour | — | The same session's captures of Ycode; the capture notes on its missing row menu |
-| §12 | — | Ycode's design and choices (B3-MERGE); the git side: git's documentation (level 1) |
+| SwiftCode's behaviour | — | The same session's captures of SwiftCode; the capture notes on its missing row menu |
+| §12 | — | SwiftCode's design and choices (B3-MERGE); the git side: git's documentation (level 1) |
 | git side of a merge | 1 | git documentation, as in `source-control.md` |

@@ -3,7 +3,7 @@
 Part of `specs/frameworks/weatherkit/`. Apple documents a REST form of the
 weather service for web and non-Apple platforms. It is the backend an open
 WeatherKit uses when the user brings their own Apple developer key, and its
-JSON is the reference shape for Ycode's own data pipeline. Everything here is
+JSON is the reference shape for SwiftCode's own data pipeline. Everything here is
 level 1 (public WeatherKit REST API documentation, read 2026-10-19), in our
 own words; field and value names are interop identifiers. Items marked
 "verify" need the owner-provided key (W-REST in `plan.md`).

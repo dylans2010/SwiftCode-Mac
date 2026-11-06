@@ -6,7 +6,7 @@ simulator runtime (24A94401); the iOS 27.0 (24A434) and 26.5 (23F77)
 runtimes were inspected as files only.
 
 Implementation status (2026-10-28): `frameworks/contacts/` (package
-`ycode-contacts`: library product `Contacts`, test target `ContactsTests`).
+`swiftcode-contacts`: library product `Contacts`, test target `ContactsTests`).
 Rounds R2–R5 of `plan.md` are done (R3 without a daemon); R6 (authorization)
 is deferred; R7–R9 are not started. The package README lists what is done,
 deferred and not started.
@@ -19,7 +19,7 @@ predicates and sorting, save requests, change notifications and change
 history, name and postal-address formatting, vCard serialization, the
 authorization model with the iOS 18 limited access, its two-step prompt and
 the SwiftUI access picker/button, errors, and ContactsUI's controllers. It
-records what Apple's simulator does today — the baseline Ycode's simulator
+records what Apple's simulator does today — the baseline SwiftCode's simulator
 must match first. Contacts works fully there without an account (with six
 sample contacts in the device template); only the Contacts **app** is
 missing from the 27.1 runtime.
@@ -38,7 +38,7 @@ linking/unification internals (not public), contact posters and the
 | `authorization.md` | Usage key and notes entitlement, statuses, implicit prompt, the two-step prompt as observed, limited access, SwiftUI picker and button, `simctl privacy` |
 | `errors.md` | `CNErrorDomain` codes, situations, user-info keys, exceptions |
 | `ui.md` | `CNContactPickerViewController`, `CNContactViewController` |
-| `design.md` | **Ycode-original design note** |
+| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note** |
 | `plan.md` | Rounds R1–R9, conformance tests, open questions |
 | `identifiers.md` | Generated appendix: enumerations with raw values; every string constant (keys, labels, services) with its value |
 | `api-inventory.md` | Generated appendix: classes, superclasses, member names, versions |
@@ -69,8 +69,8 @@ Generators: `research/experiments/eventkit-contacts/{extract_names,gen_api}.py`.
 Level 1: Apple's public documentation, RFC 2426/6350 (our words). Level 2:
 runtime layout, launchd property lists, extension metadata, the template
 database as a format (table names, columns of `LimitedAccess`, properties),
-TCC rows. Level 3: `CNProbe` and variants on `ycode-test-ekcn-271` and
-`ycode-test-eventkit-271` (iPhone Duo, iOS 27.1). Level 4: SDK and Swift
+TCC rows. Level 3: `CNProbe` and variants on `swiftcode-test-ekcn-271` and
+`swiftcode-test-eventkit-271` (iPhone Duo, iOS 27.1). Level 4: SDK and Swift
 interface names, enum values, availability. Level 5 was **not** used.
 
 ## What the owner must provide

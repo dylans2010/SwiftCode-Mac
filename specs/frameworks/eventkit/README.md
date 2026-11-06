@@ -6,7 +6,7 @@ simulator runtime (24A94401); the iOS 27.0 (24A434) and 26.5 (23F77)
 runtimes were inspected as files only.
 
 Implementation status (2026-10-28): `frameworks/eventkit/` (package
-`ycode-eventkit`: library product `EventKit`, test target `EventKitTests`).
+`swiftcode-eventkit`: library product `EventKit`, test target `EventKitTests`).
 Rounds R2–R4 of `plan.md` are done (R2 as a Linux package, without the guest
 daemon); R5 (authorization) is deferred; R6–R8 are not started. The package
 README lists what is done, deferred and not started.
@@ -20,7 +20,7 @@ alarms and structured locations, reminders and their predicates, change
 notifications, the iOS 17+ access model (full access, write-only access,
 reminders access) with its prompts and TCC records, errors, and the three
 EventKitUI controllers. It records what Apple's simulator does today — the
-baseline Ycode's simulator must match first. EventKit works fully there
+baseline SwiftCode's simulator must match first. EventKit works fully there
 without any account; only the Calendar and Reminders **apps** are missing
 from the 27.1 runtime.
 
@@ -39,7 +39,7 @@ virtual-conference extension point (names only), macOS-only API.
 | `authorization.md` | Usage keys, statuses, requests, what each access level sees, the three prompts as observed, TCC records, `simctl privacy` |
 | `errors.md` | `EKErrorDomain` codes, which situations produce them, exceptions |
 | `ui.md` | `EKEventEditViewController`, `EKEventViewController`, `EKCalendarChooser` |
-| `design.md` | **Ycode-original design note**: guest dependencies for the baseline; open implementation (daemon, store, recurrence engine, authorization broker, UI) |
+| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: guest dependencies for the baseline; open implementation (daemon, store, recurrence engine, authorization broker, UI) |
 | `plan.md` | Implementation rounds R1–R8 and conformance tests with golden values; open questions |
 | `identifiers.md` | Generated appendix: every enumeration with raw values; string constants with values |
 | `api-inventory.md` | Generated appendix: every class with superclass and member names, with introduction versions |
@@ -71,7 +71,7 @@ Level 1: Apple's public EventKit documentation and RFC 5545 (summarized in
 our words). Level 2: runtime file layout (app bundles, launchd property
 lists, store files as formats: table names and properties, TCC rows).
 Level 3: `EKProbe` and its variants on simulators named
-`ycode-test-ekcn-271` (earlier run) and `ycode-test-eventkit-271` (iPhone
+`swiftcode-test-ekcn-271` (earlier run) and `swiftcode-test-eventkit-271` (iPhone
 Duo, iOS 27.1). Level 4: SDK metadata (header and module names, enum raw
 values, availability). Level 5 (disassembly/decompilation) was **not**
 used. Every file ends with its own Evidence section.

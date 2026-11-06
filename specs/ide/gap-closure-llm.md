@@ -1,16 +1,16 @@
 # Gap-closure: LLM wiring for MCP tools
 
 Date: 2026-11-06. Family 1 of the gap-closure wave (LLM wiring).
-Destination: `ycode/Sources/YcodeAssistant/LLMToolCompletion.swift`,
-`ycode/Sources/YcodeMCP/YcodeTools+AgenticCode.swift`,
-`ycode/Sources/YcodeMCP/YcodeTools+ReviewDocs.swift`.
+Destination: `swiftcode/Sources/SwiftCodeAssistant/LLMToolCompletion.swift`,
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AgenticCode.swift`,
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ReviewDocs.swift`.
 Patches (coordinator applies): `code_refactor` in
-`ycode/Sources/YcodeMCP/YcodeTools+FileWriting.swift`,
-`intel_autofix` in `ycode/Sources/YcodeMCP/YcodeTools+Planning.swift`.
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+FileWriting.swift`,
+`intel_autofix` in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Planning.swift`.
 
 ## 1. Problem
 
-Eleven registered MCP tools always failed honestly because Ycode's MCP
+Eleven registered MCP tools always failed honestly because SwiftCode's MCP
 host had no LLM provider wired for them (Waves 2, 6, 8):
 
 | Tool | Legacy file | Legacy behaviour |
@@ -35,7 +35,7 @@ model router (`AssistModelRouting.swift`). The tools stayed unwired.
 ## 2. Design: one shared service, host dispatch only
 
 New type `LLMToolCompletionService` in
-`ycode/Sources/YcodeAssistant/LLMToolCompletion.swift`:
+`swiftcode/Sources/SwiftCodeAssistant/LLMToolCompletion.swift`:
 
 - `resolve() -> (kind: ProviderKind, model: String?)` — pure settings
   read, no network, no credentials. Selection follows the Wave 15
@@ -74,7 +74,7 @@ New type `LLMToolCompletionService` in
   `CodingAssistantServices.providerOverride`; tests fill it with stub
   providers. Empty in production.
 
-MCP side (`YcodeMCPHost` extension in `YcodeTools+AgenticCode.swift`):
+MCP side (`SwiftCodeMCPHost` extension in `SwiftCodeTools+AgenticCode.swift`):
 
 - `llmToolService()` — the test seam `llmToolTestService` first
   (precedent: `agenticGitTestSecretStore`), otherwise
@@ -92,13 +92,13 @@ MCP side (`YcodeMCPHost` extension in `YcodeTools+AgenticCode.swift`):
 - `llmToolCodeOnly(_:toolName:)` — a code-only reply; empty after
   stripping is an honest failure, never an empty file.
 
-No `Package.swift` change is needed: `YcodeAssistant` gains a file
-with no new dependency, and `YcodeMCP` already depends on
-`YcodeAssistant` and `YcodeIDECore`.
+No `Package.swift` change is needed: `SwiftCodeAssistant` gains a file
+with no new dependency, and `SwiftCodeMCP` already depends on
+`SwiftCodeAssistant` and `SwiftCodeIDECore`.
 
 ## 3. Per-tool behaviour
 
-### 3.1 Agentic generation tools (`YcodeTools+AgenticCode.swift`)
+### 3.1 Agentic generation tools (`SwiftCodeTools+AgenticCode.swift`)
 
 All eight handlers are now `async` and call `llmToolComplete`. The
 system prompts are short and code-only; the user text is the tool's
@@ -126,10 +126,10 @@ else prepended (the caller may write it to a file):
 it, but its Wave 8 static explanation stands — out of scope for this
 slice. (It is now a one-handler change on top of this service.)
 
-### 3.2 `code_review` (`YcodeTools+ReviewDocs.swift`)
+### 3.2 `code_review` (`SwiftCodeTools+ReviewDocs.swift`)
 
 Legacy sends the task history, repository changes and build state to
-an LLM and requires a JSON verdict. Ycode's MCP host has no agent
+an LLM and requires a JSON verdict. SwiftCode's MCP host has no agent
 session (no objective, tool history or plan) and keeps no workspace
 snapshots, so there is no task history or change list to send. The
 port therefore sends the workspace's Swift sources instead:
@@ -163,7 +163,7 @@ fails honestly. A failed turn never silently substitutes a model the
 user did not choose. Router failover across models is a later wave's
 follow-up.
 
-### 3.3 `code_refactor` — patch for `YcodeTools+FileWriting.swift`
+### 3.3 `code_refactor` — patch for `SwiftCodeTools+FileWriting.swift`
 
 (Coordinator applies; file owned by another slice.) The handler
 `refactorCode` becomes:
@@ -183,7 +183,7 @@ follow-up.
 
 The file header bullet for `code_refactor` is updated the same way.
 
-### 3.4 `intel_autofix` — patch for `YcodeTools+Planning.swift`
+### 3.4 `intel_autofix` — patch for `SwiftCodeTools+Planning.swift`
 
 (Coordinator applies; file owned by another slice.) Legacy runs
 `lint_project` and then asks an LLM to rewrite the file. Both halves
@@ -193,7 +193,7 @@ now exist in the destination:
    `AssistToolingSupport.resolvePath` clamps — the resolver this
    file's tools already use).
 2. Diagnostics come from the existing `terminalTaskLintProject(root:)`
-   (`YcodeTools+Terminal.swift`: Legacy's `collectSwiftFindings` — tab
+   (`SwiftCodeTools+Terminal.swift`: Legacy's `collectSwiftFindings` — tab
    indentation, lines over 140 characters, trailing whitespace, in
    every Swift file). No lint engine is invented. If the output has no
    `issue(s)` → success text `No lint issues to fix in <path>`, with
@@ -229,7 +229,7 @@ match. A future lint slice that reports full paths removes it.
 
 ## 5. Tests
 
-- `ycode/Tests/YcodeAssistantTests/LLMWiringGapTests.swift` — the
+- `swiftcode/Tests/SwiftCodeAssistantTests/LLMWiringGapTests.swift` — the
   service directly, with stub providers (never live network, never
   real credentials): resolution for stored OpenRouter / `hermes:` /
   `opencode:` / `swiftcode-cloud:` ids, custom model id, provider
@@ -238,7 +238,7 @@ match. A future lint slice that reports full paths removes it.
   the endpoint); streamed-text collection + truncation; empty response;
   provider failure mapping; an end-to-end Ollama call against a
   loopback server.
-- `ycode/Tests/YcodeMCPTests/LLMWiringGapTests.swift` — the tools
+- `swiftcode/Tests/SwiftCodeMCPTests/LLMWiringGapTests.swift` — the tools
   through `tools/call` on a Greeter workspace copy, with the host test
   seam set to a stub provider: all eight Agentic tools return the stub
   text; `code_review` returns a stub JSON verdict (success), rejects a
@@ -260,8 +260,8 @@ match. A future lint slice that reports full paths removes it.
   not this slice).
 - The full `CodeReviewSystemAsset.md` port (System Assets family).
 - Existing tests that assert the old honest failures
-  (`YcodeAgenticCodeTests.honestlyFailingToolsNameTheLLMPrerequisite`,
-  `YcodeReviewDocsTests.codeReviewFailsHonestlyWithoutLLM`) still pass
+  (`SwiftCodeAgenticCodeTests.honestlyFailingToolsNameTheLLMPrerequisite`,
+  `SwiftCodeReviewDocsTests.codeReviewFailsHonestlyWithoutLLM`) still pass
   while unconfigured, but will return real output on a machine with a
   working provider — the coordinator/parent should update or scope
   them when the provider is configured.
@@ -274,9 +274,9 @@ match. A future lint slice that reports full paths removes it.
 | `code_review` Legacy behaviour (task history + changes + build state, JSON verdict `task_ready`/`task_failed`, hardcoded fallback queue, system prompt from `CodeReviewSystemAsset.md`) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/CodeReview.swift` and `SwiftCode/Backend/Assist/Functions/System Assets/CodeReviewSystemAsset.md` (141 lines), read directly |
 | Agentic tools return canned strings in Legacy | 1 | Legacy `SwiftCode/Tools/Agentic/GenerateCode.swift`, `RefactorCode.swift`, `ReviewCode.swift`, `FixBugs.swift`, `GenerateUnitTests.swift`, `GenerateIntegrationTests.swift`, `GenerateDocumentation.swift`, `GenerateComments.swift`, read directly |
 | `intel_autofix` Legacy behaviour (runs `lint_project`, OpenAI LLM rewrite, write-back; "No lint issues" when no `issue(s)`) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistAutoFixErrorsTool.swift`, read directly |
-| `lint_project` exists in the destination as `terminalTaskLintProject` (tab / >140 chars / trailing whitespace) | 1 | Destination `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift`, read directly |
-| Five Wave 9 providers, their `send`/`availability` contracts, and the host dispatch `AssistantBackends.provider(_:)` / `providerKind(forModelID:)` | 1 | Destination `ycode/Sources/YcodeAssistant/OpenRouterProvider.swift`, `OpenCodeProvider.swift`, `HermesProvider.swift`, `FoundationModelsProvider.swift`, `SCCloudProvider.swift`, `AssistantSettings.swift`, read directly |
-| Router selection rules (prefixed ids, cloud short-circuit, free-only policy, no hardcoded fallback in Ycode) | 1 | Destination `ycode/Sources/YcodeAssistant/AssistModelRouting.swift`, read directly |
-| MCP host has no settings/provider field; `CodingAssistantServices.shared` is the host's assistant entry point with a `providerOverride` test seam | 1 | Destination `ycode/Sources/YcodeMCP/YcodeMCPHost.swift`, `ycode/Sources/YcodeIDECore/Assistant/CodingAssistantServices.swift`, read directly |
+| `lint_project` exists in the destination as `terminalTaskLintProject` (tab / >140 chars / trailing whitespace) | 1 | Destination `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift`, read directly |
+| Five Wave 9 providers, their `send`/`availability` contracts, and the host dispatch `AssistantBackends.provider(_:)` / `providerKind(forModelID:)` | 1 | Destination `swiftcode/Sources/SwiftCodeAssistant/OpenRouterProvider.swift`, `OpenCodeProvider.swift`, `HermesProvider.swift`, `FoundationModelsProvider.swift`, `SCCloudProvider.swift`, `AssistantSettings.swift`, read directly |
+| Router selection rules (prefixed ids, cloud short-circuit, free-only policy, no hardcoded fallback in SwiftCode) | 1 | Destination `swiftcode/Sources/SwiftCodeAssistant/AssistModelRouting.swift`, read directly |
+| MCP host has no settings/provider field; `CodingAssistantServices.shared` is the host's assistant entry point with a `providerOverride` test seam | 1 | Destination `swiftcode/Sources/SwiftCodeMCP/SwiftCodeMCPHost.swift`, `swiftcode/Sources/SwiftCodeIDECore/Assistant/CodingAssistantServices.swift`, read directly |
 | No Swift toolchain exists in this environment; `swift build` / `swift test` were not run — static checks only | — | Environment fact, recorded by this slice |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |

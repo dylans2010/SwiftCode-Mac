@@ -95,14 +95,14 @@ open class HMHome: NSObject, @unchecked Sendable {
     public var users: [HMUser] { allUsers }
     private(set) var allUsers: [HMUser] = []
 
-    let connection: YcodeConnection
+    let connection: SwiftCodeConnection
     /// Write actions and triggers the app created, by identifier, so the
     /// mirror keeps the app's own instances once they are added.
     var pendingActions: [UUID: HMAction] = [:]
     var pendingTriggers: [UUID: HMTrigger] = [:]
     private var administrators: Set<UUID> = []
 
-    init(id: UUID, connection: YcodeConnection) {
+    init(id: UUID, connection: SwiftCodeConnection) {
         uniqueIdentifier = id
         self.connection = connection
     }
@@ -132,7 +132,7 @@ open class HMHome: NSObject, @unchecked Sendable {
 
     /// All services of the given types across the home (object-model.md §3).
     public func servicesWithTypes(_ serviceTypes: [String]) -> [HMService]? {
-        let wanted = Set(serviceTypes.map { YcodeHomeCatalog.normalizedTypeUUID($0) ?? $0 })
+        let wanted = Set(serviceTypes.map { SwiftCodeHomeCatalog.normalizedTypeUUID($0) ?? $0 })
         let found = accessories.flatMap(\.services).filter { wanted.contains($0.serviceType) }
         return found
     }
@@ -207,7 +207,7 @@ open class HMHome: NSObject, @unchecked Sendable {
     }
 
     /// Adds an accessory found by `HMAccessoryBrowser` to the default room.
-    /// (Ycode: pairing happens without a setup sheet in this round.)
+    /// (SwiftCode: pairing happens without a setup sheet in this round.)
     public func addAccessory(_ accessory: HMAccessory, completionHandler completion: @escaping (Error?) -> Void) {
         guard accessory.discoveredID != nil else { fail(completion, .objectAlreadyAssociatedToHome); return }
         connection.simple(.addAccessory(home: uniqueIdentifier, discovered: accessory.uniqueIdentifier), completion)
@@ -227,19 +227,19 @@ open class HMHome: NSObject, @unchecked Sendable {
         connection.simple(.unblockAccessory(home: uniqueIdentifier, accessory: accessory.uniqueIdentifier), completion)
     }
 
-    /// Ycode has no user-management sheet yet: completes with 48.
+    /// SwiftCode has no user-management sheet yet: completes with 48.
     public func manageUsers(completionHandler completion: @escaping (Error?) -> Void) {
         fail(completion, .operationNotSupported)
     }
 
     /// Deprecated in favor of `HMAccessorySetupManager` (object-model.md §3);
-    /// Ycode has no setup sheet in this round: completes with 48.
+    /// SwiftCode has no setup sheet in this round: completes with 48.
     @available(iOS, deprecated: 15.4)
     public func addAndSetupAccessories(completionHandler completion: @escaping (Error?) -> Void) {
         fail(completion, .operationNotSupported)
     }
 
-    private func created<T>(_ r: YcodeHomeRequest, _ lookup: @escaping (UUID) -> T?,
+    private func created<T>(_ r: SwiftCodeHomeRequest, _ lookup: @escaping (UUID) -> T?,
                             _ completion: @escaping (T?, Error?) -> Void) {
         connection.request(r) { result in
             switch result {
@@ -288,7 +288,7 @@ open class HMHome: NSObject, @unchecked Sendable {
     // MARK: Mirror
 
     /// Reconciles this mirror with a record, keeping object identities.
-    func apply(_ r: YcodeHomeRecord) {
+    func apply(_ r: SwiftCodeHomeRecord) {
         name = r.name
         isPrimary = r.isPrimary
         homeHubState = HMHomeHubState(rawValue: r.hubState) ?? .notAvailable
@@ -371,7 +371,7 @@ open class HMHome: NSObject, @unchecked Sendable {
     }
 
     /// Applies a change and, for changes made elsewhere, calls the delegates.
-    func update(_ r: YcodeHomeRecord, change: YcodeHomeChange, notify: Bool) {
+    func update(_ r: SwiftCodeHomeRecord, change: SwiftCodeHomeChange, notify: Bool) {
         // Objects that disappear are captured before the mirror drops them.
         var removedAccessories: [HMAccessory] = []
         var removedRoom: HMRoom?, removedZone: HMZone?, removedGroup: HMServiceGroup?
@@ -451,7 +451,7 @@ open class HMHome: NSObject, @unchecked Sendable {
 
     /// A value notification (object-model.md §7: delivered through the
     /// accessory's delegate).
-    func receiveValue(characteristic id: UUID, value: YcodeHomeValue?) {
+    func receiveValue(characteristic id: UUID, value: SwiftCodeHomeValue?) {
         guard let c = characteristic(id), let s = c.service, let a = s.accessory else { return }
         c.cachedValue = value
         a.delegate?.accessory(a, service: s, didUpdateValueFor: c)

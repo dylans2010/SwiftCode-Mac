@@ -1,12 +1,12 @@
-# Contacts spec: Ycode design note (original)
+# Contacts spec: SwiftCode design note (original)
 
-Part of `specs/frameworks/contacts/`. This file is **Ycode's own design**, not
+Part of `specs/frameworks/contacts/`. This file is **SwiftCode's own design**, not
 a description of Apple's implementation.
 
 ## 1. Two targets
 
-1. **Baseline**: Ycode's simulator runs Apple's runtime; Contacts,
-   `contactsd`, `tccd` and the ContactsUI services are Apple's. Ycode provides
+1. **Baseline**: SwiftCode's simulator runs Apple's runtime; Contacts,
+   `contactsd`, `tccd` and the ContactsUI services are Apple's. SwiftCode provides
    the guest services of §2.
 2. **Open Contacts / ContactsUI**: drop-in frameworks for the guest and a
    Linux Swift package with the same names (§3–§7).
@@ -15,7 +15,7 @@ a description of Apple's implementation.
 
 | # | Dependency | Why |
 |---|---|---|
-| G1 | `Library/AddressBook` seeded at device creation (Ycode's own made-up records, same shape as `simulator-baseline.md` §2) and persistent | the store and its seed |
+| G1 | `Library/AddressBook` seeded at device creation (SwiftCode's own made-up records, same shape as `simulator-baseline.md` §2) and persistent | the store and its seed |
 | G2 | XPC to `com.apple.contactsd` and `com.apple.tccd` with client identity | per-app access and limited sets |
 | G3 | system alerts **and** a full-screen system sheet over the app, both driven by user-notification-style extensions (`com.apple.internal.springboard.cfusernotification` extension point) | the two-step prompt |
 | G4 | remote view services for `com.apple.people-picker` and `com.apple.contact-view` extensions | the picker and contact views (`ui.md`) |
@@ -26,7 +26,7 @@ a description of Apple's implementation.
 ## 3. Architecture of the open implementation
 
 ```
-app process                           ycode-contactsd
+app process                           swiftcode-contactsd
 Contacts.framework  ── XPC ──>   access broker (full / limited set per bundle)
   model (immutable snapshots,       store (SQLite, our schema; FTS index for name search)
   key availability tracking)        change journal (history tokens, authors)
@@ -63,17 +63,17 @@ default.
 ## 6. Authorization and limited access
 
 States per bundle: not determined, denied, limited (+ set), full. The broker
-shows Ycode's two-step UI; "Select Contacts" opens Ycode's picker; the
+shows SwiftCode's two-step UI; "Select Contacts" opens SwiftCode's picker; the
 result writes the set. Implicit prompt: a data call while not determined
 starts the same UI and blocks the caller until answered. Limited views
 filter every query by (set ∪ records created by the app); groups unfiltered.
 
 ## 7. ContactsUI
 
-Ycode's `CNContactPickerViewController` runs in the app's process but only
+SwiftCode's `CNContactPickerViewController` runs in the app's process but only
 returns what the user picked (the app never reads the store through it).
 `ContactAccessButton` and `contactAccessPicker` are SwiftUI views from
-Ycode's SwiftUI track that call the broker.
+SwiftCode's SwiftUI track that call the broker.
 
 ## Evidence
 

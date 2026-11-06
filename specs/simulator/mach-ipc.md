@@ -1,7 +1,7 @@
 # Spec: Mach IPC as user space sees it (ports, rights, messages, notifications)
 
 Status: **reference for stage 4** (`docs/SIMULATOR-LINUX.md` §3, stage 5 in
-that list: "Mach IPC and bootstrap"). It describes the behavior that Ycode's
+that list: "Mach IPC and bootstrap"). It describes the behavior that SwiftCode's
 VMM must reproduce so that unmodified simulator code (`launchd_sim`,
 libdispatch, libxpc, MIG clients) sees a faithful Mach kernel.
 
@@ -19,13 +19,13 @@ Scope:
 
 Out of scope: the bootstrap/launchd protocol (it is launchd's own protocol,
 not xnu's), `kevent` with `EVFILT_MACHPORT` and workloops (a separate spec),
-and importance donation / QoS overrides (Ycode may ignore them, §2.13;
-Ycode's model of them, behind switches, is `scheduling-policy.md`).
+and importance donation / QoS overrides (SwiftCode may ignore them, §2.13;
+SwiftCode's model of them, behind switches, is `scheduling-policy.md`).
 
 Relationship to `specs/simulator/host-libraries.md` §10: the private
 Mach-routine traps (`x16 = 0x7963_2000 + n`) stay valid. This spec describes
 the *real* Mach behavior that those private traps, the real port traps
-(§1.8), and `mach_msg2` must implement. Where Ycode's own `libsystem_kernel`
+(§1.8), and `mach_msg2` must implement. Where SwiftCode's own `libsystem_kernel`
 calls a real trap, the VMM must follow this spec exactly, because other
 simulator libraries reach the same traps through exported functions.
 
@@ -106,7 +106,7 @@ Special names: `MACH_PORT_NULL = 0`, `MACH_PORT_DEAD = 0xFFFFFFFF`. A name is
 7. **"Ex-receive" marker.** When an entry that holds send + receive loses the
    receive right (moved away, or destroyed while a port-destroyed request
    exists), the entry stays as a send right and remembers that it used to be
-   a receive right. This only suppresses guard exceptions. Ycode can ignore
+   a receive right. This only suppresses guard exceptions. SwiftCode can ignore
    it.
 
 ### 1.3 Port state the VMM must keep
@@ -164,7 +164,7 @@ entry at copyout, and when a send right in a message is destroyed.
 - Tables start with 32 entries and grow. `KERN_NO_SPACE` when the table
   cannot grow.
 
-**Ycode's choice (normative for the VMM):** allocate deterministically:
+**SwiftCode's choice (normative for the VMM):** allocate deterministically:
 sequential indices from 1, LIFO reuse of freed slots, `r = 0`. This is a
 legal xnu behavior (randomization is not observable as a contract). It keeps
 the existing fixed name `0x0503` (bootstrap, `host-libraries.md` §10) a
@@ -207,7 +207,7 @@ message is silently destroyed (send returns success).
 ### 1.6 Kernel object ports (VMM-owned)
 
 Ports whose receive right belongs to the kernel (task, thread, host, clock,
-semaphore, voucher, and in Ycode the bootstrap port until `launchd_sim`
+semaphore, voucher, and in SwiftCode the bootstrap port until `launchd_sim`
 owns it) are *kernel objects*. A message sent to one is not queued: the
 kernel runs the MIG server routine synchronously and sends the reply message
 to the request's reply port (§5). The port's `seqno` is still incremented.
@@ -220,7 +220,7 @@ expected to `mach_port_deallocate` the thread/host names).
 The `target`/`task` argument is the caller's task port name. The real traps
 (§1.8) return `MACH_SEND_INVALID_DEST` (`0x10000003`) if `target` does not
 name the caller's own task; Apple's `libsystem_kernel` then falls back to the
-MIG message. Ycode's library only ever passes `mach_task_self()`.
+MIG message. SwiftCode's library only ever passes `mach_task_self()`.
 
 Common errors for every routine: `KERN_INVALID_TASK` (16) for a null or dead
 space; `KERN_INVALID_NAME` (15) when a valid name has no entry (or its
@@ -263,7 +263,7 @@ an entry without a receive right.
 |---|---|---|
 | `CONTEXT_AS_GUARD` | 0x01 | Guard the new port with `context` (strict if `STRICT`) |
 | `QLIMIT` | 0x02 | Set `qlimit = mpl_qlimit` (≤ 1024) |
-| `TEMPOWNER` | 0x04 | Importance only: the port accepts importance and is a temporary owner (Ycode: `scheduling-policy.md` §4.3) |
+| `TEMPOWNER` | 0x04 | Importance only: the port accepts importance and is a temporary owner (SwiftCode: `scheduling-policy.md` §4.3) |
 | `IMPORTANCE_RECEIVER` | 0x08 | Importance only: the port accepts importance (`scheduling-policy.md` §4.3) |
 | `INSERT_SEND_RIGHT` | 0x10 | Entry gets send + receive, `urefs 1`; `srights = mscount = 1` |
 | `STRICT` | 0x20 | Strict guard |
@@ -274,9 +274,9 @@ an entry without a receive right.
 | `ENFORCE_REPLY_PORT_SEMANTICS` | 0x2000 | Makes a *strong* service port, except in simulated processes |
 | Port type field (exactly one) | bits `0x1DC00` | `MPO_PORT` 0, `SERVICE_PORT` 0x400, `CONNECTION_PORT` 0x800, `REPLY_PORT` 0x1000, `WEAK_REPLY_PORT` 0x4000, `NOTIFICATION_PORT` 0x4400, `EXCEPTION_PORT` 0x8000, `CONNECTION_PORT_WITH_PORT_ARRAY` 0x10000 |
 
-For a **simulated** process (Ycode's case) xnu turns `MPO_REPLY_PORT` into a
+For a **simulated** process (SwiftCode's case) xnu turns `MPO_REPLY_PORT` into a
 *weak* reply port and every service port into a *weak* service port, and the
-reply-port enforcement policies do not apply. Ycode may therefore treat every
+reply-port enforcement policies do not apply. SwiftCode may therefore treat every
 port type as an ordinary port, with one exception: copyin from a reply port
 (§4.1) only accepts send-once dispositions.
 
@@ -651,7 +651,7 @@ data that does not fit a receiver without an aux buffer is silently dropped.
 | `MACH_RCV_SYNC_PEEK` | 0x8000 | Sync peek (ignorable) |
 | `MACH_SEND_FILTER_NONFATAL` | 0x10000 | (ignorable) |
 | `MACH_SEND_TRAILER` | 0x20000 | Ignored |
-| `MACH_SEND_NOIMPORTANCE` | 0x40000 | The message carries no importance (Ycode: `scheduling-policy.md` §4.3) |
+| `MACH_SEND_NOIMPORTANCE` | 0x40000 | The message carries no importance (SwiftCode: `scheduling-policy.md` §4.3) |
 | `MACH_SEND_SYNC_OVERRIDE` | 0x100000 | Ignorable |
 | `MACH_SEND_PROPAGATE_QOS` | 0x200000 | Ignorable |
 | `MACH_SEND_SYNC_BOOTSTRAP_CHECKIN` | 0x800000 | Ignorable |
@@ -676,13 +676,13 @@ data that does not fit a receiver without an aux buffer is silently dropped.
    post-copyin failure, §2.8 step 7). **Simulator exemption** (xnu
    `osfmk/ipc/ipc_policy.c`, `ipc_validate_kmsg_dest_from_user`): simulator
    processes may also send `MQ_CALL` to a kernel object, because their
-   `mach_msg()` keeps using it for every destination. Every Ycode guest is a
-   simulator process, so Ycode accepts `MQ_CALL` for kernel objects
+   `mach_msg()` keeps using it for every destination. Every SwiftCode guest is a
+   simulator process, so SwiftCode accepts `MQ_CALL` for kernel objects
    (`DK_CALL` is still refused). Added 2026-10-12 (stage 4c).
 
 Apple's libraries set `MQ_CALL` for `mach_msg()` and `KOBJECT_CALL` for MIG
 calls to kernel servers (`mach_msg2_internal`, imported directly by a few
-simulator images). **Ycode recommendation:** implement the rules but treat
+simulator images). **SwiftCode recommendation:** implement the rules but treat
 a VMM-implemented service port that stands in for a user-space server (the
 bootstrap port before `launchd_sim` owns it) as an ordinary queue for this
 check.
@@ -767,16 +767,16 @@ So, from the caller's point of view:
   kernel limit (65534) the send fails with `MACH_SEND_NO_BUFFER`.
 - If a receiver is waiting, the message is handed to it directly (it never
   occupies a queue slot), subject to the too-large rule (§2.10). Otherwise it
-  is appended. Queue order is FIFO (xnu may reorder by QoS; Ycode keeps
+  is appended. Queue order is FIFO (xnu may reorder by QoS; SwiftCode keeps
   FIFO).
 - Raising `qlimit` wakes as many blocked senders as new slots.
 - A receive that frees a slot of a full queue wakes the **oldest** blocked
   sender and gives the slot to it (it counts in `msgcount` until that
   sender queues its message); the other blocked senders stay asleep, and a
-  sender that arrives meanwhile finds the queue still full. Ycode before
+  sender that arrives meanwhile finds the queue still full. SwiftCode before
   2026-10-23 woke every blocked sender on each receive, and all but one of
   them went back to sleep (`boot-profile.md` §8: log senders blocked on
-  diagnosticd's queue); `YCODE_PORT_SLOT_HANDOFF=0` restores that.
+  diagnosticd's queue); `SWIFTCODE_PORT_SLOT_HANDOFF=0` restores that.
 - A port in one or more sets makes each set "ready" when its queue becomes
   non-empty. A set receive takes the oldest ready member; after a message is
   taken from a member, that member moves to the back of the set's ready
@@ -903,7 +903,7 @@ receive errors `0x100040xx`. Resource bits may be ORed in:
 | "Reliable" size (`MACH_MSG_SIZE_RELIABLE`) | 256 KiB |
 | `urefs` | 65,535 (pegs) |
 
-Ycode may ignore: QoS/priority fields and overrides, importance bits
+SwiftCode may ignore: QoS/priority fields and overrides, importance bits
 (`RAISEIMP`, `IMPHOLDASRT`, `NOIMPORTANCE`), send-possible notifications
 (it may return success and never fire them, or fire them immediately),
 strict-reply checking, message filtering, reply-port and service-port
@@ -1004,7 +1004,7 @@ notification against its own count to avoid races with rights in flight.
 | 69 `PORT_DESTROYED` | receive right | 0 | §3.4 |
 | 70 `NO_SENDERS` | receive right | make-send count | §3.5 |
 | 72 `DEAD_NAME` | send, send-once, or receive right (one request per name) | ignored | Replaces any previous request on this name and returns the previous send-once right in `previous`. `notify` NULL cancels (returns the previous). Requires a dead-name request table on the port |
-| 66 `SEND_POSSIBLE` | send right | nonzero = "arm" | Ycode may treat as fire-immediately |
+| 66 `SEND_POSSIBLE` | send right | nonzero = "arm" | SwiftCode may treat as fire-immediately |
 | other | | | `KERN_INVALID_VALUE` |
 
 Errors: `notify == DEAD` → `KERN_INVALID_CAPABILITY`; name NULL/DEAD →
@@ -1061,7 +1061,7 @@ synchronous IPC: it sends with the special reply port as local port
 destination name (x3 low half for `mach_msg2`, the `priority` argument for
 the legacy traps) for priority-inheritance linkage.
 
-What Ycode needs:
+What SwiftCode needs:
 
 - Treat it as an ordinary port of kind *special reply* (copyin restricted to
   send-once dispositions, §4.1). A reply **to** a special reply port may be
@@ -1218,7 +1218,7 @@ Kernel-originated messages use the kernel trailer (§2.6).
 
 ---
 
-## 6. Implementation checklist for Ycode's VMM
+## 6. Implementation checklist for SwiftCode's VMM
 
 Ordered by what `launchd_sim` and libdispatch hit first. Each item names
 the sections it implements.
@@ -1258,10 +1258,10 @@ the sections it implements.
 10. **Vouchers stubbed** (§4.3): `host_create_mach_voucher` → success, name 0.
 11. **VMM MIG servers** (§5.3) on task/host/thread/clock/semaphore ports for
     whatever routines tracing shows (the private traps of
-    `host-libraries.md` §10 can stay for Ycode's own library). The bootstrap
+    `host-libraries.md` §10 can stay for SwiftCode's own library). The bootstrap
     port keeps answering `MACH_SEND_INVALID_DEST` until the bootstrap design
     is specified.
-12. **Vectors and aux data** (§2.7): only if Ycode's `mach_msg` or a traced
+12. **Vectors and aux data** (§2.7): only if SwiftCode's `mach_msg` or a traced
     caller uses `MACH64_MSG_VECTOR`.
 13. **`kevent` `EVFILT_MACHPORT` / workloops** (separate spec): libdispatch's
     main receive path for Mach channels and sources. It must reuse the
@@ -1289,7 +1289,7 @@ messages byte for byte.
 2. **Bare header after a non-`RCV_LARGE` too-large receive.** The rebuilt
    header keeps the "other" bits, which would include `COMPLEX`. Whether the
    user-visible header still has `0x80000000` set (and what follows it) needs
-   a black-box probe. Ycode should clear `COMPLEX` until proven otherwise.
+   a black-box probe. SwiftCode should clear `COMPLEX` until proven otherwise.
 3. **Which traps the simulator images call directly.** `mach_msg2_internal`
    has 3 importers (MIG kernel-server stubs use `KOBJECT_CALL`). Trace
    whether any simulator image issues `svc` for −31/−32/−47 itself rather
@@ -1301,7 +1301,7 @@ messages byte for byte.
 5. **`mach_task_self()` name.** xnu's first allocations are `0x103`… but
    the exact name of the task self port in a freshly exec'd simulator
    process (and whether any code hard-codes it) should be checked against
-   the host (level 3). Ycode's deterministic layout must stay consistent
+   the host (level 3). SwiftCode's deterministic layout must stay consistent
    with `0x0503` for bootstrap.
 6. **Voucher stub sufficiency.** Verify by tracing that no simulator
    component requires a nonzero voucher from `host_create_mach_voucher`
@@ -1311,7 +1311,7 @@ messages byte for byte.
    must be specified from xnu `bsd/kern/kern_event.c` and
    `osfmk/ipc/ipc_pset.c` in a follow-up.
 8. **Guard exceptions.** xnu raises `EXC_GUARD` (often fatal) for misuse such
-   as destroying a guarded receive right. Ycode returns the error codes only.
+   as destroying a guarded receive right. SwiftCode returns the error codes only.
    Decide whether any simulator code depends on the crash (unlikely).
 9. **QoS and `MACH_SEND_SYNC_OVERRIDE`/`MACH_RCV_SYNC_WAIT` ordering.**
    Ignoring them changes scheduling only, not results, on one vCPU; revisit
@@ -1371,8 +1371,8 @@ behavior, layouts, and constants.
   bootstrap name `0x0503`), `darwin-arm64-abi.md` (trap register
   convention), `host-library-surface.json` data (which Mach routines the
   simulator imports).
-- §1.4 "Ycode's choice", §6, and the recommendations marked as such are
-  Ycode design decisions, not observations.
+- §1.4 "SwiftCode's choice", §6, and the recommendations marked as such are
+  SwiftCode design decisions, not observations.
 
 
 ## Addendum (orchestrator, 2026-10-12): facts used by the kernel library
@@ -1409,7 +1409,7 @@ headers (level 1, APSL open source; interop facts only):
 
 ## Addendum (orchestrator, 2026-10-12): resolutions from the stage-4a implementation
 
-These are normative for Ycode. Agent I settled them where §1–§7 left room.
+These are normative for SwiftCode. Agent I settled them where §1–§7 left room.
 
 - **mach_msg2 CFI rule 3:** a post-copyin `MACH_SEND_INVALID_OPTIONS`
   pseudo-receives, following the §2.8 table.
@@ -1421,7 +1421,7 @@ These are normative for Ycode. Agent I settled them where §1–§7 left room.
 - **Vouchers:**
   - With voucher disposition 0, the raw voucher field passes through on
     receive.
-  - Ycode has no voucher objects, so a nonzero voucher name with a
+  - SwiftCode has no voucher objects, so a nonzero voucher name with a
     disposition returns `MACH_SEND_INVALID_VOUCHER`.
   - Private trap `0x7963_2007` (`host_create_mach_voucher`) returns
     voucher 0. It replaces "n = 7 reserved" in host-libraries.md §10.

@@ -4,7 +4,7 @@ Part of `specs/frameworks/mapkit/`. This is what a MapKit app sees in the
 reference simulator (Xcode 27.1; iOS 27.1 runtime 24A94401 on an iPhone Duo,
 466 × 678 pt, safe-area insets (0, 0, 34, 84); iOS 27.0 runtime 24A434 on
 an iPhone 18 Pro, 402 × 874 pt, insets (62, 0, 34, 0); Apple-silicon Mac
-with internet access). Ycode's simulator must behave the same way.
+with internet access). SwiftCode's simulator must behave the same way.
 Statements are level 3 (our probe `research/experiments/mapkit/MKProbe`,
 observations in `research/notes/mapkit-simulator-observations-2026-10-19.md`)
 unless marked.
@@ -124,7 +124,7 @@ during one full probe run (counts are connections in our run):
 Protocols: HTTP/2 and HTTP/1.1 over TLS (ALPN `h2` and `http/1.1`), and
 QUIC was attempted/used (the network stack logged QUIC connections). The
 **list of hosts is not fixed**: it comes from the resource manifest that
-`geod` downloads first. Ycode must provide general outbound internet
+`geod` downloads first. SwiftCode must provide general outbound internet
 access, not an allow-list.
 
 Volume (one run, cold for the San Francisco area): the configurations
@@ -139,7 +139,7 @@ cache**.
 `ActiveTileGroup.pbd`, `Experiments.pbd`, `networkDefaults.plist`,
 `Resources/`, `RegionalResources/`, `Attribution/`, `SearchAttribution*`,
 `DirectReadConfigStore.plist`) and `Library/Caches/com.apple.geod/`
-(27 MB: the tile cache). Names are interop facts for a Ycode guest's
+(27 MB: the tile cache). Names are interop facts for a SwiftCode guest's
 writable filesystem; the contents are Apple's data and are never copied.
 
 ## 3. Rendering
@@ -156,7 +156,7 @@ writable filesystem; the contents are Apple's data and are never copied.
    `com.apple.IOSurface.Remote` as soon as a map view exists; Metal shader
    compilation goes to `com.apple.MTLCompilerService`. **Without Metal in
    the app process no map can draw** — this is the same Metal→Vulkan layer
-   that Ycode's simulator needs for every app (stage 8a).
+   that SwiftCode's simulator needs for every app (stage 8a).
 3. Rendering does not need the network for areas already cached; for new
    areas the tile requests go through `geod`.
 4. Configurations (screenshots, level 3): standard flat, standard
@@ -303,9 +303,9 @@ for round R1 to confirm.
 | User location | no (simulated by `locationd`) | no |
 | Opening Maps | 27.0 only (local app) | no |
 
-## 7. Conformance checklist (what Ycode's simulator must reproduce)
+## 7. Conformance checklist (what SwiftCode's simulator must reproduce)
 
-Run `MKProbe` (modes in parentheses) on a Ycode device and compare with
+Run `MKProbe` (modes in parentheses) on a SwiftCode device and compare with
 these rows (server content, timings and safe areas excepted).
 
 | # | Check | Expected |
@@ -345,5 +345,5 @@ the time of day (server traffic), as expected.
 | Mach/XPC lookups and notification registrations of the app | 3 (our `svctrace` interposer in our own app process) |
 | Hosts, protocols, request counts and bytes | 3 (`geod`'s unified log, `log stream` of the simulator) |
 | View hierarchy class names | 4 (runtime class names printed by our probe) |
-| Everything else | 3 (`MKProbe` on `ycode-test-mapkit-271` and `ycode-test-mapkit-270`) |
+| Everything else | 3 (`MKProbe` on `swiftcode-test-mapkit-271` and `swiftcode-test-mapkit-270`) |
 | Level 5 (disassembly/decompilation) | not used |

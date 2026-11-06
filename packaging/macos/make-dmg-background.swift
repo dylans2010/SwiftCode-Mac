@@ -120,7 +120,7 @@ func render(scale: CGFloat, to path: String) {
     drawBackground()
     iconCentres.forEach(drawCard)
     drawArrow()
-    centred("Install Ycode", font("Inter-SemiBold.ttf", 24), plum, top: 38, kern: -0.2)
+    centred("Install SwiftCode", font("Inter-SemiBold.ttf", 24), plum, top: 38, kern: -0.2)
     centred("Drag the app onto the Applications folder.", font("Inter-Regular.ttf", 13.5),
             plum.withAlphaComponent(0.62), top: 72)
     centred("PUBLIC BETA", font("Inter-Medium.ttf", 10.5), plum.withAlphaComponent(0.42), top: 360, kern: 1.6)

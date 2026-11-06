@@ -50,27 +50,27 @@ public final class HKActivityMoveModeObject: NSObject, NSSecureCoding, NSCopying
 /// Access point for all health data (`interface.md` §1). All asynchronous members
 /// complete on a private serial queue, never the caller's.
 public final class HKHealthStore: NSObject, @unchecked Sendable {
-    let daemon: YcodeHealthDaemon
-    /// Ycode extension: the identity this store acts as (the app's source).
-    public let ycodeClient: YcodeHealthClient
-    let callbackQueue = DispatchQueue(label: "dev.ycode.healthkit.store")
+    let daemon: SwiftCodeHealthDaemon
+    /// SwiftCode extension: the identity this store acts as (the app's source).
+    public let swiftcodeClient: SwiftCodeHealthClient
+    let callbackQueue = DispatchQueue(label: "dev.swiftcode.healthkit.store")
 
     /// The process-wide store, acting as this process's own client.
     public override convenience init() {
-        self.init(ycodeDaemon: .shared, client: .processDefault)
+        self.init(swiftcodeDaemon: .shared, client: .processDefault)
     }
 
-    /// Ycode extension: a store bound to a given engine and client identity (tests, tools).
-    public init(ycodeDaemon daemon: YcodeHealthDaemon, client: YcodeHealthClient) {
+    /// SwiftCode extension: a store bound to a given engine and client identity (tests, tools).
+    public init(swiftcodeDaemon daemon: SwiftCodeHealthDaemon, client: SwiftCodeHealthClient) {
         self.daemon = daemon
-        self.ycodeClient = client
+        self.swiftcodeClient = client
         super.init()
     }
 
-    private var client: String { ycodeClient.bundleIdentifier }
+    private var client: String { swiftcodeClient.bundleIdentifier }
 
     /// Run `body` on the engine, then hand its result to `completion` on the store's queue.
-    private func call<T: Sendable>(_ body: @escaping @Sendable (YcodeHealthDaemon) -> T,
+    private func call<T: Sendable>(_ body: @escaping @Sendable (SwiftCodeHealthDaemon) -> T,
                                    _ completion: @escaping @Sendable (T) -> Void) {
         let daemon = self.daemon, cq = callbackQueue
         daemon.queue.async {
@@ -115,7 +115,7 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
                                      completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
         hkCheck { () throws(HKRaise) in try HKHealthStore.validateRequest(share: typesToShare, read: typesToRead) }
         let share = Array(typesToShare ?? []), read = Array(typesToRead ?? [])
-        let c = ycodeClient
+        let c = swiftcodeClient
         call({ $0.requestAuthorization(client: c, share: share, read: read) }) { e in
             completion(e == nil, e)
         }
@@ -149,7 +149,7 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
 
     /// Atomic: one call is one change set.
     public func save(_ objects: [HKObject], withCompletion completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
-        let recs = objects.map(\.record), c = ycodeClient
+        let recs = objects.map(\.record), c = swiftcodeClient
         call({ $0.save(recs, client: c) }) { e in completion(e == nil, e) }
     }
 
@@ -182,7 +182,7 @@ public final class HKHealthStore: NSObject, @unchecked Sendable {
 
     func associate(_ samples: [HKSample], to workout: HKWorkout,
                    completion: @escaping @Sendable (Bool, (any Error)?) -> Void) {
-        let recs = samples.map(\.record), c = ycodeClient, w = workout.uuid
+        let recs = samples.map(\.record), c = swiftcodeClient, w = workout.uuid
         call({ $0.associate(recs, workout: w, client: c) }) { e in completion(e == nil, e) }
     }
 

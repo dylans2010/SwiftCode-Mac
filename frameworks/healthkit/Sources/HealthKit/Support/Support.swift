@@ -63,7 +63,7 @@ public struct HKError: CustomNSError, LocalizedError, Hashable, Sendable {
     }
 
     public let code: Code
-    /// Ycode's own message text (the reference localizes its own).
+    /// SwiftCode's own message text (the reference localizes its own).
     public let message: String
 
     public init(_ code: Code, message: String? = nil) {

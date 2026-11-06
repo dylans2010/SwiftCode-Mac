@@ -1,6 +1,6 @@
 # HealthKit spec: implementation rounds and conformance tests
 
-Part of `specs/frameworks/healthkit/`. This plan is Ycode's own. Each round is
+Part of `specs/frameworks/healthkit/`. This plan is SwiftCode's own. Each round is
 sized for one clean-room agent. Clean-room agents read only `specs/`, public
 documentation and permissively licensed open source; they must not open the
 reference tools (the Xcode copy, Ghidra, the IPSW), `research/dirty/`, or
@@ -8,7 +8,7 @@ Ghidra projects.
 
 ## 1. Targets
 
-1. **Baseline in Ycode's simulator** with Apple's HealthKit (design §2).
+1. **Baseline in SwiftCode's simulator** with Apple's HealthKit (design §2).
 2. **Open HealthKit**: drop-in `HealthKit.framework` for the guest
    (binary-compatible: same install name, class names, selectors, exported
    constants with the string values of `identifiers.md`, enum values, the
@@ -20,32 +20,32 @@ Ghidra projects.
 | Round | Owner | Scope | Done when |
 |---|---|---|---|
 | R0 | KIT-HEALTHKIT (this) | Specification and probe | this directory reviewed and merged |
-| R1 | simulator track | **Baseline in Ycode**: dependencies G1–G13 of `design.md` §2 (entitlement lookup for XPC peers, remote view service for the sheet, persistent `Library/Health`); run `HealthProbe` phases basic → auth → data → cross → session → count, answer the sheet by taps | all rows of `simulator-baseline.md` §8 match (modulo UUIDs, addresses, times, device model) |
+| R1 | simulator track | **Baseline in SwiftCode**: dependencies G1–G13 of `design.md` §2 (entitlement lookup for XPC peers, remote view service for the sheet, persistent `Library/Health`); run `HealthProbe` phases basic → auth → data → cross → session → count, answer the sheet by taps | all rows of `simulator-baseline.md` §8 match (modulo UUIDs, addresses, times, device model) |
 | R2 | clean room | **Type registry, units, objects**: generated type table; `HKUnit` parser/formatter/conversions; `HKQuantity`; object and sample classes with validation and secure coding; metadata rules; exceptions of `errors.md` §3 | C-UNITS, C-TYPES, C-VALIDATE pass on Linux and in the guest |
 | R3 | clean room | **Store and daemon core**: SQLite schema, save/delete transactions, anchors and tombstones, sync identifiers, sources/revisions/devices, characteristics settings, client↔daemon protocol, callback queues | C-STORE, C-ANCHOR pass |
 | R4 | clean room | **Query engine**: predicate compiler and in-memory fallback, sample/anchored/observer/correlation/source queries, sorting and limits, long-running updates | C-QUERY, C-OBSERVE pass |
 | R5 | clean room | **Statistics engine**: statistics and collection queries, proration, merging and source priority, all averaging styles, duration, historical-range clamp | C-STATS, C-COLLECT, C-MERGE pass with the golden values below |
-| R6 | clean room | **Authorization**: status/request-status rules, validation of requests, consent broker with Ycode's own sheet (read/write sections, topic toggles, historical-range page), test hook for recorded answers, developer CLI, per-object authorization | C-AUTH passes (UI by taps in the guest, by recorded answers on Linux) |
+| R6 | clean room | **Authorization**: status/request-status rules, validation of requests, consent broker with SwiftCode's own sheet (read/write sections, topic toggles, historical-range page), test hook for recorded answers, developer CLI, per-object authorization | C-AUTH passes (UI by taps in the guest, by recorded answers on Linux) |
 | R7 | clean room | **Workouts**: configuration, events, activities, builder statistics prorated to active time, route and series builders and queries, live session state machine and synthetic live data source | C-WORKOUT, C-SESSION pass |
 | R8 | clean room | **Background delivery and launch events**, preferred units by region, activity summaries computed from samples | C-BG passes (with the simulator track's launch-event support) |
 | R9 | clean room (optional) | **Records and medications**: clinical record types with FHIR payload storage (seeded only), verifiable-record query plumbing, medications and dose events, CDA documents | C-RECORDS passes against seeded data |
-| R10 | clean room | **Swift overlay**: query descriptors, `HKSamplePredicate`, async variants, workout zone types | C-SWIFT compiles against the SDK and links against Ycode's framework |
-| R11 | simulator track + clean room | **Drop-in switch and seeding**: load Ycode's framework/daemon in the guest instead of Apple's (opt-in), side-car data seeding | the whole suite passes with both stacks |
+| R10 | clean room | **Swift overlay**: query descriptors, `HKSamplePredicate`, async variants, workout zone types | C-SWIFT compiles against the SDK and links against SwiftCode's framework |
+| R11 | simulator track + clean room | **Drop-in switch and seeding**: load SwiftCode's framework/daemon in the guest instead of Apple's (opt-in), side-car data seeding | the whole suite passes with both stacks |
 
 ## 3. Golden values (measured on the reference, level 3)
 
-### 3.1 Data set (app A = `dev.ycode.healthprobe`, D0 = 2026-10-01T00:00Z)
+### 3.1 Data set (app A = `dev.swiftcode.healthprobe`, D0 = 2026-10-01T00:00Z)
 
 | Type | Samples |
 |---|---|
-| steps | 1000 @08:00–08:10; 500 @08:05–08:15; 3000 @12:00–12:30 (metadata `HKExternalUUID`="ycode-s3", `YcodeProbe`="golden", `YcodeNumber`=42, `YcodeQuantity`=3 m, `YcodeDate`=D0); 2000 @D0+1 09:00–09:30; 600 @23:50–D0+1 00:10; plus 1 at −5·10⁹ s from 1970 (1811-07-23) lasting 60 s, 61 @D0−60 12:00–12:01, 4 @D0−10 00:00 – D0−6 00:00; later in the run (after the statistics block) 7/8/9 @20:00–20:01 with sync identifier versions 1/2/1 (deleted again) and 11 @22:00–22:01 |
+| steps | 1000 @08:00–08:10; 500 @08:05–08:15; 3000 @12:00–12:30 (metadata `HKExternalUUID`="swiftcode-s3", `SwiftCodeProbe`="golden", `SwiftCodeNumber`=42, `SwiftCodeQuantity`=3 m, `SwiftCodeDate`=D0); 2000 @D0+1 09:00–09:30; 600 @23:50–D0+1 00:10; plus 1 at −5·10⁹ s from 1970 (1811-07-23) lasting 60 s, 61 @D0−60 12:00–12:01, 4 @D0−10 00:00 – D0−6 00:00; later in the run (after the statistics block) 7/8/9 @20:00–20:01 with sync identifier versions 1/2/1 (deleted again) and 11 @22:00–22:01 |
 | heart rate (count/min) | 60 @08:00; 70 @08:30; 90 @09:00; 80 @13:00–13:10; 150 @06:15 (via workout builder) |
 | body mass | 70 kg @07:00 (`HKWasUserEntered` YES); 155 lb @D0+1 07:00 |
 | sleep | in bed 00:45–06:00; core 01:00–03:00; awake 03:00–03:15; deep 03:15–05:00 |
 | mindful | 10:00–10:10 (value 0) |
 | blood pressure | correlation 120/80 mmHg @07:30 |
 | workout | running 06:00–06:30, pause 06:10, resume 06:12, active energy 300 kcal and distance 5000 m over 06:00–06:30, route 3 points (10.000/20.000/5 m @06:00, 10.001/…/6 m @06:05, 10.002/…/7 m @06:10) |
-| app B (`dev.ycode.healthprobe.b`) steps | 400 @08:00–08:10; 900 @15:00–15:10 |
+| app B (`dev.swiftcode.healthprobe.b`) steps | 400 @08:00–08:10; 900 @15:00–15:10 |
 
 ### 3.2 Expected results
 
@@ -103,7 +103,7 @@ device model.
 | C-AUTH | status values, request status, read non-disclosure, entitlement and Info.plist failures, sheet flow, historical range | `authorization.md` |
 | C-WORKOUT / C-SESSION | builder, routes, live session | `interface.md` §5 |
 | C-BG | background delivery registration and launch on change | `queries.md` §5 (design) |
-| C-SWIFT | Swift descriptors and async API compile and give the same results | Apple's framework vs Ycode's |
+| C-SWIFT | Swift descriptors and async API compile and give the same results | Apple's framework vs SwiftCode's |
 
 ## 5. Open questions (to settle with more probes or a device)
 
@@ -134,4 +134,4 @@ device model.
 ## Evidence
 
 Golden values: level 3 (HealthProbe, iOS 27.1 and 27.0; cross-source on
-27.1). Rounds and tests: Ycode's plan (no evidence level).
+27.1). Rounds and tests: SwiftCode's plan (no evidence level).

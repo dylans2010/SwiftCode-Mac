@@ -30,7 +30,7 @@ struct ATSPIProbeView: View {
     @State var wifi = true
     @State var volume = 0.3
     @State var count = 2
-    @State var name = "Ycode"
+    @State var name = "SwiftCode"
     @State var source = "let x = 1"
     let tree = [ProbeFile(id: "Sources", children: [ProbeFile(id: "App.swift", children: nil)]), ProbeFile(id: "README.md", children: nil)]
 
@@ -93,7 +93,7 @@ struct ATSPIMappingTests {
         #expect(slider?.actions.map(\.name) == ["increment", "decrement"])
         #expect(find(n, .spinButton, "Count")?.actions.map(\.name) == ["increment", "decrement"])
         let field = find(n, .entry)
-        #expect(field?.text?.string == "Ycode" && field?.text?.isEditable == true)
+        #expect(field?.text?.string == "SwiftCode" && field?.text?.isEditable == true)
         #expect(field?.states.contains(.singleLine) == true && field?.states.contains(.editable) == true)
         #expect(field?.interfaces.contains(ATSPI.editableText) == true)
         #expect(find(n, .passwordText)?.text?.string == "\u{2022}\u{2022}")
@@ -147,7 +147,7 @@ struct ATSPIMappingTests {
         #expect(e.replaceText(in: 5..<5, with: " IDE", on: field.key))
         #expect(e.setSelection(2..<2, on: field.key))
         n = nodes(e, w)
-        #expect(find(n, .entry)?.text?.string == "Ycode IDE")
+        #expect(find(n, .entry)?.text?.string == "SwiftCode IDE")
         #expect(find(n, .entry)?.text?.caret == 2)
         #expect(e.setText("Open", on: field.key))
         #expect(find(nodes(e, w), .entry)?.text?.string == "Open")

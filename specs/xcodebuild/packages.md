@@ -1,6 +1,6 @@
 # xcodebuild: Swift package folders
 
-Ycode: `YcodeXcodebuild` (`SwiftPackage`, `PackageCommands`). Applies when
+SwiftCode: `SwiftCodeXcodebuild` (`SwiftPackage`, `PackageCommands`). Applies when
 the working directory has a `Package.swift`, no `.xcodeproj` or
 `.xcworkspace`, no `-project`/`-workspace`, and the command is `-list`,
 `-showBuildSettings` or has `-scheme`. (Other commands keep the "does not
@@ -9,9 +9,9 @@ not written to.
 
 ## 1. Reading the package
 
-ycodebuild runs the toolchain's open-source SwiftPM
+swiftcodebuild runs the toolchain's open-source SwiftPM
 (`<toolchain>/usr/bin/swift package --package-path <dir> --scratch-path
-<tmp>/ycodebuild-spm-<uid>/<hash> …`, one folder per user, as `/tmp`
+<tmp>/swiftcodebuild-spm-<uid>/<hash> …`, one folder per user, as `/tmp`
 may be shared): `describe --type json` (name, products
 with their type and targets, targets with type, folder and dependencies),
 `show-dependencies --format json` (dependency names, paths or URLs,
@@ -57,8 +57,8 @@ Finder sorts names (`greet`, `GreetKit`, `Tools-Package`). `-list`:
 
 **`-showBuildSettings -scheme`**: the reference tool prints no settings
 (text: nothing after the package report; `-json`: an empty array).
-ycodebuild prints one block per target the scheme builds, from SwiftPM's
-build description (Ycode decision, `show-build-settings.md` §7).
+swiftcodebuild prints one block per target the scheme builds, from SwiftPM's
+build description (SwiftCode decision, `show-build-settings.md` §7).
 
 **Destination warning**: for `-destination platform=macOS[,arch=…]` the
 `Using the first of multiple matching destinations` warning lists My Mac
@@ -105,7 +105,7 @@ source-packages folder is `<dir>`, else `<DerivedData folder>/SourcePackages`.
 
 - Projects and workspaces: the remote references of every project
   (`XCRemoteSwiftPackageReference`, `specs/ide/package-dependencies.md`)
-  are resolved with Ycode's `PackageResolver` (git and SwiftPM's public
+  are resolved with SwiftCode's `PackageResolver` (git and SwiftPM's public
   command line; checkouts in `<source packages>/checkouts/<identity>`), and
   `Package.resolved` (version 3) is written in the project's (or
   workspace's) `xcshareddata/swiftpm/`. Local references need nothing.
@@ -171,11 +171,11 @@ blank line after the list:
 - OPEN QUESTION: products with several targets, and test targets without
   a bundle, in the coverage report (not observed).
 - `-showdestinations` (§5): black-box runs on two package folders,
-  compared with ycodebuild's output line by line: identical. Device and
+  compared with swiftcodebuild's output line by line: identical. Device and
   simulator data from `xcrun devicectl list devices` and `xcrun simctl
   list -j devices|runtimes` (read-only). The reference tool sometimes
   prints no simulators at all (2 of 7 runs, also in project mode), a
-  timing effect of its device discovery; ycodebuild always lists them.
+  timing effect of its device discovery; swiftcodebuild always lists them.
 - OPEN QUESTION: which SDKs gate the variants and generic destinations
   (all were installed), and devices of other platforms or with other CPU
   types.
@@ -184,9 +184,9 @@ blank line after the list:
   package reference and on a package folder with a local dependency
   (level 3). Remote references could not be observed without network;
   their report line follows the `-list` report format
-  (`info-commands.md` §2.3), and resolution is Ycode's
+  (`info-commands.md` §2.3), and resolution is SwiftCode's
   (`specs/ide/package-dependencies.md`).
 - OPEN QUESTION: the reference tool also creates an empty
   `xcshareddata/swiftpm/configuration` folder in the project; for
   projects it fills `artifacts/`, `repositories/` and
-  `workspace-state.json`, which ycodebuild does not write.
+  `workspace-state.json`, which swiftcodebuild does not write.

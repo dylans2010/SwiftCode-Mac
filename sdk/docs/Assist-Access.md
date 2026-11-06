@@ -10,9 +10,9 @@ opens it.
 ## 1. The application form
 
 Developers apply in SwiftCode Studio → Assist Access
-(`ycode/Sources/ycode-ide/SDKStudio/`). Every field is
+(`swiftcode/Sources/swiftcode-ide/SDKStudio/`). Every field is
 required and validated; the answers are stored verbatim with the request
-(`SDKAssistApplication` in `ycode/Sources/YcodeSDK/Host/APIKeys/SDKAssistApplication.swift`).
+(`SDKAssistApplication` in `swiftcode/Sources/SwiftCodeSDK/Host/APIKeys/SDKAssistApplication.swift`).
 
 | Field | Rule |
 |---|---|
@@ -187,7 +187,7 @@ revocation) is implemented for real.
   `cloudmodel.test.mjs` pins the `CLOUD_MODEL_DENIED` → verbatim-message
   mapping and that unrelated denials propagate untouched.
   `npm run build` (tsc clean) + `npm test` must stay green.
-- Swift (`ycode/Tests/YcodeSDKTests/` — the `SDKAssistApplicationTests`
+- Swift (`swiftcode/Tests/SwiftCodeSDKTests/` — the `SDKAssistApplicationTests`
   and `SDKAssistEnforcementTests` suites were NOT ported as suites; see
   `specs/ide/sdk-platform.md` §18): form validation, application store
   (submit/approve→grant/deny→no grant), entitlement grant/revoke/require,

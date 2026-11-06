@@ -1,9 +1,9 @@
-# Ycode — clean-room reimplementation of the Xcode IDE
+# SwiftCode — clean-room reimplementation of the Xcode IDE
 
-Ycode is an independent IDE for Apple platforms. It matches Xcode's observable
+SwiftCode is an independent IDE for Apple platforms. It matches Xcode's observable
 behavior and file formats so that real projects open, build, and save
 correctly. **It contains no Apple code.** We study Xcode only to learn *what*
-it does. Ycode code comes from our own specs.
+it does. SwiftCode code comes from our own specs.
 
 Reference target: Xcode 27.1 (27A9269). A copy of it, Ghidra 12.1.4 with the
 ghidra-mcp bridge, and the simulator IPSW live **outside this repository**, in
@@ -21,11 +21,11 @@ only in written specs.
 |---|---|---|---|
 | Dirty (analysis) | `research/`, `research/dirty/` (git-ignored) | Yes | Observations, then specs |
 | Spec boundary | `specs/` | — | Prose, tables, grammars, interface descriptions |
-| Clean (implementation) | `ycode/`, `frameworks/`, `composer/` | **No** | Original source code |
+| Clean (implementation) | `swiftcode/`, `frameworks/`, `composer/` | **No** | Original source code |
 
 Rules:
 
-1. **No Apple code or code-shaped text enters `specs/`, `ycode/`, `frameworks/` or `composer/`.** This
+1. **No Apple code or code-shaped text enters `specs/`, `swiftcode/`, `frameworks/` or `composer/`.** This
    includes decompiler pseudo-C, disassembly, method bodies, and copied
    resources (icons, nibs, templates, strings files). Ghidra output stays in
    `research/dirty/`. That directory is never committed.
@@ -34,13 +34,13 @@ Rules:
    identifiers are facts and specs can name them. Examples: pbxproj `isa`
    names, build-setting names, plist keys, UTIs, and xcscheme XML elements.
    Specs must not describe Apple's internal algorithm line by line.
-3. Clean-room work (anything that writes `ycode/`, `frameworks/` or `composer/`) reads only `specs/`, public
+3. Clean-room work (anything that writes `swiftcode/`, `frameworks/` or `composer/`) reads only `specs/`, public
    documentation, and open-source projects whose licenses allow it. When a
    subagent does implementation work, tell it explicitly that it must not open
    the reference tools (the Xcode copy, Ghidra, the IPSW), `research/`
    (notes, experiments, dirty), or Ghidra projects, and that it must not run,
    boot or observe Apple's own Xcode or Simulator to learn behavior (booting
-   Ycode's own simulator is fine). Apple behavior reaches the clean room only
+   SwiftCode's own simulator is fine). Apple behavior reaches the clean room only
    through `specs/`.
 4. Use evidence in this order. Go down the list only when the step above it is
    not sufficient:
@@ -55,7 +55,7 @@ Rules:
       names, linked libraries, and the bundle structure.
    5. Disassembly or decompilation. This is the last resort. Use it only for
       interop-relevant formats or protocols, and record why it was necessary.
-5. Do not use Apple trademarks or artwork in Ycode's UI or assets.
+5. Do not use Apple trademarks or artwork in SwiftCode's UI or assets.
 
 Legal context: the Xcode license agreement prohibits reverse engineering
 except where the law permits it. Interoperability exceptions are an
@@ -64,7 +64,7 @@ keeps the work within those exceptions. The person who owns this project is
 responsible for making sure that it applies in their jurisdiction. The
 owner describes the project as educational and academic research. The
 protocol stays in force anyway: it documents that the research was done
-properly, and it keeps Ycode's own code independent so that Ycode can be
+properly, and it keeps SwiftCode's own code independent so that SwiftCode can be
 released.
 
 ## Heritage you need to know
@@ -76,7 +76,7 @@ released.
   `IDEKit`, `IDEFoundation`, `DVTFoundation`, and Interface Builder. To read
   these binaries, you must know `objc_msgSend` dispatch, the
   `class_ro_t`/`method_list_t` metadata, categories, KVC/KVO, NSNotification,
-  NSDocument, the responder chain, and target–action. Ycode uses Swift
+  NSDocument, the responder chain, and target–action. SwiftCode uses Swift
   together with Objective-C where AppKit or runtime interop needs it.
 - **Layering** (from binary linkage):
   - `DVT*`: shared developer-tools foundation and UI kit.
@@ -96,13 +96,13 @@ released.
 - `specs/`: the clean-room boundary documents. One spec per subsystem or
   format.
 - `docs/`: architecture and roadmap.
-- `ycode/`: the Swift package (implementation).
+- `swiftcode/`: the Swift package (implementation).
 - `frameworks/<name>/`: open, Linux-buildable reimplementations of Apple
   frameworks (`docs/FUTURE.md`), one Swift package per framework, built from
   `specs/frameworks/<name>/`. A package's library module may carry the Apple
   framework's module name so that existing source compiles against it; that
   name is an interop identifier. Package names, READMEs and any UI use
-  Ycode's own naming, never Apple artwork or branding. See
+  SwiftCode's own naming, never Apple artwork or branding. See
   `frameworks/README.md`.
 - `composer/`: the Scene Composer's core and command line (clean room).
 - `packaging/`: the disk image, the Flatpak and the app icon.
@@ -115,16 +115,16 @@ released.
 - Linux test workstation (x86-64): Ubuntu 26.04, Swift 6.4 through swiftly
   (`. ~/.local/share/swiftly/env.sh`). Log in with an SSH key only. Never
   automate password login. Sync with
-  `rsync -az --delete --exclude .build ycode/ <user>@<x86-64-linux-host>:Ycode/ycode/`,
+  `rsync -az --delete --exclude .build swiftcode/ <user>@<x86-64-linux-host>:SwiftCode/swiftcode/`,
   then run `swift build && swift test` there. Since the Wave 13
-  StoreKit migration, `ycode/Package.swift` also has an unconditional
+  StoreKit migration, `swiftcode/Package.swift` also has an unconditional
   path dependency on `../frameworks/storekit`, so sync that too:
-  `rsync -az --delete --exclude .build frameworks/storekit/ <user>@<x86-64-linux-host>:Ycode/frameworks/storekit/`.
+  `rsync -az --delete --exclude .build frameworks/storekit/ <user>@<x86-64-linux-host>:SwiftCode/frameworks/storekit/`.
 - The Simulator-track host ("the Thor", arm64 Linux): an NVIDIA Jetson Thor,
   Ubuntu 24.04 aarch64, 4 KB pages, 14 cores, 122 GB RAM, KVM and Vulkan.
   Swift 6.4 through swiftly. Log in with an SSH key only. Large data
   (runtime copies, devices, run output) goes on a separate data volume,
-  referred to as `$YCODE_DATA` in specs and scripts, never on the system
+  referred to as `$SWIFTCODE_DATA` in specs and scripts, never on the system
   disk. If the machine is shared, touch only your own files.
 - Machine-specific hostnames, users and paths stay out of the repository
   (keep them in your local, untracked notes).
@@ -134,7 +134,7 @@ released.
 - Run analysis Python with `python3 -I`.
 - Test corpora (real `.pbxproj` files and other samples) are read from local
   paths at test time. They are never copied into the repo. See
-  `ycode/README.md`.
+  `swiftcode/README.md`.
 - `python3 -I .github/scripts/scan-public.py` must pass: it looks for private
   names and secrets in tracked files.
 - Every spec ends with an **Evidence** section that lists the evidence level

@@ -13,7 +13,7 @@ import SwiftUICore
 // (menu items) and other views read values published by the part of the
 // window that has keyboard focus, typically to enable or disable a command.
 //
-// Design (Ycode's): each window has a `FocusedValuesCenter` (observable). A
+// Design (SwiftCode's): each window has a `FocusedValuesCenter` (observable). A
 // `focusedValue` modifier registers its value with the center; after every
 // update of the window the center recomputes the current values: it walks
 // from the focused view up through its ancestors and takes, for each key,

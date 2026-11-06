@@ -4,7 +4,7 @@ Part of `specs/frameworks/healthkit/`. HealthKit reports problems two ways:
 **programming errors** raise Objective-C exceptions synchronously (the app
 crashes unless it catches them), and **runtime conditions** complete with an
 `NSError` in domain `com.apple.healthkit` (`HKErrorDomain`). Messages below
-are paraphrased or quoted only as far as needed to identify the case; Ycode
+are paraphrased or quoted only as far as needed to identify the case; SwiftCode
 writes its own message text (Apple's are localized).
 
 ## 1. Error codes (`HKErrorCode`, raw values level 4)

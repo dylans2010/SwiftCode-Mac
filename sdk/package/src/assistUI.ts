@@ -11,7 +11,7 @@
  * other view-opening path.
  *
  * HOST DEPENDENCY (deterministic viewId rule): no Assist main view is
- * registered in `ycode/Sources/YcodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift`
+ * registered in `swiftcode/Sources/SwiftCodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift`
  * as of this change, so this module defines and uses
  * `ASSIST_VIEW_ID = "assist.main"`. The host MUST register an opener for
  * exactly this viewId (a sibling Swift task owns the view-opener

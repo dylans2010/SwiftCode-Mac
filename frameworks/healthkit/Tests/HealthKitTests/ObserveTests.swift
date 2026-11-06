@@ -8,7 +8,7 @@ import Testing
 struct ObserveTests {
     @Test("§5 observer: once at start, then once per committed change set; none after stop")
     func observer() async throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
         let calls = Locked(0)
         let offMain = Locked(true)
@@ -43,7 +43,7 @@ struct ObserveTests {
 
     @Test("§5 observer before authorization reports code 5")
     func observerNotDetermined() async throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         let code = Locked<Int?>(nil)
         store.execute(HKObserverQuery(sampleType: T.steps, predicate: nil) { _, done, e in
             code.withLock { $0 = (e as NSError?)?.code }
@@ -83,7 +83,7 @@ struct ObserveTests {
         let latest = Locked<HKStatisticsCollection?>(nil)
         let q = HKStatisticsCollectionQuery(quantityType: T.steps, quantitySamplePredicate: nil, options: .cumulativeSum,
                                             anchorDate: T.d0, intervalComponents: DateComponents(day: 1))
-        q.ycodeCalendar = T.utc
+        q.swiftcodeCalendar = T.utc
         q.initialResultsHandler = { _, c, _ in latest.withLock { $0 = c } }
         q.statisticsUpdateHandler = { _, _, c, _ in latest.withLock { $0 = c } }
         g.a.execute(q)

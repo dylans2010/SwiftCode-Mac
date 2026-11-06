@@ -3,18 +3,18 @@
 Status: **active (2026-10-12)**, implementation phase 7-i (research 7-r done). Stage 7 of
 `docs/SIMULATOR-LINUX.md`: the probe app
 (`research/experiments/simulator/ProbeApp`, our own code) is installed in
-a Ycode device, launched, and prints its `== YCODE-PROBE BEGIN … END`
+a SwiftCode device, launched, and prints its `== SWIFTCODE-PROBE BEGIN … END`
 report from `application(_:didFinishLaunchingWithOptions:)`.
 
 ## 1. What is unknown (research first)
 
 1. **App install and launch inside the guest.** On the Mac, `simctl
    install`/`launch` go through host tools (CoreSimulator and its bridge
-   job). Ycode needs a path that uses only the runtime's own guest
-   components plus Ycode's code: where an app bundle must live, which
+   job). SwiftCode needs a path that uses only the runtime's own guest
+   components plus SwiftCode's code: where an app bundle must live, which
    daemon registers it (installd/installcoordinationd, LaunchServices
    `lsd`), and how a launch request reaches SpringBoard/FrontBoard. A
-   guest-side Ycode helper program (our own code, built against the iOS
+   guest-side SwiftCode helper program (our own code, built against the iOS
    simulator SDK, possibly calling private interfaces by name as an interop
    client) is acceptable if the Mac's simulator shows it works.
 2. **The host control channel** (`launchd-sim.md` §6.1–§6.3,
@@ -49,17 +49,17 @@ Research landed: `app-install-launch.md` (R2) and `launch-sim-control.md`
 
 ### 3.1 Exit criterion
 
-On the Thor, `ycode-simd --device <dir> --runtime-paths --install-app
-<host path of YcodeProbe.app> --launch dev.ycode.probe` (release build, no
+On the Thor, `swiftcode-simd --device <dir> --runtime-paths --install-app
+<host path of SwiftCodeProbe.app> --launch dev.swiftcode.probe` (release build, no
 debug flags): the probe app is installed through InstallCoordination,
 launched through FrontBoardServices with debug stdio options, and its
-`== YCODE-PROBE BEGIN … END` report appears in the stderr file the VMM
+`== SWIFTCODE-PROBE BEGIN … END` report appears in the stderr file the VMM
 prints at the end. A process without a scene (the one-shot fallback,
 `app-install-launch.md`) does not count, but is the first milestone.
 
-### 3.2 Work (integrator, all of `ycode/`)
+### 3.2 Work (integrator, all of `swiftcode/`)
 
-1. **Host control client** (`ycode-simd`): after the 708→808 exchange the
+1. **Host control client** (`swiftcode-simd`): after the 708→808 exchange the
    host holds the control-channel send right. Implement the MIG client of
    `launch-sim-control.md`: 700 bind (with a session port the host owns;
    then write `RequireDomainBinding = true`), 701 register (host-side
@@ -71,15 +71,15 @@ prints at the end. A process without a scene (the one-shot fallback,
    port's receive right so `launchd_sim` shuts down cleanly.
 2. **The launcher helper** `ylaunch` (our own guest program,
    `research/experiments/simulator/app-launch/` → move a minimal version to
-   `ycode/SimShim/guest-tests/stage7/`, built on macOS like the probes,
+   `swiftcode/SimShim/guest-tests/stage7/`, built on macOS like the probes,
    with the `com.apple.frontboard.debugapplications` entitlement in
    `__TEXT,__entitlements`): `install <bundle>` and `open <bundle id>
    --stdout P --stderr P [--arg …] [--env K=V …]`, failing loudly when the
    open completes with no process.
 3. **Device-mode options:** `--install-app <host .app>` (copied into
-   `DEV/data/tmp/ycode-apps/…` and installed by the helper through 704
+   `DEV/data/tmp/swiftcode-apps/…` and installed by the helper through 704
    spawn), `--launch <bundle id>` (after install; stdio to
-   `/tmp/ycode-app.{out,err}`, printed at the end), `--app-arg`,
+   `/tmp/swiftcode-app.{out,err}`, printed at the end), `--app-arg`,
    `--app-env`.
 4. **Kernel support:** `proc_pidpath` for any pid; csops entitlement reads
    that open the target's executable (`app-install-launch.md` §
@@ -108,7 +108,7 @@ prints at the end. A process without a scene (the one-shot fallback,
   `…/Platforms/iphoneos/Library/PrivateFrameworks/SimFramebuffer.framework`,
   a guest-platform (7) dylib supplied by CoreSimulator, not by the runtime
   (level 3 `ps -E`, level 4 load commands).
-- **Decision (orchestrator):** Ycode will supply its **own clean-room,
+- **Decision (orchestrator):** SwiftCode will supply its **own clean-room,
   headless `SimFramebuffer.framework`** (and later `SimulatorHID`): one
   display of the device's configured geometry that presents nothing; stage
   8 replaces the headless back end with a real render path. Research first
@@ -148,7 +148,7 @@ host-side name `com.apple.IOSurface.Remote` (`launchd-sim.md` §6.3), the
 message protocol on it (ids, layouts, port and OOL/memory-entry
 descriptors, replies) for the calls the boot and a UIKit app make (create,
 lookup by id, lock/unlock, properties, use counts, release), and the
-minimum a Ycode host service must answer so that surfaces created by one
+minimum a SwiftCode host service must answer so that surfaces created by one
 guest process can be looked up and mapped by another. Evidence: levels 1
 (public IOSurface headers and docs), 3 (our own man-in-the-middle on the
 Mac: a throwaway `launchd_sim` under our harness registers our own port
@@ -162,17 +162,17 @@ disassembly.
   `DeviceSession.swift`): bind, `RequireDomainBinding = true`, real
   one-shots through 704/705 with fileport stdio, session teardown → clean
   `launchd_sim` exit 0. Full boot unchanged (118 jobs with a pid).
-- 7-i items 2–3 done: `ylaunch` (`ycode/SimShim/guest-tests/stage7/`) and
+- 7-i items 2–3 done: `ylaunch` (`swiftcode/SimShim/guest-tests/stage7/`) and
   `--install-app`, `--launch`, `--app-arg`, `--app-env`, `--guest-tools`.
 - The intermittent `launchd_sim` stall was a workqueue bug (events
   delivered before a vCPU was secured); fixed (`threads-and-events.md`
   addendum).
 - **Blocker for install:** installd and installcoordinationd issue sandbox
-  extensions (`__mac_syscall("Sandbox", 7, …)`); Ycode answers ENOPOLICY
+  extensions (`__mac_syscall("Sandbox", 7, …)`); SwiftCode answers ENOPOLICY
   and the install fails ("Could not provide access to staging
   directory"). Next: specify sandbox extension issue/consume/release from
   levels 3 (our probe on the Mac calling the public-by-name
-  `sandbox_extension_*` functions; our own Ycode runs) and implement a
+  `sandbox_extension_*` functions; our own SwiftCode runs) and implement a
   permissive answer. **Blocker for launch:** display services
   (SimFramebuffer §4–§5, IOSurface §6).
 
@@ -187,7 +187,7 @@ getattrlist without `ATTR_CMN_ERROR`; a file mapped after it was written;
 `msync`; Sandbox call 12 for cfprefsd; `accessx_np`; one clock).
 `--skip-first-boot-migration` is no longer needed to reach the home screen;
 `first-boot.md` §4 says what it skips. Screenshots:
-`$YCODE_DATA/work/7-I4/shots/HOME-SCREEN-*.png`.
+`$SWIFTCODE_DATA/work/7-I4/shots/HOME-SCREEN-*.png`.
 Not needed on this path: a host SCDynamicStore for configd_sim (it still
 crashes; nothing on the way to the home screen waited for it).
 
@@ -198,18 +198,18 @@ installing placeholder ("Waiting…", `9-H/runs/p6a/shots/home-960s.png`)
 after three fixes (`home-screen.md` §6): one guest volume for everything
 but the runtime root (installcoordinationd's transfer-path volume check),
 counted `ATTR_DIR_ENTRYCOUNT` (MobileInstallation's helper copied an empty
-placeholder bundle), and work intervals in Ycode's `libsystem_kernel`
+placeholder bundle), and work intervals in SwiftCode's `libsystem_kernel`
 (SpringBoard aborted with "Failed to create work interval"). `ylaunch`
-takes `YLAUNCH_INSTALL_SECONDS`; Ycode passes 1200. The install does not
+takes `YLAUNCH_INSTALL_SECONDS`; SwiftCode passes 1200. The install does not
 leave the "Waiting" state within 18 minutes; the launch is not reached.
 
 First milestone of §3.1 reached (2026-10-13): the probe app's executable,
-run as a one-shot on a booted Ycode device (`--oneshot
-"DEV/data/tmp/ycode-apps/YcodeProbe.app/YcodeProbe"`, delay 230 s), prints
-its complete `== YCODE-PROBE BEGIN … END` report from
+run as a one-shot on a booted SwiftCode device (`--oneshot
+"DEV/data/tmp/swiftcode-apps/SwiftCodeProbe.app/SwiftCodeProbe"`, delay 230 s), prints
+its complete `== SWIFTCODE-PROBE BEGIN … END` report from
 `application(_:didFinishLaunchingWithOptions:)` (`9-H/runs/p9a`,
-`devs/p9/data/tmp/ycode-oneshot-1.err`): UIKit's display-services and
-render-server start-up works under Ycode. The installed-and-launched exit
+`devs/p9/data/tmp/swiftcode-oneshot-1.err`): UIKit's display-services and
+render-server start-up works under SwiftCode. The installed-and-launched exit
 is still open (install stays "Waiting").
 
 ## 10. Progress (integrator J, 2026-10-13): exit criterion met
@@ -217,13 +217,13 @@ is still open (install stays "Waiting").
 §3.1 is met on the Thor (run `9-J/runs/w3`): the probe app is installed
 through InstallCoordination, launched through FrontBoardServices with debug
 stdio options, its scene comes to the front, and the VMM prints its
-`== YCODE-PROBE BEGIN … END` report. Two host gaps stood in the way
-(`home-screen.md` §3.3, §3.4): Ycode's volumes did not report
+`== SWIFTCODE-PROBE BEGIN … END` report. Two host gaps stood in the way
+(`home-screen.md` §3.3, §3.4): SwiftCode's volumes did not report
 `VOL_CAP_FMT_PATH_FROM_ID`, so LaunchServices registered every app,
 including the installed one, as an incomplete placeholder (the install
 stayed "Waiting…"); and the runtime's executables did not report the
 platform-binary code-signing status, so launchd_sim did not answer
 runningboardd's job queries and runningboardd refused SpringBoard's launch
-requests. Ycode now implements `fsgetpath`, `fsgetpath_ext`, `openbyid_np`
+requests. SwiftCode now implements `fsgetpath`, `fsgetpath_ext`, `openbyid_np`
 and `mach_vm_region` as well.
 

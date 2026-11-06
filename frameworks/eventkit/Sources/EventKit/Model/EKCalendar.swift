@@ -5,9 +5,9 @@ import Foundation
 import CoreGraphics
 #endif
 
-/// An RGB color in the device RGB space; Ycode's portable form of a
+/// An RGB color in the device RGB space; SwiftCode's portable form of a
 /// calendar color (on Apple platforms `cgColor` mirrors it).
-public struct YcodeRGBColor: Hashable, Sendable {
+public struct SwiftCodeRGBColor: Hashable, Sendable {
     public var red: Double
     public var green: Double
     public var blue: Double
@@ -35,7 +35,7 @@ struct CalendarRow: Hashable {
     var title: String
     var type: Int
     var entityMask: UInt
-    var color: YcodeRGBColor?
+    var color: SwiftCodeRGBColor?
     var allowsModifications: Bool
     var immutable: Bool
     var subscribed: Bool
@@ -116,7 +116,7 @@ public class EKCalendar: EKObject {
     public var allowedEntityTypes: EKEntityMask { EKEntityMask(rawValue: fields.entityMask) }
 
     /// The calendar color as RGB components (nil on a new calendar until saved).
-    public var ycodeColor: YcodeRGBColor? {
+    public var swiftcodeColor: SwiftCodeRGBColor? {
         get { fields.color }
         set { fields.color = newValue }
     }
@@ -130,7 +130,7 @@ public class EKCalendar: EKObject {
         set {
             guard let c = newValue, let comps = c.converted(to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil)?.components,
                   comps.count >= 3 else { fields.color = nil; return }
-            fields.color = YcodeRGBColor(red: Double(comps[0]), green: Double(comps[1]), blue: Double(comps[2]))
+            fields.color = SwiftCodeRGBColor(red: Double(comps[0]), green: Double(comps[1]), blue: Double(comps[2]))
         }
     }
     #endif

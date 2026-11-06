@@ -1,5 +1,5 @@
-# The Ycode Flatpak (packaging/README.md). Built by build-flatpak.sh, which
-# writes source/ycode-source.tar from the committed tree and, on aarch64,
+# The SwiftCode Flatpak (packaging/README.md). Built by build-flatpak.sh, which
+# writes source/swiftcode-source.tar from the committed tree and, on aarch64,
 # enables the lines marked aarch64-only below. Every download is pinned by
 # SHA-256; the build itself has no network.
 id: io.github.MarcoDotIO.Ycode
@@ -8,7 +8,7 @@ runtime-version: '26.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.llvm22
-command: ycode-ide
+command: swiftcode-ide
 finish-args:
   # The window: Wayland, or X11 where there is no Wayland; the GPU for the renderer.
   - --socket=wayland
@@ -24,13 +24,13 @@ finish-args:
   # the home folder and /tmp rather than a portal's private paths.
   - --filesystem=home
   - --filesystem=/tmp
-  # flatpak-spawn --host reaches the host's Swift toolchain. This gives Ycode
+  # flatpak-spawn --host reaches the host's Swift toolchain. This gives SwiftCode
   # the right to run anything on the host as you: the app is not really
   # sandboxed (packaging/README.md says so plainly).
   - --talk-name=org.freedesktop.Flatpak
-  # The wrappers for host tools come first (Ycode's tools also arrange this
-  # themselves, relative to where they are: YcodeRelease.adoptBundledHelpers).
-  - --env=PATH=/app/libexec/ycode-host:/app/bin:/usr/bin
+  # The wrappers for host tools come first (SwiftCode's tools also arrange this
+  # themselves, relative to where they are: SwiftCodeRelease.adoptBundledHelpers).
+  - --env=PATH=/app/libexec/swiftcode-host:/app/bin:/usr/bin
   #aarch64-only: - --device=kvm
 build-options:
   no-debuginfo: true
@@ -63,7 +63,7 @@ modules:
 
   # The toolchain's lld and Foundation's XML library need libxml2.so.2; the runtime
   # has a newer soname. Built next to the toolchain's libraries, where their search
-  # paths find it; build-ycode.sh copies it to the package with the Swift runtime.
+  # paths find it; build-swiftcode.sh copies it to the package with the Swift runtime.
   - name: libxml2-for-toolchain
     buildsystem: autotools
     config-opts:
@@ -157,15 +157,15 @@ modules:
         sha256: 0b6080b8c3e7a579161d2d495224c0e51c467576cb4c7048b0ab485ef44cc22e
         strip-components: 0
 
-  - name: ycode
+  - name: swiftcode
     buildsystem: simple
     build-options:
       strip: true
       append-path: /app/swift/usr/bin
     build-commands:
-      - sh packaging/flatpak/build-ycode.sh
+      - sh packaging/flatpak/build-swiftcode.sh
     sources:
       - type: archive
-        path: source/ycode-source.tar
+        path: source/swiftcode-source.tar
         strip-components: 0
       - swift-dependencies.json

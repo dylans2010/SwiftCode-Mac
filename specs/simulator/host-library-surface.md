@@ -1,6 +1,6 @@
 # Spec: API surface of the three host libraries
 
-Status: **measured (2026-10-11)**. This spec lists what Ycode's clean-room
+Status: **measured (2026-10-11)**. This spec lists what SwiftCode's clean-room
 `libsystem_kernel`, `libsystem_platform`, and `libsystem_pthread` must
 export so that the iOS 27.1 simulator runtime (24A94401) can bind to them.
 It is the input for stage 3a-ii (see `stage3-contract.md` §12). The
@@ -79,7 +79,7 @@ macOS-platform images. They are tagged iOS Simulator with minos 15.0.
   - 3: `REEXPORT_DYLIB` of its link-stub path. The recorded versions are
     kernel 10002.1.13 / 1.0.0, platform 306.0.1 / 1.0.0, and pthread
     519.0.0 / 1.0.0.
-- So Ycode's replacements must carry compatibility version **≥ 1.0.0**.
+- So SwiftCode's replacements must carry compatibility version **≥ 1.0.0**.
   The host Mac's libraries carry 1.0.0. Their current versions are kernel
   13432.40.162, platform 402.40.3, and pthread 553.40.2.
 - Each link stub has one `LOAD_DYLIB /usr/lib/libSystem.B.dylib` (1.0.0)
@@ -108,7 +108,7 @@ macOS-platform images. They are tagged iOS Simulator with minos 15.0.
   `pkt_subtype_assert_fail`.
 - On the host Mac, three platform exports are dynamic-resolver
   (stub-and-resolver) exports: `__platform_strcmp`, `__platform_strncmp`,
-  and `_OSAtomicDequeue`. Ycode may export them as regular functions.
+  and `_OSAtomicDequeue`. SwiftCode may export them as regular functions.
 
 ## 3. Sim-host interposition slots
 
@@ -132,7 +132,7 @@ Twenty of these 43 names are **not exported by the link stubs**: the 9
 kernel names other than `csops` and `csops_audittoken`, the 10 non-`_simple`
 platform names, and both pthread names. Because the imports are weak, a
 missing symbol leaves the slot NULL. These symbols are optional, but each
-one that Ycode exports enables the matching feature in the simulator's own
+one that SwiftCode exports enables the matching feature in the simulator's own
 libraries.
 
 ## 4. Surface sizes and categories (questions 2 and 3)
@@ -226,7 +226,7 @@ symbols (`select`, `pselect`), and 8 more `___*_nocancel` private wrappers.
 
 ## 6. Data symbols (question 4)
 
-These must be **real variables** in Ycode's libraries, not functions.
+These must be **real variables** in SwiftCode's libraries, not functions.
 Sections and size bounds come from the host Mac's arm64 libraries.
 
 | Symbol | Lib | Importers | Host section | Size ≤ (bytes) |
@@ -267,7 +267,7 @@ The host libraries import several of these from each other, for example
 
 The simulator's `libsystem_c` export trie re-exports standard names under
 the platform library's names, through `libsystem_sim_platform` →
-`libsystem_sim_platform_host` → `libsystem_platform`. So Ycode's platform
+`libsystem_sim_platform_host` → `libsystem_platform`. So SwiftCode's platform
 library is reached under the `_platform_*` name:
 
 | Imported name | Bound name |
@@ -304,7 +304,7 @@ Similarly, `libSystem.B` re-exports `___chkstk_darwin` as pthread's
   `mmap`, `munmap`, `open`, `vm_allocate`, `vm_deallocate`, and
   `vm_page_size`.
 - **Host-internal dependencies.** These are not part of the simulator's
-  surface, but Ycode's three libraries must satisfy each other in the same
+  surface, but SwiftCode's three libraries must satisfy each other in the same
   way:
   - The host `libsystem_platform` imports from kernel: the
     `___ulock_wait`/`wait2`/`wake` group, `___sigaction`, `___sigaltstack`,
@@ -349,7 +349,7 @@ dynamic-resolver exports (§2) have `hostExportFlags`.
    every cached use to the real libraries at run time. The likely
    mechanism is the cache patch table (`dyld_cache_patch_info` in Apple's
    open-source `dyld_cache_format.h`), which is used when a cached dylib
-   is overridden. If so, Ycode's libraries must export every patched name,
+   is overridden. If so, SwiftCode's libraries must export every patched name,
    and the patch-table format needs its own spec. This has not been
    verified. It is a level-1 research item.
 2. **Where `dyld_sim` looks for the host libraries.** The stage-3a abort
@@ -358,7 +358,7 @@ dynamic-resolver exports (§2) have `hostExportFlags`.
    simulator cache. Which path and which loader checks it applies
    (platform, minos, install name, compatibility version) are not yet
    known.
-3. **Which platform tag Ycode's libraries need.** The host Mac's libraries
+3. **Which platform tag SwiftCode's libraries need.** The host Mac's libraries
    are `zippered(macOS/Catalyst)`. The stubs are iOS Simulator 15.0.
 4. **Real sizes of the data variables.** §6 gives upper bounds only.
    `_mach_task_self_`, `_bootstrap_port`, and `_vm_page_shift` are 4-byte
@@ -370,7 +370,7 @@ dynamic-resolver exports (§2) have `hostExportFlags`.
    `dlsym` survey is outside this metadata pass.
 6. **Thread entry points.** `thread_start` and `start_wqthread` have no
    importers. The pthread library registers them with the kernel itself,
-   so Ycode's pthread and kernel personality must agree on them. The
+   so SwiftCode's pthread and kernel personality must agree on them. The
    stage-3b spec should cover this.
 
 ## Evidence
@@ -380,7 +380,7 @@ dynamic-resolver exports (§2) have `hostExportFlags`.
     and chained-fixups import tables of the simulator cache and on-disk
     RuntimeRoot binaries. These were read with a throwaway metadata parser
     in the dirty-room scratchpad and cross-checked against
-    `ycode dsc --image`.
+    `swiftcode dsc --image`.
   - The host Mac's arm64 `libsystem_{kernel,platform,pthread}` (macOS 27.2,
     26B5091g), read with `nm -m -arch arm64`,
     `dyld_info -arch arm64 -segments -exports`, and `otool -L`.
@@ -390,4 +390,4 @@ dynamic-resolver exports (§2) have `hostExportFlags`.
 - Level 1: Mach-O and dyld-cache layouts (`specs/formats/macho-and-dyld-cache.md`),
   the export-trie and nlist formats (Apple's open-source `dyld` and `xnu`
   headers), and the syscall and trap tables (`data/*.json`).
-- The categories are Ycode's own name-based classification.
+- The categories are SwiftCode's own name-based classification.

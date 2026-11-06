@@ -8,7 +8,7 @@ This spec describes what the asset-catalog compiler does with `.icon`
 documents (`icon-format.md`) and with `.xcassets` app icons, as seen from
 outside: its arguments, the files it writes, the partial `Info.plist`, and
 the renditions it puts in `Assets.car` (container format: `assets-car.md`).
-Ycode needs this to build apps whose icon shows on device and simulator, on
+SwiftCode needs this to build apps whose icon shows on device and simulator, on
 macOS and on Linux.
 
 ## 1. How Xcode runs the compiler
@@ -106,7 +106,7 @@ Details:
 - The loose PNGs are opaque, full-bleed squares (no mask, no alpha) of the
   Default rendition. With `--compress-pngs` they are written in Apple's
   "CgBI" PNG variant (a `CgBI` chunk before `IHDR`, BGR order,
-  premultiplied); without it they are ordinary PNGs. Ycode may write
+  premultiplied); without it they are ordinary PNGs. SwiftCode may write
   ordinary PNGs: the iOS runtime reads both (level 1: Apple's PNG
   optimisation is optional, `COMPRESS_PNG_FILES`).
 - Alternate icons add `CFBundleAlternateIcons` = {`<Name>` =
@@ -134,7 +134,7 @@ Rendition kinds, by facet name (container details in `assets-car.md`):
 | `<Icon>` | **Icon Image** | idiom × appearance × size | Flattened pre-rendered icon bitmaps (§6). |
 
 The numbering of `Color-<n>` and `Gradient-<n>` follows the compiler's
-traversal and has no meaning; Ycode may number them in any order.
+traversal and has no meaning; SwiftCode may number them in any order.
 
 ### 4.1 Appearances
 
@@ -205,7 +205,7 @@ Rendition names of the flattened bitmaps look like
 `AppIcon1024x1024_<AppearanceName>_<UUID>-<number>-<hex>.png`; they differ
 between runs and carry no meaning.
 
-The renderer for these bitmaps is Icon Composer's; a Ycode renderer
+The renderer for these bitmaps is Icon Composer's; a SwiftCode renderer
 (`ICON-RENDER`) only needs to be close, because current systems draw the
 layered stack themselves when it is present (`assets-car.md` §9).
 
@@ -217,9 +217,9 @@ an `.icon`, and in `Assets.car` to one MultiSized Image and one Icon Image
 (1024, index 1) per idiom (`phone`, `pad`) — no stack, no groups. An empty
 dark-appearance slot is ignored.
 
-## 7. What Ycode's compile step must do
+## 7. What SwiftCode's compile step must do
 
-`ycode actool` (round `ACTOOL-COMPAT`) accepts the same positional inputs
+`swiftcode actool` (round `ACTOOL-COMPAT`) accepts the same positional inputs
 and the flags listed in §1 (unknown flags are an error, like `actool`), and
 for each `.icon` and app-icon set:
 
@@ -235,7 +235,7 @@ for each `.icon` and app-icon set:
 5. For visionOS and tvOS: ignore `.icon` inputs as `actool` does.
 6. Print results in the three-section text format, exit 1 on errors.
 
-On macOS Ycode may simply call Apple's `actool` (it is part of Xcode); the
+On macOS SwiftCode may simply call Apple's `actool` (it is part of Xcode); the
 own implementation is for Linux and for builds without Xcode.
 
 ## 8. Open questions

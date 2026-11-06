@@ -4,8 +4,8 @@
 .claude/
 # Dirty-room scratch (decompiler output, disassembly) stays local only.
 research/dirty/
-ycode/.build/
-ycode/.swiftpm/
+swiftcode/.build/
+swiftcode/.swiftpm/
 *.gpr
 *.rep/
 .env
@@ -14,21 +14,21 @@ ycode/.swiftpm/
 *.im4p
 *.img4
 # Per-agent SwiftPM scratch paths
-ycode/.build*/
-ycode/SimShim/out/
-ycode/SimHostLibs/out/
-ycode/SimGuestAgents/out/
-ycode/SimGuestFrameworks/out/
-ycode/Native/out/
-ycode/MacUserland/out/
+swiftcode/.build*/
+swiftcode/SimShim/out/
+swiftcode/SimHostLibs/out/
+swiftcode/SimGuestAgents/out/
+swiftcode/SimGuestFrameworks/out/
+swiftcode/Native/out/
+swiftcode/MacUserland/out/
 # Helper packages build in place
-ycode/Tools/*/.build/
+swiftcode/Tools/*/.build/
 # Sample packages, when SwiftPM is run in them directly
-ycode/Samples/**/.build/
-ycode/Samples/**/.swiftpm/
-# Ycode's own build folder when the IDE builds a sample project (swift-build engine)
-ycode/Samples/**/.ycode-build/
-ycode/Samples/**/xcuserdata/
+swiftcode/Samples/**/.build/
+swiftcode/Samples/**/.swiftpm/
+# SwiftCode's own build folder when the IDE builds a sample project (swift-build engine)
+swiftcode/Samples/**/.swiftcode-build/
+swiftcode/Samples/**/xcuserdata/
 # SwiftPM scratch at the repository root
 /.build/
 *.profraw

@@ -21,7 +21,7 @@ func accessibilityPercent(_ v: Double, _ r: ClosedRange<Double>) -> String {
     return "\(Int((f * 100).rounded()))%"
 }
 
-/// Slider geometry (Ycode; the height is the golden 31).
+/// Slider geometry (SwiftCode; the height is the golden 31).
 enum SliderMetrics {
     static let height: CGFloat = 31
     static let thumb: CGFloat = 24
@@ -281,7 +281,7 @@ public struct Stepper<Label: View>: View {
                 .accessibilityHidden(true)
         }
         // R10: an adjustable element with the label (the reference's stepper
-        // element was not found, 10-plan.md §4 question 6; Ycode's choice).
+        // element was not found, 10-plan.md §4 question 6; SwiftCode's choice).
         .accessibilityControl(.stepper, adjust: { d in if d == .increment { inc?() } else { dec?() } })
     }
 }

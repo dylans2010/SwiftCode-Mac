@@ -7,7 +7,7 @@ import Foundation
 // interoperability facts (enumeration values on the wire); no at-spi2
 // code is used. Sources and licences: package README, "AT-SPI export".
 
-/// AT-SPI roles (`GetRole`), the subset Ycode maps to plus the
+/// AT-SPI roles (`GetRole`), the subset SwiftCode maps to plus the
 /// application root.
 public enum ATSPIRole: UInt32, Sendable, CaseIterable {
     case invalid = 0

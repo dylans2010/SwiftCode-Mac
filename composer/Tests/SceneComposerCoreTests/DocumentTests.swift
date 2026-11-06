@@ -11,7 +11,7 @@ import USDStage
         #usda 1.0
         (
             customLayerData = {
-                string creator = "Ycode Scene Composer"
+                string creator = "SwiftCode Scene Composer"
             }
             defaultPrim = "Root"
             metersPerUnit = 1

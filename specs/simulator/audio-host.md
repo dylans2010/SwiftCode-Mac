@@ -1,7 +1,7 @@
 # Spec: the simulator audio host service (`com.apple.audio.audiohald`)
 
 Status: **reference** (agent VISIONOS-OBS6, 2026-10-27), **implemented in
-Ycode** (§13, agent AUDIO-HOST, 2026-10-27), written for
+SwiftCode** (§13, agent AUDIO-HOST, 2026-10-27), written for
 `visionos.md` §9 Q22 and §10.17. It describes the host-side audio endpoint
 that the visionOS 27.0 (24M362) and iOS 27.1 (24A94401) runtimes use: who
 looks it up, the message protocol, the objects and properties a client asks
@@ -260,7 +260,7 @@ device's IO (`'dIn '` may name no device; the probe then reported 0).
 
 ## 9. Values for a minimal stereo output device
 
-Ycode chooses the values; the reference device's values are given where
+SwiftCode chooses the values; the reference device's values are given where
 they differ. Selector semantics are the public ones (level 1).
 
 | Object | Property | Minimal value | Reference |
@@ -269,8 +269,8 @@ they differ. Selector semantics are the public ones (level 1).
 | system | `'mlkf'` | 2 | 2 |
 | system | `'dOut'`, `'sOut'` | the device's ID | same |
 | system | `'dIn '` | 0 (no input device) | the Mac's microphone |
-| device | `'uid '` | a fixed UID of Ycode's choice | `<Bluetooth address>:output` |
-| device | `'lnam'` | a name of Ycode's choice | the headset's name |
+| device | `'uid '` | a fixed UID of SwiftCode's choice | `<Bluetooth address>:output` |
+| device | `'lnam'` | a name of SwiftCode's choice | the headset's name |
 | device | `'tran'` | `'bltn'` or `'virt'` (PHASE logged "setting output type = headphones (bluetooth)" from the reference value; the effect of other values was not tested) | `'blue'` |
 | device | `'nsrt'` | 48 000.0 | 44 100.0 |
 | device | `'hidn'` | 0 | 0 |
@@ -382,12 +382,12 @@ backboardd's first open comes before the file exists and fails
 its later opens succeed. The volume (0.6) is what the client then sets as
 `'appv'` on the output device.
 
-## 13. Ycode implementation (agent AUDIO-HOST, 2026-10-27)
+## 13. SwiftCode implementation (agent AUDIO-HOST, 2026-10-27)
 
 Clean-room: written from §1–§12, the public CoreAudio headers' codes and
 record layouts, and xnu's open source for work intervals; no Apple
 simulator, Xcode or reference tool was run. Code:
-`ycode/Sources/YcodeHostServices/AudioHostService.swift` (Mach side, IO),
+`swiftcode/Sources/SwiftCodeHostServices/AudioHostService.swift` (Mach side, IO),
 `AudioHostModel.swift` (objects and properties), `AudioCapture.swift`;
 the kernel side is `work-intervals.md`.
 
@@ -399,9 +399,9 @@ up again about once a second until it exists). `com.apple.audio.coreaudiod`
 stays unregistered. One service thread receives on a port set holding the
 service port, one port per object handed out by message 2 (made on first
 use; the system object's is the service port), one IO port per running IO
-context, and a notification port. `YCODE_DEBUG_NO_AUDIO=1` turns the
+context, and a notification port. `SWIFTCODE_DEBUG_NO_AUDIO=1` turns the
 service off (the guest then has no audio system, as before);
-`YCODE_DEBUG_AUDIO=1` logs every request with its answer.
+`SWIFTCODE_DEBUG_AUDIO=1` logs every request with its answer.
 
 ### 13.2 Messages
 
@@ -421,7 +421,7 @@ ended, and its aggregates, IO contexts and running IO go.
 | ID | Object | Notes |
 |---|---|---|
 | 1 | system (`'asys'`) | `'vers'` 1, `'mlkf'` 2, `'powh'` settable, empty `'plg#'`, `'box#'`, `'clk#'`, `'tps#'`, `'prs#'`; `'dev#'` = [32] plus the aggregates **the asking process** made (they are private); `'dOut'`, `'sOut'` 32; `'dIn '` 0; `'cust'` empty |
-| 32 | output device (`'adev'`) | UID `dev.ycode.simulator.audio.output`, name "Ycode Simulator Output", manufacturer "Ycode", `'tran'` `'bltn'` (§9 Q4 open), 48 000 Hz (`'nsrt'`, `'nsra'`), `'stm#'` output [33] / input [], empty `'ctrl'` and `'cust'`, `'ioct'` (§6), `'dch2'` [1, 2] and a 2-channel `'srnd'` (output scope only), `'appv'` output settable (Float32), `'hidn'` 0, `'ltnc'`/`'saft'` 0, `'fsiz'` 512, `'fsz#'` [14, 1024], `'alv?'` 1, `'dflt'`/`'sflt'` 1 for output |
+| 32 | output device (`'adev'`) | UID `dev.swiftcode.simulator.audio.output`, name "SwiftCode Simulator Output", manufacturer "SwiftCode", `'tran'` `'bltn'` (§9 Q4 open), 48 000 Hz (`'nsrt'`, `'nsra'`), `'stm#'` output [33] / input [], empty `'ctrl'` and `'cust'`, `'ioct'` (§6), `'dch2'` [1, 2] and a 2-channel `'srnd'` (output scope only), `'appv'` output settable (Float32), `'hidn'` 0, `'ltnc'`/`'saft'` 0, `'fsiz'` 512, `'fsz#'` [14, 1024], `'alv?'` 1, `'dflt'`/`'sflt'` 1 for output |
 | 33 | its stream (`'astr'`) | `'sdir'` 0, `'schn'` 1, `'ltnc'` 0, `'sact'` 1, `'term'` `'spkr'`, `'sfmt'`/`'pft '` 48 kHz Float32 stereo interleaved (flags 9); no `'cust'` |
 | 0x100… | IO contexts (`'ioct'`) | made by message 3 from the description's `device id`; `'grid'` (one 56-byte record for output, empty for input), `'fsiz'` (settable 14…1024), `'fsz#'`, `'guse'` (settable per scope) |
 | 0x100… | aggregates (`'aagg'`/`'adev'`) | made by message 5 (the UID and name given; a UID that exists answers `'nope'`); `'tran'` `'grup'`, one stream, one subdevice (`'asub'`/`'adev'`, `'cust'` empty) through `'ownd'` (an empty qualifier gives the subdevice), `'acom'` (§7), `'agrp'` [32], settable `'dch2'` and `'srnd'`, the aggregate `'ioct'` keys |
@@ -456,7 +456,7 @@ IDs above 1 other than 32 and 33 come from one counter starting at 0x100.
   restarts the numbering: wake 0, at the cycle the device's clock is in.
 - **Stop (12)** ends the waking; the IO port is destroyed, the wake and
   entry rights dropped. A wake whose port is dead stops the context too.
-- **Output** is discarded. `YCODE_AUDIO_CAPTURE=<path.wav>` writes it as a
+- **Output** is discarded. `SWIFTCODE_AUDIO_CAPTURE=<path.wav>` writes it as a
   16-bit PCM WAV at 48 kHz stereo: each block is mixed in at its play time
   on the host clock (output time), so overlapping clients add up; a gap of
   more than a second with no IO is left out; the header is rewritten every
@@ -472,11 +472,11 @@ IDs above 1 other than 32 and 33 come from one counter starting at 0x100.
 ### 13.5 What else the guest needed
 
 - **`mlock`.** The HAL client wires the IO region (`HALB_SharedBuffer::Lock`)
-  and gives up the start when that fails; Ycode's kernel had no `mlock`
-  (ENOSYS). Ycode now answers `mlock`/`munlock` (BSD 203, 204) as a kernel
+  and gives up the start when that fails; SwiftCode's kernel had no `mlock`
+  (ENOSYS). SwiftCode now answers `mlock`/`munlock` (BSD 203, 204) as a kernel
   whose memory is never paged out: the range, widened to pages, must be
   mapped (ENOMEM), a wrapping range is EINVAL, otherwise 0.
-- **Workgroup ports.** Ycode's guest `libsystem_kernel` (SimHostLibs
+- **Workgroup ports.** SwiftCode's guest `libsystem_kernel` (SimHostLibs
   `kernel/workinterval.c`) implemented the work-interval calls in the
   library. `work_interval_get_flags_from_port`, `_join_port` and `_leave`
   now ask the kernel first (GET_FLAGS, JOIN), so the host's workgroup port
@@ -486,20 +486,20 @@ IDs above 1 other than 32 and 33 come from one counter starting at 0x100.
   backboardd aborting with "mutex lock failed: Resource deadlock avoided"
   (`visionos.md` §10.19.1 item 4): CoreAudio's caulk and PHASE unlock a
   normal mutex from a thread other than the holder, and relock one that
-  another thread is about to release. Ycode's guest `libsystem_pthread`
+  another thread is about to release. SwiftCode's guest `libsystem_pthread`
   (SimHostLibs `pthread/mutex.c`) answered EPERM and EDEADLK; it now
   behaves as Darwin's: unlocking a held normal mutex from any thread
   releases it, and relocking a normal mutex one holds waits for it (an
   unheld normal mutex still answers EPERM on unlock; error-checking and
   recursive mutexes are unchanged).
-- **Settings files.** Before boot Ycode writes
+- **Settings files.** Before boot SwiftCode writes
   `DEV/data/var/run/com.apple.coresimulator.audio.plist` with
   `sim_output_device_uid` = the device's UID and an empty input UID, and
   `DEV/data/var/run/simulatoraudio/audiosettings.plist` (`sim_input_device_uid`
   "", `sim_output_device_uid` the device UID, `sim_ringer_state` 1,
   `sim_volume` 60): the reference's CoreSimulatorBridge writes the latter,
-  and Ycode does not run that host program. backboardd's first open
-  therefore succeeds under Ycode (it fails in the reference, harmlessly).
+  and SwiftCode does not run that host program. backboardd's first open
+  therefore succeeds under SwiftCode (it fails in the reference, harmlessly).
 
 ### 13.6 Snapshots
 
@@ -517,7 +517,7 @@ with no host-service message in hand, and with the service's own lock only
 tried. The service thread takes that lock on every turn of its loop and
 holds it while it sends a wake, so a try can fail at any moment the IO
 runs; a failed try is a retry (1 ms later, within the 5 s deadline), never
-an error. Ycode's tests read the record the same way. After `stop()` the
+an error. SwiftCode's tests read the record the same way. After `stop()` the
 service thread leaves its loop at the end of the receive it is in (at most
 200 ms); `waitUntilStopped()` waits for that, so a second service over the
 same host task (a restore inside one process, as in the tests) is the only
@@ -530,14 +530,14 @@ Visionos.md §10.19 (visionOS and iOS boots on the Thor).
 ### 13.8 Open questions (reference-only)
 
 1. Q4 of `visionos.md` §10.17.3: whether `'tran'` changes PHASE's output
-   mode (Ycode answers `'bltn'`).
-2. The pacing a reference client tolerates (§10.17.3 Q2): Ycode wakes at
+   mode (SwiftCode answers `'bltn'`).
+2. The pacing a reference client tolerates (§10.17.3 Q2): SwiftCode wakes at
    the nominal period and restarts with wake 0 when the client is more
    than a period late; whether the reference service does the same, or
    skips ahead without a restart, was not observed.
-3. Whether the reference's zero time stamp advances once per cycle (Ycode)
+3. Whether the reference's zero time stamp advances once per cycle (SwiftCode)
    or per ring-buffer period.
-4. The flags of the reference's workgroup (Ycode: CoreAudio type, group,
+4. The flags of the reference's workgroup (SwiftCode: CoreAudio type, group,
    joinable), seen through `work_interval_get_flags_from_port` in a guest.
 
 ## Evidence
@@ -555,7 +555,7 @@ Visionos.md §10.19 (visionOS and iOS boots on the Thor).
 | Region layout and cycle (§10) | 3 | region dumps at chosen cycles (probe p3, b2, b7, iOS ip1) compared with the timestamps our probe's IOProc received |
 | Workgroup port nature | 1 | macOS SDK `os/workgroup_object.h` |
 | Settings files (§12) | 3 | the recorder's file hooks in every guest process (b2), file contents |
-| Ycode implementation (§13) | 1 | §1–§12; CoreAudio headers; xnu work-interval sources; Ycode code and tests (`AudioHostServiceTests`, `WorkIntervalTests`, `Stage3bTests.mlockChecks`) |
-| What the guest needed besides the service: `mlock`, workgroup flags, normal-mutex semantics (§13.5) | 1, 3 | Ycode boots on the Thor (`visionos.md` §10.19): guest log stream ("HALB_SharedBuffer::Lock: mlock failed"), the host log |
+| SwiftCode implementation (§13) | 1 | §1–§12; CoreAudio headers; xnu work-interval sources; SwiftCode code and tests (`AudioHostServiceTests`, `WorkIntervalTests`, `Stage3bTests.mlockChecks`) |
+| What the guest needed besides the service: `mlock`, workgroup flags, normal-mutex semantics (§13.5) | 1, 3 | SwiftCode boots on the Thor (`visionos.md` §10.19): guest log stream ("HALB_SharedBuffer::Lock: mlock failed"), the host log |
 
 Level 4 and level 5 were not used (also not for §13).

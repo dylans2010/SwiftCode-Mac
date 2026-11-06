@@ -12,7 +12,7 @@
 // Vulkan handles cross the boundary as raw values so that neither side
 // needs the other's C headers: a `VkInstance` is an `OpaquePointer`, a
 // `VkSurfaceKHR` a `UInt64` (a non-dispatchable handle). Both sides load the
-// system Vulkan loader (`libvulkan.so.1`; `YCODE_VULKAN_LIBRARY` overrides it
+// system Vulkan loader (`libvulkan.so.1`; `SWIFTCODE_VULKAN_LIBRARY` overrides it
 // on the render side, and the host should pass the same path to
 // `SDL_Vulkan_LoadLibrary`).
 //
@@ -44,7 +44,7 @@ public enum SurfacePresentation {
     /// surface).
     case software(any SoftwareSurfaceProvider)
     /// No window: frames stay in memory and are read with
-    /// `Compositor.readback()` (tests, `ycode preview --render`).
+    /// `Compositor.readback()` (tests, `swiftcode preview --render`).
     case offscreen
 }
 

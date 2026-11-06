@@ -1,16 +1,16 @@
 # Spec: simulated health data (HealthKit level) for the watchOS and iOS simulators
 
-Status: **draft, round 0** (agent OBS-HEALTH, 2026-10-30); HEALTH-1…3 implemented, §11 (agent HEALTH-SIM, 2026-10-30); open questions 9 and 11 answered in §12 (agent OBS-WATCH3, 2026-10-31); both checked under Ycode in §12.3 (agent WATCH-W7, 2026-10-31). The owner's goal:
+Status: **draft, round 0** (agent OBS-HEALTH, 2026-10-30); HEALTH-1…3 implemented, §11 (agent HEALTH-SIM, 2026-10-30); open questions 9 and 11 answered in §12 (agent OBS-WATCH3, 2026-10-31); both checked under SwiftCode in §12.3 (agent WATCH-W7, 2026-10-31). The owner's goal:
 send synthetic health data from a simulated Apple Watch (heart rate, ECG,
 blood oxygen, steps, sleep, sleep apnea and more) so that a developer can
 test how an app handles it through HealthKit. Apps never see raw sensor
-data; they see **HealthKit samples**. Ycode therefore simulates health
+data; they see **HealthKit samples**. SwiftCode therefore simulates health
 data at the HealthKit level: it puts samples into the guest's health store
 and lets Apple's `healthd`, unchanged in the guest, deliver them to apps,
 queries, workout builders and the paired device.
 
 This spec says what Apple's watchOS 27.0 and iOS 27.0 simulators (Xcode
-27.1) do with health data, and what Ycode must add. Facts come from files
+27.1) do with health data, and what SwiftCode must add. Facts come from files
 read as formats (level 2: launchd property lists, the health store's
 SQLite schema), black-box runs on the Mac (level 3: our own apps
 `research/experiments/health/HealthSim`, `simctl`, guest logs) and bundle
@@ -30,8 +30,8 @@ source** is the device's own HealthKit source (bundle id
 `com.apple.health.<UUID>`, name "watchOS Simulator" or "iOS Simulator" on
 the device itself, the device name on the paired device).
 
-Every value in this spec, and every value Ycode's tools ship with, is
-synthetic. Ycode never imports anyone's real health data.
+Every value in this spec, and every value SwiftCode's tools ship with, is
+synthetic. SwiftCode never imports anyone's real health data.
 
 ## 1. Answers in brief
 
@@ -80,11 +80,11 @@ synthetic. Ycode never imports anyone's real health data.
    back to the foreground. **Background delivery never launches or wakes
    an app** in the reference simulator (healthd treats background app
    refresh as unsupported, §7).
-8. **For Ycode** (§8): a health guest agent with the HealthKit entitlement
+8. **For SwiftCode** (§8): a health guest agent with the HealthKit entitlement
    that writes samples through the public API, pre-seeded grants, a
-   `ycode-sim health` command with scenarios and file import, a Device Hub
+   `swiftcode-sim health` command with scenarios and file import, a Device Hub
    section, live heart rate during workouts (Apple's generator for parity,
-   Ycode values by opt-in), shut-down seeding for the read-only types, and
+   SwiftCode values by opt-in), shut-down seeding for the read-only types, and
    nothing new for sync beyond the existing IDS relay.
 
 ## 2. HealthKit in the reference simulators (Q1)
@@ -138,7 +138,7 @@ HypertensionNotifications, MenstrualCycles). Their contents were not read.
   updates them. Rows written into a shut-down device's store are honoured
   after boot (§6.4).
 - A watch app's HealthKit **source is its companion iOS app's bundle id**
-  (here `dev.ycode.hs` for the watch app `dev.ycode.hs.watchkitapp`), with
+  (here `dev.swiftcode.hs` for the watch app `dev.swiftcode.hs.watchkitapp`), with
   product type Watch8,3. On the paired phone the same bundle id appears as
   a second source row that came by sync.
 - Grants made on one device reach the other by sync (§5.4); each device
@@ -222,7 +222,7 @@ before any store call: audio exposure quantities with zero duration
 ("minimum duration … 0.001"); value 0 for the reproductive category types
 that start at 1; insulin delivery without its reason metadata ("missing a
 required metadata key"); menopausal state longer than its maximum
-duration. These are `errors.md` §3's kinds; Ycode's tools must produce
+duration. These are `errors.md` §3's kinds; SwiftCode's tools must produce
 valid samples (§8.3).
 
 ## 4. Live data during workouts (Q3)
@@ -287,7 +287,7 @@ None. No string about HealthKit, heart rate, workouts or healthd exists in
 Device Hub's executables, SimulatorKit, CoreSimulator, CoreDevice or
 `simctl` (level 4, absence), and `simctl` has no health command (level 3).
 Apple's public documentation offers no health simulation either (level 1).
-Ycode's controls are therefore an extension, not parity.
+SwiftCode's controls are therefore an extension, not parity.
 
 ## 5. Sync between watch and phone (Q4)
 
@@ -347,13 +347,13 @@ propagate.
   among others) and the fake collector (`HDFakeDataCollector`,
   `HDFakeDataGenerator`). How the demo generator is switched on is not
   visible from names; finding it would need level 5, which rule 4 does
-  not justify when §6.3 works. Ycode does not depend on it.
+  not justify when §6.3 works. SwiftCode does not depend on it.
 
 ### 6.2 The store at the interop level (level 2)
 
 Dates are **seconds since 2001-01-01 00:00 UTC** (REAL). UUIDs are 16-byte
 BLOBs. Both files are SQLite in WAL mode and are owned by healthd while the
-device runs: Ycode edits them **only while the device is shut down**.
+device runs: SwiftCode edits them **only while the device is shut down**.
 
 `healthdb.sqlite` (unprotected):
 
@@ -456,17 +456,17 @@ are what a real watch would produce; their sync was not tested
 
 `simulator-baseline.md` §4.3 (own saves, ≈1 s) still holds.
 
-## 8. What Ycode must add
+## 8. What SwiftCode must add
 
-Ycode's guests run Apple's own healthd, so the store, the API, observers,
+SwiftCode's guests run Apple's own healthd, so the store, the API, observers,
 the fake workout generator and the watch–phone sync all come with the
-runtime. Ycode adds a way to put synthetic data in, with its own controls.
+runtime. SwiftCode adds a way to put synthetic data in, with its own controls.
 Requirement ids **H-n**.
 
 ### 8.1 Health guest agent
 
-- **H-1** `ycode-health-agent`: a hidden app bundle (`dev.ycode.health`,
-  display name "Ycode Health"), built for both iOS and watchOS simulators,
+- **H-1** `swiftcode-health-agent`: a hidden app bundle (`dev.swiftcode.health`,
+  display name "SwiftCode Health"), built for both iOS and watchOS simulators,
   with `application-identifier`, `com.apple.developer.healthkit` and the
   usage strings in its simulated-entitlements section, installed at cold
   boot like the settings agent (`simulator-features.md` §I.1). A daemon
@@ -478,7 +478,7 @@ Requirement ids **H-n**.
   ("Apple Watch"/"Watch" on the watch, "iPhone" on the phone, or what the
   file says).
 - **H-3** It talks to the host over a host-provided stream socket
-  `/private/var/run/dev.ycode.health` with the framing of
+  `/private/var/run/dev.swiftcode.health` with the framing of
   `simulator-features.md` §I.2 (4-byte length + XML plist). Requests:
   `write {samples:[…]}`, `scenario {name, start, options}`, `stream
   {type, values, every}` / `stop`, `delete {source}`, `status`. Replies
@@ -486,18 +486,18 @@ Requirement ids **H-n**.
   validated on the host first (§8.3) so exceptions never reach the agent;
   the agent still catches them.
 - **H-4** Samples are attributed to the agent's source. Apps that filter
-  on the Apple Watch's system source will not see them: Ycode documents
+  on the Apple Watch's system source will not see them: SwiftCode documents
   this; the read-only types of §8.6 use the system source.
 
 ### 8.2 Authorization
 
-- **H-5** At device creation and on `ycode-sim health grant`, while the
-  device is shut down, Ycode writes `authorization` rows (§6.4): the agent
-  gets 101/203 for every shareable type. Ycode adds the agent's
+- **H-5** At device creation and on `swiftcode-sim health grant`, while the
+  device is shut down, SwiftCode writes `authorization` rows (§6.4): the agent
+  gets 101/203 for every shareable type. SwiftCode adds the agent's
   `logical_sources`/`sources` rows if healthd has not made them yet
   (otherwise the agent requests once and the rows are updated — open
   question 3).
-- **H-6** `ycode-sim health grant <bundle id> [all|<types…>] [--read-only]`
+- **H-6** `swiftcode-sim health grant <bundle id> [all|<types…>] [--read-only]`
   and `revoke`, for the developer's own app, so tests need no sheet:
   shareable types 101/203, read-only types 103/202, revoke 104. Device
   must be shut down (the command says so and queues the change for the
@@ -506,12 +506,12 @@ Requirement ids **H-n**.
 
 ### 8.3 Command line and file import
 
-- **H-7** `ycode-sim health …` (the launcher passes words to ycode-simd's
+- **H-7** `swiftcode-sim health …` (the launcher passes words to swiftcode-simd's
   control socket, as `--ui`/`--location` do):
 
   | Command | Effect |
   |---|---|
-  | `health status` | agent state, grants of the agent, sample counts per type written by Ycode |
+  | `health status` | agent state, grants of the agent, sample counts per type written by SwiftCode |
   | `health scenario <name> [--date YYYY-MM-DD] [--days N] [--seed S]` | writes a scenario through the agent |
   | `health import <file.json\|file.csv>` | writes the file's samples |
   | `health stream heart-rate --bpm 80..150 [--every 5s] [--for 10m]` | live writes (§8.5) |
@@ -520,7 +520,7 @@ Requirement ids **H-n**.
   | `health grant / revoke` | §8.2 |
   | `health clear [--all]` | deletes the agent's samples (public delete API); `--all` erases the store while shut down |
 
-- **H-8** Scenarios (Ycode's own, deterministic for a seed; all values
+- **H-8** Scenarios (SwiftCode's own, deterministic for a seed; all values
   plausible and synthetic):
 
   | Name | Content |
@@ -548,22 +548,22 @@ Requirement ids **H-n**.
 
 ### 8.4 IDE
 
-- **H-10** Device Hub ▸ device ▸ Settings gets a **Health** section (Ycode
+- **H-10** Device Hub ▸ device ▸ Settings gets a **Health** section (SwiftCode
   only; the reference has none): scenario picker with date, "Import
   file…", "Grant <app> access", "Stream heart rate" with a bpm range
   while running, "Seed read-only data…" (enabled only when the device is
-  shut down), and a counter of Ycode-written samples. It drives the same
-  commands as H-7. Ycode's own words and icons.
+  shut down), and a counter of SwiftCode-written samples. It drives the same
+  commands as H-7. SwiftCode's own words and icons.
 
 ### 8.5 Live data during workouts
 
-- **H-11** Parity: nothing to do. Apple's fake collector runs in Ycode's
+- **H-11** Parity: nothing to do. Apple's fake collector runs in SwiftCode's
   watch guest unchanged and must produce §4.2's data when an app starts a
   session (a conformance test, §9 HEALTH-4).
 - **H-12** Developer-chosen live values (`health stream`, opt-in): the
   agent writes HR (and optionally SpO₂, energy) samples at the given
   cadence. Because a live builder ignores other sources (§4.3), the app's
-  queries see them but its builder does not. Ycode decision: offer a
+  queries see them but its builder does not. SwiftCode decision: offer a
   launch option `--health-live-source` that stages a small library into
   the app (the mechanism of `simulator-features.md` §I.6) which, when the
   app creates an `HKLiveWorkoutDataSource`, adds the agent's source to the
@@ -574,7 +574,7 @@ Requirement ids **H-n**.
 
 ### 8.6 Read-only types
 
-- **H-13** `health seed` (device shut down): Ycode writes rows into the
+- **H-13** `health seed` (device shut down): SwiftCode writes rows into the
   store per §6.2–6.5 for the read-only types (and any other type) with a
   **local provenance of the device's own system source** (creating the
   `data_provenances` row if absent: sync_provenance 0, the device's
@@ -583,7 +583,7 @@ Requirement ids **H-n**.
   `data_id`. Stored classification values from §6.5's table for ECGs.
 - **H-14** ECG waveforms: **documented gap**. Seeded ECGs have
   classification, average HR, symptoms and dates but no voltage
-  measurements. Ycode says so in the command's help and in the IDE.
+  measurements. SwiftCode says so in the command's help and in the IDE.
 - **H-15** Live insertion of read-only types into a running device is not
   offered (healthd owns the files). Documented gap; the open HealthKit
   target (`specs/frameworks/healthkit/design.md` §10) can lift it later.
@@ -593,16 +593,16 @@ Requirement ids **H-n**.
 - **H-16** Nothing new: health sync rides the IDS relay of
   `device-pairing.md` (P-6/P-7). The relay must carry OOL regions of at
   least 90 KB (§5.1) and must not add delay.
-- **H-17** Ycode's commands write on the device the user names (watch by
+- **H-17** SwiftCode's commands write on the device the user names (watch by
   default). Samples written on the watch reach the phone only when the
-  phone asks (§5.3), so after a watch import Ycode prints that the phone
+  phone asks (§5.3), so after a watch import SwiftCode prints that the phone
   will show them once a phone app comes to the foreground, and `health
   import --open <bundle id>` launches that phone app to trigger the pull.
   Seeded rows sync if their local provenance behaves as on a real watch
   (open question 2); until that is answered, `health seed --both` seeds
   both stores.
 
-### 8.8 Ycode must not
+### 8.8 SwiftCode must not
 
 - invent background launches (the reference never wakes apps, §7);
 - make the read-only types writable through the API;
@@ -618,10 +618,10 @@ Xcode either.
 
 | Round | Name | Work | Depends on | Done when |
 |---|---|---|---|---|
-| HEALTH-1 | **HEALTH-AGENT** | H-1…H-4, H-5 (agent grants), the host channel, `health status`, `health import` (JSON + CSV, validation of §3.3) | the settings-agent infrastructure; a booting watch and phone guest | under Ycode, `health import` of a 100-sample file shows the samples in a probe app on the watch and on the phone (after the phone app is opened); a read-only type in the file is refused with a clear message |
+| HEALTH-1 | **HEALTH-AGENT** | H-1…H-4, H-5 (agent grants), the host channel, `health status`, `health import` (JSON + CSV, validation of §3.3) | the settings-agent infrastructure; a booting watch and phone guest | under SwiftCode, `health import` of a 100-sample file shows the samples in a probe app on the watch and on the phone (after the phone app is opened); a read-only type in the file is refused with a clear message |
 | HEALTH-2 | **HEALTH-SCENARIOS** | H-7 scenarios of H-8 (writable ones), `health stream`/`stop`, `health clear`, H-6 grant/revoke for any app | HEALTH-1 | each scenario produces the documented sample counts and statistics in a probe app (golden numbers kept in the round's tests); a probe app granted by H-6 reads without a sheet |
 | HEALTH-3 | **HEALTH-SEED** | H-13, H-14, H-15: shut-down seeding, the read-only scenarios, ECG classifications | HEALTH-1 | after `health seed` and boot, a probe app reads AFib burden, sleep apnea events, breathing disturbances and ECGs (classification per §6.5) under the watch's source; the gap message is shown for ECG waveforms |
-| HEALTH-4 | **HEALTH-LIVE** | H-11 conformance (Apple's generator under Ycode: §4.2's cadences and ranges), H-12 opt-in live source | HEALTH-1, the watch app run destination (`watchos.md` W6) | a probe workout on Ycode's watch shows 2.56 s / 5 s samples with `HKFakedData`; with `--health-live-source` the builder's HR follows `health stream` |
+| HEALTH-4 | **HEALTH-LIVE** | H-11 conformance (Apple's generator under SwiftCode: §4.2's cadences and ranges), H-12 opt-in live source | HEALTH-1, the watch app run destination (`watchos.md` W6) | a probe workout on SwiftCode's watch shows 2.56 s / 5 s samples with `HKFakedData`; with `--health-live-source` the builder's HR follows `health stream` |
 | HEALTH-5 | **HEALTH-IDE** | H-10 Device Hub section; H-17 hints | HEALTH-2 (HEALTH-3 for the seed button) | the IDE drives every command of H-7 and shows counts |
 
 ## 10. Open questions
@@ -631,7 +631,7 @@ Xcode either.
 2. Do seeded rows with a local provenance (`sync_provenance` 0) of the
    device's own system source sync to the paired device? (Rows with a
    provenance that had come from the peer did not.)
-3. Does healthd accept `sources`/`logical_sources` rows that Ycode creates
+3. Does healthd accept `sources`/`logical_sources` rows that SwiftCode creates
    before the app has ever connected, or must the app request once first?
    (This round only edited rows healthd had made.)
 4. What switches the fake collector on and off, and can its values be
@@ -645,24 +645,24 @@ Xcode either.
 8. Whether `health.sync.classc` backlogs larger than 90 KB occur (a long
    seeded history) and how the relay should size its buffers.
 9. On the watch, does a watch app's authorization request write its own
-   `authorization` rows before the card is answered (on Ycode only the rows
-   synced from the phone existed, and the card still showed after Ycode
+   `authorization` rows before the card is answered (on SwiftCode only the rows
+   synced from the phone existed, and the card still showed after SwiftCode
    answered them)? Which rows decide a watch app's grant?
    **Answered (§12.1)**: yes, at once (status 100, request 203/202, on a
    local source of the companion's bundle id); the watch's local rows
    decide; answering them offline removes the card.
-10. The ECG voltage payload format (as 5): with it Ycode could seed
+10. The ECG voltage payload format (as 5): with it SwiftCode could seed
     waveforms from the note's §6 parameters.
 11. What makes the phone's healthd pull the watch's at-rest samples when a
-    phone app comes to the foreground (§5.3)? On Ycode the pull did not come
+    phone app comes to the foreground (§5.3)? On SwiftCode the pull did not come
     within 230 s (§11.7), while sync at connection and after workouts works:
-    is the trigger a foreground-app notification Ycode's guest does not post
+    is the trigger a foreground-app notification SwiftCode's guest does not post
     (FrontBoard/RunningBoard state), or a condition on the app?
     **Answered (§12.2)**: healthd's own process-state monitor; a phone app
     that has run a query entering the foreground makes healthd send a pull
     request (id 2) to the watch, which answers with its changes.
 
-## 11. Ycode implementation (agent HEALTH-SIM, 2026-10-30)
+## 11. SwiftCode implementation (agent HEALTH-SIM, 2026-10-30)
 
 Clean-room: written from §1–§10 of this spec, `specs/frameworks/healthkit/`
 (type table, units, enumerations, errors), `simulator-features.md` §I (the
@@ -670,7 +670,7 @@ host channel and guest agents), `device-pairing.md` (the relay), the cleared
 structural note `research/notes/health-probe-structure.md` (§3–§5, §9 norms,
 §10 live-workout cadences) and Apple's public HealthKit headers and
 documentation. No Apple binary, simulator or Xcode was read or run. Every
-value Ycode writes is synthetic and comes from published population norms.
+value SwiftCode writes is synthetic and comes from published population norms.
 
 ### 11.1 Rounds
 
@@ -684,30 +684,30 @@ value Ycode writes is synthetic and comes from published population norms.
 
 ### 11.2 The agent (H-1…H-4)
 
-- `ycode/SimGuestAgents/health/ycode-health-agent.m` (Objective-C, public
+- `swiftcode/SimGuestAgents/health/swiftcode-health-agent.m` (Objective-C, public
   HealthKit only), built by `SimGuestAgents/build-health.sh` as
-  `out/YcodeHealth.app` (iOS simulator) and `out/watchos/YcodeHealth.app`
-  (watchOS simulator): bundle id `dev.ycode.health`, display name "Ycode
+  `out/SwiftCodeHealth.app` (iOS simulator) and `out/watchos/SwiftCodeHealth.app`
+  (watchOS simulator): bundle id `dev.swiftcode.health`, display name "SwiftCode
   Health", `SBAppTags` hidden, both usage strings, and in
-  `__TEXT,__entitlements` `application-identifier` = `dev.ycode.health` and
+  `__TEXT,__entitlements` `application-identifier` = `dev.swiftcode.health` and
   `com.apple.developer.healthkit`.
-- `ycode-simd` (`HealthAgentStaging.swift`) copies the bundle to
-  `DEV/data/Library/Ycode/YcodeHealth.app` at every cold boot and runs its
+- `swiftcode-simd` (`HealthAgentStaging.swift`) copies the bundle to
+  `DEV/data/Library/SwiftCode/SwiftCodeHealth.app` at every cold boot and runs its
   executable as a launchd daemon from
-  `DEV/data/Library/LaunchDaemons/dev.ycode.simulator.health.plist`
+  `DEV/data/Library/LaunchDaemons/dev.swiftcode.simulator.health.plist`
   (`RootedSimulatorPath`, `RunAtLoad`, `KeepAlive`, `ProcessType`
-  Interactive; stderr in `DEV/data/tmp/ycode-health-agent.log`), on iOS and
+  Interactive; stderr in `DEV/data/tmp/swiftcode-health-agent.log`), on iOS and
   watchOS runtimes (visionOS: none). Option `--health-agent <app>|none`;
-  default `YcodeHealth.app` in the guest tools.
-- **Open question 1, answered on Ycode:** a launchd daemon whose executable
+  default `SwiftCodeHealth.app` in the guest tools.
+- **Open question 1, answered on SwiftCode:** a launchd daemon whose executable
   is inside an app bundle with those entitlements *is* a HealthKit client
-  with its own source: `HKSource.defaultSource` is "Ycode Health" /
-  `dev.ycode.health`; the store's `sources` row is named `YcodeHealth` (the
+  with its own source: `HKSource.defaultSource` is "SwiftCode Health" /
+  `dev.swiftcode.health`; the store's `sources` row is named `SwiftCodeHealth` (the
   name apps see on its samples). The bundle is not installed through
   installd; nothing else was needed. Without the usage strings the share
-  request raises `NSInvalidArgumentException` (seen on Ycode).
-- Channel (`YcodeSimFeatures/HealthChannel.swift`): the guest path
-  `/private/var/run/dev.ycode.health`, served by the VMM
+  request raises `NSInvalidArgumentException` (seen on SwiftCode).
+- Channel (`SwiftCodeSimFeatures/HealthChannel.swift`): the guest path
+  `/private/var/run/dev.swiftcode.health`, served by the VMM
   (`HostStreamSockets.serve`), the settings channel's framing (4-byte length,
   XML plist dictionary) with frames up to 16 MiB; dates are seconds since
   1970 as numbers (an XML plist date keeps whole seconds only). Requests
@@ -715,7 +715,7 @@ value Ycode writes is synthetic and comes from published population norms.
   200), `workout` (`HKWorkoutBuilder`, then `HKWorkoutRouteBuilder`),
   `delete` (`deleteObjectsOfType:predicate:` with the agent's own source),
   `count`, `status`, `ping`; the event `hello`. Every sample carries the
-  metadata key `YcodeSynthetic` = 1. The host answers on the control socket
+  metadata key `SwiftCodeSynthetic` = 1. The host answers on the control socket
   (`HealthHost.swift`).
 - After each hello the host asks the agent to request share and read access
   for every writable type (`HealthTypes.agentShareTypes`, 170 types on the
@@ -726,44 +726,44 @@ value Ycode writes is synthetic and comes from published population norms.
 
 ### 11.3 Grants (H-5, H-6)
 
-- **Ycode decision:** Ycode never creates `sources` or `authorization` rows
+- **SwiftCode decision:** SwiftCode never creates `sources` or `authorization` rows
   (open question 3 stays open); it only answers rows healthd made for a
   request, as a person tapping Allow would: request 203 → status 101,
   request 202 → status 103; `revoke` → 104 for every row of the bundle id
   (§6.4). Rows of types never asked for are untouched, so the app's own
-  request still decides what it has. `YcodeHealthStore/HealthStore.swift`
+  request still decides what it has. `SwiftCodeHealthStore/HealthStore.swift`
   (system SQLite) does it with the documented columns only (`status`,
   `request`, `date_modified`), in one transaction, after copying the store's
-  `healthdb*` files (with their WAL files) to `DEV/ycode-health-backups/`
+  `healthdb*` files (with their WAL files) to `DEV/swiftcode-health-backups/`
   (the newest 5 kept).
 - When: at every **cold boot**, before any guest process starts
   (`stageHealthAgent`; never at a snapshot restore, whose healthd has the
   store open), for the agent (when it has rows still waiting) and for the
-  queue `DEV/ycode-pending-health.txt`; and at once from
-  `ycode-simd --device DEV --health grant|revoke <bundle id>` when the device
+  queue `DEV/swiftcode-pending-health.txt`; and at once from
+  `swiftcode-simd --device DEV --health grant|revoke <bundle id>` when the device
   is shut down. On a running device the command queues the change and says
   so. A grant for an app without rows stays queued until the app has asked
   (run it once; the sheet or the watch card opens).
 - So a new device needs two boots before the agent writes: the first records
   its request, the second starts granted. Verified (Thor runs r1 → r2): 170
   of 170 rows 101 on both devices at the second boot.
-- Developer apps: `health grant dev.ycode.healthcheck` on the shut-down phone
+- Developer apps: `health grant dev.swiftcode.healthcheck` on the shut-down phone
   answered its 17 read requests (17 rows → 103); at the next boot the app's
   read completed at once (`auth requested ok=true`, no sheet) and its
   queries returned data. Grants made on the phone reached the watch's store
   by sync (the watch's rows of the same bundle id were already 103).
 - *Superseded by §12.3 (the test app's signature was the cause).*
   **Limit (watch apps):** the watch app's own request on the watch showed the
-  Health Access card and left no rows of its own for Ycode to answer (only
+  Health Access card and left no rows of its own for SwiftCode to answer (only
   the 17 synced from the phone); the card stayed after the grant. A watch
-  app's grant therefore still needs the card (Review → allow) on Ycode. Open
+  app's grant therefore still needs the card (Review → allow) on SwiftCode. Open
   question 9.
 
 ### 11.4 Commands (H-7)
 
-`ycode-simd --device DEV --health <words>` (and the launcher's
-`ycode-sim --device DEV --health …`, no boot slot), parsed by
-`YcodeSimFeatures/HealthCommand.swift`:
+`swiftcode-simd --device DEV --health <words>` (and the launcher's
+`swiftcode-sim --device DEV --health …`, no boot slot), parsed by
+`SwiftCodeSimFeatures/HealthCommand.swift`:
 
 | Command | Device | Effect |
 |---|---|---|
@@ -788,14 +788,14 @@ needs the other device state.
   `sleep`). Category values: integers or enumeration case names (`AsleepCore`,
   `core`). Checks per sample (`HealthValidation`): known type; read-only
   types refused with "… is read-only for apps … seed it into a shut-down
-  device instead: ycode-sim --device DEV --health seed <file> (HEALTH-3)";
+  device instead: swiftcode-sim --device DEV --health seed <file> (HEALTH-3)";
   unit parses (units.md §2, `HealthUnits.swift`) and is of the type's
   dimension (identifiers.md); percentages as fractions; cumulative values
   not negative; category value allowed; end not before start; maximum
   durations (identifiers.md), the audio-exposure minimum 0.001 s and the
   required metadata of §3.3 (insulin delivery reason; menstrual flow's
   cycle start). Errors name the line or entry. Sample files:
-  `ycode/Samples/HealthSamples/` (`hundred-samples.json`, `mixed.csv`,
+  `swiftcode/Samples/HealthSamples/` (`hundred-samples.json`, `mixed.csv`,
   `read-only.csv`).
 - **Scenarios** (`HealthScenarios.swift`; SplitMix64, deterministic for a
   seed; a per-seed profile inside the norms of the note's §9):
@@ -812,7 +812,7 @@ needs the other device state.
 
 ### 11.6 Seeding (H-13…H-15)
 
-`YcodeHealthStore/HealthSeed.swift`, in one transaction after a backup: per
+`SwiftCodeHealthStore/HealthSeed.swift`, in one transaction after a backup: per
 sample one row in `objects` (fresh UUID, `type` 1, the provenance),
 `samples` (dates since 2001, the §6.3 type code) and the kind table
 (`quantity_samples.quantity` in the store unit of §3.1, `category_samples`,
@@ -831,7 +831,7 @@ read-only.csv` on the shut-down phone and `seed scenario sleep-apnea --days
 breathing disturbances (31), sleep apnea events (7), the irregular-rhythm
 event (1) and three ECGs (classification 1/2/1, average 66–92 bpm,
 `numberOfVoltageMeasurements` 0) through `HKSampleQuery`. **Open question 2,
-answered on Ycode:** the 36 rows seeded on the watch (local provenance of
+answered on SwiftCode:** the 36 rows seeded on the watch (local provenance of
 its system source) reached the phone by sync and show there with device
 model Watch and the watch's device name as source.
 
@@ -853,7 +853,7 @@ model Watch and the watch's device name as source.
   received 53 requests from the watch, the largest **91 913 bytes** (one
   frame, one-way median 1.5 ms, none failed).
 - *Superseded by §12.3 (the test app's signature was the cause; the pull
-  works).* **Finding (Ycode):** watch samples written at rest, with no workout, did
+  works).* **Finding (SwiftCode):** watch samples written at rest, with no workout, did
   not reach the phone when a phone app came to the foreground (runs r4–r6:
   HealthCheck sent to the background by Settings and opened again, then
   watched for 230 s; §5.3 has 3.5 s on the reference). They arrived at the
@@ -864,7 +864,7 @@ model Watch and the watch's device name as source.
 
 ### 11.8 Verification (Thor, iPhone 18 Pro iOS 27.0 + Apple Watch Series 12 46 mm watchOS 27.0, paired)
 
-Ycode's reader app `SimGuestAgents/healthcheck/HealthCheck.swift` (iOS app
+SwiftCode's reader app `SimGuestAgents/healthcheck/HealthCheck.swift` (iOS app
 with its watch app embedded; read access to 17 types; one
 `HKObserverQuery` per type, an `HKSampleQuery` per observer call; it logs
 counts, sources and device models). Runs `ide-remote/health-sim/runs/r1`–`r5`:
@@ -874,7 +874,7 @@ counts, sources and device models). Runs `ide-remote/health-sim/runs/r1`–`r5`:
 | import (100 samples, JSON) on the watch | 100 of 100 in 65–71 ms |
 | import of read-only types | refused, one line per sample, pointing to `health seed` |
 | scenarios on the phone | resting-day 685 in 391–512 ms, night-sleep 199, spo2-dips 145, step-day 78, workout 1 + 3 172 in 2.2–3.2 s |
-| HealthCheck on the phone | every written type read with the agent's source ("YcodeHealth"), metadata `YcodeSynthetic` on all |
+| HealthCheck on the phone | every written type read with the agent's source ("SwiftCodeHealth"), metadata `SwiftCodeSynthetic` on all |
 | observer while the app runs | `stream heart-rate --every 5s --for 30s`: one observer call and one more sample per write (791 → 797); a workout written while the app ran: anchored growth in steps of 50 |
 | user app granted by `health grant` | no sheet at the next boot; reads |
 | watch → phone | §11.7: after a workout and at the pair's boot; not on app foreground (finding) |
@@ -889,19 +889,19 @@ Screenshots (outside the repository): `.claude/worktrees/health-sim-phone-readon
 
 ### 11.9 Not done
 
-- HEALTH-4 (H-11 conformance of Apple's fake collector under Ycode, H-12
+- HEALTH-4 (H-11 conformance of Apple's fake collector under SwiftCode, H-12
   `--health-live-source`), HEALTH-5 (Device Hub section).
 - `health import --open` only prints the phone command (the watch's
-  ycode-simd cannot launch apps on the phone); `health seed --both` is not
+  swiftcode-simd cannot launch apps on the phone); `health seed --both` is not
   offered (seeded watch rows sync by themselves, §11.6).
 - Watch-app grants without the card (§11.3).
 
 ## 12. Dirty-room answers to open questions 9 and 11 (agent OBS-WATCH3, 2026-10-31)
 
-Reference: Xcode 27.1; throwaway `ycode-test-phone3-a` (iPhone 18 Pro, iOS
-27.0) paired with `ycode-test-watch3-a` (Series 12 46 mm, watchOS 27.0),
-deleted at the end. Our HealthSim probe (watch app `dev.ycode.hs.watchkitapp`,
-companion `dev.ycode.hs`; a copy `dev.ycode.hs3` for a fresh identity), the
+Reference: Xcode 27.1; throwaway `swiftcode-test-phone3-a` (iPhone 18 Pro, iOS
+27.0) paired with `swiftcode-test-watch3-a` (Series 12 46 mm, watchOS 27.0),
+deleted at the end. Our HealthSim probe (watch app `dev.swiftcode.hs.watchkitapp`,
+companion `dev.swiftcode.hs`; a copy `dev.swiftcode.hs3` for a fresh identity), the
 stores read from copies with `sqlite3`, guest logs at debug level. The
 watch's Health Access card was answered with our own Indigo taps after
 dtuhidd was kept from starting in that test watch (`watchos.md` §5.2); no
@@ -944,15 +944,15 @@ GUI. Notes: `research/notes/obs-watch3-2026-10-31.md`. Level 3.
 - The watch's local grant had not reached the phone 2 min later (it
   travels with the next pull, §12.2).
 
-**What Ycode must do** (H-5, H-6 refined):
+**What SwiftCode must do** (H-5, H-6 refined):
 
-- Ycode's `grant` is right as designed: answer the rows healthd wrote
+- SwiftCode's `grant` is right as designed: answer the rows healthd wrote
   (203 → 101, 202 → 103) on a shut-down device; for a watch app answer the
   **watch's local** rows (provenance 0, the companion's bundle id), never
   only the synced ones.
-- Ycode's §11.3 limit (no local rows after the watch app's request) is
+- SwiftCode's §11.3 limit (no local rows after the watch app's request) is
   **not** reference behavior: the reference writes them at the request.
-  Compare the watch's healthd log under Ycode with the three lines above;
+  Compare the watch's healthd log under SwiftCode with the three lines above;
   the request reaches healthd, and healthd looks up the watch app and then
   its companion through LaunchServices (the companion is not installed on
   the watch: "failed to find bundle record", then a companion-bundle
@@ -987,12 +987,12 @@ GUI. Notes: `research/notes/obs-watch3-2026-10-31.md`. Level 3.
   ForegroundRunning). Sent to the background (ForegroundRunning →
   BackgroundRunning → BackgroundTaskSuspended) the app causes nothing.
 
-**What Ycode must do** (H-16, H-17 refined):
+**What SwiftCode must do** (H-16, H-17 refined):
 
-- Nothing to invent: healthd does all of it. Ycode's guest must deliver
+- Nothing to invent: healthd does all of it. SwiftCode's guest must deliver
   application-state changes to healthd's monitor as the reference does
   (the application state that RunningBoard and FrontBoard keep for every
-  app; `app-launch.md`). The check, in order, on Ycode's phone: the
+  app; `app-launch.md`). The check, in order, on SwiftCode's phone: the
   registration line when the app's query starts; the "state changed …
   ForegroundRunning" line when it returns; the "client process entered
   foreground" pull; an outgoing request id 2 of about 830 B; on the watch
@@ -1002,15 +1002,15 @@ GUI. Notes: `research/notes/obs-watch3-2026-10-31.md`. Level 3.
   boot); `health import --open` should open a phone app **that runs a
   query** (HealthCheck does).
 
-### 12.3 Ycode implementation (agent WATCH-W7, 2026-10-31)
+### 12.3 SwiftCode implementation (agent WATCH-W7, 2026-10-31)
 
-Clean-room check of §12.1 and §12.2 on Ycode's own simulator (arm64 Linux
+Clean-room check of §12.1 and §12.2 on SwiftCode's own simulator (arm64 Linux
 host; iPhone 18 Pro on iOS 27.0 paired with an Apple Watch Ultra 4 49 mm
 on watchOS 27.0; runs b1–b3; guest `log stream --level debug` of healthd
 and the apps; the stores read from copies with SQLite). No Apple simulator,
 Xcode or reference tool was run or opened.
 
-**The cause of both §11 limits was Ycode's test app, not the simulator.**
+**The cause of both §11 limits was SwiftCode's test app, not the simulator.**
 `SimGuestAgents/build-health.sh` linked HealthCheck with the linker's own
 ad-hoc signature, whose identifier is the file name ("HealthCheck",
 "HealthCheckWatch"), not the bundle id that a real build's signature
@@ -1019,41 +1019,41 @@ carries. healthd keys a client by that identifier:
 - **§12.1 (run b1, before):** the watch's healthd looked up an app record
   for "HealthCheckWatch", then enqueued the request for the watch app's
   own id: "Enqueuing authorization request for
-  dev.ycode.healthcheck.watchkitapp", "prompting for authorization"; no
+  dev.swiftcode.healthcheck.watchkitapp", "prompting for authorization"; no
   companion lookup. Its rows went to a local source of the watch app's id
   (status 100, request 202), not of the companion, so `health grant
-  dev.ycode.healthcheck` found only the synced rows (§11.3's limit).
+  dev.swiftcode.healthcheck` found only the synced rows (§11.3's limit).
 - **§12.2 (run b1, before):** the phone's healthd logged "Registering
   observer … for process state changes for **HealthCheck**" and never a
   state change for it (no application has that bundle id); system apps'
   state changes were delivered ("Process
   com.apple.Health.HealthBalanceWidgetExtension (350) state changed
   BKSApplicationStateUnknown -> BKSApplicationStateBackgroundRunning …"),
-  so Ycode's guest delivers application state to healthd's monitor
+  so SwiftCode's guest delivers application state to healthd's monitor
   already. No pull followed (§11.7's finding).
 
 **Fix** (test apps only): `build-health.sh` and `build-wcprobe.sh` now sign
 each app bundle ad hoc with `codesign --sign - --entitlements …`, the inner
 watch app first, so the signature's identifier is the bundle id (the
 entitlements stay in `__TEXT,__entitlements` too). Apps built by Xcode,
-`xcodebuild` or Ycode's build engines are signed that way already. No
-change to `ycode-simd` or the guest was needed for §12.1 and §12.2.
+`xcodebuild` or SwiftCode's build engines are signed that way already. No
+change to `swiftcode-simd` or the guest was needed for §12.1 and §12.2.
 
-**§12.1 under Ycode after the fix (runs b2, b3):**
+**§12.1 under SwiftCode after the fix (runs b2, b3):**
 
 | Check | Result |
 |---|---|
-| watch healthd on the watch app's request | "Enqueuing authorization request for **dev.ycode.healthcheck**", "Added authorization request … to group for dev.ycode.healthcheck", "prompting for authorization for "dev.ycode.healthcheck""; the card shown (`watch-w7-health-watch-card-before-grant.png`). §12.1's "Marking health as in use …" line was not printed at the levels streamed |
+| watch healthd on the watch app's request | "Enqueuing authorization request for **dev.swiftcode.healthcheck**", "Added authorization request … to group for dev.swiftcode.healthcheck", "prompting for authorization for "dev.swiftcode.healthcheck""; the card shown (`watch-w7-health-watch-card-before-grant.png`). §12.1's "Marking health as in use …" line was not printed at the levels streamed |
 | the watch's rows | a new **local source of the companion** (provenance 0, `local_device` 0) with 17 rows status 100, request 202, beside the synced source of the same id (provenance 1) — as §12.1 |
-| `ycode-simd --device watch --health grant dev.ycode.healthcheck` (shut down) | "34 types: 0 share and read, 34 read only" (both sources' 17 rows → 103) |
+| `swiftcode-simd --device watch --health grant dev.swiftcode.healthcheck` (shut down) | "34 types: 0 share and read, 34 read only" (both sources' 17 rows → 103) |
 | next boot, the watch app opened | **no card**; the app read its types at once (`watch-w7-health-watch-granted-no-card.png`) |
 
-Ycode decision: `health grant` / `revoke` given a **watch app's** id map it
+SwiftCode decision: `health grant` / `revoke` given a **watch app's** id map it
 to its companion's (`WKCompanionAppBundleIdentifier` of the app installed on
-that device, `YcodeHealthStore/HealthWatchApps.swift`), with a note; a
+that device, `SwiftCodeHealthStore/HealthWatchApps.swift`), with a note; a
 watch-only app keeps its own id. Test `HealthWatchAppTests`.
 
-**§12.2 under Ycode after the fix (run b3):** 100 samples written on the
+**§12.2 under SwiftCode after the fix (run b3):** 100 samples written on the
 watch at rest (`health watch import`), 30 s later HealthCheck opened on the
 phone (its first foreground in that boot). §12.2's lines, in order, with
 the phone's and the watch's clocks:
@@ -1061,8 +1061,8 @@ the phone's and the watch's clocks:
 | Time | Device | Line |
 |---|---|---|
 | 06:49:42.900 | phone | HealthCheck starts (its log) |
-| 06:49:43.162 | phone | "Registering observer <HDQueryManager …> for process state changes for dev.ycode.healthcheck" |
-| 06:49:43.198 | phone | "Process dev.ycode.healthcheck (406) state changed BKSApplicationStateUnknown -> BKSApplicationStateForegroundRunning: … foreground 0 -> 1" |
+| 06:49:43.162 | phone | "Registering observer <HDQueryManager …> for process state changes for dev.swiftcode.healthcheck" |
+| 06:49:43.198 | phone | "Process dev.swiftcode.healthcheck (406) state changed BKSApplicationStateUnknown -> BKSApplicationStateForegroundRunning: … foreground 0 -> 1" |
 | 06:49:43.203 | phone | "syncing immediately with reason "client process entered foreground" options:'pull request'" |
 | 06:49:43.355 | phone | "health.sync.classc" outgoing request messageID:2, a "Changes" request with status Finished and no changes |
 | 06:49:43.581 | watch | "syncing immediately with reason "Remote requested sync" options:'requested by remote'" |
@@ -1077,7 +1077,7 @@ written on the watch, then HealthCheck opened again: the pull at
 on the phone at 06:50:41.738, **2.1 s** after the return (reference ≤ 5.3
 s). Screenshot `watch-w7-health-phone-pulled-watch-samples.png`.
 
-So §11.3's "Limit (watch apps)" and §11.7's "Finding (Ycode)" no longer
+So §11.3's "Limit (watch apps)" and §11.7's "Finding (SwiftCode)" no longer
 hold for correctly signed apps; the `health import` reply on a watch now
 says that a phone app running HealthKit queries pulls the samples when it
 comes to the foreground.
@@ -1109,13 +1109,13 @@ comes to the foreground.
 | Authorization encoding (§6.4) | 3 | rows written while shut down, public API read back |
 | Offline seeding, ECG mapping, payload gap (§6.5) | 3 | rows inserted while shut down, public API read back |
 | Observer timing, suspension, background delivery clamp and no launches (§7) | 3 | probe `observe`, healthd log |
-| Everything in §8–§9 | design | Ycode-original |
-| Ycode implementation (§11): agent, channel, commands, import, scenarios, grants, seeding | 1 | §1–§10; `specs/frameworks/healthkit/`; Apple's public HealthKit headers (HKHealthStore, HKWorkoutBuilder, HKWorkoutRouteBuilder, HKQuery predicates); SQLite's public C API; population norms of the cleared note's §9 |
-| A daemon in an app bundle is a HealthKit client with its own source; the request's code 100 and the rows it writes (§11.2–11.3) | 3 | Ycode runs e1–e3 and r1–r2 on the Thor: the agent's log, `HKSource.defaultSource`, `authorization` rows (documented columns) of the Ycode-booted device (no reference observed) |
-| Grants answered offline honoured; read-only seeding read back; watch-seeded rows sync to the phone; watch → phone sync after a workout; observer per write (§11.3–11.8) | 3 | Ycode runs r2–r5: HealthCheck's log and screenshots, `health status` (no reference observed) |
+| Everything in §8–§9 | design | @@SWIFTCODE_ORIGINAL@@ |
+| SwiftCode implementation (§11): agent, channel, commands, import, scenarios, grants, seeding | 1 | §1–§10; `specs/frameworks/healthkit/`; Apple's public HealthKit headers (HKHealthStore, HKWorkoutBuilder, HKWorkoutRouteBuilder, HKQuery predicates); SQLite's public C API; population norms of the cleared note's §9 |
+| A daemon in an app bundle is a HealthKit client with its own source; the request's code 100 and the rows it writes (§11.2–11.3) | 3 | SwiftCode runs e1–e3 and r1–r2 on the Thor: the agent's log, `HKSource.defaultSource`, `authorization` rows (documented columns) of the SwiftCode-booted device (no reference observed) |
+| Grants answered offline honoured; read-only seeding read back; watch-seeded rows sync to the phone; watch → phone sync after a workout; observer per write (§11.3–11.8) | 3 | SwiftCode runs r2–r5: HealthCheck's log and screenshots, `health status` (no reference observed) |
 | Relay carries health-sync-sized messages (§11.7) | 1 | `PairingTransportRelayTests` |
 | A watch app's request writes local rows at once; local rows decide; what Done and ✕ write; offline answers honoured without the card; no non-GUI grant (§12.1) | 3 | HealthSim (and the `hs3` copy) on a paired test phone and watch; copies of both `healthdb.sqlite` read with `sqlite3` before and after each step; our Indigo taps on the card; healthd and Carousel logs; `simctl privacy` and `devicectl` help |
 | The pull's trigger, the process-state lines, the request and the watch's answer, times; the negatives (§12.2) | 3 | HealthSim writing on the watch, apps brought to the phone's foreground with `simctl launch`; copies of the phone's `healthdb_secure.sqlite` counted by sync provenance every 1–5 s; both healthd logs at debug level |
-| Requirements from §12 | — | Ycode decisions from the above |
-| Ycode runs b1–b3: the signing identifier as healthd's client key, the companion's local rows, the grant without the card, the pull sequence and times (§12.3) | 3 | Ycode's own simulator on the arm64 Linux host: guest `log stream --level debug` of healthd and the apps, copies of `healthdb.sqlite` read with SQLite, HealthCheck's log, `--control screenshot`; `codesign -d` of our own test apps |
-| `health grant` of a watch app's id → its companion (§12.3) | — | Ycode decision; `HealthWatchAppTests` |
+| Requirements from §12 | — | SwiftCode decisions from the above |
+| SwiftCode runs b1–b3: the signing identifier as healthd's client key, the companion's local rows, the grant without the card, the pull sequence and times (§12.3) | 3 | SwiftCode's own simulator on the arm64 Linux host: guest `log stream --level debug` of healthd and the apps, copies of `healthdb.sqlite` read with SQLite, HealthCheck's log, `--control screenshot`; `codesign -d` of our own test apps |
+| `health grant` of a watch app's id → its companion (§12.3) | — | SwiftCode decision; `HealthWatchAppTests` |

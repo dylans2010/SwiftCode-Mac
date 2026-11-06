@@ -5,9 +5,9 @@
 # Vendored third-party sources keep their authors' addresses and links.
 frameworks/swiftui/Sources/COVSDL/*
 frameworks/swiftui/Sources/CThorVG/*
-ycode/Sources/CVulkan/*
-ycode/Sources/CYcodeOpenXR/*
-ycode/Sources/CYcodeVideo/nvheaders/*
+swiftcode/Sources/CVulkan/*
+swiftcode/Sources/CSwiftCodeOpenXR/*
+swiftcode/Sources/CSwiftCodeVideo/nvheaders/*
 frameworks/swiftui/Sources/COVVulkan/*
 frameworks/swiftui/Sources/OVText/Resources/Fonts/*
 
@@ -19,9 +19,9 @@ THIRD_PARTY_NOTICES.md
 frameworks/weatherkit/Tests/WeatherKitTests/JWTTests.swift BEGIN PRIVATE KEY
 
 # Example router and interface addresses in test fixtures.
-ycode/Tests/YcodeCompletionTests/CompletionEngineTests.swift ^10\.0\.0\.2$
-ycode/Tests/YcodeDarwinKernelTests/NetworkingTests.swift ^10\.0\.0\.5$
-ycode/Tests/YcodeHostServicesTests/SCDynamicStoreHostServiceTests.swift ^10\.0\.0\.[15]$
+swiftcode/Tests/SwiftCodeCompletionTests/CompletionEngineTests.swift ^10\.0\.0\.2$
+swiftcode/Tests/SwiftCodeDarwinKernelTests/NetworkingTests.swift ^10\.0\.0\.5$
+swiftcode/Tests/SwiftCodeHostServicesTests/SCDynamicStoreHostServiceTests.swift ^10\.0\.0\.[15]$
 
 # Reserved-looking example domain in a network probe note.
 research/notes/obs-net-2026-10-27.md ^example\.edu$
@@ -30,13 +30,13 @@ research/notes/obs-net-2026-10-27.md ^example\.edu$
 # inside a device: facts of the format, not anyone's machine.
 research/* ^/Volumes/(iOS_[0-9A-Za-z]+|Data|Preboot)/$
 specs/* ^/Volumes/(iOS_[0-9A-Za-z]+|Data|Preboot)/$
-ycode/Tests/YcodeMachOTests/MachOTests.swift ^/Volumes/iOS_[0-9A-Za-z]+/$
-ycode/Tests/YcodeUITests/LaunchWelcomeR31Tests.swift ^/Volumes/(Data|External)/$
+swiftcode/Tests/SwiftCodeMachOTests/MachOTests.swift ^/Volumes/iOS_[0-9A-Za-z]+/$
+swiftcode/Tests/SwiftCodeUITests/LaunchWelcomeR31Tests.swift ^/Volumes/(Data|External)/$
 
 # A test whose expected DerivedData hash was observed for this exact path.
-ycode/Tests/YcodeXcodebuildTests/ArgumentTests.swift ^/Volumes/[^/]+/$
+swiftcode/Tests/SwiftCodeXcodebuildTests/ArgumentTests.swift ^/Volumes/[^/]+/$
 
 # simctl output fixtures (a mounted runtime disk image) and a made-up host in
 # the runtime wizard's tests.
-ycode/Tests/YcodeIDECoreTests/RuntimeSetupTests.swift iOS_24A434/
-ycode/Tests/YcodeIDECoreTests/RuntimeSetupTests.swift tester@sim-host
+swiftcode/Tests/SwiftCodeIDECoreTests/RuntimeSetupTests.swift iOS_24A434/
+swiftcode/Tests/SwiftCodeIDECoreTests/RuntimeSetupTests.swift tester@sim-host

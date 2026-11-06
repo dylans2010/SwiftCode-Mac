@@ -1,6 +1,6 @@
 # Spec: OpenStep ASCII property lists
 
-Status: **implemented** in `ycode/Sources/YcodePlist`.
+Status: **implemented** in `swiftcode/Sources/SwiftCodePlist`.
 
 This is the NeXTSTEP/OpenStep text serialization of property lists. Today it
 is used by `.pbxproj`, legacy `.strings` files, and some defaults domains.
@@ -9,7 +9,7 @@ is used by `.pbxproj`, legacy `.strings` files, and some defaults domains.
 
 There are four value types: string, array, dictionary (with string keys), and
 data. The format has no number, boolean, or date type. A value such as `1` or
-`YES` is a string. Ycode keeps dictionary insertion order. The format itself
+`YES` is a string. SwiftCode keeps dictionary insertion order. The format itself
 does not define an order.
 
 ## Grammar

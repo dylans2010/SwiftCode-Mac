@@ -1,8 +1,8 @@
 # Build engine 2: PIF and swift-build
 
-Ycode modules: `YcodeBuild` (`PIFGenerator`, `SwiftBuildEngine`,
-`SwiftBuildMessageReader`). CLI: `ycode pif <xcodeproj>`,
-`ycode build … --engine swift-build`. The engine emits the same
+SwiftCode modules: `SwiftCodeBuild` (`PIFGenerator`, `SwiftBuildEngine`,
+`SwiftBuildMessageReader`). CLI: `swiftcode pif <xcodeproj>`,
+`swiftcode build … --engine swift-build`. The engine emits the same
 `BuildEvent` stream as the xcodebuild engine (`specs/ide/build.md`).
 
 ## swift-build in brief
@@ -21,8 +21,8 @@ the service plans tasks and runs them on llbuild. Two ways to drive it:
    [--buildParametersFile F] [--derivedDataPath D]` (also `clean` via
    `--action`). A container path ending in `.json`/`.pif` is read as a PIF.
 
-**Ycode uses (2)** so the Ycode package takes no dependency: the engine
-looks for `swbuild` via `YCODE_SWBUILD`, then `PATH`. Building `swbuild`
+**SwiftCode uses (2)** so the SwiftCode package takes no dependency: the engine
+looks for `swbuild` via `SWIFTCODE_SWBUILD`, then `PATH`. Building `swbuild`
 (`swift build --product swbuild` in any package that depends on
 swift-build) took under a minute on this Mac after resolution.
 
@@ -34,7 +34,7 @@ by signature; references inside a project are by GUID (unique in the whole
 PIF, stable across regenerations). Booleans are the strings
 `"true"`/`"false"`.
 
-| Object | Keys Ycode writes | Source in pbxproj |
+| Object | Keys SwiftCode writes | Source in pbxproj |
 |---|---|---|
 | workspace | `guid`, `name`, `path` (…/project.xcworkspace/contents.xcworkspacedata), `projects` [project signatures] | the `.xcodeproj` |
 | project | `guid`, `path` (the .xcodeproj), `projectDirectory`, `projectName`, `projectIsPackage` "false", `targets` [target signatures], `groupTree`, `buildConfigurations`, `defaultConfigurationName`, `developmentRegion`, `knownRegions`, `classPrefix` | `PBXProject` and its configuration list |
@@ -67,7 +67,7 @@ xcodebuild. (Until IDE-SMALL `PIFGenerator` left a synchronized folder
 out of the group tree without an error, so a target that took its files
 from one was built with no sources and the build succeeded; it now
 rejects any project with a `PBXFileSystemSynchronizedRootGroup`.) (This paragraph is `PIFGenerator`, the engine's built-in
-generator. The IDE and `ycode build --engine swift-build` use `XcodePIF`
+generator. The IDE and `swiftcode build --engine swift-build` use `XcodePIF`
 instead, which covers every target kind and package products; see "PIF
 source in the IDE" and "Package products, macros and plug-ins".)
 
@@ -88,7 +88,7 @@ any project.
 
 ### SwiftPM packages
 
-Ycode does not write package PIF itself: it runs SwiftPM's own generator,
+SwiftCode does not write package PIF itself: it runs SwiftPM's own generator,
 `swift package dump-pif` (open source), in the package directory, which
 resolves the package graph (local `path:` dependencies included). Its
 shape: one workspace; one project per package with `projectIsPackage`
@@ -100,11 +100,11 @@ products; and an extra "Aggregate" project with `AllExcludingTests` and
 named like the scheme, else `AllExcludingTests`. Executables land in
 `Products/<configuration>/<product>`.
 
-## PIF source in the IDE (shared with ycodebuild)
+## PIF source in the IDE (shared with swiftcodebuild)
 
 `SwiftBuildEngine.pifSource` (a `PIFSource`) replaces the built-in
 generator for projects and workspaces. The IDE sets it to
-`YcodeXcodebuild.XcodePIFSource`, the generator ycodebuild uses
+`SwiftCodeXcodebuild.XcodePIFSource`, the generator swiftcodebuild uses
 (`specs/xcodebuild/show-build-settings.md`): reference GUID scheme
 (workspace GUID = md5 of the workspace name, project GUID = md5 of the
 project path relative to the workspace's folder, object GUID = project
@@ -112,7 +112,7 @@ GUID + md5 of the object ID), the implicit `X.xcodeproj/project.xcworkspace`
 path, sub-projects, synchronized folders and every target kind — so
 settings that embed GUIDs (`PROJECT_GUID`, intermediate paths) match the
 reference tool. `PIFGenerator` remains the engine's default when no source
-is set. Package folders always use SwiftPM's PIF. `ycode build --engine
+is set. Package folders always use SwiftPM's PIF. `swiftcode build --engine
 swift-build` uses `XcodePIFSource` as well (since PIF-PKG).
 
 Signatures (`XcodePIF`): `WORKSPACE@<guid>_hash=<md5>`,
@@ -136,10 +136,10 @@ build sends. Serialize it (`serialized()`) and name targets with
 `XcodePIF.targetGUID(_:_:)`; swift-build then answers for those targets
 with the same settings and arguments the build uses.
 
-## Synchronized folders (Ycode implementation, IDE-SMALL)
+## Synchronized folders (SwiftCode implementation, IDE-SMALL)
 
-Format: `specs/formats/pbxproj.md` §Synchronized folders. Ycode module:
-`YcodeProject` (`SynchronizedFolder`, `SynchronizedMember`,
+Format: `specs/formats/pbxproj.md` §Synchronized folders. SwiftCode module:
+`SwiftCodeProject` (`SynchronizedFolder`, `SynchronizedMember`,
 `PBXProj.synchronizedMembers`, `BuildFileTypes`). One model reads each
 folder from disk and decides each target's members; `XcodePIF`, the build
 server's `BuildGraph`, the project navigator and the File inspector's
@@ -190,7 +190,7 @@ another target only when that list names it.
 
 A build-phase exception set moves the items it names into its phase (for
 example a copy-files phase) and out of their default phase; a linked
-library stays linked as well (**Ycode decision**: an embedded framework is
+library stays linked as well (**SwiftCode decision**: an embedded framework is
 also linked). The exception set's `additionalCompilerFlagsByRelativePath`
 becomes `additionalCompilerOptions`, `attributesByRelativePath`
 (`CodeSignOnCopy`, `RemoveHeadersOnCopy`, `Weak`) the build file's
@@ -198,14 +198,14 @@ becomes `additionalCompilerOptions`, `attributesByRelativePath`
 `platformFiltersByRelativePath` its `platformFilters` (`{platform}`;
 `maccatalyst` is `{platform: ios, environment: macabi}`).
 
-**Missing phases (Ycode decision).** Members join the target's first
+**Missing phases (SwiftCode decision).** Members join the target's first
 phase of their kind; when the target has none (generated or hand-written
 projects with an empty `buildPhases`), a phase of that kind is added
-after the target's own (GUID from `<target id>-ycode-synchronized-<type>`).
+after the target's own (GUID from `<target id>-swiftcode-synchronized-<type>`).
 Command-line tools, static and dynamic libraries and host tools get no
 added Resources phase (they have no bundle).
 
-**Warnings (Ycode decision; no spec records the reference's behaviour).**
+**Warnings (SwiftCode decision; no spec records the reference's behaviour).**
 Before a build, for the built targets:
 
 - `The synchronized folder “<folder>” of target “<target>” is missing
@@ -217,35 +217,35 @@ Before a build, for the built targets:
   source from its folders and no generated source from a build-tool
   plug-in.
 
-`ycode build --engine swift-build` and the IDE report them as warnings
-(`PIFSource.pifWithWarnings`; `XcodePIFSource` answers it), ycodebuild
+`swiftcode build --engine swift-build` and the IDE report them as warnings
+(`PIFSource.pifWithWarnings`; `XcodePIFSource` answers it), swiftcodebuild
 prints `warning: <text> (in target '<target>' from project '<project>')`
 and records them in the result bundle's issues. The build still runs (the
 reference builds such a target; OPEN QUESTION, dirty room: what the
 reference tool reports for a synchronized target with no sources).
 
-**Sample.** `ycode/Samples/SyncFolderSamples/SyncFolderSamples.xcodeproj`
+**Sample.** `swiftcode/Samples/SyncFolderSamples/SyncFolderSamples.xcodeproj`
 (written by hand; no template copied):
 
 | Target | Covers |
 |---|---|
-| `SyncTool` (macOS tool) | nested folder (`Model/`), a folder in `membershipExceptions` (`Excluded/`, whose files are `#error`), a file taken from the `Shared` folder it does not list, per-file compiler flags on a C file (`-DYCODE_SYNC_FLAG=7`, checked by `#error`), a bridging header |
+| `SyncTool` (macOS tool) | nested folder (`Model/`), a folder in `membershipExceptions` (`Excluded/`, whose files are `#error`), a file taken from the `Shared` folder it does not list, per-file compiler flags on a C file (`-DSWIFTCODE_SYNC_FLAG=7`, checked by `#error`), a bridging header |
 | `SyncApp` (macOS app) | sources, an asset catalog, a string catalog, `.lproj` tables, `explicitFileTypes`, `explicitFolders` (`Docs`), a file moved into a copy-files phase (SharedSupport) |
 | `SyncKit` (macOS framework) | public, private and project headers by `publicHeaders`/`privateHeaders` |
 | `EmptyTool` (macOS tool) | a folder with no source: the warning |
 
-Run, each product prints one `YCODE-SYNC-SAMPLE` line, for example `tool:
+Run, each product prints one `SWIFTCODE-SYNC-SAMPLE` line, for example `tool:
 Hello from a nested synchronized folder from a shared folder [flag 7]`.
-Tests: `SynchronizedFolderTests` (YcodeProjectTests),
+Tests: `SynchronizedFolderTests` (SwiftCodeProjectTests),
 `SynchronizedFolderPIFTests` and `SynchronizedFolderBuildTests` (builds
-the sample with ycodebuild through swift-build when `ycode-swb` is found),
+the sample with swiftcodebuild through swift-build when `swiftcode-swb` is found),
 `SynchronizedFolderGraphTests` (the build server's sources and headers;
 the navigator's file rows equal the folders' files).
 
 ## Package products, macros and plug-ins
 
-Ycode modules: `YcodeXcodebuild` (`PackageGraphLoader`, `PackageGraphPIF`,
-`ProjectPlugins`, `XcodeProjectPluginSource`, `XcodePIF`), `YcodeBuild`
+SwiftCode modules: `SwiftCodeXcodebuild` (`PackageGraphLoader`, `PackageGraphPIF`,
+`ProjectPlugins`, `XcodeProjectPluginSource`, `XcodePIF`), `SwiftCodeBuild`
 (`PackageResolver`). Project-file objects: `specs/ide/package-dependencies.md`.
 
 ### The package graph
@@ -261,25 +261,25 @@ package reference):
    rule).
 2. **Pins.** The container's `Package.resolved`
    (`<workspace>/xcshareddata/swiftpm/`, versions 1 to 3). When a remote
-   reference has no pin, the graph is resolved first with Ycode's
+   reference has no pin, the graph is resolved first with SwiftCode's
    `PackageResolver` and the file is written
    (`package-dependencies.md` §Resolution), as before a build in the
    reference tool. Each pin is then checked out at its revision in
    `<SourcePackages>/checkouts/<identity>` (cloned or fetched only when
    needed; `PackageResolver.checkout(identity:location:revision:)`).
-3. **The generated root.** `<SourcePackages>/ycode-package-graph/Package.swift`
+3. **The generated root.** `<SourcePackages>/swiftcode-package-graph/Package.swift`
    (tools version 5.9, rewritten only when it changes) declares a package
-   `ycode-package-graph` with one `.package(path:)` per local reference,
+   `swiftcode-package-graph` with one `.package(path:)` per local reference,
    then one per pinned checkout whose identity no local package has. A
    local package therefore overrides a remote one of the same identity, as
    a root dependency overrides a transitive one in SwiftPM; SwiftPM warns
-   about the "conflicting identity", and Ycode drops that warning and the
+   about the "conflicting identity", and SwiftCode drops that warning and the
    ones about the root's unused dependencies. Remote dependencies of local
-   packages that Ycode did not pin are resolved by SwiftPM itself in its
+   packages that SwiftCode did not pin are resolved by SwiftPM itself in its
    scratch folder.
 4. **SwiftPM's PIF.** `swift package --package-path <root> --scratch-path
-   <SourcePackages>/ycode-package-graph-build dump-pif`. From its output
-   Ycode keeps every package project and its targets as SwiftPM wrote them,
+   <SourcePackages>/swiftcode-package-graph-build dump-pif`. From its output
+   SwiftCode keeps every package project and its targets as SwiftPM wrote them,
    and drops the workspace, the generated root's project and the
    "Aggregate" project (`AllIncludingTests`, `AllExcludingTests`).
 5. **Products.** In each package project, a target named `<product>-product`
@@ -290,10 +290,10 @@ package reference):
    Targets with `productTypeIdentifier` `com.apple.product-type.tool.host-build`
    (build-tool plug-ins) are recorded by name.
 
-`<SourcePackages>`: ycodebuild uses `-clonedSourcePackagesDirPath`, else
+`<SourcePackages>`: swiftcodebuild uses `-clonedSourcePackagesDirPath`, else
 `<DerivedData folder>/SourcePackages` (as `-resolvePackageDependencies`).
-`XcodePIFSource` (the IDE, `ycode build`) uses
-`~/Library/Caches/Ycode/SourcePackages/<project>-<hash>`, the folder of the
+`XcodePIFSource` (the IDE, `swiftcode build`) uses
+`~/Library/Caches/SwiftCode/SourcePackages/<project>-<hash>`, the folder of the
 IDE's own checkouts (`PackageDependencyModel.defaultCheckouts`, same hash),
 unless its `sourcePackagesDirectory` is set.
 
@@ -307,7 +307,7 @@ after the container's. In each project target:
 |---|---|
 | `PBXBuildFile.productRef` → `XCSwiftPackageProductDependency` (`package`, `productName`) in any phase | build file with `targetReference` = the product's PIF target GUID. The package is the one of the `package` reference's identity; without a `package` key (local packages, as some generators write them), the first package with that product. |
 | target's `packageProductDependencies` | each product (not `plugin:` ones) is an explicit `dependencies` entry `{guid, platformFilters: []}` after the target dependencies. swift-build builds explicit dependencies on package products for the depending target's platform (specialization), and package targets take part in no implicit dependencies. |
-| an application (`productType` `com.apple.product-type.application…`) linking a dynamic product that no copy-files phase of its own copies | an extra copy-files phase (Ycode decision): `destinationSubfolder` `$(FRAMEWORKS_FOLDER_PATH)`, the product by `targetReference`, `codeSignOnCopy` and `removeHeadersOnCopy` "true", appended after the target's phases. |
+| an application (`productType` `com.apple.product-type.application…`) linking a dynamic product that no copy-files phase of its own copies | an extra copy-files phase (SwiftCode decision): `destinationSubfolder` `$(FRAMEWORKS_FOLDER_PATH)`, the product by `targetReference`, `codeSignOnCopy` and `removeHeadersOnCopy` "true", appended after the target's phases. |
 
 A product that a target depends on but no package of the graph provides
 stops the load with `Missing package product '<name>'` (one line per
@@ -317,7 +317,7 @@ Without a package graph (`XcodePIF(container:)`, as `-showBuildSettings`
 uses it) product build files and product dependencies are left out, as
 before.
 
-What swift-build then does from SwiftPM's package PIF (no Ycode code):
+What swift-build then does from SwiftPM's package PIF (no SwiftCode code):
 
 - **Static products** link the product's targets' objects into the client.
 - **Resources.** A package target with resources has a resource-bundle
@@ -343,14 +343,14 @@ What swift-build then does from SwiftPM's package PIF (no Ycode code):
   with the generated files in its sources phase; the plug-in's
   host-build target depends on its tools.
 
-**Host tools path (Ycode decision).** SwiftPM names a plug-in's tools by
+**Host tools path (SwiftCode decision).** SwiftPM names a plug-in's tools by
 where its own build would put them, `<scratch>/out/Products/<configuration>/<tool>`.
 swift-build builds them (for the host) into `$(BUILD_DIR)/$(CONFIGURATION)`
 of the client's build. Every string of every `customTasks` entry
 (`commandLine`, `inputFilePaths`, `environment`, the sandbox profile) has
 that scratch prefix replaced with `$(BUILD_DIR)/$(CONFIGURATION)` (custom
 task strings are macro expressions), and the target and its project get new
-signatures (`<old>-ycode-<md5 of the rewritten tasks>`): SwiftPM's
+signatures (`<old>-swiftcode-<md5 of the rewritten tasks>`): SwiftPM's
 signatures are content hashes, so an unchanged one would let swift-build
 reuse a build description made from the original paths.
 
@@ -364,14 +364,14 @@ implementations were built for the simulator and failed ("unable to resolve
 module dependency: 'SwiftCompilerPlugin'"); with the run destination
 swift-build builds targets that support the platform with its SDK, even
 when the project's `SDKROOT` names the device SDK, and host tools for the
-Mac. ycodebuild already sent run destinations.
+Mac. swiftcodebuild already sent run destinations.
 
 ### Plug-ins applied to project targets
 
 A target applies a build-tool plug-in with a `PBXTargetDependency` whose
 `productRef` names an `XCSwiftPackageProductDependency` with `productName`
 `plugin:<plug-in product>` (the target's `packageProductDependencies` does
-not list it). Ycode hosts such plug-ins itself (`ProjectPlugins`), after the
+not list it). SwiftCode hosts such plug-ins itself (`ProjectPlugins`), after the
 package graph is loaded:
 
 1. **The plug-in.** The package of the dependency's `package` reference (or
@@ -385,9 +385,9 @@ package graph is loaded:
    `-swift-version` 6 for tools version 6 and later (else 5),
    `-package-description-version <tools version>`, `-I`/`-L`/`-rpath` the
    toolchain's `usr/lib/swift/pm/PluginAPI` and `-lPackagePlugin`, `-sdk`
-   the macOS SDK, the plug-in's Swift files, plus Ycode's
+   the macOS SDK, the plug-in's Swift files, plus SwiftCode's
    `XcodeProjectPlugin` module (below). Output:
-   `<SourcePackages>/ycode-plugins/<package>-<target>-<hash>`, the hash
+   `<SourcePackages>/swiftcode-plugins/<package>-<target>-<hash>`, the hash
    covering the sources, the compiler and the support module, so a
    plug-in is compiled once.
 3. **The request** (SwiftPM's open plug-in protocol: each message an
@@ -398,13 +398,13 @@ package graph is loaded:
    `framework`, `library` or `other`; input files = the files of the
    target's build phases, typed `source`, `header`, `resource` or `unknown`
    by phase), `rootProjectId` 0, `targetId` the target's index; the plug-in
-   work folder `<SourcePackages>/ycode-plugins/outputs/<project>/<target>/<plug-in>`;
+   work folder `<SourcePackages>/swiftcode-plugins/outputs/<project>/<target>/<plug-in>`;
    tool search folders the toolchain's `bin`; each accessible tool named
    `<scratch>/out/Products/Debug/<tool>` (relocated like SwiftPM's). Paths
    are written as absolute entries with no base. The plug-in runs in its
    package's folder.
-4. **Ycode's `XcodeProjectPlugin` module** (`XcodeProjectPluginSource`,
-   compiled into `<SourcePackages>/ycode-plugins/support-<hash>/`). Plug-ins
+4. **SwiftCode's `XcodeProjectPlugin` module** (`XcodeProjectPluginSource`,
+   compiled into `<SourcePackages>/swiftcode-plugins/support-<hash>/`). Plug-ins
    for project targets import a module of that name (an interoperability
    identifier) and conform to `XcodeBuildToolPlugin`
    (`createBuildCommands(context: XcodePluginContext, target: XcodeTarget)`);
@@ -424,10 +424,10 @@ package graph is loaded:
    writes the commands as JSON
    (`[{kind: build|prebuild, displayName, executable, arguments,
    environment, inputFiles, outputFiles, outputFilesDirectory}]`) to the file
-   named by `YCODE_PLUGIN_COMMANDS`, which Ycode sets and reads after the
+   named by `SWIFTCODE_PLUGIN_COMMANDS`, which SwiftCode sets and reads after the
    plug-in exits. `PluginContext.Tool` has no public initializer: the
    module builds one from a value with the same stored properties (`name`,
-   `url`, the path) and checks its size, name and URL before use (Ycode
+   `url`, the path) and checks its size, name and URL before use (SwiftCode
    decision; an error names the mismatch otherwise). Diagnostics the
    plug-in emits come back over the protocol and are kept.
 5. **Into the PIF.** Each build command becomes a `customTasks` entry of
@@ -454,7 +454,7 @@ later round (PIF-PLUGINS).
 
 ### Samples
 
-`ycode/Samples/PackageSamples/PackageSamples.xcodeproj`, with local
+`swiftcode/Samples/PackageSamples/PackageSamples.xcodeproj`, with local
 packages in `Packages/`:
 
 | Target | Platform | Uses |
@@ -465,15 +465,15 @@ packages in `Packages/`:
 | `PluginApp` | iOS | `Codegen` (its target uses `CodegenPlugin`) and `plugin:CodegenPlugin` applied to the app target (`AppMessages.codegen`) |
 | `PackageSamplesMac` | macOS tool | every product above |
 
-Each iOS app prints one line starting `YCODE-PKG-SAMPLE` to standard error at
+Each iOS app prints one line starting `SWIFTCODE-PKG-SAMPLE` to standard error at
 launch and shows the same text. Build them with
-`ycode build Samples/PackageSamples/PackageSamples.xcodeproj -scheme <target>
--destination 'platform=iOS Simulator' --engine swift-build` (or ycodebuild
+`swiftcode build Samples/PackageSamples/PackageSamples.xcodeproj -scheme <target>
+-destination 'platform=iOS Simulator' --engine swift-build` (or swiftcodebuild
 with `-destination 'platform=iOS Simulator,arch=arm64'`).
 
 ### Product layout compared with the reference tool
 
-Ycode takes the layout from SwiftPM's PIF: dynamic products are
+SwiftCode takes the layout from SwiftPM's PIF: dynamic products are
 `lib<Name>.dylib` in the products folder and in the app's `Frameworks`; the
 reference tool's own package PIF wraps a dynamic product in a framework
 (`PackageFrameworks/<Name>.framework` per its build logs and coverage
@@ -487,18 +487,18 @@ project), and its settings for package targets.
 
 swift-build is pinned to the head of its `release/6.4.x` branch (revision
 `5d44ed6ba16c53d56cac5fc6a2d572635aa4a979`), the version whose exported
-settings match the reference tool exactly. `ycode/Tools/ycode-swb` pins it;
-`swift build --product swbuild` (and `ycode-swb`, `SWBBuildServiceBundle`)
+settings match the reference tool exactly. `swiftcode/Tools/swiftcode-swb` pins it;
+`swift build --product swbuild` (and `swiftcode-swb`, `SWBBuildServiceBundle`)
 in that package builds the engine's tool. `SwiftBuildEngine.locate()`
-looks at `YCODE_SWBUILD`, then for `swbuild` next to the `ycode-swb`
-helper named by `YCODE_SWB`, then `PATH`.
+looks at `SWIFTCODE_SWBUILD`, then for `swbuild` next to the `swiftcode-swb`
+helper named by `SWIFTCODE_SWB`, then `PATH`.
 
 ## Product lookup without xcodebuild
 
 `XcodebuildEngine.settingsSource` (a `BuildSettingsSource`) answers
 `buildSettings(for:)` instead of `xcodebuild -showBuildSettings -json`. The
-IDE sets it to `YcodeXcodebuild.SwiftBuildSettingsSource` when the
-`ycode-swb` helper is found: it exports every target's settings from
+IDE sets it to `SwiftCodeXcodebuild.SwiftBuildSettingsSource` when the
+`swiftcode-swb` helper is found: it exports every target's settings from
 swift-build for the request's configuration, derived-data arena and the
 host Mac destination (the scheme's target first).
 
@@ -528,7 +528,7 @@ when the project's `SDKROOT` names the device SDK (`xros`, visionos.md
 an `SDKROOT` override with no run destination, which also built host tools
 for the simulator; see "Package products, macros and plug-ins".)
 
-Builds go through the `ycode-swb` helper when it is found, which answers
+Builds go through the `swiftcode-swb` helper when it is found, which answers
 swift-build's provisioning questions (`signing.md` §6); such requests
 override only `SDK_STAT_CACHE_ENABLE=NO`, so the project's signing
 settings and entitlements apply. Without the helper, `swbuild` requests
@@ -541,12 +541,12 @@ carry these overrides, plus the request's `NAME=value` settings:
 | `ENTITLEMENTS_DESTINATION` | (empty) | `swbuild`'s provisioning stub adds an `application-identifier` entitlement to the signature for identity `-`; macOS kills such a program at launch (exit 137) without a provisioning profile. With no destination, no entitlements are signed in. |
 | `ENTITLEMENTS_REQUIRED` | NO | otherwise the build stops: "Entitlements are required for product type …" | Target: the
 target named like the scheme, else the first supported target. Derived
-data: the request's path, else `<project dir>/.ycode-build`.
+data: the request's path, else `<project dir>/.swiftcode-build`.
 
 ## Message stream
 
 `swbuild` writes each message as a decimal byte count on its own line, then
-one JSON object. Ycode maps:
+one JSON object. SwiftCode maps:
 
 | `kind` | Event |
 |---|---|
@@ -563,18 +563,18 @@ Other lines are passed through as output.
 dir>` for a package) writes the PIF Xcode would send. Compared on the tool
 project and a one-target package (files kept outside the repository):
 
-- Same object model and keys; Ycode now matches the root group (`<group>`,
+- Same object model and keys; SwiftCode now matches the root group (`<group>`,
   empty path, project name), product reference `type` "product",
   `knownRegions`, `classPrefix` and per-configuration
   `provisioningSourceData`.
 - Xcode adds `predominantSourceCodeLanguage` (e.g.
   `Xcode.SourceCodeLanguage.C`) and leaves out `projectName` and
-  `projectIsPackage` for projects (both optional; Ycode keeps them).
-- GUIDs: Xcode uses 32-hex-digit hashes plus a per-object suffix; Ycode uses
+  `projectIsPackage` for projects (both optional; SwiftCode keeps them).
+- GUIDs: Xcode uses 32-hex-digit hashes plus a per-object suffix; SwiftCode uses
   `<rootObject>-<object id>`. Signatures: Xcode's carry a format version
   and a content hash (`PROJECT@v11_mod=…_hash=…`, `TARGET@v11_hash=…`,
   `WORKSPACE@v11_hash=…_subobjects=…`, packages `PACKAGE@v12_hash=…`);
-  Ycode's are path/GUID based. Both are opaque to swift-build as long as
+  SwiftCode's are path/GUID based. Both are opaque to swift-build as long as
   they are unique and stable; content-hash signatures would let the
   service cache objects across edits (future work).
 - The Products group is present but empty in both: product references live
@@ -595,7 +595,7 @@ project and a one-target package (files kept outside the repository):
   "Project Interchange Format", "Build System Architecture"; PIF key names
   in its project-model loader; `swbuild` console commands) (level 1).
 - Black-box runs (level 3): `swbuild` built a one-file C command-line tool
-  from Ycode's PIF; the product ran and printed its output. Without the two
+  from SwiftCode's PIF; the product ran and printed its output. Without the two
   overrides above the build failed (missing stat-cache tool) or the product
   was killed at launch (exit 137, entitlement `application-identifier`).
   A syntax error produced structured errors with a fix-it inserting `;`.
@@ -624,7 +624,7 @@ project and a one-target package (files kept outside the repository):
     `Sources/SwiftBuildSupport` (`PIFBuilder.swift`,
     `PackagePIFBuilder*.swift`, `PackagePIFProjectBuilder*.swift`),
     Apache-2.0; output inspected with the toolchain's SwiftPM (level 3,
-    Ycode's own packages).
+    SwiftCode's own packages).
   - Package products in swift-build (`PackageProductTarget`, explicit
     dependencies on package products and their specialization, no
     implicit dependencies for package targets, macro descriptors from
@@ -649,8 +649,8 @@ project and a one-target package (files kept outside the repository):
     (MIT) write and read them this way.
   - `XcodeProjectPlugin`'s public types and members: Apple's public
     developer documentation (level 1).
-  - Black-box runs (level 3, Ycode only): the samples above built with
-    ycodebuild and with `ycode build --engine swift-build` for the iOS
+  - Black-box runs (level 3, SwiftCode only): the samples above built with
+    swiftcodebuild and with `swiftcode build --engine swift-build` for the iOS
     Simulator SDK (arm64, platform 7) and for macOS; the macOS tool printed
     the resource text, the dynamic library's text, the remote package's
     chunks, the macro's expansion and the plug-in's generated constant; the
@@ -661,12 +661,12 @@ project and a one-target package (files kept outside the repository):
     found: …/out/Products/Debug/codegen-tool"; with SwiftPM's original
     signatures the relocated tasks were ignored (a cached build
     description).
-  - On Ycode's simulator (level 3, Ycode only): the four iOS apps, built
-    with `ycode build --engine swift-build`, were installed and launched
+  - On SwiftCode's simulator (level 3, SwiftCode only): the four iOS apps, built
+    with `swiftcode build --engine swift-build`, were installed and launched
     on an iPhone 18 Pro device (iOS 27.0 runtime) on the arm64 Linux host,
     one cold boot each (`--install-app`/`--launch`). Each printed its line:
     `local: Hello from LocalKit's resource bundle; dynamic library product
-    loaded`, `remote: [1, 2] [3, 4] [5, 6]`, `macro: Hello, Ycode! (expanded
+    loaded`, `remote: [1, 2] [3, 4] [5, 6]`, `macro: Hello, SwiftCode! (expanded
     by a macro)`, `plugin: Generated in the package by a build-tool
     plug-in; Generated in the app target by a build-tool plug-in`; the
     frames showed the same text in the app.
@@ -674,9 +674,9 @@ project and a one-target package (files kept outside the repository):
   matching its build output.
 - Synchronized folders (IDE-SMALL): the keys and their meaning are
   `specs/formats/pbxproj.md` §Synchronized folders (levels 1 and 2); the
-  phase table, the added phases and the warnings are Ycode decisions; the
-  sample was built with ycodebuild and `ycode build --engine swift-build`
-  through swift-build (level 3, Ycode only): the tool printed the shared
+  phase table, the added phases and the warnings are SwiftCode decisions; the
+  sample was built with swiftcodebuild and `swiftcode build --engine swift-build`
+  through swift-build (level 3, SwiftCode only): the tool printed the shared
   file's text and flag 7, the app bundle held `Assets.car`, `en.lproj` and
   `de.lproj` `Extra.strings`, `en.lproj/Localizable.strings` (from the
   string catalog), `note.txt`, the `Docs` folder and

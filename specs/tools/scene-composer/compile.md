@@ -7,7 +7,7 @@ format (level 2), black-box runs of `realitytool`, `xcodebuild` and a
 macOS RealityKit loader probe on our own samples (level 3). No
 disassembly was used for this file.
 
-"The compiler" below means Apple's `realitytool`; "Ycode's compiler" is
+"The compiler" below means Apple's `realitytool`; "SwiftCode's compiler" is
 the clean implementation this spec enables.
 
 ## 1. `realitytool` overview
@@ -142,7 +142,7 @@ most assets.
 | Custom component id on a `RealityKitComponent` prim (instead of `RealityKitCustomComponent`) | component not created at load |
 | Empty `.rkassets` | exit 0, container with no scenes |
 
-Ycode's compiler must report every one of these cases as a diagnostic
+SwiftCode's compiler must report every one of these cases as a diagnostic
 (it is free to be stricter than the reference); a "compatibility" switch
 can downgrade them to warnings to accept the same inputs.
 
@@ -153,7 +153,7 @@ Compiling the same input twice gives byte-identical asset payloads and
 is a fresh random UUID per run (§6.4). `assetMap.json` also embeds the
 **absolute source path** of each texture (`cdm:resolvedpath`,
 `Engine/RE-debugName`), so outputs depend on the checkout location.
-Ycode's compiler should derive GUIDs from a hash of (scene name, prim
+SwiftCode's compiler should derive GUIDs from a hash of (scene name, prim
 path, asset kind) and write source paths relative to the `.rkassets`
 root; the loader does not need either value to be random (§6.8).
 
@@ -249,7 +249,7 @@ For every target whose Resources phase contains `.rkassets` folders:
 a scene whose `sceneName` matches `n` with or without the extension
 (`Scene` and `Scene.usda` both worked) and also by last path component
 (`Inner` found one of `Sub/Inner.usda`, `Sub/Deep/Inner.usda` — ambiguous
-names should be avoided by Ycode's editor; which one wins is an open
+names should be avoided by SwiftCode's editor; which one wins is an open
 question). Folder-qualified names (`Sub/Inner`, `Sub/Deep/Inner`) work.
 An unknown name throws `resourceNotFound("<n>")`. The returned entity is
 an unnamed-or-root-named wrapper whose child is the scene's
@@ -290,7 +290,7 @@ line-oriented: an initial value is recognised only when the declaration
 ends at the end of its line; for single-line structs such as
 `struct S: Component, Codable { var x: Float = 1 }` the default is
 lost (numeric) or wrong (a string default becomes the rest of the line,
-e.g. `'s" }'`). Ycode's compiler must parse Swift properly (swift-syntax)
+e.g. `'s" }'`). SwiftCode's compiler must parse Swift properly (swift-syntax)
 and should warn where the reference would mis-read.
 
 ### 4.3 Accepted property types (observed)
@@ -534,7 +534,7 @@ public, it changes with `minVersion`, and reproducing it would mean
 re-implementing RealityKit's internal object serialisation for every
 asset kind. Levels 2–3 established the container completely; the payload
 interior would need level 4–5 work (type-registry and serialiser study)
-and was **not** attempted, because Ycode does not need it: see §7.
+and was **not** attempted, because SwiftCode does not need it: see §7.
 
 ### 6.8 Loader tolerance (macOS 27 RealityKit, level 3)
 
@@ -543,7 +543,7 @@ loader (`Entity(contentsOf:)` / `Entity(named:in:)`) accepted all of:
 byte-identical rebuild; every entry stored (method 0); no `.align/` entry
 and no `RAD` comment; a wrong `RAD` hash; no `0xfffe` extras. So the
 integrity fields are not checked on macOS. Whether visionOS and iOS
-devices check them is an open question; Ycode's writer emits them all.
+devices check them is an open question; SwiftCode's writer emits them all.
 
 ### 6.9 Files written by RCP 3.0's exporter (level 2–3, OBS-RCP4)
 
@@ -578,26 +578,26 @@ the `0xfffe` SHA-256 extras and the `RAD` hash.
   audio, audio library, particle emitter, hover effect, grounding shadow,
   point light, and a `ShaderGraphMaterial` with a generated texture
   parameter (`materials.md` §10.1).
-- Consequence for Ycode: RCP 3 `.reality` files carry no machine paths,
-  unlike `realitytool` output (§2.6); Ycode's container writer should
+- Consequence for SwiftCode: RCP 3 `.reality` files carry no machine paths,
+  unlike `realitytool` output (§2.6); SwiftCode's container writer should
   follow RCP 3 here and write empty `metadata`.
 
-## 7. Consequences for Ycode
+## 7. Consequences for SwiftCode
 
-1. **Compiling on macOS**: Ycode's build system runs Apple's `realitytool`
+1. **Compiling on macOS**: SwiftCode's build system runs Apple's `realitytool`
    exactly as §3 describes (same tasks, inputs, outputs) — this is
    required for byte-compatible app bundles.
-2. **Compiling elsewhere (Linux)**: Ycode's compiler cannot produce
+2. **Compiling elsewhere (Linux)**: SwiftCode's compiler cannot produce
    RealityKit payloads (§6.7). It validates the `.rkassets` tree with
    §2.2/§2.5 rules, runs the schema step (§4) itself, and packages the
    **USD sources** into the resource bundle (the open RealityKit loads
    USD, `07-assets.md` §8 policy 2). A container writer per §6 is still
-   specified so that Ycode can re-pack, inspect and diff `.reality`
+   specified so that SwiftCode can re-pack, inspect and diff `.reality`
    files, and so that a future payload specification slots in.
-3. Ycode's `create-schema` equivalent emits §4.4 output exactly
+3. SwiftCode's `create-schema` equivalent emits §4.4 output exactly
    (sorting, `customData`, `originalType`, `allowedTokens`, nested
    `RealityKitStruct`), but parses Swift with a real parser.
-4. Ycode's editor names custom-component prims `<Module>_<Type>` with type
+4. SwiftCode's editor names custom-component prims `<Module>_<Type>` with type
    `RealityKitCustomComponent` (§2.4, §4.5) and avoids duplicate scene
    base names (§3.4).
 

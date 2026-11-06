@@ -21,7 +21,7 @@ public class HKQuery: NSObject, @unchecked Sendable {
     }
     let state = Locked(RunState())
     /// Long-running results are delivered on a private serial queue per query.
-    let handlerQueue = DispatchQueue(label: "dev.ycode.healthkit.query")
+    let handlerQueue = DispatchQueue(label: "dev.swiftcode.healthkit.query")
 
     init(objectType: HKObjectType?, predicate: NSPredicate?, node: PredicateNode? = nil) {
         self.objectType = objectType
@@ -63,7 +63,7 @@ public class HKQuery: NSObject, @unchecked Sendable {
             s.liveID = id
             return true
         }
-        if ok { store.daemon.register(id, client: store.ycodeClient.bundleIdentifier, onChange: onChange) }
+        if ok { store.daemon.register(id, client: store.swiftcodeClient.bundleIdentifier, onChange: onChange) }
     }
 
     /// Deliver on the handler queue unless stopped.
@@ -175,7 +175,7 @@ public final class HKSampleQuery: HKQuery, @unchecked Sendable {
 
     override func run(on store: HKHealthStore) {
         let keys = HKQuery.sortKeys(sortDescriptors)
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         store.daemon.queue.async { [self] in
             let r = store.daemon.samples(types: types, node: node, limit: limit, sort: keys, client: client)
             deliver { [self] in
@@ -225,7 +225,7 @@ public final class HKAnchoredObjectQuery: HKQuery, @unchecked Sendable {
     }
 
     override func run(on store: HKHealthStore) {
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         let daemon = store.daemon
         daemon.queue.async { [self] in
             let first = daemon.anchored(types: types, node: node, after: anchor?.value ?? 0, limit: limit, client: client)
@@ -279,7 +279,7 @@ public final class HKObserverQuery: HKQuery, @unchecked Sendable {
     }
 
     override func run(on store: HKHealthStore) {
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         let daemon = store.daemon
         daemon.queue.async { [self] in
             if let missing = types.first(where: { !daemon.determined($0, client: client) }) {
@@ -318,7 +318,7 @@ public final class HKCorrelationQuery: HKQuery, @unchecked Sendable {
     }
 
     override func run(on store: HKHealthStore) {
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         let sp = UncheckedSendable((samplePredicates ?? [:]).map { ($0.key.identifier, PredicateNode.from($0.value)) })
         store.daemon.queue.async { [self] in
             let r = store.daemon.correlations(type: correlationType.identifier, node: node, samplePredicates: sp.value,
@@ -346,7 +346,7 @@ public final class HKSourceQuery: HKQuery, @unchecked Sendable {
     }
 
     override func run(on store: HKHealthStore) {
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         let type = objectType!.identifier
         store.daemon.queue.async { [self] in
             let r = store.daemon.sources(type: type, node: node, client: client)
@@ -375,7 +375,7 @@ public final class HKStatisticsQuery: HKQuery, @unchecked Sendable {
     }
 
     override func run(on store: HKHealthStore) {
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         // swiftlint:disable:next force_cast - the query was created with a quantity type
         let type = objectType as! HKQuantityType
         store.daemon.queue.async { [self] in
@@ -415,8 +415,8 @@ public final class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
         get { updates.current }
         set { updates.withLock { $0 = newValue } }
     }
-    /// Ycode extension: the calendar used to lay out buckets (default: the current calendar).
-    public var ycodeCalendar: Calendar {
+    /// SwiftCode extension: the calendar used to lay out buckets (default: the current calendar).
+    public var swiftcodeCalendar: Calendar {
         get { calendar.current }
         set { calendar.withLock { $0 = newValue } }
     }
@@ -431,11 +431,11 @@ public final class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
     }
 
     override func run(on store: HKHealthStore) {
-        let client = store.ycodeClient.bundleIdentifier
+        let client = store.swiftcodeClient.bundleIdentifier
         // swiftlint:disable:next force_cast - the query was created with a quantity type
         let type = objectType as! HKQuantityType
         let daemon = store.daemon
-        let calendar = ycodeCalendar
+        let calendar = swiftcodeCalendar
         daemon.queue.async { [self] in
             let (options, anchorDate, components) = (self.options, self.anchorDate, self.intervalComponents)
             let make = { (input: StatisticsInput) in

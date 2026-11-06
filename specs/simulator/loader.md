@@ -1,6 +1,6 @@
 # Spec: image lookup for the simulator loader
 
-Status: §1 is **implemented** (`YcodeMachO.DependencyClosure`). Mapping and
+Status: §1 is **implemented** (`SwiftCodeMachO.DependencyClosure`). Mapping and
 fixups are not yet implemented.
 
 ## 1. Resolving a load command's path

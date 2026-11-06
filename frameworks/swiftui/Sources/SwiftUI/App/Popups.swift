@@ -14,7 +14,7 @@ import SwiftUICore
 // presenting view's bindings and actions, so choosing an item writes the
 // owner window's state.
 //
-// Closing (Ycode rules): a menu item closes the whole chain of pop-ups it is
+// Closing (SwiftCode rules): a menu item closes the whole chain of pop-ups it is
 // in; Escape closes the pop-up it is pressed in (Left too, in a submenu); a
 // press in any other window closes every pop-up not on that window's chain
 // and is not delivered; closing or minimising the owner closes its pop-ups.

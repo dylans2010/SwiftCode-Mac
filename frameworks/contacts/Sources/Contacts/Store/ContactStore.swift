@@ -4,10 +4,10 @@
 
 import Foundation
 
-/// Ycode-specific store settings. `CNContactStore()` uses
-/// `CNContactStore.ycodeDefaultConfiguration`; tests and tools create
-/// stores with their own configuration through `init(ycodeConfiguration:)`.
-public struct YcodeContactStoreConfiguration: Sendable {
+/// SwiftCode-specific store settings. `CNContactStore()` uses
+/// `CNContactStore.swiftcodeDefaultConfiguration`; tests and tools create
+/// stores with their own configuration through `init(swiftcodeConfiguration:)`.
+public struct SwiftCodeContactStoreConfiguration: Sendable {
     /// The contacts database file (created with the fresh-device content on first use).
     public var databaseURL: URL
     /// The app's access (the authorization broker of round R6 is not
@@ -20,7 +20,7 @@ public struct YcodeContactStoreConfiguration: Sendable {
     /// The region used for phone matching and postal layouts ("us").
     public var countryCode: String
 
-    public init(databaseURL: URL = YcodeContactStoreConfiguration.standardDatabaseURL,
+    public init(databaseURL: URL = SwiftCodeContactStoreConfiguration.standardDatabaseURL,
                 authorizationStatus: CNAuthorizationStatus = .authorized,
                 limitedContactIdentifiers: Set<String> = [],
                 bundleIdentifier: String = Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName,
@@ -32,11 +32,11 @@ public struct YcodeContactStoreConfiguration: Sendable {
         self.countryCode = countryCode
     }
 
-    /// `$YCODE_CONTACTS_DATABASE`, else `<data home>/ycode-contacts/AddressBook.sqlite`
+    /// `$SWIFTCODE_CONTACTS_DATABASE`, else `<data home>/swiftcode-contacts/AddressBook.sqlite`
     /// (`$XDG_DATA_HOME` or `~/.local/share` on Linux, Application Support on macOS).
     public static var standardDatabaseURL: URL {
         let env = ProcessInfo.processInfo.environment
-        if let p = env["YCODE_CONTACTS_DATABASE"], !p.isEmpty { return URL(fileURLWithPath: p) }
+        if let p = env["SWIFTCODE_CONTACTS_DATABASE"], !p.isEmpty { return URL(fileURLWithPath: p) }
         #if canImport(Darwin)
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory())
@@ -44,7 +44,7 @@ public struct YcodeContactStoreConfiguration: Sendable {
         let base = env["XDG_DATA_HOME"].map { URL(fileURLWithPath: $0) }
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".local/share")
         #endif
-        return base.appendingPathComponent("ycode-contacts/AddressBook.sqlite")
+        return base.appendingPathComponent("swiftcode-contacts/AddressBook.sqlite")
     }
 }
 
@@ -55,29 +55,29 @@ let notificationOriginationExternallyKey = "CNNotificationOriginationExternally"
 
 public class CNContactStore: NSObject, @unchecked Sendable {
     private static let defaultsLock = NSLock()
-    nonisolated(unsafe) private static var _default = YcodeContactStoreConfiguration()
+    nonisolated(unsafe) private static var _default = SwiftCodeContactStoreConfiguration()
 
     /// The configuration used by `CNContactStore()` and `authorizationStatus(for:)`.
-    public static var ycodeDefaultConfiguration: YcodeContactStoreConfiguration {
+    public static var swiftcodeDefaultConfiguration: SwiftCodeContactStoreConfiguration {
         get { defaultsLock.lock(); defer { defaultsLock.unlock() }; return _default }
         set { defaultsLock.lock(); _default = newValue; defaultsLock.unlock() }
     }
 
-    let configuration: YcodeContactStoreConfiguration
+    let configuration: SwiftCodeContactStoreConfiguration
     let db: ContactsDatabase?
     let lock = NSRecursiveLock()
     let storeIdentifier = UUID().uuidString
     private let accessQueue = DispatchQueue.global()
 
-    public init(ycodeConfiguration: YcodeContactStoreConfiguration) {
-        configuration = ycodeConfiguration
-        db = try? ContactsDatabase(path: ycodeConfiguration.databaseURL.path)
+    public init(swiftcodeConfiguration: SwiftCodeContactStoreConfiguration) {
+        configuration = swiftcodeConfiguration
+        db = try? ContactsDatabase(path: swiftcodeConfiguration.databaseURL.path)
         super.init()
         if let db { ChangeWatcher.shared.register(path: db.path, currentSeq: db.maxSeq()) }
     }
 
     public override convenience init() {
-        self.init(ycodeConfiguration: CNContactStore.ycodeDefaultConfiguration)
+        self.init(swiftcodeConfiguration: CNContactStore.swiftcodeDefaultConfiguration)
     }
 
     deinit {
@@ -87,7 +87,7 @@ public class CNContactStore: NSObject, @unchecked Sendable {
     // MARK: Authorization (recorded answers; the R6 broker is deferred)
 
     public class func authorizationStatus(for entityType: CNEntityType) -> CNAuthorizationStatus {
-        ycodeDefaultConfiguration.authorizationStatus
+        swiftcodeDefaultConfiguration.authorizationStatus
     }
 
     var granted: Bool { configuration.authorizationStatus == .authorized || configuration.authorizationStatus == .limited }
@@ -138,7 +138,7 @@ public class CNContactStore: NSObject, @unchecked Sendable {
     // MARK: Building contacts
 
     func checkKeys(_ keys: Set<String>) throws {
-        if keys.contains(CNContactNoteKey) && !YcodeContactsEnvironment.notesEntitlement {
+        if keys.contains(CNContactNoteKey) && !SwiftCodeContactsEnvironment.notesEntitlement {
             throw CNError(.unauthorizedKeys, userInfo: [
                 CNErrorUserInfoAffectedRecordsKey: [AnyObject](),
                 CNErrorUserInfoKeyPathsKey: [CNContactNoteKey],
@@ -297,7 +297,7 @@ public class CNContactStore: NSObject, @unchecked Sendable {
         let writer = ChangeWatcher.processToken
         var saved: [CNMutableContact] = []
         var changed: [String] = []
-        let notes = YcodeContactsEnvironment.notesEntitlement
+        let notes = SwiftCodeContactsEnvironment.notesEntitlement
         try db.transaction {
             let txn = db.nextTransactionNumber()
             func fail(_ code: CNError.Code, records: [AnyObject] = [], identifiers: [String]? = nil) -> CNError {
@@ -508,7 +508,7 @@ final class ChangeWatcher: @unchecked Sendable {
 
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
-    private let pollQueue = DispatchQueue(label: "org.ycode.contacts.change-poll")
+    private let pollQueue = DispatchQueue(label: "org.swiftcode.contacts.change-poll")
 
     static func postExternal() {
         DispatchQueue.main.async {

@@ -174,8 +174,8 @@ public struct HKStatisticsCollectionQueryDescriptor: HKAsyncQuery, HKAsyncSequen
     public var options: HKStatisticsOptions
     public var anchorDate: Date
     public var intervalComponents: DateComponents
-    /// Ycode extension: bucket calendar (default: the current calendar).
-    public var ycodeCalendar: Calendar = .current
+    /// SwiftCode extension: bucket calendar (default: the current calendar).
+    public var swiftcodeCalendar: Calendar = .current
 
     public init(predicate: HKSamplePredicate<HKQuantitySample>, options: HKStatisticsOptions, anchorDate: Date,
                 intervalComponents: DateComponents) {
@@ -190,7 +190,7 @@ public struct HKStatisticsCollectionQueryDescriptor: HKAsyncQuery, HKAsyncSequen
         let q = HKStatisticsCollectionQuery(quantityType: predicate.sampleType as! HKQuantityType,
                                             quantitySamplePredicate: predicate.nsPredicate, options: options,
                                             anchorDate: anchorDate, intervalComponents: intervalComponents)
-        q.ycodeCalendar = ycodeCalendar
+        q.swiftcodeCalendar = swiftcodeCalendar
         return q
     }
 

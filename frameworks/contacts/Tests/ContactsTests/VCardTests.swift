@@ -37,7 +37,7 @@ func richContact() -> CNMutableContact {
     c.instantMessageAddresses = [
         CNLabeledValue(label: CNLabelHome, value: CNInstantMessageAddress(username: "avery.aim", service: CNInstantMessageServiceAIM)),
         CNLabeledValue(label: CNLabelWork, value: CNInstantMessageAddress(username: "avery@jabber.example", service: CNInstantMessageServiceJabber)),
-        CNLabeledValue(label: CNLabelOther, value: CNInstantMessageAddress(username: "avery.chat", service: "Ycode Chat")),
+        CNLabeledValue(label: CNLabelOther, value: CNInstantMessageAddress(username: "avery.chat", service: "SwiftCode Chat")),
     ]
     c.dates = [CNLabeledValue(label: CNLabelDateAnniversary, value: nsDateComponents(gregorian(2015, 6, 20))),
                CNLabeledValue(label: "Graduation", value: nsDateComponents(gregorian(nil, 5, 30)))]
@@ -48,7 +48,7 @@ func richContact() -> CNMutableContact {
 let richLines = [
     "BEGIN:VCARD",
     "VERSION:3.0",
-    "PRODID:-//Ycode//Ycode Contacts 1.0//EN",
+    "PRODID:-//SwiftCode//SwiftCode Contacts 1.0//EN",
     "N:Example;Avery;Quinn;Dr.;Jr.",
     "FN:Dr. Avery Quinn Example Jr.",
     "NICKNAME:Ave",
@@ -77,7 +77,7 @@ let richLines = [
     "IMPP;X-SERVICE-TYPE=AIM;type=HOME;type=pref:aim:avery.aim",
     "X-JABBER;type=WORK:avery@jabber.example",
     "IMPP;X-SERVICE-TYPE=Jabber;type=WORK:xmpp:avery@jabber.example",
-    "item4.IMPP;X-SERVICE-TYPE=Ycode Chat:x-apple:avery.chat",
+    "item4.IMPP;X-SERVICE-TYPE=SwiftCode Chat:x-apple:avery.chat",
     "item4.X-ABLabel:_$!<Other>!$_",
     "item5.X-ABDATE;type=pref:2015-06-20",
     "item5.X-ABLabel:_$!<Anniversary>!$_",
@@ -102,7 +102,7 @@ struct VCardExportTests {
     @Test("§3.1: empty contact writes N:;;;; and no FN")
     func empty() throws {
         let lines = vcardLines(try CNContactVCardSerialization.data(with: [CNMutableContact()]))
-        #expect(lines == ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//Ycode//Ycode Contacts 1.0//EN", "N:;;;;", "END:VCARD"])
+        #expect(lines == ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//SwiftCode//SwiftCode Contacts 1.0//EN", "N:;;;;", "END:VCARD"])
     }
 
     @Test("§3.1: organization contact: ORG with empty department, X-ABShowAs:COMPANY")
@@ -111,19 +111,19 @@ struct VCardExportTests {
         c.contactType = .organization
         c.organizationName = "Example Widgets LLC"
         let lines = vcardLines(try CNContactVCardSerialization.data(with: [c]))
-        #expect(lines == ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//Ycode//Ycode Contacts 1.0//EN", "N:;;;;",
+        #expect(lines == ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//SwiftCode//SwiftCode Contacts 1.0//EN", "N:;;;;",
                           "FN:Example Widgets LLC", "ORG:Example Widgets LLC;", "X-ABShowAs:COMPANY", "END:VCARD"])
     }
 
     @Test("§3.1: birthday without year; structured values escape ; and ,; note and image are not exported")
     func birthdayEscapesAndOmissions() throws {
-        try YcodeContactsEnvironment.$notesOverride.withValue(true) {
+        try SwiftCodeContactsEnvironment.$notesOverride.withValue(true) {
             let c = person("Avery", "Example; Sample", org: "Widgets, Inc.")
             c.birthday = gregorian(nil, 2, 29)
             c.note = "Not written"
             c.imageData = Data(repeating: 7, count: 32)
             let lines = vcardLines(try CNContactVCardSerialization.data(with: [c]))
-            #expect(lines == ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//Ycode//Ycode Contacts 1.0//EN",
+            #expect(lines == ["BEGIN:VCARD", "VERSION:3.0", "PRODID:-//SwiftCode//SwiftCode Contacts 1.0//EN",
                               "N:Example\\; Sample;Avery;;;", "FN:Avery Example; Sample", "ORG:Widgets\\, Inc.;",
                               "BDAY;X-APPLE-OMIT-YEAR=1604:1604-02-29", "END:VCARD"])
         }
@@ -200,7 +200,7 @@ struct VCardImportTests {
             "X-SOCIALPROFILE;type=twitter:https://twitter.example/avery",
             "NOTE:Line one\\nLine two\\, with comma",
             "CATEGORIES:Probe,Example", "UID:00000000-1111-2222-3333-444444444444", "REV:2026-10-20T10:00:00Z",
-            "X-YCODE-UNKNOWN:ignored",
+            "X-SWIFTCODE-UNKNOWN:ignored",
             "END:VCARD",
         ])
         let cs = try CNContactVCardSerialization.contacts(with: data)

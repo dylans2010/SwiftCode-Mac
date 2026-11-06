@@ -9,7 +9,7 @@ share with them.
 All facts are from Apple's open source (evidence level 1), read through the
 GitHub API. The tags are in **Evidence**. This spec restates behavior,
 layouts, and constants. It contains no Apple code. Sections marked
-**Ycode design** are our own decisions, not Apple behavior.
+**SwiftCode design** are our own decisions, not Apple behavior.
 
 Inputs: `host-libraries.md`, `host-library-loading.md`,
 `host-library-surface.md` (+ `data/host-lib-surface-*.json`),
@@ -35,7 +35,7 @@ first, before every other initializer, with
 Calls into the three host libraries are **bold**. The others are listed so
 that the position of each host call is clear. Before step 1, the initializer
 may call `kdebug_trace` (BSD 180), but only when the commpage field
-`KDEBUG_ENABLE` (RW page offset 0x100) is non-zero. Ycode fills it with 0, so
+`KDEBUG_ENABLE` (RW page offset 0x100) is non-zero. SwiftCode fills it with 0, so
 this call does not happen. After each step the initializer makes the same
 conditional trace call.
 
@@ -89,7 +89,7 @@ order:
 3. On arm64, the "PFZ setup": find `apple` key `pfz`. Parse the value as hex
    after a mandatory `0x` (both letter cases). On a bad character, stop and
    change nothing. A non-zero value is stored as the commpage text-page
-   base and used to locate a helper routine on that page. **Ycode's
+   base and used to locate a helper routine on that page. **SwiftCode's
    libraries may skip this**: nothing outside the kernel library reads it.
 
 It does not touch TSD, errno, or `vars`.
@@ -99,7 +99,7 @@ host library is a macOS build, so the non-simulator steps apply:
 
 1. Security configuration: read `apple` key `security_config` (hex). Keep
    only the known bits (hardened heap, TPRO, guard objects, script
-   restrictions, …) in a private global. Ycode passes `0x0`.
+   restrictions, …) in a private global. SwiftCode passes `0x0`.
 2. PFZ setup again (a private copy in libplatform): parse `pfz` as above.
    Then **erase the whole `pfz=…` string in `apple[]`** (key included) by
    zero-filling it. This runs after `__libkernel_init`, so the kernel
@@ -114,7 +114,7 @@ host library is a macOS build, so the non-simulator steps apply:
       is 32 bytes (enabled @0, progname @8, fd @16, @24 unused); the
       simulator layout is 40 bytes and adds `sim_connect_lock` (an
       `os_unfair_lock`) at +32, with `sim_log_path` read from the same
-      block. **Ycode (normative):** use the host layout and allocate a
+      block. **SwiftCode (normative):** use the host layout and allocate a
       **48-byte zeroed** block, so the simulator's fields read as NULL and an
       unlocked lock. (On the Mac the 32-byte block happens to be followed by
       a zero word; a smaller block made the lock overlap another slot's data
@@ -187,11 +187,11 @@ Note: `__pthread_init` **does not** set `TPIDRRO_EL0` and does not set the
 `thread_id` field. Both are expected from the bootstrap step in §5.4.
 
 **`__pthread_late_init(envp, apple, vars)`** (pthread). Only finishes JIT
-write-protect setup. Ycode: no-op.
+write-protect setup. SwiftCode: no-op.
 
 **`__libkernel_init_late(config)`** (kernel). For `config->version` ≥ 1, it
 may enable the macOS or iOS "system version compatibility" shims for
-`open`, or (version ≥ 3) spawn filtering. Ycode: accept and ignore.
+`open`, or (version ≥ 3) spawn filtering. SwiftCode: accept and ignore.
 
 ### 1.4 Entry points called later by other libraries
 
@@ -309,7 +309,7 @@ Size: 40 bytes. Same as `dyld-sim-handoff.md` §4.
 
 ### 2.8 For reference: `_libc_functions` (libSystem → libsystem_c)
 
-This is not passed to Ycode's libraries. Version 2. Members: `version`, the
+This is not passed to SwiftCode's libraries. Version 2. Members: `version`, the
 v1 `atfork_prepare/parent/child` (unused now), `dirhelper`, and the v2
 `atfork_prepare_v2/parent_v2/child_v2(unsigned flags, …)`.
 
@@ -330,7 +330,7 @@ v1 `atfork_prepare/parent/child` (unused now), `dirhelper`, and the v2
   thread (§6).
 - `TPIDR_EL0` (the read-write register) is **not** TSD. On Darwin the
   kernel keeps the CPU number in bits 0–11 and the cluster ID in bits 12–19.
-  `_os_cpu_number()` reads it. The Ycode VMM sets it per vCPU
+  `_os_cpu_number()` reads it. The SwiftCode VMM sets it per vCPU
   (`darwin-process-start.md` §5).
 - Inline readers do `mrs` of `TPIDRRO_EL0` and then a load at `8·k`. So the
   TSD must be **one flat array of 8-byte slots, indexed by key, for every
@@ -346,7 +346,7 @@ v1 `atfork_prepare/parent/child` (unused now), `dirhelper`, and the v2
 
 libpthread does not support simulator builds at all (its build fails for
 the simulator target). The host library is always the macOS build.
-**Ycode uses 768 slots.**
+**SwiftCode uses 768 slots.**
 
 Key ranges in the host library:
 
@@ -410,7 +410,7 @@ the slot at the given index.
   - **simulator builds: a call to `pthread_getspecific(k)`, and a call to
     `_pthread_setspecific_static(k, v)`**. `_pthread_has_direct_tsd()` is 0
     in simulator builds. libdispatch, libobjc, and other simulator images
-    therefore reach the TSD through Ycode's exported functions. That is why
+    therefore reach the TSD through SwiftCode's exported functions. That is why
     `pthread_getspecific` (132 importers), `_pthread_setspecific_static`,
     and `pthread_key_init_np` are on the surface.
 - **libdyld's thread-local-variable getter** (`__tlv_get_addr`, in the
@@ -458,7 +458,7 @@ System-call wrappers (arm64, all BSD calls, including the indirect one):
    error and exits the thread with `PTHREAD_CANCELED`. There is **no NULL
    check** of the table or the member. A failing system
    call before `__libkernel_init` therefore faults in Apple's library.
-   **Ycode must check for NULL.**
+   **SwiftCode must check for NULL.**
 2. Continue as `cerror_nocancel(err)`.
 
 `cerror_nocancel(err)`:
@@ -476,7 +476,7 @@ Mach traps do not use carry and never touch errno.
   has already set slot 1 = &main.`err_no` (§5.4), so errno is per-thread
   from the very first instruction. If the base were set but slot 1 were 0,
   errno would fall back to the global. **If `TPIDRRO_EL0` = 0**, the read
-  of slot 1 loads from address 8 and faults. Ycode must prevent that (§9).
+  of slot 1 loads from address 8 and faults. SwiftCode must prevent that (§9).
 - **The indirect system call** (`syscall(number, …)`, the kernel library's
   `___syscall`): the number is in x0. The variadic arguments are on the
   stack (arm64 Darwin passes every variadic argument on the stack). The
@@ -597,8 +597,8 @@ On macOS (and so in the real simulator):
    main thread port from `th_port=`. The kernel creates both at exec
    (`darwin-process-start.md` §1.4).
 
-**Consequence for Ycode:** there is no host dyld. `TPIDRRO_EL0` is 0 when
-`dyld_sim` starts. Something in Ycode must do step 2 before the first TSD
+**Consequence for SwiftCode:** there is no host dyld. `TPIDRRO_EL0` is 0 when
+`dyld_sim` starts. Something in SwiftCode must do step 2 before the first TSD
 access (§9.1).
 
 ---
@@ -737,11 +737,11 @@ the list. It then sets slot 4 from the flags, calls the libdispatch worker,
 kevent, or workloop callback, and parks with `workq_kernreturn` (BSD 368)
 op THREAD_RETURN 0x004, KEVENT_RETURN 0x040, or WORKLOOP_RETURN 0x100.
 
-### 6.4 What Ycode's VMM must emulate later (stage 3b and beyond)
+### 6.4 What SwiftCode's VMM must emulate later (stage 3b and beyond)
 
 - **3a:** `bsdthread_register`: record the entries and offsets, write back
   the record, and return a positive mask that includes `0x4000_001E`
-  (**Ycode design:** start with `0x4000_001F` and add KEVENT, WORKLOOP,
+  (**SwiftCode design:** start with `0x4000_001F` and add KEVENT, WORKLOOP,
   and COOPERATIVE only when those paths exist). `thread_selfid` (BSD 372)
   must return a unique, non-zero, non-(−1) 64-bit ID.
 - **Threads:** `bsdthread_create` with the §6.2 register state, the TSD
@@ -765,7 +765,7 @@ op THREAD_RETURN 0x004, KEVENT_RETURN 0x040, or WORKLOOP_RETURN 0x100.
 ### 7.1 Data that other images read directly
 
 These values must be correct before any simulator image uses them.
-**Ycode design:** give each of them a static initial value at load time
+**SwiftCode design:** give each of them a static initial value at load time
 where the value is known, so that correctness does not depend on whether or
 when an init function runs (see Open question 1).
 
@@ -803,12 +803,12 @@ The memory is zero-filled. It then stores the pointer, calls `init(ptr)` if
   under contention, `__ulock_wake`.
 - **Requirement on Mach port names:** the lock uses bit 0 of the owner name
   as the "no waiters" bit. It assumes that **every thread port name has bit
-  0 set** and is not 0. Ycode's Mach name allocator must keep this
+  0 set** and is not 0. SwiftCode's Mach name allocator must keep this
   property: xnu-style names (index << 8 | generation) whose low byte is odd,
   such as `0x103`.
 - `os_once`/`_os_once`: 0 → in progress (owner = slot 3) → ~0 done. Waiters
   use ulock. The optional "quiescent counter" mode reads commpage
-  `CPU_QUIESCENT_COUNTER` (RW 0x180). Ycode may always store ~0 directly.
+  `CPU_QUIESCENT_COUNTER` (RW 0x180). SwiftCode may always store ~0 directly.
 
 ### 7.3 Commpage reads on the init path
 
@@ -869,14 +869,14 @@ The memory is zero-filled. It then stores the pointer, calls `init(ptr)` if
 ## 9. Implementation checklist for the first boot (stage 3a)
 
 Goal: a single-threaded `hello` gets through `libSystem_initializer`.
-Everything in §9 is **Ycode design** built on the facts above.
+Everything in §9 is **SwiftCode design** built on the facts above.
 
 ### 9.1 Main-thread bootstrap (choose one; A is recommended)
 
 - **A. The VMM plays the host dyld.** Before entering `dyld_sim`, the VMM
   allocates a zeroed, EL0-RW, 16-byte-aligned block of ≥ 6368 bytes (one
   16 KiB page, outside the shared-region reservation, for example right
-  after the Ycode host page). It writes:
+  after the SwiftCode host page). It writes:
   - +216 (`thread_id`) = the VMM's thread ID;
   - +224 (slot 0) = the block address;
   - +232 (slot 1) = block + 172.
@@ -891,7 +891,7 @@ Everything in §9 is **Ycode design** built on the facts above.
   call. This depends on `__libkernel_init` actually being called (Open
   question 1).
 
-With either choice, Ycode's `__error()` and `cerror` should also treat a
+With either choice, SwiftCode's `__error()` and `cerror` should also treat a
 zero base as "no TSD" and use the global `errno` (defense in depth). Apple
 would fault there.
 
@@ -920,7 +920,7 @@ would fault there.
       `_mach_vm_protect` (−14).
 - [ ] `_host_info` for `HOST_PRIORITY_INFO` (flavor 5): return
       kernel 80, system 80, server 64, user 31, depress 0, idle 0,
-      minimum 0, maximum 79. **Ycode design:** answer this flavor inside
+      minimum 0, maximum 79. **SwiftCode design:** answer this flavor inside
       the library without a Mach message for 3a.
 - [ ] `_mig_get_reply_port` (slot 2, constructing a reply port lazily),
       `_mig_dealloc_reply_port`, `_mig_put_reply_port` (no-op).
@@ -947,7 +947,7 @@ would fault there.
 - [ ] `__pthread_init` per §1.3. With bootstrap A, adopt `TPIDRRO_EL0` −
       224. Fill slots 0, 1, 2, 3, 4, 7, 8, 9, the stack fields, the munge
       token, the list, and the signature. Register with the kernel. **A
-      zero `ptr_munge` must not be fatal in Ycode**, though the VMM
+      zero `ptr_munge` must not be fatal in SwiftCode**, though the VMM
       always supplies one.
 - [ ] `__pthread_late_init`: no-op.
 - [ ] `pthread_self`, `pthread_getspecific` (no range check),
@@ -1000,7 +1000,7 @@ would fault there.
      the VMM logs `unimplemented libfunc <name>` for each one that is
      called.
 
-   §9.1 A and the static values in §7.1 make Ycode work either way.
+   §9.1 A and the static values in §7.1 make SwiftCode work either way.
 2. **Version skew.** The newest tags read are Libsystem-1356,
    xnu-12377.121.6, libpthread-539.100.4, and libplatform-375.120.2 (the
    macOS 26 era). The iOS 27.1 runtime may pass newer struct versions (for
@@ -1014,16 +1014,16 @@ would fault there.
    That needs a VMM answer before `_libxpc_initializer` (step 10) works.
 5. **Milestone attribution.** Stage-3 criterion 2 expects a trap whose ELR
    lies in a *shared-cache* `libsystem_*` or `libSystem.B` image. With
-   Ycode's libraries, the initializer's first traps come from Ycode's own
+   SwiftCode's libraries, the initializer's first traps come from SwiftCode's own
    `libsystem_kernel`, which is not in the cache. The criterion should also
-   accept an ELR in the three Ycode libraries, or use the LR or the stub
+   accept an ELR in the three SwiftCode libraries, or use the LR or the stub
    trap's caller. This is for the orchestrator to decide.
 6. **Inline TSD readers in simulator images.** Confirmed: libdyld's TLV
    getter. Simulator builds of libdispatch and libobjc use the API. Other
    images (Swift runtime, libmalloc) may read slots inline through the
    ungated `os/tsd.h` helpers. The flat-array rule (§3.1) covers all of
    them. Only the slot meanings (§3.3) matter.
-7. **The host_info RPC.** If Ycode later implements `host_info` as a real
+7. **The host_info RPC.** If SwiftCode later implements `host_info` as a real
    MIG message, the VMM needs a host-port server (subsystem `mach_host`,
    routine 200). For 3a the library answers it locally (§9.2).
 
@@ -1044,7 +1044,7 @@ with `gh api` on 2026-10-11; newest tag of each repository):
 
 - Struct offsets were computed from the field types in the headers listed.
   The `pthread_s` and registration-record offsets were cross-checked by
-  compiling Ycode's own declarations with the same field types (scratch
+  compiling SwiftCode's own declarations with the same field types (scratch
   only). They match libpthread's assertions (tsd at 224, stackaddr −48,
   stackbottom −40, thread_id −8).
 - Level 4 (from existing specs): importer counts and data-symbol sizes

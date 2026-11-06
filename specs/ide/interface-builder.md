@@ -1,6 +1,6 @@
 # Interface Builder documents
 
-Ycode module: `YcodeUI` (`XMLSource`, `IBDocument`, `IBEditing`,
+SwiftCode module: `SwiftCodeUI` (`XMLSource`, `IBDocument`, `IBEditing`,
 `InterfaceBuilderController`, `IBCanvasView`). Selecting a `.storyboard`
 or `.xib` file opens it. The editor area shows the Document Outline and
 the canvas; the inspectors are in the window's inspector area.
@@ -43,7 +43,7 @@ Both are XML. The root element is `document`, with `type` (contains
 - Editor area: a jump bar strip showing the full path to the selection,
   the Document Outline (left, with a Filter at its bottom; the canvas bar
   toggles it) and the canvas. Each scene has a title bar naming its
-  controller above a device-shaped frame drawn by Ycode; the initial scene
+  controller above a device-shaped frame drawn by SwiftCode; the initial scene
   has the entry arrow (`reference-ui-4.md` §11).
 - Canvas bottom bar: outline toggle, +, issues, appearance, orientation,
   layout; the device pop-up; zoom "− n% +"; update frames, align, pin (Add
@@ -130,9 +130,9 @@ every edit gives the original bytes.
 
 With an IB document shown, the Library (⇧⌘L) adds an Objects tab: Label,
 Button, Text Field, Image View, View, Stack View, each with an icon drawn
-by Ycode's code and a one-line description. Double-click (or Return)
+by SwiftCode's code and a one-line description. Double-click (or Return)
 inserts into the selected view, centered; dragging a row (pasteboard type
-`io.ycode.ib-object`, the object's name) onto the canvas inserts into the
+`io.swiftcode.ib-object`, the object's name) onto the canvas inserts into the
 view under the drop point, centered there, at the object's default size.
 
 - The new element is appended as the last child of the parent's
@@ -751,11 +751,11 @@ Exit) as three small coloured squares.
 - Inspector set and order, canvas zoom commands, the Library's object
   drag: Apple's public Interface Builder documentation (level 1).
 - OPEN QUESTION: the reference outline's naming rules; flipped NSView
-  subclasses in macOS documents (Ycode treats every macOS view as
-  bottom-left); whether `canvasLocation` is the scene's centre (Ycode
+  subclasses in macOS documents (SwiftCode treats every macOS view as
+  bottom-left); whether `canvasLocation` is the scene's centre (SwiftCode
   assumes so); the attribute order and default attributes the reference
   writes for new objects, and whether it writes `0.0` / fractions as
-  Ycode does; how IDs are generated (character set and uniqueness scope);
+  SwiftCode does; how IDs are generated (character set and uniqueness scope);
   segue drawing details; size classes and trait variations; which
   element holds each new constraint and its attribute order in the
   reference; whether moving a view keeps compatible constraints; the

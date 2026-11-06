@@ -238,7 +238,7 @@ public struct Storefront: Hashable, Sendable, Codable {
     public let id: String
     public let currency: String
 
-    /// The storefronts Ycode knows (numeric ids as published for the App
+    /// The storefronts SwiftCode knows (numeric ids as published for the App
     /// Store, level 1). `USA` → `143441`/`USD` is the measured row
     /// (configuration-file.md §6).
     public static let known: [Storefront] = [

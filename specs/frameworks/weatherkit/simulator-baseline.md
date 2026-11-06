@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/weatherkit/`. What a WeatherKit app sees in the
 reference simulator (Xcode 27.1, iOS 27.1 runtime 24A94401, device type
-iPhone Duo, Apple-silicon Mac). Ycode's simulator runs Apple's own runtime,
+iPhone Duo, Apple-silicon Mac). SwiftCode's simulator runs Apple's own runtime,
 so it must reproduce the **conditions** (services, network, entitlements,
 caches) under which Apple's framework behaves this way. Statements are
 level 3 (our probe `research/experiments/weatherkit/WKProbe`, observations in
@@ -112,7 +112,7 @@ container): `/Library/Weather/weather-data.db`,
 `/Library/Weather/weather-statistics.db`, `/Library/Weather/geocode_wk.db`
 (SQLite, WAL mode; level 2: one table per product plus "unavailable" twins,
 rows with `modified`/`expires` times). The app's own `Library/Caches` and
-`Library/HTTPStorages` hold the URL cache. Ycode needs only to allow these
+`Library/HTTPStorages` hold the URL cache. SwiftCode needs only to allow these
 writes; the formats are internal and need not be reproduced.
 
 ## 5. What the owner must provide to test the entitled path
@@ -122,7 +122,7 @@ be done by the owner (agents never sign in).
 
 1. A **paid Apple Developer Program** membership (team).
 2. An **explicit App ID** for a bundle ID the team owns (e.g. a
-   `dev.ycode.*` identifier registered by the owner), with WeatherKit enabled
+   `dev.swiftcode.*` identifier registered by the owner), with WeatherKit enabled
    on **both** the App Services tab and the Capabilities tab (level 1, Apple
    account help).
 3. The probe carrying that bundle ID and the WeatherKit entitlement in its
@@ -145,9 +145,9 @@ timings, cache-hit timing on repeat, `WeatherMetadata` dates (expiry per
 product), availability for a region with and without minute forecasts and
 alerts, and the `Codable` JSON of real values.
 
-## 6. What Ycode's simulator must provide
+## 6. What SwiftCode's simulator must provide
 
-For WeatherKit (Apple's framework running in Ycode's guest):
+For WeatherKit (Apple's framework running in SwiftCode's guest):
 
 | Need | Why | Check |
 |---|---|---|
@@ -159,13 +159,13 @@ For WeatherKit (Apple's framework running in Ycode's guest):
 | GEO services (`geod` and network access to Apple's GEO servers) | reverse geocoding before every uncached request | W-GEO |
 | Writable device-wide `/Library/Weather/` and the app container's caches | SQLite caches | second call is a cache hit (entitled path) |
 | Time zone database and locale/language settings | `timezone`, language and `deviceLanguages` parameters | request URL in the log matches the device settings |
-| The `__entitlements` section honored for **launch** while code signatures stay ad-hoc | apps built by Ycode for the simulator | W-LAUNCH-ENT |
+| The `__entitlements` section honored for **launch** while code signatures stay ad-hoc | apps built by SwiftCode for the simulator | W-LAUNCH-ENT |
 
 For location, see `location.md` §6.
 
 ## 7. Conformance checklist
 
-Run each in Apple's simulator to produce goldens, then in Ycode's guest; the
+Run each in Apple's simulator to produce goldens, then in SwiftCode's guest; the
 output must match after normalizing times, pids, UUIDs and timings.
 
 | Id | Probe | Expected |

@@ -1,6 +1,6 @@
 # Spec: `project.pbxproj`
 
-Status: **implemented** in `ycode/Sources/YcodeProject`. 22 of 22 Xcode-written
+Status: **implemented** in `swiftcode/Sources/SwiftCodeProject`. 22 of 22 Xcode-written
 corpus files round-trip byte for byte (objectVersion 46, 70, 77, 90, 110).
 
 ## Container
@@ -95,7 +95,7 @@ which has no name or path.
 ### Writer generations
 
 The comment style depends on the Xcode release that last saved the file.
-Neither `objectVersion` nor `compatibilityVersion` records it. Ycode detects
+Neither `objectVersion` nor `compatibilityVersion` records it. SwiftCode detects
 the style when it loads a file (`PBXProj.FormatStyle.detect`) and uses that
 style when it saves, so that untouched projects produce no diff. New projects
 use the current style.
@@ -140,7 +140,7 @@ Rules:
 ## Files edited by other tools
 
 Generators and hand edits can produce files that are not in canonical order:
-unsorted sections, unsorted IDs, or unsorted `buildSettings` keys. Ycode loads
+unsorted sections, unsorted IDs, or unsorted `buildSettings` keys. SwiftCode loads
 these files without losing data and writes them in canonical order, as Xcode
 does on its next save.
 
@@ -162,7 +162,7 @@ sub-folders) has one key for all regions: `/Localized: <path without the
 .lproj component>`, for example `Resources/de.lproj/Localizable.strings` →
 `/Localized: Resources/Localizable.strings`.
 
-How Ycode builds from these: `specs/ide/build-pif.md` §Synchronized
+How SwiftCode builds from these: `specs/ide/build-pif.md` §Synchronized
 folders.
 
 ## Open questions
@@ -174,7 +174,7 @@ folders.
   implementation writes `(null)`.
 - The meaning of `objectVersion = 110`.
 - Synchronized folders: the reference tool's default build phase for each
-  file type in a synchronized folder (Ycode's table is in `build-pif.md`),
+  file type in a synchronized folder (SwiftCode's table is in `build-pif.md`),
   whether a file a build-phase exception set names also stays in its
   default phase, and the sort order of the folder's items in the reference
   navigator. Samples from a corpus project that use

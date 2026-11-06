@@ -2,7 +2,7 @@
 
 Status: **specification (round 0)**, 2026-10-30. Reference: Icon Composer
 27.1 (build 129, inside Xcode 27.1 27A9269) and the standalone Icon Composer
-2.0 (build 109.4). Read and written by Ycode (`YcodeIcon`, "Ycode
+2.0 (build 109.4). Read and written by SwiftCode (`SwiftCodeIcon`, "SwiftCode
 implementation" below); rendering is a later round (ICON-RENDER).
 
 An `.icon` is the layered app-icon document made by Icon Composer. Xcode 26
@@ -262,7 +262,7 @@ They render differently from the same document.
 ## 8. The command-line renderer
 
 Icon Composer ships `Contents/Executables/ictool` (and a helper `icrtool`
-that is not meant to be run directly). Ycode does not need them; they are
+that is not meant to be run directly). SwiftCode does not need them; they are
 the reference for black-box comparison of an Icon Composer–compatible
 renderer.
 
@@ -309,14 +309,14 @@ renderer.
 - The exact meaning of the reader-known keys listed in §3.1 and §3.2 that
   were not observed in any file.
 
-## I. Ycode implementation (ICON-READER, agent ICON-CAR, 2026-10-30)
+## I. SwiftCode implementation (ICON-READER, agent ICON-CAR, 2026-10-30)
 
-Module `YcodeIcon` (portable, Foundation only; macOS and Linux). Commands:
-`ycode assets icon info | validate | to-json | from-json | render`.
+Module `SwiftCodeIcon` (portable, Foundation only; macOS and Linux). Commands:
+`swiftcode assets icon info | validate | to-json | from-json | render`.
 
 ### I.1 Model
 
-| Spec | Ycode type |
+| Spec | SwiftCode type |
 |---|---|
 | Document (§3.1) | `IconDocument`: `fill` (+ specializations), `groups`, `supportedPlatforms`, `colorSpaceForUntaggedSVGColors`, `extra` |
 | Group (§3.2) | `IconGroup`: `name`, `layers`, and every specializable key as `IconSpecialized<…>` (hidden, opacity, blend mode, position, shadow, translucency, specular, highlight placement, lighting, blur material, refractivity) |
@@ -330,7 +330,7 @@ Module `YcodeIcon` (portable, Foundation only; macOS and Linux). Commands:
 
 ### I.2 Reading and writing
 
-- Reader: Ycode's own JSON parser (any valid JSON layout; a UTF-8 BOM is
+- Reader: SwiftCode's own JSON parser (any valid JSON layout; a UTF-8 BOM is
   accepted). Errors (`IconError`, with a path like
   `groups[0].layers[1].blend-mode`) for: not an object, missing `groups` or
   `layers`, bad blend mode, fill, colour encoding (missing `:`, unknown
@@ -357,7 +357,7 @@ appearance:, platform:)` gives one key's effective value. Rules:
 
 - With `K-specializations`, the matching entry applies (appearance absent
   or equal; idiom absent or applying to the platform: `square` → iOS and
-  macOS, `macOS`, `watchOS`, `iOS` → their own). **Ycode's precedence for
+  macOS, `macOS`, `watchOS`, `iOS` → their own). **SwiftCode's precedence for
   the open question of §5/§10:** an appearance match outranks an idiom
   match, and a platform's own idiom outranks `square`; among equals the
   first in the file wins. Without a matching entry the plain key applies,
@@ -383,7 +383,7 @@ macOS) or 1088 (watchOS).
 
 ### I.5 Tests
 
-`YcodeIconTests` (macOS and Linux): byte-for-byte round trip of the
+`SwiftCodeIconTests` (macOS and Linux): byte-for-byte round trip of the
 every-key document; every key read into the model; the writer's layout;
 hand-edited layouts and unknown keys; shortest numbers; colour text kept;
 16 invalid documents with their messages; the resolution table; dark
@@ -403,4 +403,4 @@ validation warnings).
 | System background colours | Colours in `Assets.car` compiled from our samples, read with `assetutil --info` | 3 |
 | `ictool` usage and behaviour | `ictool --help`, `--version`, runs on our samples | 3 |
 | Not used | Disassembly or decompilation (level 5); GUI clicks; Apple's sample icons or artwork | — |
-| §I (Ycode implementation) | This spec only; the dark-background rule from `icon-compile.md` §4.2 and `assets-car.md` §8; the precedence rule is Ycode's choice (an open question here) | 1 (spec), Ycode decision |
+| §I (SwiftCode implementation) | This spec only; the dark-background rule from `icon-compile.md` §4.2 and `assets-car.md` §8; the precedence rule is SwiftCode's choice (an open question here) | 1 (spec), SwiftCode decision |

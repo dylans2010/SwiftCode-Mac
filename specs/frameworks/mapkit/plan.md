@@ -1,19 +1,19 @@
 # MapKit spec: implementation rounds and conformance tests
 
-Part of `specs/frameworks/mapkit/`. This plan is Ycode's own. Each round is
+Part of `specs/frameworks/mapkit/`. This plan is SwiftCode's own. Each round is
 sized for one agent. Clean-room agents read only `specs/`, public
 documentation and permissively licensed open source; they must not open the
 reference tools (the Xcode copy, Ghidra, the IPSW), `research/dirty/` or
 Ghidra projects, must not run Apple's Xcode or Simulator, and must not
 fetch from Apple's map servers. (Simulator-track rounds run Apple's iOS
-runtime inside a Ycode micro-VM by design; that runtime then talks to
+runtime inside a SwiftCode micro-VM by design; that runtime then talks to
 Apple's servers exactly as on a Mac. The agents do not inspect that traffic
 beyond what this spec records.)
 
 ## 1. Targets
 
-1. **Baseline in Ycode's simulator** (`design.md` §2): an unmodified MapKit
-   app in a Ycode guest, running Apple's MapKit, behaves as
+1. **Baseline in SwiftCode's simulator** (`design.md` §2): an unmodified MapKit
+   app in a SwiftCode guest, running Apple's MapKit, behaves as
    `simulator-baseline.md` records. Rounds R1–R6.
 2. **Open MapKit** (`design.md` §3): a Linux Swift package and a guest
    drop-in with the same names, built on open data and MapLibre Native.
@@ -24,17 +24,17 @@ beyond what this spec records.)
 Ordered by dependency. Each round names the checklist rows of
 `simulator-baseline.md` §7 that must pass at its end. "Pass" means the same
 outputs from `MKProbe` (our own app, `research/experiments/mapkit/MKProbe`,
-which an agent may build and run in a Ycode guest) modulo server content,
+which an agent may build and run in a SwiftCode guest) modulo server content,
 times and the device's safe area.
 
 | Round | Scope | Baseline sections | Done when |
 |---|---|---|---|
 | R1 | **Headless MapKit**: MapKit loads in a guest app; `geod` launches on demand in the **user** launchd domain as `mobile` with its three Mach services; writable `Library/Caches/GeoServices` and `Library/Caches/com.apple.geod`; the app's lookups of `com.apple.geod`, `com.apple.geoanalyticsd`, `com.apple.locationd.*` and `com.apple.tccd` succeed; correct wall clock and time zone | §§2.1–2.3, 2.6 | S1 (math mode prints identical digits; it needs no network or GPU) |
 | R2 | **Guest internet for `geod`**: DNS, outbound TCP and UDP (QUIC), TLS with the runtime's own trust store, no host allow-list (the host list comes from the downloaded manifest); host proxy settings honored if the host has any | §2.5 | S8–S12 (search, completer, directions, geocoding, Look Around) |
-| R3 | **Metal in app processes** (the Metal→Vulkan layer, stage 8a): `com.apple.metal.simulator`, `com.apple.IOSurface.Remote`, `com.apple.MTLCompilerService`; the map's layer composited by Ycode's render server | §3 | S2–S5 (first render, callbacks, every configuration including 3D and globe, annotations drawn) |
+| R3 | **Metal in app processes** (the Metal→Vulkan layer, stage 8a): `com.apple.metal.simulator`, `com.apple.IOSurface.Remote`, `com.apple.MTLCompilerService`; the map's layer composited by SwiftCode's render server | §3 | S2–S5 (first render, callbacks, every configuration including 3D and globe, annotations drawn) |
 | R4 | **Snapshot service**: launching the XPC service bundled in `MapKit.framework/XPCServices` (`com.apple.MapKit.SnapshotService`) for an app, with GPU access | §§2.1, 4.7 | S13 |
-| R5 | **Location**: `locationd` with `com.apple.locationd.simulation`; Ycode host commands equivalent to `simctl location set/clear` and `privacy grant location`; the transient error-then-update sequence on a change | §4.8 | S6, S7 |
-| R6 | **Input and app switching**: multi-step drags with velocity, double taps within the double-tap interval, long presses through Ycode's HID path; `openURL` routing (27.1 has no Maps app: `maps:` fails, `https://maps.apple.com` goes to Safari); loss of `geod` | §§4.4, 5, 6 | S14, S15, S16 |
+| R5 | **Location**: `locationd` with `com.apple.locationd.simulation`; SwiftCode host commands equivalent to `simctl location set/clear` and `privacy grant location`; the transient error-then-update sequence on a change | §4.8 | S6, S7 |
+| R6 | **Input and app switching**: multi-step drags with velocity, double taps within the double-tap interval, long presses through SwiftCode's HID path; `openURL` routing (27.1 has no Maps app: `maps:` fails, `https://maps.apple.com` goes to Safari); loss of `geod` | §§4.4, 5, 6 | S14, S15, S16 |
 
 Notes for the simulator agents:
 
@@ -52,13 +52,13 @@ Notes for the simulator agents:
 |---|---|---|
 | R7 | **Geometry core** (`MKGeometry`): map points and clamps, rect algebra and the 180th-meridian rules, regions from meters and map rects, the meters-per-map-point table, the map-point distance formula, circle/polyline/polygon bounding rects, geodesic densification counts, distance formatter for en_US/en_GB/de_DE/fr_FR/ja_JP | C-GEOM and C-FMT pass bit-exact on Linux (`geometry.md` §§1–5, 11) |
 | R8 | **Camera and viewport**: camera value type and constructors, altitude/distance/pitch relations, safe-area viewport, region fitting by aspect, the 30° field of view on the full height, visible map rect, conversions, zoom and boundary clamps, pitch limit by distance | C-CAMERA and C-VIEWPORT pass (`geometry.md` §§6–7) |
-| R9 | **Renderer bridge**: MapLibre Native behind `MKMapView` (Metal in the guest, Vulkan/GL on Linux), Ycode styles for standard / muted / imagery / hybrid in light and dark, realistic elevation (terrain + extrusions), globe for imagery at continental distances, attribution view, the empty-grid look for missing data; delegate callback sequences of `interface.md` §3.4 | C-RENDER passes (callbacks, order, no-reload rule; screenshots reviewed by a human for "looks like a map") |
+| R9 | **Renderer bridge**: MapLibre Native behind `MKMapView` (Metal in the guest, Vulkan/GL on Linux), SwiftCode styles for standard / muted / imagery / hybrid in light and dark, realistic elevation (terrain + extrusions), globe for imagery at continental distances, attribution view, the empty-grid look for missing data; delegate callback sequences of `interface.md` §3.4 | C-RENDER passes (callbacks, order, no-reload rule; screenshots reviewed by a human for "looks like a map") |
 | R10 | **Annotations and overlays**: annotation container, marker view geometry and defaults, selection, clustering with "+N more" subtitles and count glyphs, overlay levels, renderer coordinate space, path renderers, tile overlays with the URL template grammar | C-ANNOT and C-OVERLAY pass |
 | R11 | **Services**: `PlaceSearch`, completer (debounced), POI request, `Geocoder` (forward/reverse; `CLGeocoder` compatibility), `Router` (routes, steps, ETA, alternates, preferences), map item model with `MKAddress` formatting and representations, the `forCurrentLocation()` placeholder and its resolution, error mapping of `services.md` §7 | C-SERVICES passes against recorded open-backend fixtures |
 | R12 | **SwiftUI `Map`**: content builder, markers/annotations/shapes, `MapCameraPosition` semantics including `.automatic` framing and the user-location fallback order, `onMapCameraChange`, controls, `MapReader`/`MapProxy` | C-SWIFTUI passes (`geometry.md` §10) |
 | R13 | **Snapshots and Look Around**: headless snapshot rendering with aspect-fit geometry, size limits and option rules; Look Around returns nil (no open imagery) unless an imagery adapter is configured | C-SNAP passes; C-LOOK returns nil without error |
-| R14 | **Opening maps**: `openInMaps`/`openMaps` and `maps:` URLs routed to a Ycode map viewer app or reported as unavailable exactly like 27.1 | C-OPEN passes |
-| R15 | **Drop-in switch**: load Ycode's MapKit (and the optional `dev.ycode.geod`) in the guest instead of Apple's for opt-in apps; offline packs | the suite passes with both stacks |
+| R14 | **Opening maps**: `openInMaps`/`openMaps` and `maps:` URLs routed to a SwiftCode map viewer app or reported as unavailable exactly like 27.1 | C-OPEN passes |
+| R15 | **Drop-in switch**: load SwiftCode's MapKit (and the optional `dev.swiftcode.geod`) in the guest instead of Apple's for opt-in apps; offline packs | the suite passes with both stacks |
 
 ## 4. Conformance tests (clean-room side)
 
@@ -97,12 +97,12 @@ offline offline:geodstopped`. The string-constant tool is generated by
 `gen_consts.py`. Name inventories: `extract_objc_names.py`,
 `extract_swift_names.py`, rendered by `gen_api.py`.
 
-Use devices named `ycode-test-mapkit*` only. `offline:geodstopped` removes
+Use devices named `swiftcode-test-mapkit*` only. `offline:geodstopped` removes
 `geod` from the device's launchd until the device reboots.
 
 ## Evidence
 
 | Claim | Level |
 |---|---|
-| Round contents, ordering, test design | Ycode's own plan (no evidence level) |
+| Round contents, ordering, test design | SwiftCode's own plan (no evidence level) |
 | Expected values | as cited in the referenced files (levels 2–4) |

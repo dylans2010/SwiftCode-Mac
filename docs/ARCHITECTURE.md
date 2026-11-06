@@ -1,127 +1,127 @@
-# Ycode architecture and roadmap
+# SwiftCode architecture and roadmap
 
 ## 1. Overview
 
 ```text
- macOS: Ycode.app (YcodeUI, AppKit)     Linux: ycode-ide (YcodeIDEShell, SwiftUI on OpenViews)
+ macOS: SwiftCode.app (SwiftCodeUI, AppKit)     Linux: swiftcode-ide (SwiftCodeIDEShell, SwiftUI on OpenViews)
               |                                   |
               +----------------+------------------+
-                      YcodeIDECore: the portable IDE model
+                      SwiftCodeIDECore: the portable IDE model
                                |
     Project files           Build               Language and debug      Assistant
-    YcodePlist              YcodeBuild          YcodeLanguage           YcodeAssistant
-    YcodeProject            YcodeXcodebuild     YcodeDebug              YcodeCompletion
-    YcodeWorkspace          -> swift-build      -> sourcekit-lsp        YcodeMCP
-    YcodeSettings           -> SwiftPM          -> lldb-dap
+    SwiftCodePlist              SwiftCodeBuild          SwiftCodeLanguage           SwiftCodeAssistant
+    SwiftCodeProject            SwiftCodeXcodebuild     SwiftCodeDebug              SwiftCodeCompletion
+    SwiftCodeWorkspace          -> swift-build      -> sourcekit-lsp        SwiftCodeMCP
+    SwiftCodeSettings           -> SwiftPM          -> lldb-dap
 
- Simulator (arm64 Linux): ycode-simd -> YcodeDarwinKernel -> YcodeHypervisor (KVM)
-                          YcodeMetalHost -> YcodeVulkan; YcodeDisplayStream -> viewers
+ Simulator (arm64 Linux): swiftcode-simd -> SwiftCodeDarwinKernel -> SwiftCodeHypervisor (KVM)
+                          SwiftCodeMetalHost -> SwiftCodeVulkan; SwiftCodeDisplayStream -> viewers
 ```
 
-The two windows share one model. `YcodeIDECore` imports no UI toolkit, so everything that isn't drawing is
+The two windows share one model. `SwiftCodeIDECore` imports no UI toolkit, so everything that isn't drawing is
 written once and tested on every platform. Section 3 lists the modules. Section 6 gives the size of what
-Ycode is measured against.
+SwiftCode is measured against.
 
 ## 2. Strategy: reuse what is open, rebuild what is not
 
-| Xcode piece | Ycode approach |
+| Xcode piece | SwiftCode approach |
 |---|---|
-| Build engine (Swift Build, llbuild) | **Reuse** swiftlang/swift-build as a library or service. It reads its own PIF format, so Ycode converts its project model into PIF. |
+| Build engine (Swift Build, llbuild) | **Reuse** swiftlang/swift-build as a library or service. It reads its own PIF format, so SwiftCode converts its project model into PIF. |
 | Compilers, linker, LLDB | **Reuse** the installed toolchain (`xcrun`). Debug through `lldb-dap` (DAP) or the LLDB SB API. |
 | Code intelligence | **Reuse** sourcekit-lsp, clangd, and indexstore-db through LSP. |
 | Packages | **Reuse** SwiftPM (libSwiftPM or the `swift package` CLI). |
 | Syntax highlighting and formatting | **Reuse** swift-syntax and tree-sitter grammars. |
 | Testing | **Reuse** xctest and swift-testing runners. Parse results through `xcresulttool` or our own reader. |
-| Simulators and devices | **Shell out** to `simctl` and `devicectl` for the Mac's simulators and physical devices. Apple ships both with documented CLIs. The Ycode simulator on arm64 Linux is our own (`docs/SIMULATOR-LINUX.md`); the IDE drives it over ssh (`specs/ide/run.md`). |
-| Project model and pbxproj I/O | **Rebuild** (`YcodeProject`). Started. |
+| Simulators and devices | **Shell out** to `simctl` and `devicectl` for the Mac's simulators and physical devices. Apple ships both with documented CLIs. The SwiftCode simulator on arm64 Linux is our own (`docs/SIMULATOR-LINUX.md`); the IDE drives it over ssh (`specs/ide/run.md`). |
+| Project model and pbxproj I/O | **Rebuild** (`SwiftCodeProject`). Started. |
 | Workspaces, schemes, xcconfig, build-setting resolution | **Rebuild** from format specs. Swift Build's open xcspecs document the settings. |
 | IDE shell: windows, navigators, editors, inspectors, plug-ins | **Rebuild** in AppKit (Swift plus ObjC where needed). |
 | Source editor | **Rebuild** on TextKit 2. |
 | Interface Builder, asset catalog editor | **Rebuild.** Basic editors exist (see M4). |
 | Apple frameworks for apps on Linux | **Rebuild** as open packages in `frameworks/` (see `docs/FUTURE.md`). |
-| Coding assistant | **Rebuild** (`YcodeAssistant` + `YcodeUI`): local models (Ollama, llama.cpp), OpenAI (ChatGPT sign-in or API key) and agent CLIs run read-only; changes are proposed and reviewed (`specs/ide/coding-assistant.md`). |
+| Coding assistant | **Rebuild** (`SwiftCodeAssistant` + `SwiftCodeUI`): local models (Ollama, llama.cpp), OpenAI (ChatGPT sign-in or API key) and agent CLIs run read-only; changes are proposed and reviewed (`specs/ide/coding-assistant.md`). |
 | Instruments UI, Xcode Cloud | Later. These are separate products in their own right. |
 
-## 3. Module plan (`ycode/`)
+## 3. Module plan (`swiftcode/`)
 
 IDE and project model:
 
-    YcodePlist        OpenStep, XML and binary plist I/O                   [done]
-    YcodeProject      pbxproj object graph, typed model, mutations          [done: I/O + views]
-    YcodeWorkspace    .xcworkspace, .xcscheme (Xcode-exact XML I/O)         [done: M2]
-    YcodeSettings     xcconfig, macro language, levels, derived rules       [done: M2]
-    YcodeMachO        Mach-O + dyld shared cache reader (read-only)         [done: read]
-    YcodeSubprocess   subprocess runs, the debug-build main-thread guard
-    YcodeBuild        PIF generation → swift-build, xcodebuild fallback,    [experimental: M3]
+    SwiftCodePlist        OpenStep, XML and binary plist I/O                   [done]
+    SwiftCodeProject      pbxproj object graph, typed model, mutations          [done: I/O + views]
+    SwiftCodeWorkspace    .xcworkspace, .xcscheme (Xcode-exact XML I/O)         [done: M2]
+    SwiftCodeSettings     xcconfig, macro language, levels, derived rules       [done: M2]
+    SwiftCodeMachO        Mach-O + dyld shared cache reader (read-only)         [done: read]
+    SwiftCodeSubprocess   subprocess runs, the debug-build main-thread guard
+    SwiftCodeBuild        PIF generation → swift-build, xcodebuild fallback,    [experimental: M3]
                       diagnostics stream, package resolution, destinations
-    YcodeXcodebuild   xcodebuild-compatible engine behind `ycodebuild`      [experimental]
-    YcodeLanguage     LSP client (sourcekit-lsp): completion, hover,        [experimental: M5]
+    SwiftCodeXcodebuild   xcodebuild-compatible engine behind `swiftcodebuild`      [experimental]
+    SwiftCodeLanguage     LSP client (sourcekit-lsp): completion, hover,        [experimental: M5]
                       definition, rename, references, call hierarchy, code actions
-    YcodeDebug        DAP client to lldb-dap                                [experimental: M6]
-    YcodeAssistant    coding assistant: model providers (Ollama, llama.cpp, [experimental]
+    SwiftCodeDebug        DAP client to lldb-dap                                [experimental: M6]
+    SwiftCodeAssistant    coding assistant: model providers (Ollama, llama.cpp, [experimental]
                       OpenAI, agent CLIs), OpenAI sign-in, prompts, proposals
-    YcodeDeviceModel  device windows' model: frames, zoom, the hub sidebar  [experimental]
-    YcodeDeviceUI     the compact device window and the live session (macOS)
-    YcodeSyntax       the editor's portable syntax layer: highlighting       [done]
+    SwiftCodeDeviceModel  device windows' model: frames, zoom, the hub sidebar  [experimental]
+    SwiftCodeDeviceUI     the compact device window and the live session (macOS)
+    SwiftCodeSyntax       the editor's portable syntax layer: highlighting       [done]
                       tokens (swift-syntax for Swift, line lexers for C, C++,
                       ObjC, Metal, JSON, XML, Markdown, YAML, shell, xcconfig),
                       incremental re-highlighting, bracket structure,
                       indentation and typing rules
-    YcodeIDECore      the IDE's portable model, shared by every shell        [L0 done]
+    SwiftCodeIDECore      the IDE's portable model, shared by every shell        [L0 done]
                       (macOS and Linux): commands and menus, templates, asset
                       and String Catalogs, IB document model, git, diff, find,
                       reports, project editor model, workspace session, runs,
                       settings and themes (colors and fonts as values), view
                       models of navigators, previews, devices and the toolbar
-    YcodeUI           AppKit IDE shell on YcodeIDECore (re-exports it):      [experimental: M4]
+    SwiftCodeUI           AppKit IDE shell on SwiftCodeIDECore (re-exports it):      [experimental: M4]
                       workspace window, navigators, editors, inspectors,
                       Interface Builder, previews, Device Hub, settings
-    YcodeIDEShell     the SwiftUI shell's view models (no toolkit): window  [L1 done]
+    SwiftCodeIDEShell     the SwiftUI shell's view models (no toolkit): window  [L1 done]
                       areas, navigators, the read-only highlighted editor,
                       Find, issues, build and run, menus from CommandTable;
                       SwiftPM builds for packages on Linux
-    ycode-ide         the SwiftUI workspace shell: OpenViews on Linux        [L1 done]
+    swiftcode-ide         the SwiftUI workspace shell: OpenViews on Linux        [L1 done]
                       (frameworks/swiftui), Apple's SwiftUI on macOS
-    YcodeApp          Ycode.app entry point (macOS)
-    ycode             CLI: describe, schemes, settings, roundtrip, macho, dsc, deps, build, pif
-    ycodebuild        `ycodebuild-cli`: the xcodebuild-compatible command line
-    Tools/ycode-swb   swift-build helper (`swbuild`, pinned release/6.4.x)
+    SwiftCodeApp          SwiftCode.app entry point (macOS)
+    swiftcode             CLI: describe, schemes, settings, roundtrip, macho, dsc, deps, build, pif
+    swiftcodebuild        `swiftcodebuild-cli`: the xcodebuild-compatible command line
+    Tools/swiftcode-swb   swift-build helper (`swbuild`, pinned release/6.4.x)
 
 Simulator (`docs/SIMULATOR-LINUX.md`):
 
-    YcodeDarwinABI     guest memory, address spaces, the file system, trap numbers
-    YcodeDarwinKernel  the Darwin kernel personality: BSD calls, Mach IPC, processes,
+    SwiftCodeDarwinABI     guest memory, address spaces, the file system, trap numbers
+    SwiftCodeDarwinKernel  the Darwin kernel personality: BSD calls, Mach IPC, processes,
                        threads, kevent, workqueues, snapshots
-    YcodeHypervisor    KVM VMs and vCPUs (arm64 Linux only), with CKVM
-    YcodeXPC           bootstrap and the XPC wire format
-    YcodeHostServices  host services: IOSurface, audio, camera, HID, FSEvents,
+    SwiftCodeHypervisor    KVM VMs and vCPUs (arm64 Linux only), with CKVM
+    SwiftCodeXPC           bootstrap and the XPC wire format
+    SwiftCodeHostServices  host services: IOSurface, audio, camera, HID, FSEvents,
                        SCDynamicStore, power
-    YcodeMetalHost     the Metal host service and its command decoding
-    YcodeVulkan        the Vulkan back end, with CVulkan
-    YcodeDisplayStream the display-stream protocol between ycode-simd and its viewers
-    YcodeSimFeatures   simulator settings features, shared by ycode-simd, the viewer and the IDE
-    ycode-simd         the VM monitor (arm64 Linux)
-    ycode-sim-viewer   the viewer (macOS, and SDL on Linux)
-    YcodeSimLink       the encrypted link between a simulator host and a remote IDE or viewer
+    SwiftCodeMetalHost     the Metal host service and its command decoding
+    SwiftCodeVulkan        the Vulkan back end, with CVulkan
+    SwiftCodeDisplayStream the display-stream protocol between swiftcode-simd and its viewers
+    SwiftCodeSimFeatures   simulator settings features, shared by swiftcode-simd, the viewer and the IDE
+    swiftcode-simd         the VM monitor (arm64 Linux)
+    swiftcode-sim-viewer   the viewer (macOS, and SDL on Linux)
+    SwiftCodeSimLink       the encrypted link between a simulator host and a remote IDE or viewer
 
 Mac simulator and device lists come from `simctl` / `devicectl` JSON inside
-`YcodeBuild` (destinations) and `YcodeIDECore` (Device Hub's list model).
+`SwiftCodeBuild` (destinations) and `SwiftCodeIDECore` (Device Hub's list model).
 
-`YcodeIDECore` imports no AppKit. Model code that needs a toolkit type takes a
+`SwiftCodeIDECore` imports no AppKit. Model code that needs a toolkit type takes a
 portable value instead (`ThemeColor`, `EditorTheme.FontSpec`,
-`MenuCommand.Modifiers`, `IDEProcess`), and `YcodeUI` converts at the edge
+`MenuCommand.Modifiers`, `IDEProcess`), and `SwiftCodeUI` converts at the edge
 (`Preferences+AppKit.swift`: `NSColor`, `NSFont`, `NSAppearance`,
 `NSEvent.ModifierFlags`). Members a shell needs but that are not public API
-are `package`. Its tests, the model tests split out of `YcodeUITests`, are in
-`YcodeIDECoreTests` and run on Linux too (docs/PARITY.md §5.6, L0).
+are `package`. Its tests, the model tests split out of `SwiftCodeUITests`, are in
+`SwiftCodeIDECoreTests` and run on Linux too (docs/PARITY.md §5.6, L0).
 
-Everything except `YcodeUI`, `YcodeDeviceUI`, `YcodeApp` and
-`ycode-sim-viewer` builds and passes its tests on macOS (arm64) and Linux
-(x86-64 and arm64, Swift 6.4). `ycode-ide`, the SwiftUI shell
+Everything except `SwiftCodeUI`, `SwiftCodeDeviceUI`, `SwiftCodeApp` and
+`swiftcode-sim-viewer` builds and passes its tests on macOS (arm64) and Linux
+(x86-64 and arm64, Swift 6.4). `swiftcode-ide`, the SwiftUI shell
 (docs/PARITY.md §5.8), builds on both: against OpenViews on Linux (the
 package depends on `../frameworks/swiftui` by path, only when that folder is
 present) and against Apple's SwiftUI on macOS, where the shipping IDE is
-still the AppKit `YcodeApp`. `ycode-simd` and `YcodeHypervisor` do real work
+still the AppKit `SwiftCodeApp`. `swiftcode-simd` and `SwiftCodeHypervisor` do real work
 only on arm64 Linux. CI (`.github/workflows/ci.yml`) builds and tests on macOS
 and on Linux x86-64 and arm64; its hosted machines have no simulator runtime, so
 tests that need one skip themselves.
@@ -137,10 +137,10 @@ tests that need one skip themselves.
    `specs/build-settings.md` and `research/notes/m2-status.md`. Still open:
    the spec-defaults level.)*
 3. **M3: Build.** Generate PIF, drive swift-build, and stream diagnostics.
-   `ycode build` must produce the same products as `xcodebuild` for the
+   `swiftcode build` must produce the same products as `xcodebuild` for the
    corpus. *(Experimental, working: a shared PIF generator drives
    swift-build for projects, workspaces and packages, with an xcodebuild
-   fallback; `ycodebuild` mirrors xcodebuild's command line including
+   fallback; `swiftcodebuild` mirrors xcodebuild's command line including
    test, archive and export. Product equivalence is checked on a small
    corpus, not proven in general.)*
 4. **M4: Shell.** An AppKit workspace window with the project navigator, a
@@ -157,8 +157,8 @@ tests that need one skip themselves.
    watchpoints, console input, attach, disassembly.)*
 7. **M7: Tests and devices.** The test navigator, results, simulators, and
    devices. *(Partly: the test navigator and results work. Runs go to My Mac,
-   the Mac's simulators, and the Ycode simulator. The Device Hub starts,
-   stops and shows Ycode's simulators; other simulators and physical devices
+   the Mac's simulators, and the SwiftCode simulator. The Device Hub starts,
+   stops and shows SwiftCode's simulators; other simulators and physical devices
    are listed only.)*
 
 8. **Linux IDE.** The same window on OpenViews (`docs/PARITY.md` §5.6). *(L0, the
@@ -181,7 +181,7 @@ Done and in specs: the `.xcscheme` and `.xcworkspacedata` grammars
 (`specs/build-settings.md`). Still open:
 
 - Write the IDE extension-point architecture into a spec from the plug-in
-  `Info.plist`/`.ideplugin` metadata (level 4). This decides how the Ycode
+  `Info.plist`/`.ideplugin` metadata (level 4). This decides how the SwiftCode
   shell is divided into modules.
 - Collect real samples of the `PBXFileSystemSynchronized*` exception-set
   variants.

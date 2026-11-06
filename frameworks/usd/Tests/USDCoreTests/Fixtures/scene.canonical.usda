@@ -1,8 +1,8 @@
 #usda 1.0
 (
-    "Hand-written test scene for ycode-usd (MIT, part of this repository)."
+    "Hand-written test scene for swiftcode-usd (MIT, part of this repository)."
     customLayerData = {
-        string creator = "ycode-usd tests"
+        string creator = "swiftcode-usd tests"
         dictionary nested = {
             int count = 3
             token mode = "fast"

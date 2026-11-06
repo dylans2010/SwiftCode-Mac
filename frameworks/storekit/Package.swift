@@ -1,10 +1,10 @@
 // swift-tools-version:6.0
 //
-// ycode-storekit: an open, Linux-buildable StoreKit Testing stack written from
+// swiftcode-storekit: an open, Linux-buildable StoreKit Testing stack written from
 // specs/frameworks/storekit/ under the clean-room protocol of AGENTS.md.
 //
 // Modules (plan.md rounds):
-//   StoreKitConfiguration  R2  the `.storekit` file model (Ycode-named; an
+//   StoreKitConfiguration  R2  the `.storekit` file model (SwiftCode-named; an
 //                              IDE dependency, not an Apple API)
 //   StoreKitEngine         R7  the open local store (catalog, per-app store,
 //                              subscription scheduler, offers, Ask to Buy,
@@ -17,7 +17,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ycode-storekit",
+    name: "swiftcode-storekit",
     platforms: [.macOS(.v15), .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .visionOS(.v2)],
     products: [
         .library(name: "StoreKitConfiguration", targets: ["StoreKitConfiguration"]),

@@ -92,7 +92,7 @@ static int fail(char *err, size_t errlen, const char *fmt, ...) {
 int ovk_load(char *err, size_t errlen) {
     if (g_gipa) return 0;
     const char *names[] = {
-        getenv("OV_VULKAN_LIBRARY"), getenv("YCODE_VULKAN_LIBRARY"),
+        getenv("OV_VULKAN_LIBRARY"), getenv("SWIFTCODE_VULKAN_LIBRARY"),
 #if defined(__APPLE__)
         "libvulkan.1.dylib", "libMoltenVK.dylib",
 #else

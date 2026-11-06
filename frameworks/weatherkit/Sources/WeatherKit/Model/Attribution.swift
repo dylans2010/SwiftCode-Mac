@@ -56,7 +56,7 @@ public struct WeatherAttribution: Codable, Equatable, Sendable {
 
     /// The source list as plain text, for places that cannot show a link.
     /// When the provider gave no text (for example after decoding an
-    /// archive, which does not carry it), Ycode returns the service name and
+    /// archive, which does not carry it), SwiftCode returns the service name and
     /// the legal page address on two lines.
     public var legalAttributionText: String {
         if let legalText, !legalText.isEmpty { return legalText }

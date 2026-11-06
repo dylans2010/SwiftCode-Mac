@@ -206,10 +206,10 @@ def main():
     constants = "".join(c)
 
     # Catalog.swift: tables for lookups and the conformance tests.
-    k = [HEADER, "\n", "extension YcodeHomeCatalog {\n"]
+    k = [HEADER, "\n", "extension SwiftCodeHomeCatalog {\n"]
     for title, prop, entries in groups:
         k.append(f"    /// {title} ({len(entries)}).\n")
-        k.append(f"    public static let {prop}: [YcodeHomeCatalogEntry] = [\n")
+        k.append(f"    public static let {prop}: [SwiftCodeHomeCatalogEntry] = [\n")
         for e in entries:
             sid = f"0x{e['shortID']:X}" if e["shortID"] is not None else "nil"
             dep = swift_str(e["deprecated"]) if e["deprecated"] else "nil"
@@ -218,7 +218,7 @@ def main():
                      f"deprecated: {dep}),\n")
         k.append("    ]\n\n")
     k.append(f"    /// Characteristic value enumerations ({len(enums)}).\n")
-    k.append("    public static let valueEnumerations: [YcodeValueEnumerationEntry] = [\n")
+    k.append("    public static let valueEnumerations: [SwiftCodeValueEnumerationEntry] = [\n")
     for name, ios, cases in enums:
         cs = ", ".join(f"({v}, {swift_str(label)})" for v, label in cases)
         k.append(f"        .init(name: {swift_str('HMCharacteristicValue' + name)}, introduced: {swift_str(ios)}, cases: [{cs}]),\n")

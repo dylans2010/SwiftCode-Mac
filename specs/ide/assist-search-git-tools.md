@@ -1,10 +1,10 @@
 # Assist search tools — behaviour (Wave 3, Search slice)
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools; the Wave 3
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools; the Wave 3
 port registers the tools below there).
 
 This spec covers the behaviour shared by the 16 Legacy Assist search
-/ code-navigation tools ported into Ycode in Wave 3, plus the
+/ code-navigation tools ported into SwiftCode in Wave 3, plus the
 per-tool behaviour that the catalogue
 (`assist-tool-catalogue.md` §§54–69) does not repeat: the workspace
 scan rules, the two path resolvers these tools use, the exact search
@@ -99,7 +99,7 @@ Two resolvers, matching the two Legacy shapes (see
   absolute path that must lie under the workspace root; anything
   else is relative to the workspace root (never the session
   working directory). A rejected path fails with the tool's own
-  Legacy message (see §8). One narrowing: the Ycode strict
+  Legacy message (see §8). One narrowing: the SwiftCode strict
   resolver rejects a leading `~`, while Legacy's private
   resolvers for `symbol_move_file` / `symbol_rename_project`
   would have treated `~foo` as a relative path under the root; a
@@ -116,7 +116,7 @@ Tools with no `path` parameter (`call_hierarchy`, `import_graph`,
 §1.1 of the catalogue applies unchanged: `success`, `output`
 (the human-readable message in the exact formats given per tool),
 `data` (all values strings in Legacy; typed JSON values — integers
-and booleans — in the Ycode port, with Legacy's keys verbatim),
+and booleans — in the SwiftCode port, with Legacy's keys verbatim),
 `error` / `errorCode` on failure, `filesChanged` only for the tools
 that write files. Failure never returns partial `data`.
 
@@ -162,15 +162,15 @@ If the destination commit fails after the source commit, the
 source is restored the same way and the failure is reported, so a
 refusal still leaves the workspace unchanged.
 
-### 1.6 Collisions with Ycode's existing tools — no merging
+### 1.6 Collisions with SwiftCode's existing tools — no merging
 
-Ycode's MCP server already has tools named `search` (workspace
-text search, `YcodeTools+Workspace`) and `symbol_search` (symbol
+SwiftCode's MCP server already has tools named `search` (workspace
+text search, `SwiftCodeTools+Workspace`) and `symbol_search` (symbol
 documentation). Legacy's `search_text` and `search_symbol` are
 **different tools with different IDs and schemas** and must not be
 merged with them:
 
-- Ycode `search` takes `query` plus `regex` / `ignoreCase` /
+- SwiftCode `search` takes `query` plus `regex` / `ignoreCase` /
   `wholeWord` / `limit` (default 200, case-insensitive by
   default) and returns `matches` (path / line / column / text)
   with a 200-match cap. Legacy `search_text` takes a single
@@ -178,20 +178,20 @@ merged with them:
   skips files over 1 MB and binary-extension files, and returns
   one `results` string grouped per file. Keep both as separate
   tools.
-- Ycode `symbol_search` takes `query` / `limit` and returns
+- SwiftCode `symbol_search` takes `query` / `limit` and returns
   declarations whose name *contains* the query, with
   documentation comments (from `SymbolDocs`). Legacy
   `search_symbol` takes a single `symbol` and runs four
   declaration regexes over the workspace, returning deduped
   `path:line: text` lines. Keep both as separate tools.
 - Legacy's registry alias `search` → `search_text` is
-  deliberately NOT carried over: it would collide with Ycode's
+  deliberately NOT carried over: it would collide with SwiftCode's
   existing `search`. The other aliases in §1.7 are carried over.
 
 ### 1.7 Aliases — accepted, but never canonical
 
 The Legacy registry resolves these aliases to the canonical IDs.
-The Ycode port accepts them at `tools/call` time (through
+The SwiftCode port accepts them at `tools/call` time (through
 `MCPServer.toolAliases`, as Wave 1 did for `read_file`); the
 canonical ID is what is registered, listed, and returned in
 metadata:
@@ -199,7 +199,7 @@ metadata:
 - `search_dir`, `search_directory`, `find_file` → `search_text`
 - `symbol_graph` → `symbol_reference_graph`
 
-`search` → `search_text` is NOT an alias in Ycode (see §1.6).
+`search` → `search_text` is NOT an alias in SwiftCode (see §1.6).
 No registry alias exists for `call_hierarchy`, `code_summary`,
 `dependency_graph`, `extract_code_symbols`, `import_graph`,
 `protocol_conformance_list`, `search_regex`, `search_skills`,
@@ -211,7 +211,7 @@ Per-tool parameter-name aliases (e.g. `search_symbol` accepting
 `filePath`, `symbol_rename_project` accepting `old_name`) are
 documented per tool in the catalogue where they exist. They are
 leniency in parsing, not part of the schema — and, as in Wave 1–2,
-they are NOT supported in the Ycode port: Ycode's argument
+they are NOT supported in the SwiftCode port: SwiftCode's argument
 validation rejects unknown arguments before the handler runs.
 
 ## 2. `search_text` — plain-text search
@@ -562,12 +562,12 @@ workspace root.
 Searches the workspace's local skills library: `SKILL.md` /
 `SKILLS.md` / `*.SKILL.md` / `*.SKILLS.md` files anywhere under
 the workspace (including hidden directories such as
-`.claude/skills/` — Ycode's own skill lives there), one skill per
+`.claude/skills/` — SwiftCode's own skill lives there), one skill per
 containing directory. There is no Application Support library, no
 enable/disable toggle, and no disk cache in the port: Legacy's
 `SkillIndex` indexed `~/Library/Application Support/SwiftCode/Skills/`
 plus imported Claude/Codex/VSCode/Antigravity libraries, which
-Ycode does not have. The port searches the skill surface Ycode
+SwiftCode does not have. The port searches the skill surface SwiftCode
 actually has — the workspace's own skill files — and must not
 invent a skills database.
 
@@ -578,7 +578,7 @@ sidecar in the skill directory (which overrides frontmatter),
 and a fallback to the leading `# ` heading and first
 non-heading line. The skill ID is the containing directory's
 name, lowercased, with spaces and underscores turned into
-hyphens. The source defaults to `Ycode` ("Ycode Workspace
+hyphens. The source defaults to `SwiftCode` ("SwiftCode Workspace
 Skills"); a path under `.claude/skills/` defaults to `Claude`
 ("Claude Skills"), under `.agents/skills/` to `Project`
 ("Project Skills"); a frontmatter `source:` overrides with the
@@ -601,7 +601,7 @@ followed by one numbered block per skill (`**<name>** (\`<id>\`)`,
 `Tools` when present, and a line pointing at `file_read` on the
 skill's path), and a closing guidance line. The `Location` is
 the skill file's absolute path. The guidance lines point at
-`file_read` (Ycode's canonical name) rather than Legacy's
+`file_read` (SwiftCode's canonical name) rather than Legacy's
 `read_file` alias. No structured data is returned.
 
 Error cases: a missing, empty, or whitespace-only `query` fails
@@ -741,7 +741,7 @@ Behaviour shared by the 13 Git tools ported in Wave 3 (`conflict_marker_scan`, `
 #### Git safety rules (non-negotiable)
 
 - **Workspace-confined only.** Every git operation runs with the workspace folder as its working directory, and git discovers the repository upward from there. Every path argument resolves with `resolveFileReadingPath` (plain relative paths against the session working directory; `..` past the workspace root is an error, never a clamp). `git_conflict_resolver` does **not** reproduce Legacy's absolute-path carve-out: a leading-`/` path is workspace-root-relative (or an absolute path inside the workspace), never a raw filesystem path outside it.
-- **Argument vector, never a shell.** Git is run via `YcodeSubprocess` with an explicit argument array (`HostTool.path("git")`). No command string is ever assembled, so shell metacharacters in a branch, ref, message, or path cannot inject a command — but arguments are still validated, because a leading `-` could be parsed as a git flag.
+- **Argument vector, never a shell.** Git is run via `SwiftCodeSubprocess` with an explicit argument array (`HostTool.path("git")`). No command string is ever assembled, so shell metacharacters in a branch, ref, message, or path cannot inject a command — but arguments are still validated, because a leading `-` could be parsed as a git flag.
 - **No remotes, no GitHub.** There is no push/pull/fetch/clone and no GitHub API call in this wave. `version_control_operator` rejects `push`/`pull`/`fetch`/`clone` with an explicit error naming the later-wave prerequisite. `github_repo` is registered but honestly failing (see catalogue §71.4). `git_pr_summary` is local-only by design.
 - **No destructive git operation without the Wave 2 approval gate.** Anything that mutates history, the working tree, or the index (bisect steps other than `log`, branch create/switch/delete, cherry-pick, conflict-resolution writes, stash save/pop/drop, `version_control_operator` commit/branch/rollback) goes through `commit()` (text resolution) or an explicit `MCPChange` + `call.approve()` (every other mutation) **before** git runs, and the tool is registered `writes: true` so `MCPServer.run` refuses it in `readOnly` server mode. Read-only operations (`log`, `blame`, branch list/compare, status/diff read, conflict-marker scan, `recent_changes`, `git_pr_summary`) are `writes: false` — except the read-only actions of a writing tool, which request no approval but are still refused in `readOnly` mode (catalogue §71.3).
 - **Never fake git output.** If `git` cannot start, the tool fails with `Failed to launch git: <reason>`. If the workspace is not a git repository, the tool fails with git's own "not a git repository" message. Non-zero git exits are reported with git's own merged stdout+stderr text, never invented log/blame/status content.
@@ -749,7 +749,7 @@ Behaviour shared by the 13 Git tools ported in Wave 3 (`conflict_marker_scan`, `
 
 #### Behaviour
 
-- **One runner.** All git operations go through a single runner (`runGit` in `YcodeTools+Git.swift`): `Subprocess.run` with the `git` executable, the argument vector, the environment above, and the workspace folder as the working directory. It throws only when git cannot start; a non-zero exit is returned with its status and output, so each tool reports git's own message. Ycode's `GitRepository` seams were not used as the implementation path: their return types (Ref lists, status maps, parsed blame commits without line text) do not reproduce Legacy's verbatim git output, `GitRepository.resolveConflict` also stages the file while Legacy only writes it, and most operations (bisect, cherry-pick, stash, `log` with a format, `diff --stat`) have no seam method at all.
+- **One runner.** All git operations go through a single runner (`runGit` in `SwiftCodeTools+Git.swift`): `Subprocess.run` with the `git` executable, the argument vector, the environment above, and the workspace folder as the working directory. It throws only when git cannot start; a non-zero exit is returned with its status and output, so each tool reports git's own message. SwiftCode's `GitRepository` seams were not used as the implementation path: their return types (Ref lists, status maps, parsed blame commits without line text) do not reproduce Legacy's verbatim git output, `GitRepository.resolveConflict` also stages the file while Legacy only writes it, and most operations (bisect, cherry-pick, stash, `log` with a format, `diff --stat`) have no seam method at all.
 - **Ref validation (Legacy's shared validator).** `git_bisect` refs, `git_branch_compare` base/head, `git_pr_summary` base/head, and `git_cherry_pick` commits use Legacy's `isValidRef`: `HEAD` and `HEAD~N` / `HEAD^N` forms pass; anything with a space, shell metacharacter (`; & | \` $ ( ) < > " ' \`), `..`, `~`, `^`, `:`, `?`, `*`, `[`, a leading `-`, `@{`, a leading/trailing `/`, or `//` fails. `git_cherry_pick` additionally accepts a 7–40 hex SHA. Branch names and rollback refs (`git_branch_manager`, `version_control_operator`) use the stricter allow-list from Legacy's `version_control_operator`: letters, digits, `.` `_` `/` `-`, plus the `HEAD` / `HEAD[~^]N` forms; at most 256 characters; no `..`, no leading/trailing `/`, no `.lock` suffix, no leading `-` or `.`. Stash identifiers (`git_stash_operator` pop/show/drop) must be `stash@{N}` or a plain number.
 - **Filesystem scans (`conflict_marker_scan`, `recent_changes`).** Both use Legacy's `AssistWorkspaceScan.files` rules: hidden files skipped; top-level `.git`, `.build`, `build`, `DerivedData`, `.swiftpm`, `Pods`, `Carthage`, `node_modules`, `.venv` skipped (only the first path component is checked, so a nested `build` directory is *not* skipped — reproduced as-is); at most 20,000 files. `conflict_marker_scan` additionally filters to source extensions (`swift`, `m`, `mm`, `h`, `c`, `cpp`, `hpp`) and skips files that do not decode as UTF-8. Neither tool needs a git repository.
 - **Blame is two git runs.** `git_blame_inspector` runs `git blame --porcelain` first (its failure is the tool's failure), then `git blame -s` for the readable snippet that becomes the message (at most 50 lines). The `-L` range rules differ between the runs: porcelain takes a full range or a lone start line (`start,start+30`); the readable run takes only a full range. The output is the `-s` rendering (short hash, line number, line text — no author name). A failure of the readable run is ignored, as in Legacy.
@@ -766,12 +766,12 @@ Behaviour shared by the 13 Git tools ported in Wave 3 (`conflict_marker_scan`, `
 | Path escapes the workspace (`..`, absolute outside path) | Workspace-containment error (`<path> is outside the workspace folder <root>`) |
 | Invalid ref / commit / branch name / stash identifier | `Invalid git ref: <ref>` / `Invalid git ref for base: <base>` / `Invalid git ref for head: <head>` / `Invalid commit: <commit>` / `Invalid branch name: <name>` / `Invalid stash identifier: <stash>` / `Invalid git ref: <ref>` (rollback) |
 | Unknown action | `Invalid bisect action '<action>'. Allowed: start, good, bad, skip, reset, log.` · `Unsupported action '<action>'. Supported: list, current, create, switch, delete.` (branch manager) · `Unsupported action '<action>'. Valid: save, pop, list, show, drop` (stash) · `Unknown git action '<action>': expected status, commit, branch, rollback, or diff.` (version_control_operator) · `Unknown resolution '<resolution>'. Use 'inspect', 'take_ours', or 'take_theirs'.` (conflict resolver) |
-| Missing required argument | `Missing required parameter: <name>` (Legacy's message; Ycode's argument validation also enforces the schema `required` list first) |
+| Missing required argument | `Missing required parameter: <name>` (Legacy's message; SwiftCode's argument validation also enforces the schema `required` list first) |
 | Missing branch name / stash message context | `Action 'create' requires 'branchName'.` / `Action 'switch' requires 'branchName'.` / `Action 'delete' requires 'branchName'.` |
 | Remote operation (`version_control_operator` push/pull/fetch/clone) | `Git <action> needs remote access, which is out of scope for this wave (local operations only). Remote operations (push/pull/fetch/clone) are a later wave.` |
 | `github_repo` (any operation) | Failure naming the missing GitHub API client/auth prerequisite; nothing fetched, nothing faked |
-| Approval refused (any mutating git operation) | `The change was rejected in Ycode's review; nothing was written.` and git never runs |
-| Writes in `readOnly` server mode (any `writes: true` tool, including its read-only actions) | `<tool> changes files, and this Ycode MCP server is read-only. Start it with \`ycode mcp --allow-writes\`, or use agent mode in the Ycode IDE, where each change is reviewed as a proposal.` |
+| Approval refused (any mutating git operation) | `The change was rejected in SwiftCode's review; nothing was written.` and git never runs |
+| Writes in `readOnly` server mode (any `writes: true` tool, including its read-only actions) | `<tool> changes files, and this SwiftCode MCP server is read-only. Start it with \`swiftcode mcp --allow-writes\`, or use agent mode in the SwiftCode IDE, where each change is reviewed as a proposal.` |
 | `git bisect log` with no bisect in progress | `Git bisect log failed: error: We are not bisecting.` (git's own message, reported as Legacy reports it) |
 | Cherry-pick conflict | `Cherry-pick of <commit> stopped due to conflicts in: <files>. Resolve the conflicts and commit, or run git cherry-pick --abort. Git output: <output>` |
 | Conflict resolver on a marker-free file | Success: `No active Git conflict markers (<<<<<<< / ======= / >>>>>>>) found in <path>.` (checked before the resolution is validated) |
@@ -779,7 +779,7 @@ Behaviour shared by the 13 Git tools ported in Wave 3 (`conflict_marker_scan`, `
 
 #### What was not ported (exact blockers)
 
-- **`github_repo` (all 7 operations):** needs a GitHub API client plus authentication (public repos unauthenticated, private repos with the user's saved GitHub credential). Ycode's MCP host has no GitHub client and no GitHub credential store; the audit records that the GitHub remote layer needs a new target (`YcodeIDECore/SourceControl` is local-git only). Blocker: a GitHub-service target + credential flow — a later wave. The tool is registered and honestly failing, never faked.
+- **`github_repo` (all 7 operations):** needs a GitHub API client plus authentication (public repos unauthenticated, private repos with the user's saved GitHub credential). SwiftCode's MCP host has no GitHub client and no GitHub credential store; the audit records that the GitHub remote layer needs a new target (`SwiftCodeIDECore/SourceControl` is local-git only). Blocker: a GitHub-service target + credential flow — a later wave. The tool is registered and honestly failing, never faked.
 - **Remote git operations in `version_control_operator`:** Legacy implements none (only status/commit/branch/rollback/diff), and this wave must not touch remotes. Blocker: the same later-wave remote/GitHub work.
 - **Anything else:** nothing. All other behaviour ported, including `git_pr_summary`, which is local-only despite its name.
 ## Evidence
@@ -792,8 +792,8 @@ Behaviour shared by the 13 Git tools ported in Wave 3 (`conflict_marker_scan`, `
 | Enumerated-files scan (300 KB default, regular files only) and code extensions; clamping `resolvePath` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistToolingSupport.swift`, read directly |
 | Registry aliases `search`/`search_dir`/`search_directory`/`find_file` → `search_text`, `symbol_graph` → `symbol_reference_graph` | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly |
 | `search_skills` metadata parsing, scoring, and output format | 1 | Legacy `SwiftCode/Backend/Assist/Tools/search_skills.swift` and `SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift`, read directly |
-| Ycode has no skills catalogue; its skill surface is workspace `.claude/skills` / `.agents/skills` | 1 | Ycode `ycode/Sources/YcodeMCP/AgentSkill.swift` (`paths`, `markdown`, `install`), read directly |
-| Ycode's existing `search` and `symbol_search` schemas that must not be merged with `search_text` / `search_symbol` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Workspace.swift` (`search`, `symbol_search`, `SymbolDocs`), read directly |
-| Gate shape (`commit()` per file, approval before disk, read-only refusal in `run()`) | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run`); `YcodeTools+Content.swift` (`commit`); `specs/ide/assist-approval-model.md` §6 |
+| SwiftCode has no skills catalogue; its skill surface is workspace `.claude/skills` / `.agents/skills` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/AgentSkill.swift` (`paths`, `markdown`, `install`), read directly |
+| SwiftCode's existing `search` and `symbol_search` schemas that must not be merged with `search_text` / `search_symbol` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Workspace.swift` (`search`, `symbol_search`, `SymbolDocs`), read directly |
+| Gate shape (`commit()` per file, approval before disk, read-only refusal in `run()`) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run`); `SwiftCodeTools+Content.swift` (`commit`); `specs/ide/assist-approval-model.md` §6 |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 | Wave 3 (Git): all 13 IDs, schemas, safety rules, ref validation, and error cases; `github_repo` honestly failing for lack of a GitHub client | 1 | Legacy Git tool sources listed in the catalogue Evidence table (Wave 3 Git rows); `AssistToolRegistry.swift` alias table, read directly |

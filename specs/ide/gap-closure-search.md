@@ -1,7 +1,7 @@
 # Gap closure: search tools (family 3)
 
 Date: 2026-11-06. Slice: gap-closure family 3 (SEARCH TOOLS).
-Destination: SwiftCode-Mac main @ f9f66c05 (Ycode base, SwiftPM).
+Destination: SwiftCode-Mac main @ f9f66c05 (SwiftCode base, SwiftPM).
 Legacy (read-only): SwiftCode-Legacy @ d51a8f0d. Legacy source is Dylan's
 own code; direct porting was authorised by Dylan under MIT.
 
@@ -97,8 +97,8 @@ Legacy (read live, `SwiftCode/Tools/Agentic/`):
 
 ## 1. `web_search` — now working (DuckDuckGo Instant Answer)
 
-Client: `SearchWebDDG` in `YcodeTools+SearchWebSupport.swift`;
-handler: `searchWeb(_:)` in `YcodeTools+SearchWeb.swift`.
+Client: `SearchWebDDG` in `SwiftCodeTools+SearchWebSupport.swift`;
+handler: `searchWeb(_:)` in `SwiftCodeTools+SearchWeb.swift`.
 
 - Endpoint: `https://api.duckduckgo.com/?q=<query>&format=json&no_html=1&skip_disambig=1`,
   HTTPS only, 30 s timeout, 1 MB cap, redirects on
@@ -126,8 +126,8 @@ handler: `searchWeb(_:)` in `YcodeTools+SearchWeb.swift`.
 
 ## 2. `documentation_search` — now working (DocC JSON search)
 
-Client: `SearchDocs` in `YcodeTools+SearchWebSupport.swift`;
-handler: `searchDocumentation(_:)` in `YcodeTools+SearchWeb.swift`.
+Client: `SearchDocs` in `SwiftCodeTools+SearchWebSupport.swift`;
+handler: `searchDocumentation(_:)` in `SwiftCodeTools+SearchWeb.swift`.
 
 - Surface: Apple's published DocC render JSON
   (`developer.apple.com/tutorials/data/<path>.json`), the same path
@@ -161,7 +161,7 @@ handler: `searchDocumentation(_:)` in `YcodeTools+SearchWeb.swift`.
   JSON endpoint is the search surface; a page with no DocC JSON is
   skipped, not scraped), and no `EnginesDocCache` entry (search
   results are not re-fetched per page the way `fetch_documentation`
-  is). `fetchDocumentationCandidate` (`YcodeTools+Engines.swift`)
+  is). `fetchDocumentationCandidate` (`SwiftCodeTools+Engines.swift`)
   is deliberately NOT reused: it has no transport seam, so tests
   could not stub it. The candidate fetch here is the same
   DocC-JSON shape (same URL, same cap, same parser) with the seam
@@ -183,8 +183,8 @@ article as a reference.
 
 ## 4. `package_search` — now working (SPI, GitHub fallback)
 
-Client: `SearchPackages` in `YcodeTools+SearchWebSupport.swift`;
-handler: `searchPackage(_:)` in `YcodeTools+SearchWeb.swift`.
+Client: `SearchPackages` in `SwiftCodeTools+SearchWebSupport.swift`;
+handler: `searchPackage(_:)` in `SwiftCodeTools+SearchWeb.swift`.
 
 - Primary: the Swift Package Index search page
   (`https://swiftpackageindex.com/search?query=…`, 1 MB cap).
@@ -222,7 +222,7 @@ handler: `searchPackage(_:)` in `YcodeTools+SearchWeb.swift`.
 
 ## 5. Transport seam + `EnginesHTTP.fetch` change
 
-`YcodeTools+EnginesSupport.swift` (owned file) gains one
+`SwiftCodeTools+EnginesSupport.swift` (owned file) gains one
 backwards-compatible change: `EnginesHTTP.fetch` takes an optional
 `session: URLSession? = nil`. With nil (every production caller,
 including both existing `fetch_documentation` call sites) the
@@ -240,7 +240,7 @@ threaded through. No other file's fetch behaviour changes.
 
 ## 6. Registration patch (coordinator applies — do not edit by hand)
 
-File: `ycode/Sources/YcodeMCP/YcodeTools+AgenticNetwork.swift`.
+File: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AgenticNetwork.swift`.
 The four registrations keep Legacy's IDs, descriptions, and
 required parameters; each gains optional parameters and an output
 schema, `openWorld` read annotations (like `fetch_url`), and the
@@ -345,7 +345,7 @@ called it, the port does not).
 
 ## 7. Tests
 
-`ycode/Tests/YcodeMCPTests/SearchToolsGapTests.swift` — 22 tests,
+`swiftcode/Tests/SwiftCodeMCPTests/SearchToolsGapTests.swift` — 22 tests,
 all against canned HTTP fixtures via `StubSearchProtocol`
 (`URLProtocol`, the `StubGitHubProtocol` shape) and
 `SearchWebTestTransport.session`. No live network, no real
@@ -366,7 +366,7 @@ not through `server.callTool`: the four registrations still point
 at Wave 8's honest-fail handlers until the coordinator applies
 the §6 patch. The registration itself (IDs, Legacy descriptions,
 schemas) stays covered by
-`YcodeAgenticNetworkTests.toolsAreRegisteredWithLegacySchemas`;
+`SwiftCodeAgenticNetworkTests.toolsAreRegisteredWithLegacySchemas`;
 these tests cover the new behaviour the patch wires in. After the
 patch lands, the same tests should additionally be driven through
 `server.callTool` on Dylan's Mac to prove the wiring (a
@@ -379,27 +379,27 @@ delimiter balance on all touched files, a secrets/TODO scan, and
 
 ## 8. Files changed (destination only, uncommitted)
 
-- NEW `ycode/Sources/YcodeMCP/YcodeTools+SearchWebSupport.swift`
+- NEW `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+SearchWebSupport.swift`
   — `SearchWebTestTransport`, `SearchHTTP`, `SearchText`,
   `SearchWebDDG`, `SearchDocs`, `SearchPackages` (+ hit types).
-- NEW `ycode/Sources/YcodeMCP/YcodeTools+SearchWeb.swift` —
+- NEW `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+SearchWeb.swift` —
   `searchWeb`, `searchDocumentation`, `searchAPIReference`,
   `searchDocs`, `searchPackage` handlers (+ failure mappers).
-- MODIFIED `ycode/Sources/YcodeMCP/YcodeTools+EnginesSupport.swift`
+- MODIFIED `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+EnginesSupport.swift`
   — `EnginesHTTP.fetch` gains optional `session: URLSession? = nil`
   (backwards-compatible; production behaviour unchanged).
-- NEW `ycode/Tests/YcodeMCPTests/SearchToolsGapTests.swift` —
+- NEW `swiftcode/Tests/SwiftCodeMCPTests/SearchToolsGapTests.swift` —
   22 tests + `StubSearchProtocol`.
 - NEW `specs/ide/gap-closure-search.md` — this file.
 - NOT touched (verified, no change needed):
-  `ycode/Sources/YcodeMCP/YcodeTools+Search.swift` (workspace
+  `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Search.swift` (workspace
   search tools — a different family; the web/doc/package tools
-  are Agentic-network tools), `ycode/Sources/YcodeMCP/YcodeTools+SPMDocs.swift`
+  are Agentic-network tools), `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+SPMDocs.swift`
   (manifest/dependency tools — `package_search` is a network index
-  search, not a manifest tool), `ycode/Package.swift` (no new
-  target: the new files join the existing `YcodeMCP` target and
-  the test joins `YcodeMCPTests` by SwiftPM globbing),
-  `ycode/Sources/YcodeMCP/YcodeTools+AgenticNetwork.swift`
+  search, not a manifest tool), `swiftcode/Package.swift` (no new
+  target: the new files join the existing `SwiftCodeMCP` target and
+  the test joins `SwiftCodeMCPTests` by SwiftPM globbing),
+  `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AgenticNetwork.swift`
   (coordinator-owned; §6 patch delivered instead), the ledger,
   the manifest, Legacy, SwiftCode-New.
 
@@ -450,5 +450,5 @@ delimiter balance on all touched files, a secrets/TODO scan, and
 - No reference Xcode copy, Ghidra, simulator IPSW,
   `research/dirty/`, or Apple Xcode/Simulator observation was
   opened, read, or run. No Apple code or code-shaped text enters
-  `ycode/` or `specs/`. No real API key, token, or secret appears
+  `swiftcode/` or `specs/`. No real API key, token, or secret appears
   anywhere in this slice's files.

@@ -45,7 +45,7 @@ struct AtomDefinition: Sendable {
 }
 
 /// Ordering classes for `unitString` (`units.md` §3: length and time before mass;
-/// the full rule is an open spec question, so this is Ycode's choice).
+/// the full rule is an open spec question, so this is SwiftCode's choice).
 private enum Rank {
     static let scalar = 0, length = 1, volume = 2, time = 3, energy = 4, pressure = 5,
                other = 6, temperature = 7, mass = 9

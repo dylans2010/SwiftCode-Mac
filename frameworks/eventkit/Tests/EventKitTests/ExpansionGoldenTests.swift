@@ -101,7 +101,7 @@ struct ExpansionGoldenTests {
     }
 
     /// The reference returned only the first occurrence (§5 item 7). The spec
-    /// tells Ycode to implement RFC 5545 until C-REC-Q1 is settled, so this
+    /// tells SwiftCode to implement RFC 5545 until C-REC-Q1 is settled, so this
     /// test checks the RFC result: Monday of ISO week 20 each year.
     @Test("R9 yearly BYWEEKNO=20;BYDAY=MO count 3 (RFC behavior; quirk is C-REC-Q1)")
     func r9() throws {

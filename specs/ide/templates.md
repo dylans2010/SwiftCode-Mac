@@ -1,9 +1,9 @@
 # New File and New Project
 
-Ycode modules: `YcodeUI` (`FileTemplates`, `ProjectTemplates`,
-`NewFileController`, `NewProjectController`), `YcodeProject` (mutations).
+SwiftCode modules: `SwiftCodeUI` (`FileTemplates`, `ProjectTemplates`,
+`NewFileController`, `NewProjectController`), `SwiftCodeProject` (mutations).
 
-Ycode's templates are its own, written for Ycode: minimal contents, no
+SwiftCode's templates are its own, written for SwiftCode: minimal contents, no
 header comments, no copied wording.
 
 Correction (2026-10-19): the sheets' layout and flow are
@@ -38,7 +38,7 @@ file-system-synchronized folder, or the container is a package, the
 project is not changed (the folder picks the file up).
 
 Correction (2026-10-30, NAV-OPS): in the IDE, new files are created
-through the project navigator's operations (`navigators.md` §Ycode
+through the project navigator's operations (`navigators.md` §SwiftCode
 implementation). With a project navigator selection they go to its
 insertion point: the selected group (also a group without a folder), or
 after the selected file in its group. The save step's Targets choose the
@@ -58,7 +58,7 @@ opens it.
 | macOS App | `Name.xcodeproj` with one application target (`GENERATE_INFOPLIST_FILE`, `PRODUCT_BUNDLE_IDENTIFIER` = `<org>.<Name>`, `INFOPLIST_KEY_NSPrincipalClass` = `NSApplication`); `Name/NameApp.swift`: a SwiftUI `App` with one window showing a text |
 | Swift Package | `Package.swift` (tools 6.0), `Sources/Name/Name.swift`, `Tests/NameTests/NameTests.swift` (one swift-testing test) |
 
-Generated projects are built object by object with YcodeProject and
+Generated projects are built object by object with SwiftCodeProject and
 written by the pbxproj writer (object version 77): a main group with the
 source folder group and a Products group, Debug and Release configurations
 at project level (`SDKROOT = macosx`, `MACOSX_DEPLOYMENT_TARGET`,
@@ -159,7 +159,7 @@ Storyboards are XML `document` elements with
 `id`. Each `scene` (`sceneID`) holds `objects` with the `viewController`
 (`sceneMemberID="viewController"`, a `view key="view"`) and the
 `IBFirstResponder` placeholder. Object IDs are any unique strings
-(Ycode uses `Ycd-<kind>-<n>`). `ibtool --compile` must accept both with
+(SwiftCode uses `Ycd-<kind>-<n>`). `ibtool --compile` must accept both with
 no errors or warnings.
 
 Info.plist (`INFOPLIST_FILE = N/Info.plist`, merged with the generated
@@ -188,15 +188,15 @@ describe the reference's whole New Project flow as data. The flow is
 made of the compact picker (`reference-ui-3.md` §5.4,
 `reference-ui-6.md` §1.5), the template sheet, the options step and
 the save step. The template names, option labels, option values and
-setting names are interop facts. Every template summary is Ycode's own
-wording. Ycode's file contents remain its own (§ "New Project" above).
+setting names are interop facts. Every template summary is SwiftCode's own
+wording. SwiftCode's file contents remain its own (§ "New Project" above).
 
 ### Entries and where they come from
 
 The reference's catalog is a set of template *units*. A unit is
 *concrete* (it can be picked) or *abstract* (it only feeds other
 units). A concrete unit inherits from an ordered list of ancestors. A
-Ycode catalog does not have to copy this layering. It needs only the
+SwiftCode catalog does not have to copy this layering. It needs only the
 resolved result per template: the option list, then the targets,
 settings and files for each set of choices. The tables below give
 that result.
@@ -225,7 +225,7 @@ that result.
 
 Multiplatform:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Application | App | 1 | One SwiftUI app target for iOS, iPadOS, macOS and visionOS |
 | Application | Document App | 1 | The same, built around a document type |
@@ -237,7 +237,7 @@ Multiplatform:
 
 iOS:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Application | App | 1 | An iOS app (SwiftUI or UIKit storyboard) |
 | Application | Document App | 2 | An iOS document-based app |
@@ -253,7 +253,7 @@ iOS:
 
 macOS:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Application | App | 1 | A macOS app (SwiftUI, storyboard or XIB) |
 | Application | Document App | 1 | A macOS document-based app |
@@ -275,7 +275,7 @@ macOS:
 
 watchOS:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Application | App | 1 | A watchOS app, alone or with a companion iOS app |
 | Framework & Library | Framework | 1 | A watchOS framework |
@@ -283,7 +283,7 @@ watchOS:
 
 tvOS:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Application | App | 1 | A tvOS app (SwiftUI or storyboard) |
 | Application | Game | 10 | A tvOS game (RealityKit, SceneKit, SpriteKit, Metal 4 or Metal) |
@@ -293,7 +293,7 @@ tvOS:
 
 visionOS:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Application | App | 1 | A visionOS app with a window or a volume, and optionally an immersive space |
 | Application | Immersive Environment App | 1 | A visionOS app that opens a full or progressive environment |
@@ -302,7 +302,7 @@ visionOS:
 
 DriverKit:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | Driver | Driver | — | A DriverKit driver extension |
 | Framework & Library | Framework | 1 | A DriverKit framework |
@@ -310,16 +310,16 @@ DriverKit:
 
 Other:
 
-| Section | Template | Key | Ycode summary |
+| Section | Template | Key | SwiftCode summary |
 |---|---|---|---|
 | (none) | Empty | — | A project with no targets |
 | (none) | External Build System | — | A legacy target that runs a build tool |
 
 The Other tab's templates sit directly in the tab, in no named
-section. Ycode draws them in one unnamed section.
+section. SwiftCode draws them in one unnamed section.
 
 Each template also has an icon: an SF Symbol name or an image of
-Xcode's own. Ycode uses its own symbols. A one-line description exists
+Xcode's own. SwiftCode uses its own symbols. A one-line description exists
 for each template, but whether 27.1 shows it in the chooser was not
 observed (OPEN).
 
@@ -363,7 +363,7 @@ remembered. What each row does:
 ### Filter
 
 The sheet has a filter field. Its matching rule was not observed
-(OPEN). Ycode's reading is a case- and diacritic-insensitive substring
+(OPEN). SwiftCode's reading is a case- and diacritic-insensitive substring
 match on the template name within the current tab. Sections with no
 match are hidden. While the filter has text and matches nothing, the
 tab shows an empty state.
@@ -395,7 +395,7 @@ template's own default is None.
 - `B`: bundle identifier = `O'` + "." + `rfc1034(N)`. Here `O'` is `O`
   with the characters that a bundle identifier forbids removed, and
   `rfc1034` replaces every character other than A–Z, a–z, 0–9, "-"
-  and "." with "-". This is Ycode's
+  and "." with "-". This is SwiftCode's
   `ProjectOptions.bundleIdentifier`.
 - `T`: the C-identifier form of `N` (characters other than letters,
   digits and "_" become "_"; a leading digit gets a "_" prefix). It is
@@ -416,7 +416,7 @@ These are written in the current object style: `objectVersion = 77`,
 `preferredProjectObjectVersion = 77`, objects as in
 `specs/formats/pbxproj.md`. Template-created projects from Xcode 16 to
 26.4 use 77. The quick App row writes 90. Which one 27.1 writes for
-template projects is OPEN, and Ycode uses 77.
+template projects is OPEN, and SwiftCode uses 77.
 
 - `PBXProject` attributes: `BuildIndependentTargetsInParallel = 1`,
   `LastSwiftUpdateCheck` and `LastUpgradeCheck` (the IDE version as
@@ -525,7 +525,7 @@ template projects is OPEN, and Ycode uses 77.
   FileRef) appear next to `project.pbxproj`.
 - **Opening:** after creation the editor opens the template's initial
   file, given in the tables. With none given, the project editor opens
-  (Ycode's reading).
+  (SwiftCode's reading).
 
 ### Common target blocks
 
@@ -571,7 +571,7 @@ also get `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. With Objective-C
 - `ENABLE_USER_SELECTED_FILES = readonly` (`readwrite` in Document
   App);
 - `REGISTER_APP_GROUPS = YES`;
-- `INFOPLIST_KEY_NSHumanReadableCopyright` = a copyright line (Ycode's
+- `INFOPLIST_KEY_NSHumanReadableCopyright` = a copyright line (SwiftCode's
   own wording, with the year and the organization name);
 - `LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks")`;
 - with the Cocoa lifecycle: `INFOPLIST_KEY_NSPrincipalClass =
@@ -581,7 +581,7 @@ also get `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. With Objective-C
 `AccentColor.colorset` with no color, and an `AppIcon` set. The icon's
 slot structure depends on the platform:
 - iOS and macOS: an `appiconset`. iOS has one universal 1024 slot. For
-  macOS, Ycode uses the macOS sizes of `asset-catalog.md`.
+  macOS, SwiftCode uses the macOS sizes of `asset-catalog.md`.
 - visionOS and tvOS: a `solidimagestack`
   (`AppIcon.solidimagestack`).
 - tvOS adds a `brandassets` group "App Icon & Top Shelf Image".
@@ -710,7 +710,7 @@ is repeated below. A file list gives paths inside the target's folder
 | Template | Options (after name and identifiers) | Targets and files |
 |---|---|---|
 | App | testingSystem, storageType, hostInCloudKit | One app target `N`, SwiftUI: `SDKROOT = auto`, `SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator"`, `TARGETED_DEVICE_FAMILY = "1,2,7"`, `IPHONEOS_`/`MACOSX_`/`XROS_DEPLOYMENT_TARGET` = their `V`, the macOS app additions (sandbox, readonly files, app groups), and the iOS-only keys as `[sdk=iphoneos*]` and `[sdk=iphonesimulator*]` variants: `INFOPLIST_KEY_UIApplicationSceneManifest_Generation`, `…UIApplicationSupportsIndirectInputEvents`, `…UILaunchScreen_Generation` = `YES`, and `INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault`. Plain orientation keys; `LD_RUNPATH_SEARCH_PATHS = @executable_path/Frameworks` and `[sdk=macosx*] = @executable_path/../Frameworks`. The project has no `SDKROOT`. Files `TApp.swift`, `ContentView.swift`, `Assets.xcassets` (iOS + macOS icon slots). Initial file `ContentView.swift`. Tests and storage as in the common blocks; the test targets repeat the platform settings |
-| Document App | testingSystem, storageTypeDocument (None, SwiftData) | As App with `SWIFT_VERSION = 6.0`, `ENABLE_USER_SELECTED_FILES = readwrite`, `INFOPLIST_KEY_UISupportsDocumentBrowser[sdk=iphoneos*]` / `[sdk=iphonesimulator*] = YES` and `INFOPLIST_FILE = N/Info.plist`. Info.plist (in no target) declares one document type (`CFBundleDocumentTypes`: role Editor, `LSItemContentTypes` = one placeholder UTI, `NSUbiquitousDocumentUserActivityType = $(PRODUCT_BUNDLE_IDENTIFIER).<suffix>`) and imports that UTI (`UTImportedTypeDeclarations`: conforms to `public.plain-text`, one filename extension). Files `TApp.swift` (a `DocumentGroup`), `TDocument.swift` (a `FileDocument` holding text), `ContentView.swift`, `Assets.xcassets`. SwiftData: `SWIFT_VERSION = 5.0`, `Item.swift` instead of `TDocument.swift`, and the UTI conforms to `com.apple.package` with `LSHandlerRank = Default`. Ycode chooses its own placeholder UTI and extension |
+| Document App | testingSystem, storageTypeDocument (None, SwiftData) | As App with `SWIFT_VERSION = 6.0`, `ENABLE_USER_SELECTED_FILES = readwrite`, `INFOPLIST_KEY_UISupportsDocumentBrowser[sdk=iphoneos*]` / `[sdk=iphonesimulator*] = YES` and `INFOPLIST_FILE = N/Info.plist`. Info.plist (in no target) declares one document type (`CFBundleDocumentTypes`: role Editor, `LSItemContentTypes` = one placeholder UTI, `NSUbiquitousDocumentUserActivityType = $(PRODUCT_BUNDLE_IDENTIFIER).<suffix>`) and imports that UTI (`UTImportedTypeDeclarations`: conforms to `public.plain-text`, one filename extension). Files `TApp.swift` (a `DocumentGroup`), `TDocument.swift` (a `FileDocument` holding text), `ContentView.swift`, `Assets.xcassets`. SwiftData: `SWIFT_VERSION = 5.0`, `Item.swift` instead of `TDocument.swift`, and the UTI conforms to `com.apple.package` with `LSHandlerRank = Default`. SwiftCode chooses its own placeholder UTI and extension |
 | Foveated Streaming App | iOSPlatform, visionOSPlatform (checkboxes, both on) | Components: "`N` Shared" (folder only: one logging file in both apps), "`N` iOS" (app target `N iOS`: `SUPPORTED_PLATFORMS = iphoneos`, family `1,2`, `INFOPLIST_FILE`, `INFOPLIST_KEY_NSCameraUsageDescription`, entitlements with `keychain-access-groups`), "`N` visionOS" (app target `N visionOS`: `SUPPORTED_PLATFORMS = xros`, family `7`, entitlements `com.apple.developer.foveated-streaming-session = true`; files for an app model, a data-channel view, an immersive view and a receiver model, plus `Resources/` with USD scenes and materials) and "Packages" (a local package `Packages/StreamingSessionDependencies` whose products `StreamingSession` and `CloudXRKit` the iOS app links). Unchecking a platform drops its component and its resources. Device-only platforms: no simulators |
 | Game | gameType (RealityKit, SceneKit, SpriteKit, Metal 4, Metal; default RealityKit), languageChoice, iOSPlatform, visionOSPlatform, tvOSPlatform (enabled only with iOS on), OSXPlatform | **RealityKit:** one app target `N` with `SDKROOT = auto`, `SUPPORTED_PLATFORMS` = iOS, macOS, tvOS and visionOS devices and simulators, family `1,2,3,7`, all four deployment targets, `INFOPLIST_KEY_NSCameraUsageDescription`; files `TApp.swift`, `ContentView.swift`, a spin component and `Assets.xcassets` (icon sets for the checked platforms). How the checkboxes narrow the one target is OPEN. **SceneKit, SpriteKit, Metal 4, Metal:** a "`N` Shared" folder (members of every platform target) with the game's scene or renderer files and `Assets.xcassets`, plus one app target per checked platform among iOS (`N iOS`: storyboard, Info.plist, a game view controller), tvOS (`N tvOS`: also app and scene delegates) and macOS (`N macOS`: app delegate and game view controller). Each has its own `SDKROOT` and deployment target (a multi-SDK project). visionOS is not offered for these. Objective-C is allowed for SceneKit, SpriteKit and Metal |
 | Audio Unit Extension App | ORGANIZATIONNAME (text, required), audioUnitType (Instrument, Generator, Effect, Music Effect, MIDI Processor, Speech Synthesizer; default MIDI Processor), audioUnitSubtypeCode and audioUnitManufacturerCode (4-character text, required), hasUserInterface ("Presents User Interface" / "No User Interface"), testingSystem, storageType, hostInCloudKit | Multiplatform host app `N` (as App, plus `CODE_SIGN_ENTITLEMENTS` with `inter-app-audio = true`, `ENABLE_HARDENED_RUNTIME = YES`, `INFOPLIST_KEY_CFBundleDisplayName = T`, `OTHER_LDFLAGS = -framework AudioToolbox -framework AVFoundation`). Its files are a validation view, a host model, a view model and `Common/` with audio, MIDI and UI helpers plus a sample sound. An *embedded* app extension `NExtension` (`com.apple.product-type.app-extension`, multiplatform like the app, `SKIP_INSTALL = YES`, `INFOPLIST_FILE` whose Info.plist holds `NSExtension` (`NSExtensionAttributes` ▸ `AudioComponents` with description, factory function, manufacturer, name, sandbox-safe, subtype, tags, type and version; extension point and principal class) and `XPCService`; type code, subtype code, manufacturer code and tags follow the options) holds the audio unit, a DSP kernel header, parameters, `UI/` views and a bridging header. The type changes the DSP files (oscillator for Instrument and Generator, buffered bus for Effect and Music Effect, none for Speech Synthesizer). No User Interface drops `UI/` and adds a factory file |
@@ -764,7 +764,7 @@ The App template's "Create Companion iOS App" option
 |---|---|
 | Watch-only App (default) | Container `N` (`com.apple.product-type.application.watchapp2-container`, iOS SDK, a Resources phase only, `PRODUCT_BUNDLE_IDENTIFIER = B`, `INFOPLIST_KEY_CFBundleDisplayName = N`, no folder) with the *embedded* watch app `N Watch App` (folder of the same name) |
 | Watch App with New Companion iOS App | A full iOS SwiftUI app `N` (the iOS App block, folder `N/` with `TApp.swift`, `ContentView.swift`, `Assets.xcassets`, `INFOPLIST_KEY_CFBundleDisplayName = N`) with the *embedded* watch app `N Watch App` |
-| Watch App for Existing iOS App | Only `N Watch App`, embedded in the chosen existing iOS app. This needs an iOS app target, so it is a New Target case. In a new project it is unavailable (Ycode's reading; OPEN) |
+| Watch App for Existing iOS App | Only `N Watch App`, embedded in the chosen existing iOS app. This needs an iOS app target, so it is a New Target case. In a new project it is unavailable (SwiftCode's reading; OPEN) |
 
 The watch app `N Watch App` is
 `com.apple.product-type.application` with SDK watchos:
@@ -826,9 +826,9 @@ options are companionAppStyle and testingSystem. The initial file is
 | Template | Options | Result |
 |---|---|---|
 | Empty | productName only | A project with Debug and Release configurations, the project-level settings and no targets |
-| External Build System | buildToolPath ("Build Tool:", text, default `/usr/bin/make`) | One `PBXLegacyTarget` `N`: `buildToolPath` = the option, `buildArgumentsString = "$(ACTION)"`, and (Ycode's reading of the format's usual defaults, not in the template) `passBuildSettingsInEnvironment = 1` with an empty `buildWorkingDirectory`; settings `PRODUCT_NAME = $(TARGET_NAME)`, `OTHER_CFLAGS = ""`, `OTHER_LDFLAGS = ""`, Debug `DEBUGGING_SYMBOLS = YES`, `GCC_GENERATE_DEBUGGING_SYMBOLS = YES`, `GCC_OPTIMIZATION_LEVEL = 0`, `DEBUG_INFORMATION_FORMAT = dwarf`, Release `DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"`. No folder |
+| External Build System | buildToolPath ("Build Tool:", text, default `/usr/bin/make`) | One `PBXLegacyTarget` `N`: `buildToolPath` = the option, `buildArgumentsString = "$(ACTION)"`, and (SwiftCode's reading of the format's usual defaults, not in the template) `passBuildSettingsInEnvironment = 1` with an empty `buildWorkingDirectory`; settings `PRODUCT_NAME = $(TARGET_NAME)`, `OTHER_CFLAGS = ""`, `OTHER_LDFLAGS = ""`, Debug `DEBUGGING_SYMBOLS = YES`, `GCC_GENERATE_DEBUGGING_SYMBOLS = YES`, `GCC_OPTIMIZATION_LEVEL = 0`, `DEBUG_INFORMATION_FORMAT = dwarf`, Release `DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"`. No folder |
 
-### Differences from Ycode's iOS App row (to fix)
+### Differences from SwiftCode's iOS App row (to fix)
 
 The rows in § "New Project" above predate this pass. They differ
 from the reference as follows:
@@ -921,7 +921,7 @@ Rules, applied whenever any value changes:
    Name and both codes, the Background Upload URL base) must be
    non-empty. Next stays disabled until they are. The Audio Unit codes
    must be exactly four characters, and the manufacturer code needs at
-   least one upper-case letter. Their placeholders say so; Ycode
+   least one upper-case letter. Their placeholders say so; SwiftCode
    checks this on Next.
 6. **Empty replacement.** While Product Name is empty, the derived
    fields use "ProductName" in its place. While Organization
@@ -938,7 +938,7 @@ Rules, applied whenever any value changes:
    option. The team chosen sets `DEVELOPMENT_TEAM`. Where a template
    puts Language before Organization Identifier (Multiplatform Safari
    Extension App, the frameworks and static libraries), Team is placed
-   after Product Name too (Ycode's reading; OPEN).
+   after Product Name too (SwiftCode's reading; OPEN).
 9. **Bundle Identifier** = `B` (§ "Notation"), recomputed on every
    keystroke. The watch app's own identifier, `B.watchkitapp`, is not
    shown.
@@ -1011,16 +1011,16 @@ Next opens a save panel attached to the sheet's window.
 
 - **Name field:** "Save As:" holds the product name. The created folder
   is `<location>/<Product Name>/`. Changing the field does not rename
-  the product (Ycode's reading). A package template's name field
+  the product (SwiftCode's reading). A package template's name field
   starts at its default name (MyLibrary, …).
 - **Location:** starts in the last folder used. The default is
-  Ycode's choice of the user's Developer folder, or the home folder.
+  SwiftCode's choice of the user's Developer folder, or the home folder.
 - **Accessory** (one row each, left labels):
   - **Source Control:** checkbox "Create Git repository on my Mac"
     (tooltip: a local Git repository is created inside the project
     folder). Whether it remembers its last state, and how the
     "disable Git for new projects" default affects it, is OPEN.
-    Ycode remembers the last state and starts checked.
+    SwiftCode remembers the last state and starts checked.
   - **Add to:** a pop-up. Its first item is "Don't add to any project
     or workspace". After a separator come the open workspaces and
     projects. The first item is the default when the sheet runs in the
@@ -1035,7 +1035,7 @@ Next opens a save panel attached to the sheet's window.
 What Create does, in order:
 
 1. If `<location>/<Product Name>` exists, the panel asks whether to
-   replace it (the standard save-panel confirmation). Ycode refuses to
+   replace it (the standard save-panel confirmation). SwiftCode refuses to
    overwrite a non-empty folder unless the user confirms.
 2. Writes the project (§ "Template catalog") and remembers the folder
    as the default path.
@@ -1046,13 +1046,13 @@ What Create does, in order:
    `UserInterfaceState.xcuserstate`. It then makes **one commit titled
    "Initial Commit"** with the user's Git identity. **No `.gitignore`
    is written.** When the folder is already inside a Git work tree,
-   no new repository is made (Ycode's reading; the reference's
+   no new repository is made (SwiftCode's reading; the reference's
    behavior is OPEN).
 4. With Add to = a workspace: adds a `FileRef` to the new
    `.xcodeproj` in that workspace's `contents.xcworkspacedata`, inside
    the chosen group. With Add to = a project, the reference asks
    whether to save that project in a new workspace, because projects
-   can be combined only in a workspace. Ycode offers the same choice.
+   can be combined only in a workspace. SwiftCode offers the same choice.
 5. Opens the result:
    - **Add to = none:** the new project opens in the window that
      hosted the sheet (the empty window from Choose Template…). The
@@ -1068,38 +1068,38 @@ Cancel in the save panel, Previous or Cancel in the options step, and
 Cancel in the template sheet create nothing. Cancel in the template
 sheet also closes the empty window it opened.
 
-## Ycode implementation (NEW-PROJECT, 2026-11-01)
+## SwiftCode implementation (NEW-PROJECT, 2026-11-01)
 
 Clean room: written from this spec, `reference-ui-3.md` §5, `metrics.md`,
 `pbxproj.md`, `build-pif.md` and Apple's public documentation. Template
-contents are Ycode's own.
+contents are SwiftCode's own.
 
 ### Modules
 
 | Piece | Where |
 |---|---|
-| Option model: kinds, sort keys, hidden and forced values, requirements, per-value requirements, Ycode-unavailable values, required fields, empty replacements, persisted values | `YcodeIDECore/Model/NewProject/TemplateOptions.swift` (`TemplateOptionField`, `TemplateChoice`, `TemplateOptionsForm`) |
+| Option model: kinds, sort keys, hidden and forced values, requirements, per-value requirements, SwiftCode-unavailable values, required fields, empty replacements, persisted values | `SwiftCodeIDECore/Model/NewProject/TemplateOptions.swift` (`TemplateOptionField`, `TemplateChoice`, `TemplateOptionsForm`) |
 | Catalog: tabs, sections, sort keys, the order rule, the filter, the Package… chooser | `ProjectTemplateDescriptors.swift` (`ProjectTemplates.all`, `.projects`, `.packages`, `TemplateChooserCatalog`) |
 | Generators and the common blocks | `ProjectGenerator.swift` (shared blocks, test components, storage, CloudKit), `+Apps.swift`, `+Games.swift`, `+Libraries.swift`, `InterfaceBuilderFiles.swift` (storyboards and XIBs) |
 | pbxproj construction | `ProjectRecipe.swift`: object version 77, `preferredProjectObjectVersion = 77`, project attributes (`LastSwiftUpdateCheck`, `LastUpgradeCheck`, `CreatedOnToolsVersion` from `ProjectRecipe.toolsVersion` = 27.1, `TestTargetID`, `ORGANIZATIONNAME`), the project-level settings, platform rows (project level, or per target for multi-SDK and SDK-`auto` projects), Swift settings, `CODE_SIGN_STYLE`/`DEVELOPMENT_TEAM`, one synchronized folder per target with Info.plist exceptions, empty phases, embed and Copy Files phases, SDK framework links |
 | Flow: steps, tab and per-tab memory, shared option values, picker rows | `NewProjectFlowModel.swift` (`NewProjectFlowModel`, `NewProjectPicker.templateID(forRow:)`) |
 | Save step: write, Git, Add to, Group | `NewProjectCreator` in the same file |
-| `ycode new` | `NewProjectCLI.swift` |
-| AppKit sheet | `YcodeUI/Window/NewProjectSheet.swift` (`NewProjectSheetController`, `NewProjectSaveAccessory`, `NewProjectFlow`), the grid of `NewFileTemplateGrid.swift` |
-| Linux shell | `YcodeIDEShell/NewProjectShellModel.swift` (state, portable), `ycode-ide/NewProjectSheet.swift` (OpenViews view) |
+| `swiftcode new` | `NewProjectCLI.swift` |
+| AppKit sheet | `SwiftCodeUI/Window/NewProjectSheet.swift` (`NewProjectSheetController`, `NewProjectSaveAccessory`, `NewProjectFlow`), the grid of `NewFileTemplateGrid.swift` |
+| Linux shell | `SwiftCodeIDEShell/NewProjectShellModel.swift` (state, portable), `swiftcode-ide/NewProjectSheet.swift` (OpenViews view) |
 
 `V(p)` is `xcrun --sdk <p> --show-sdk-version` (major.minor) on a Mac,
 cached; elsewhere 27.0. Schemes are not written: the autocreated schemes
 (`TestTargetID` gives the tested target's scheme its testables).
 
-### Ycode's choices for the open questions
+### SwiftCode's choices for the open questions
 
 1. Filter: case- and diacritic-insensitive substring of the name in the
    current tab; sections without a match hidden; an empty state line
    "No templates match “…”." (as proposed above).
 2. Section order beyond the two observed tabs: alphabetical, as the rule
    says; the Other tab is one unnamed section.
-3. Template descriptions: the Ycode summaries are shown in a caption
+3. Template descriptions: the SwiftCode summaries are shown in a caption
    line under the grid.
 4. Multiplatform RealityKit Game checkboxes: the one target lists the
    checked platforms in `SUPPORTED_PLATFORMS`, `TARGETED_DEVICE_FAMILY`
@@ -1109,29 +1109,29 @@ cached; elsewhere 27.0. Schemes are not written: the autocreated schemes
 7. Watch App for Existing iOS App: drawn disabled in New Project.
 8. Team placement: right after Product Name in every template.
 9. Hidden versus disabled values: drawn disabled.
-10. Git checkbox memory: remembered (`YcodeNewProjectCreateGitRepository`),
+10. Git checkbox memory: remembered (`SwiftCodeNewProjectCreateGitRepository`),
     checked the first time; a folder inside a Git work tree gets no new
     repository. The save panel's existing-folder confirmation moves the
     old folder to the Trash before writing.
 
-Further Ycode decisions: Add to = a project offers "Save both projects in
+Further SwiftCode decisions: Add to = a project offers "Save both projects in
 a new workspace" (on by default; off adds a sub-project reference);
 after Create the project opens in a window at the sheet window's frame
 (the empty window closes); the compact picker's App row makes the
 untitled project (`reference-ui-6.md` §1.5) from File ▸ New ▸ Project…
 too.
 
-### Differences from the catalog (Ycode does not generate these yet)
+### Differences from the catalog (SwiftCode does not generate these yet)
 
 - Values drawn disabled with a tooltip: Objective-C in games, AR,
-  document, Safari, iMessage and XPC templates (Ycode writes them in
+  document, Safari, iMessage and XPC templates (SwiftCode writes them in
   Swift; Objective-C is offered for the App, Framework, Static Library,
   Library and Command Line Tool templates); Metal 4 everywhere; AR
   Metal; Safari App Extension; Speech Synthesizer; Watch App for
   Existing iOS App.
 - Templates shown but not creatable: Foveated Streaming App (needs the
   streaming package) and Spatial Rendering App.
-- Reduced file sets (Ycode's own): SpriteKit games build their scene in
+- Reduced file sets (SwiftCode's own): SpriteKit games build their scene in
   code (no `.sks` scene or actions files), SceneKit games an empty
   `art.scnassets`; the Audio Unit app has a host view, the unit, and a
   factory or view controller (no DSP kernel, MIDI helpers or sample
@@ -1143,9 +1143,9 @@ too.
 
 ### Build check
 
-`ycode/scripts/new-project-matrix.sh <dir>` creates every template and
-the option combinations below with `ycode new` and builds each with
-Ycode's build path (`ycode build --engine swift-build`, packages with
+`swiftcode/scripts/new-project-matrix.sh <dir>` creates every template and
+the option combinations below with `swiftcode new` and builds each with
+SwiftCode's build path (`swiftcode build --engine swift-build`, packages with
 `swift build`). Results on the Mac (2026-11-01), 129 cases: every
 creatable template and the listed combinations (iOS App: Interface ×
 Testing System × Storage, Objective-C, CloudKit; every Game technology on
@@ -1167,7 +1167,7 @@ and Command-Line Tool packages need their package dependencies fetched
 and were created only. On x86-64 Linux the Package… templates (Library,
 Empty, Build Tool Plug-in, Command Plug-in, Executable) build with
 `swift build`; Xcode-project templates need an Apple SDK there (the iOS
-recipe of `ycode-ios-build-linux` needs the user's SDK copy, not
+recipe of `swiftcode-ios-build-linux` needs the user's SDK copy, not
 available to this run). OPEN for the build path: let `SwiftBuildEngine`
 use the downloaded Metal toolchain, and sign dynamic libraries without
 entitlements.
@@ -1191,7 +1191,7 @@ entitlements.
   (level 2); asset catalog `Contents.json` and the SwiftData/Core Data
   APIs from Apple's public documentation (level 1); the generated project
   builds for the iOS Simulator with `xcodebuild` (level 3). File
-  contents are Ycode's own.
+  contents are SwiftCode's own.
 - Storyboard interface: the scene life cycle, `UISceneConfiguration`,
   `UIApplicationSceneManifest` and its keys, `UIMainStoryboardFile` and
   `UILaunchStoryboardName` are from Apple's public UIKit and Information
@@ -1220,7 +1220,7 @@ entitlements.
   - package types: SwiftPM's open-source `swift package init` (level 1);
   - the embed-phase table: the pbxproj format as seen in open-source
     projects (level 2);
-  - template summaries: Ycode's own wording.
+  - template summaries: SwiftCode's own wording.
   - OPEN: filter rule, section order beyond Multiplatform and iOS,
     template descriptions in the 27.1 chooser, the RealityKit Game's
     platform checkboxes, the template path's `objectVersion` in 27.1,
@@ -1244,4 +1244,4 @@ entitlements.
     (level 3);
   - Team placement, the save panel's defaults, the Git checkbox
     memory, the existing-repository case, and hidden versus disabled
-    values: Ycode's reading, OPEN.
+    values: SwiftCode's reading, OPEN.

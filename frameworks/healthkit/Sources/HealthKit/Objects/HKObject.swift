@@ -16,7 +16,7 @@ public class HKObject: NSObject, NSSecureCoding, @unchecked Sendable {
     #endif
     /// Assigned when saved; before that the calling app's current revision.
     public var sourceRevision: HKSourceRevision {
-        HKSourceRevision(record: record.revision ?? YcodeHealthClient.processDefault.revisionRecord)
+        HKSourceRevision(record: record.revision ?? SwiftCodeHealthClient.processDefault.revisionRecord)
     }
     @available(*, deprecated, message: "Use sourceRevision")
     public var source: HKSource { sourceRevision.source }

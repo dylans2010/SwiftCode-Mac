@@ -153,7 +153,7 @@ extension ToggleStyle where Self == ButtonToggleStyle {
 
 // MARK: - Switch
 
-/// Switch geometry (golden: 61 × 28); the thumb is Ycode's.
+/// Switch geometry (golden: 61 × 28); the thumb is SwiftCode's.
 enum SwitchMetrics {
     static let size = CGSize(width: 61, height: 28)
     static let thumb = CGSize(width: 35, height: 24)

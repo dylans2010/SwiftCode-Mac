@@ -51,7 +51,7 @@ visionOS-like room, which provides the camera, depth and pose data that AR apps 
 
 ## Open frameworks
 
-Open-source implementations of Apple's frameworks that build on Linux, under the same clean-room protocol as Ycode
+Open-source implementations of Apple's frameworks that build on Linux, under the same clean-room protocol as SwiftCode
 ([AGENTS.md](../AGENTS.md)): specifications from public documentation and black-box behaviour, never Apple code.
 
 - **Packages that exist** ([frameworks/](../frameworks/README.md)): Contacts, EventKit, HealthKit, HomeKit, StoreKit,
@@ -66,4 +66,4 @@ Where it costs little, prefer designs that generalize:
 - a device and runtime model per platform, rather than iOS assumptions buried in the simulator host;
 - display, input and sensor pipelines (including camera and motion feeds) that can carry AR data;
 - the Metal to Vulkan path as a shared graphics layer;
-- IDE logic in the portable `YcodeIDECore`, so that the macOS and Linux windows share it.
+- IDE logic in the portable `SwiftCodeIDECore`, so that the macOS and Linux windows share it.

@@ -2,16 +2,16 @@
 
 Status: **implemented** (2026-10-17). The start hold (§4.2) is **on by
 default** since 2026-10-19 (§7). Thread QoS with the cgroup host backend
-is **on by default for device runs** since 2026-10-27 (`YCODE_BOOT_PRIORITY`,
+is **on by default for device runs** since 2026-10-27 (`SWIFTCODE_BOOT_PRIORITY`,
 §4.7, §7.5); lock admission stays off, and outside device runs QoS and
 host scheduling stay behind switches (§6). This spec answers
 the CONTRACT-REQUEST of `service-fidelity.md` §7: the Mac keeps unboosted
 Adaptive and Background jobs from running while the system is busy, and
-Ycode did not. It also gives guest threads a scheduling class, which the
+SwiftCode did not. It also gives guest threads a scheduling class, which the
 global kernel lock and the host scheduler use.
 
 Sections 1–3 are facts about Darwin and about the Mac's simulator. Sections
-4–6 are Ycode's own design (normative for `ycode/`). Section 7 has the
+4–6 are SwiftCode's own design (normative for `swiftcode/`). Section 7 has the
 measurements.
 
 ## 1. Inputs
@@ -94,7 +94,7 @@ picks over a runnable higher one gets one quantum (starvation avoidance).
 
 ## 3. The Mac's simulator (black box, level 3)
 
-Two boots of a throwaway device (`ycode-test-prio-1`, iPhone Duo,
+Two boots of a throwaway device (`swiftcode-test-prio-1`, iPhone Duo,
 iOS 27.1 24A94401), sampled with `ps -o pid,ppid,stat,pri,nice,time,command`
 every 0.25 s over the children of its `launchd_sim`. A job runs as
 `xpcproxy_sim <label>` until it executes the daemon. The time the job spends
@@ -139,7 +139,7 @@ Conclusions used by §4:
    client already sent to does not wait.
 3. While it waits, the job uses almost no CPU.
 
-## 4. Ycode design
+## 4. SwiftCode design
 
 ### 4.1 Per-process state
 
@@ -148,7 +148,7 @@ process's type unless the exec's attributes name one), the clamp, the role,
 the requested darwin-bg, its importance count (`boosts`), and the start of
 its hold. darwin-bg and the donor/receiver roles follow §2.1–§2.2.
 
-### 4.2 The start hold (`YCODE_ADAPTIVE_HOLD=1`)
+### 4.2 The start hold (`SWIFTCODE_ADAPTIVE_HOLD=1`)
 
 In an ordinary spawn, an Adaptive or Background child is held when its
 watch ports carry no importance (boosts = 0 after §4.3 binding), no
@@ -161,8 +161,8 @@ process, as on the Mac). The hold ends with the first of these events:
 | Event | Reason logged |
 |---|---|
 | its boosts become > 0 (an Adaptive job only; §4.3) | `boost` |
-| the system is quiet: over the last `YCODE_ADAPTIVE_HOLD_WINDOW_MS` (default 2000 ms; a full window is needed) the kernel lock was held less than `YCODE_ADAPTIVE_HOLD_BUSY_PERCENT` (default 25 %) of the time **and the VMM used less than `YCODE_ADAPTIVE_HOLD_CPU_PERCENT` (default 25 %) of the host's online CPUs** (its process CPU time over the window), no guest thread had to wait for the kernel lock for `YCODE_ADAPTIVE_HOLD_QUIET_MS` (default 250 ms, the BG bucket's WCEL; with the admission gate of §4.5 only threads of class ≥ df count), and the hold is at least `QUIET_MS` old. All quiet holds are released together. | `quiet` |
-| the hold reached `YCODE_ADAPTIVE_HOLD_MAX_S` (default 300 s; the Mac's longest observed delay is 255 s) | `timeout` |
+| the system is quiet: over the last `SWIFTCODE_ADAPTIVE_HOLD_WINDOW_MS` (default 2000 ms; a full window is needed) the kernel lock was held less than `SWIFTCODE_ADAPTIVE_HOLD_BUSY_PERCENT` (default 25 %) of the time **and the VMM used less than `SWIFTCODE_ADAPTIVE_HOLD_CPU_PERCENT` (default 25 %) of the host's online CPUs** (its process CPU time over the window), no guest thread had to wait for the kernel lock for `SWIFTCODE_ADAPTIVE_HOLD_QUIET_MS` (default 250 ms, the BG bucket's WCEL; with the admission gate of §4.5 only threads of class ≥ df count), and the hold is at least `QUIET_MS` old. All quiet holds are released together. | `quiet` |
+| the hold reached `SWIFTCODE_ADAPTIVE_HOLD_MAX_S` (default 300 s; the Mac's longest observed delay is 255 s) | `timeout` |
 | the process exits or is killed while it is held (its image never runs) | `exit` |
 
 A "hold thread" (a host thread with no guest context) checks the quiet
@@ -171,7 +171,7 @@ process is held. The busy fraction is the growth of the lock's total
 held time between the samples that span the window. A boost releases the job at once, in the trap that
 queued the message.
 
-**On demand** (`YCODE_ADAPTIVE_HOLD_DEMAND`, default on; added
+**On demand** (`SWIFTCODE_ADAPTIVE_HOLD_DEMAND`, default on; added
 2026-10-19). A job whose watch ports already hold a message when it is
 spawned was started by launchd_sim because a client sent to it, and that
 client waits for the answer (§3 conclusion 2: on the Mac such jobs start
@@ -205,17 +205,17 @@ is 0 when the contention was stamped after the sample time was read
 (before, the wrapping difference made such a contention look ages old,
 which also passed the test).
 
-The quiet test is Ycode's stand-in for the Mac's mechanism: a darwin-bg
+The quiet test is SwiftCode's stand-in for the Mac's mechanism: a darwin-bg
 `xpcproxy_sim` gets CPU and I/O only when nothing above it needs them. In
-Ycode the scarce resource is the kernel lock.
+SwiftCode the scarce resource is the kernel lock.
 
 **Shell-ready holds** (added 2026-11-01, `visionos.md` §10.26.1). A job
 whose label is in the system's shell-ready list stays held through boosts
 and the quiet test until the shell is ready; then it starts at once
 (reason `shell ready`); the bound (`timeout`) and `exit` still apply, and
 later spawns of the job are held as usual. On a visionOS device run the
-list is `com.apple.assistantd` (`YCODE_VISIONOS_SHELL_HOLD`: another
-comma-separated list, `0` none), and `ycode-simd` marks the shell ready
+list is `com.apple.assistantd` (`SWIFTCODE_VISIONOS_SHELL_HOLD`: another
+comma-separated list, `0` none), and `swiftcode-simd` marks the shell ready
 when RealityLauncher runs or at the room's first lit frame. The release
 line names the last boost that the hold outlived.
 
@@ -254,7 +254,7 @@ id 473000`; `1999646836` is XPC's message id).
 - A port that dies drops its credited boosts. A boost credited to a process
   that ended is lost with the process.
 
-### 4.4 Effective class of a thread (`YCODE_SCHED_QOS=1`)
+### 4.4 Effective class of a thread (`SWIFTCODE_SCHED_QOS=1`)
 
 1. Base QoS: the thread's requested QoS when set. The main thread starts at
    the type's QoS (§2.2). `bsdthread_create` uses `PTHREAD_START_QOSCLASS`,
@@ -277,7 +277,7 @@ request, a boost that flips darwin-bg (all threads of the process), or a
 push. Host threads with no guest context (timer and hold threads) count as
 ui.
 
-**Where the class is recomputed** (`YCODE_SCHED_CLASS_OFF_L0`, default on
+**Where the class is recomputed** (`SWIFTCODE_SCHED_CLASS_OFF_L0`, default on
 since 2026-10-27). A thread's pushes (§4.6) and its stored class have a
 leaf lock of their own (nothing is taken under it but the thread's
 override table). A recomputation reads every input and stores the class
@@ -295,12 +295,12 @@ and its end, and every ulock call, took L0 when QoS was on.
 ### 4.5 Kernel lock admission
 
 Every guest trap takes the one kernel lock (`stage4a-contract.md` §2). With
-`YCODE_SCHED_QOS=1` and `YCODE_LOCK_ADMISSION=1` (off by default, §7), acquiring it goes
+`SWIFTCODE_SCHED_QOS=1` and `SWIFTCODE_LOCK_ADMISSION=1` (off by default, §7), acquiring it goes
 like this:
 
 1. A thread of class c < ui first checks whether a thread of a higher class
    is blocked on the lock. While one is, it waits at the *admission gate*,
-   for at most the bound of its class: `YCODE_LOCK_ADMISSION_BOUND_MS`,
+   for at most the bound of its class: `SWIFTCODE_LOCK_ADMISSION_BOUND_MS`,
    default bg 250, ut 150, df 75 ms (the WCELs of §2.5). When the bound
    ends, it competes anyway (anti-starvation).
 2. It tries the lock. If the lock is taken, the thread counts itself as
@@ -344,42 +344,42 @@ consistent. Each wait is also cut into slices of at most 1 ms.
   The sender's class is that of the trap's own thread (on a fast path, the
   fast path's thread; before 2026-10-27 it was read from L0's current
   holder, which on a fast path is another thread or none).
-- **Send push** (`YCODE_SEND_PUSH`, default on with QoS; added
+- **Send push** (`SWIFTCODE_SEND_PUSH`, default on with QoS; added
   2026-10-27). In xnu a sender that blocks because the destination's
   queue is full waits on the port's send turnstile, whose inheritor is
   the receiver side (the thread or workloop that services the port), so
-  the blocked senders' priority goes to whoever drains the queue. Ycode:
+  the blocked senders' priority goes to whoever drains the queue. SwiftCode:
   while a sender of class c waits for room on a port, the image that holds
   the port's receive right (when it blocks) has a *send push* of c: 16-bit
   counts per class on the image, raised before the wait and lowered after
   it, without any kernel lock. The image's host class (§4.7) is the
   highest of its threads' own class and its send push; the push is not a
   class input (§4.4), so it causes no recomputation. Not modelled: xnu
-  pushes onto the servicing thread or workloop only, Ycode onto every
+  pushes onto the servicing thread or workloop only, SwiftCode onto every
   thread of the receiving image (a superset; diagnosticd's threads all
   serve its log port); a push applies from the receiving thread's next
   trap end.
 
-### 4.7 Host scheduling (`YCODE_HOST_SCHED`)
+### 4.7 Host scheduling (`SWIFTCODE_HOST_SCHED`)
 
 A guest thread runs on its own host thread (one vCPU, `stage4a-contract.md`
 §5). After each trap, outside the lock, the host thread compares its *host
 class* (its class, raised to its image's send push, §4.6) with the class
 it last applied. A higher class is applied at once. A lower one is
-applied only when it has lasted `YCODE_HOST_SCHED_DEMOTE_MS` (default
+applied only when it has lasted `SWIFTCODE_HOST_SCHED_DEMOTE_MS` (default
 50 ms; checked at the thread's trap ends; 0: at once): classes go up and
 down with every serviced request, and a move is not free (§7.5).
 
 | Backend | bg | ut | df | ui | Needs |
 |---|---|---|---|---|---|
 | `nice` | 19 | 8 | 3 | 0 | RLIMIT_NICE ≥ 20 or CAP_SYS_NICE. A thread must be able to come back to 0. With RLIMIT_NICE 0 (the Thor), the backend reports that it is unavailable and stays off. |
-| `cgroup` | weight `YCODE_HOST_SCHED_BG_WEIGHT` (default 5; `idle`: `cpu.idle` 1, as before 2026-10-27) | weight 25 | 100 | 400 | A delegated cgroup v2 with the cpu controller. The VMM makes four threaded children `ycode-class0…3` of its own cgroup. A thread moves itself with one write of `0` to the child's `cgroup.threads` (Linux moves the writer without the global threadgroup lock that a write of a thread id takes; `YCODE_HOST_SCHED_SELF_ZERO=0` writes the id). Without write access, the VMM first re-executes itself in place with `systemd-run --user --scope -p Delegate=yes`, which keeps the pid. |
+| `cgroup` | weight `SWIFTCODE_HOST_SCHED_BG_WEIGHT` (default 5; `idle`: `cpu.idle` 1, as before 2026-10-27) | weight 25 | 100 | 400 | A delegated cgroup v2 with the cpu controller. The VMM makes four threaded children `swiftcode-class0…3` of its own cgroup. A thread moves itself with one write of `0` to the child's `cgroup.threads` (Linux moves the writer without the global threadgroup lock that a write of a thread id takes; `SWIFTCODE_HOST_SCHED_SELF_ZERO=0` writes the id). Without write access, the VMM first re-executes itself in place with `systemd-run --user --scope -p Delegate=yes`, which keeps the pid. |
 | `none` | — | — | — | — | |
 
 The default backend is `none` for the VMM in general and `cgroup` for a
-device run (§6, `YCODE_BOOT_PRIORITY`).
+device run (§6, `SWIFTCODE_BOOT_PRIORITY`).
 
-**Background CPUs** (`YCODE_HOST_SCHED_BG_CPUS=N`, opt-in, added
+**Background CPUs** (`SWIFTCODE_HOST_SCHED_BG_CPUS=N`, opt-in, added
 2026-11-01): with a backend on, a host thread applying class bg also sets
 its CPU affinity to the last N online CPUs, and any other class to all of
 them, as the Mac runs background work on its efficiency cores (Apple's
@@ -389,16 +389,16 @@ public documentation on Apple silicon performance tuning, level 1).
 did not move assistantd's start-up past the shell's; it stays off by
 default.
 
-**Lock holders** (`YCODE_LOCK_HOLDER_PROMOTION`, default on with a
+**Lock holders** (`SWIFTCODE_LOCK_HOLDER_PROMOTION`, default on with a
 backend; added 2026-10-27). xnu's turnstiles push the waiters' priority
-onto the owner of a kernel lock (§2.4). Ycode's kernel locks (L0, the
+onto the owner of a kernel lock (§2.4). SwiftCode's kernel locks (L0, the
 event locks, the port lock) are host mutexes, and a holder in class bg
 could be left without a CPU while it held one: every other thread then
 waited (the 64.9 s boot of §7.4). Each lock publishes its holder (host
 thread id, applied host class, the class a waiter raised it to, a
 generation) in one atomic word at every acquisition, when a backend is on.
 A thread that finds the lock taken waits up to
-`YCODE_LOCK_PROMOTION_DELAY_US` (default 200 µs; holds are microseconds,
+`SWIFTCODE_LOCK_PROMOTION_DELAY_US` (default 200 µs; holds are microseconds,
 so a holder that keeps the lock this long is one the host does not run;
 1000 µs left a wider spread, §7.5).
 If it is still waiting and its host class c is above both the holder's
@@ -411,7 +411,7 @@ mistake), then waits on:
   (one `cpu.weight` write, microseconds; counted per class, so the weight
   goes back when no raised holder of that class is left). Every thread of
   class h gains for the moment, not only the holder.
-- `thread` (`YCODE_LOCK_HOLDER_PROMOTION=thread`, the `nice` backend, or
+- `thread` (`SWIFTCODE_LOCK_HOLDER_PROMOTION=thread`, the `nice` backend, or
   class 0 idle): the holder's host thread is moved to class c. The holder
   keeps c as its applied class when it lets go, and its next trap end
   moves it back (after the demotion delay). A move of another thread by
@@ -439,27 +439,27 @@ skipped. A waiter in a condition wait that takes the mutex back
 
 ## 5. Diagnostics
 
-- `ycode-simd: sched: start hold on|off, thread QoS on|off, lock admission
+- `swiftcode-simd: sched: start hold on|off, thread QoS on|off, lock admission
   on|off, host <backend status>` at start.
-- `ycode-simd: sched: pid N <label>: start held (<type>, unboosted)` and
+- `swiftcode-simd: sched: pid N <label>: start held (<type>, unboosted)` and
   `... start hold released (<reason>) after N ms` for each hold.
 - With tracing on: `note: sched: pid N type T clamp C role R boosts B [held]`
   for each spawn.
 - `... pid N <label>: not held (<type>, on demand: N messages queued at
   spawn)` for each start the on-demand rule exempts.
-- With `YCODE_ADAPTIVE_HOLD_TRACE=1`: `... pid N <label>: not held (<type>,
+- With `SWIFTCODE_ADAPTIVE_HOLD_TRACE=1`: `... pid N <label>: not held (<type>,
   B boosts at spawn from pids [...])` for each Adaptive or Background spawn
   that is not held (the pids are the senders of the queued importance
   messages), and once a second while a job is held, `hold inputs: lock
   busy P% over N ms, last contention N ms ago, N held`.
-- At exit: `ycode-simd: sched: start holds N (boost, quiet, timeout, exit,
+- At exit: `swiftcode-simd: sched: start holds N (boost, quiet, timeout, exit,
   still held; not held on demand N), ms held; class changes (recomputations
   without L0); importance: receiving ports, temporary owners, importance
   messages, donor sends to other ports; send pushes; lock admission: gate
   waits, ms, at the bound; host scheduling …; moves, failures, ms moving
   (moves of another thread, ms), demotions put off; lock holders promoted
   (waits past the delay, let go raised; class weight writes, ms)`.
-- With `YCODE_HOME_WATCH=1`, after the home line: `ycode-simd: home watch:
+- With `SWIFTCODE_HOME_WATCH=1`, after the home line: `swiftcode-simd: home watch:
   at home: kernel lock held N ms (N acquisitions); sched: …` (the exit
   report's counters at the home screen; the A/B instrument of §7.5).
 
@@ -467,39 +467,39 @@ skipped. A waiter in a condition wait that takes the mutex back
 
 | Variable | Default | Effect |
 |---|---|---|
-| `YCODE_ADAPTIVE_HOLD` | 1 | §4.2 (and §4.3); `0` turns it off |
-| `YCODE_ADAPTIVE_HOLD_QUIET_MS` | 250 | §4.2 |
-| `YCODE_ADAPTIVE_HOLD_BUSY_PERCENT` | 25 | §4.2 |
-| `YCODE_ADAPTIVE_HOLD_WINDOW_MS` | 2000 | §4.2 |
-| `YCODE_ADAPTIVE_HOLD_TRACE` | 0 | §5 |
-| `YCODE_ADAPTIVE_HOLD_MAX_S` | 300 | §4.2 |
-| `YCODE_ADAPTIVE_HOLD_DEMAND` | 1 | §4.2 on-demand starts are not held; `0` holds them |
-| `YCODE_ADAPTIVE_HOLD_CPU_PERCENT` | 25 | §4.2: the VMM's CPU use over the window, in % of the host's online CPUs; `0` drops the test |
-| `YCODE_SCHED_QOS` | 0 | §4.3–§4.6, and §4.7 when a backend is chosen |
-| `YCODE_SCHED_CLASS_OFF_L0` | 1 | §4.4 recomputation on fast paths, ulock calls on their fast path with QoS; `0` as before |
-| `YCODE_SEND_PUSH` | 1 | §4.6 send push (with QoS); `0` off |
-| `YCODE_LOCK_ADMISSION` | 0 | §4.5 (with `YCODE_SCHED_QOS`) |
-| `YCODE_LOCK_ADMISSION_BOUND_MS` | `250,150,75` | §4.5 bounds for bg, ut, df |
-| `YCODE_HOST_SCHED` | none | `nice`, `cgroup` (§4.7) |
-| `YCODE_HOST_SCHED_BG_WEIGHT` | 5 | class 0's `cpu.weight` (1–10000), or `idle` for `cpu.idle` (§4.7) |
-| `YCODE_HOST_SCHED_DEMOTE_MS` | 50 | §4.7 demotion delay; `0` at once |
-| `YCODE_HOST_SCHED_BG_CPUS` | unset | §4.7: class bg host threads on the last N online CPUs |
-| `YCODE_VISIONOS_SHELL_HOLD` | `com.apple.assistantd` (visionOS device runs) | §4.2 shell-ready holds; a comma-separated list, `0` none |
-| `YCODE_HOST_SCHED_SELF_ZERO` | 1 | §4.7: a thread moves itself by writing `0`; `0` writes its id |
-| `YCODE_LOCK_HOLDER_PROMOTION` | `group` | §4.7 lock holders: `group`, `thread`, `0` (off) |
-| `YCODE_LOCK_PROMOTION_DELAY_US` | 200 | §4.7: a waiter raises the holder after waiting this long |
-| `YCODE_BOOT_PRIORITY` | 1 for device runs (since 2026-10-27; was 0) | device runs (`--device`) only: with `YCODE_SCHED_QOS` unset, set it to 1 and `YCODE_HOST_SCHED` (if unset) to `cgroup` before the VMM starts (§7.4, §7.5); `0` turns it off. The cgroup backend re-executes the VMM in a delegated user scope only when the user's service manager is reachable (`$XDG_RUNTIME_DIR/systemd/private`); otherwise it reports itself unavailable and the run goes on without host scheduling |
+| `SWIFTCODE_ADAPTIVE_HOLD` | 1 | §4.2 (and §4.3); `0` turns it off |
+| `SWIFTCODE_ADAPTIVE_HOLD_QUIET_MS` | 250 | §4.2 |
+| `SWIFTCODE_ADAPTIVE_HOLD_BUSY_PERCENT` | 25 | §4.2 |
+| `SWIFTCODE_ADAPTIVE_HOLD_WINDOW_MS` | 2000 | §4.2 |
+| `SWIFTCODE_ADAPTIVE_HOLD_TRACE` | 0 | §5 |
+| `SWIFTCODE_ADAPTIVE_HOLD_MAX_S` | 300 | §4.2 |
+| `SWIFTCODE_ADAPTIVE_HOLD_DEMAND` | 1 | §4.2 on-demand starts are not held; `0` holds them |
+| `SWIFTCODE_ADAPTIVE_HOLD_CPU_PERCENT` | 25 | §4.2: the VMM's CPU use over the window, in % of the host's online CPUs; `0` drops the test |
+| `SWIFTCODE_SCHED_QOS` | 0 | §4.3–§4.6, and §4.7 when a backend is chosen |
+| `SWIFTCODE_SCHED_CLASS_OFF_L0` | 1 | §4.4 recomputation on fast paths, ulock calls on their fast path with QoS; `0` as before |
+| `SWIFTCODE_SEND_PUSH` | 1 | §4.6 send push (with QoS); `0` off |
+| `SWIFTCODE_LOCK_ADMISSION` | 0 | §4.5 (with `SWIFTCODE_SCHED_QOS`) |
+| `SWIFTCODE_LOCK_ADMISSION_BOUND_MS` | `250,150,75` | §4.5 bounds for bg, ut, df |
+| `SWIFTCODE_HOST_SCHED` | none | `nice`, `cgroup` (§4.7) |
+| `SWIFTCODE_HOST_SCHED_BG_WEIGHT` | 5 | class 0's `cpu.weight` (1–10000), or `idle` for `cpu.idle` (§4.7) |
+| `SWIFTCODE_HOST_SCHED_DEMOTE_MS` | 50 | §4.7 demotion delay; `0` at once |
+| `SWIFTCODE_HOST_SCHED_BG_CPUS` | unset | §4.7: class bg host threads on the last N online CPUs |
+| `SWIFTCODE_VISIONOS_SHELL_HOLD` | `com.apple.assistantd` (visionOS device runs) | §4.2 shell-ready holds; a comma-separated list, `0` none |
+| `SWIFTCODE_HOST_SCHED_SELF_ZERO` | 1 | §4.7: a thread moves itself by writing `0`; `0` writes its id |
+| `SWIFTCODE_LOCK_HOLDER_PROMOTION` | `group` | §4.7 lock holders: `group`, `thread`, `0` (off) |
+| `SWIFTCODE_LOCK_PROMOTION_DELAY_US` | 200 | §4.7: a waiter raises the holder after waiting this long |
+| `SWIFTCODE_BOOT_PRIORITY` | 1 for device runs (since 2026-10-27; was 0) | device runs (`--device`) only: with `SWIFTCODE_SCHED_QOS` unset, set it to 1 and `SWIFTCODE_HOST_SCHED` (if unset) to `cgroup` before the VMM starts (§7.4, §7.5); `0` turns it off. The cgroup backend re-executes the VMM in a delegated user scope only when the user's service manager is reachable (`$XDG_RUNTIME_DIR/systemd/private`); otherwise it reports itself unavailable and the run goes on without host scheduling |
 
 ## 7. Measurements
 
 ### 7.1 Thor, full boot (agent PRIO, 2026-10-19)
 
-SX harness, full boot (`YCODE_LEAN_BOOT` unset), 700 s, device in RAM,
+SX harness, full boot (`SWIFTCODE_LEAN_BOOT` unset), 700 s, device in RAM,
 at most two PRIO boots at a time (other agents' boots may have run in the
 third slot). Build `d0f1549` (the main line merged); *main* is the main line
 `65ef9fe` built the same way. Arms: **main**; **hold**
-(`YCODE_ADAPTIVE_HOLD=1`); **hold+QoS** (`YCODE_ADAPTIVE_HOLD=1
-YCODE_SCHED_QOS=1 YCODE_HOST_SCHED=cgroup`, lock admission off). Starts are
+(`SWIFTCODE_ADAPTIVE_HOLD=1`); **hold+QoS** (`SWIFTCODE_ADAPTIVE_HOLD=1
+SWIFTCODE_SCHED_QOS=1 SWIFTCODE_HOST_SCHED=cgroup`, lock admission off). Starts are
 process images per program in the exit report (`xpcproxy_sim` not counted);
 lock % is kernel-lock held time over 700 s.
 
@@ -550,16 +550,16 @@ Reading:
 ### 7.2 Against the Mac with the same device state
 
 Method of `parity-ladder.md` §4.5: the throwaway Mac devices
-`ycode-test-prio-aged-1` and `-2` (iPhone Duo, iOS 27.1 runtime
+`swiftcode-test-prio-aged-1` and `-2` (iPhone Duo, iOS 27.1 runtime
 24A94401, on macOS 27.2 26B5112a and Xcode 27.1 27A9269, both just
-updated) were given, before their first boot, the `DEV/data` of Ycode run
+updated) were given, before their first boot, the `DEV/data` of SwiftCode run
 `h5` (the Thor's golden device after one more boot), booted for 700 s,
 sampled with `ps`, and deleted. Run 1 was shut down from outside after
 354 s (launchd_sim got SIGTERM from outside this tool), so its counts
 cover 354 s. Start delay = "xpcproxy_sim spawned" to "INIT" in
 `launchd.log`, the same lines in both platforms' logs.
 
-| | Mac 1 (354 s) | Mac 2 (700 s) | Ycode h5 (700 s) |
+| | Mac 1 (354 s) | Mac 2 (700 s) | SwiftCode h5 (700 s) |
 |---|---|---|---|
 | home_s | 35.8 | 22.7 | 175 |
 | Programs started | 490 | 631 | 503 |
@@ -574,19 +574,19 @@ cover 354 s. Start delay = "xpcproxy_sim spawned" to "INIT" in
 | Start delay of those restarts | ≤ 0.5 s | ≤ 0.3 s | ≤ 0.7 s |
 | Abnormal exits | intelligencetasksd 15 × SIGTRAP | intelligencetasksd 16 × SIGTRAP | intelligencetasksd 16 × SIGTRAP, fileindexerd 14 × SIGTRAP |
 
-- The Mac holds the same jobs as Ycode and releases them in the same
+- The Mac holds the same jobs as SwiftCode and releases them in the same
   order; the jobs it holds longest are released together on both. The
   holds scale with each platform's boot (Mac 9–39 s for a 23–36 s boot,
-  Ycode 6–227 s for a 175 s boot).
+  SwiftCode 6–227 s for a 175 s boot).
 - The three restart loops run on the Mac at launchd's throttle rate
   (about 10.3 s), started by an XPC event and not held (delay under
-  0.5 s): 68–69 starts in 700 s. Ycode starts them 56–66 times at the same
+  0.5 s): 68–69 starts in 700 s. SwiftCode starts them 56–66 times at the same
   rate, also boosted at spawn (`not held … boosts at spawn from` the
   event's sender: UserEventAgent for proactiveeventtrackerd and
   facetimemessagestored, dasd for mlhostd). The earlier Mac reference of
   28, 42 and 41 starts (`service-fidelity.md` §12.1, 2026-10-17) came from a
   Mac under load before the update, whose restart period was about 14 s.
-- fileindexerd's crashes are Ycode's own (`service-fidelity.md` §11); the
+- fileindexerd's crashes are SwiftCode's own (`service-fidelity.md` §11); the
   hold lowers them from 16 to 9–14.
 
 ### 7.3 On-demand starts and the home screen's icons (agent SIM-INPUT2, 2026-10-19)
@@ -598,7 +598,7 @@ first boot). Frames every 5 s; "icons" is the first frame in which the
 Settings icon is drawn (not the grey placeholder), "wallpaper" the first
 lit frame (mean brightness over 60; light appearance).
 
-| Run | `YCODE_ADAPTIVE_HOLD_DEMAND` | MTLCompilerService | Wallpaper | Icons | Holds (boost, quiet; on demand not held) | Time held in all |
+| Run | `SWIFTCODE_ADAPTIVE_HOLD_DEMAND` | MTLCompilerService | Wallpaper | Icons | Holds (boost, quiet; on demand not held) | Time held in all |
 |---|---|---|---|---|---|---|
 | a1 | 0 | held 33.6 s (quiet) | 80 s | 105 s | 69 (25, 43; –) | 2272 s |
 | a2 | 1 | not held | 70 s | 60–70 s (with the wallpaper) | 41 (18, 23; 27) | 1415 s |
@@ -627,9 +627,9 @@ build; arms rotated each round):
 
 | Arm | home_s (n = 3) | mean |
 |---|---|---|
-| main-line behaviour (`YCODE_PORT_SLOT_HANDOFF=0`, no QoS) | 38.3, 32.6, 35.4 | 35.4 |
+| main-line behaviour (`SWIFTCODE_PORT_SLOT_HANDOFF=0`, no QoS) | 38.3, 32.6, 35.4 | 35.4 |
 | slot hand-off (`mach-ipc.md` §2.9) | 34.7, 34.8, 39.5 | 36.4 |
-| slot hand-off + `YCODE_SCHED_QOS=1 YCODE_HOST_SCHED=cgroup` | 32.7, 32.4, 32.5 (a profiled fourth: 32.9) | 32.5 |
+| slot hand-off + `SWIFTCODE_SCHED_QOS=1 SWIFTCODE_HOST_SCHED=cgroup` | 32.7, 32.4, 32.5 (a profiled fourth: 32.9) | 32.5 |
 
 With QoS and the cgroup backend the boot is 2.9 s (8 %) shorter on
 average and its spread falls from 6 s to 0.3 s; every boot reached the
@@ -642,7 +642,7 @@ backbone grow from 1.5 to about 2.5–3 s (class changes, 48,880 per boot, are
 recomputed under L0 when a fast path receives a message, §4.4; a lead for
 the lock work).
 
-A second series on the next build (series D, `YCODE_BOOT_PRIORITY=1`, which
+A second series on the next build (series D, `SWIFTCODE_BOOT_PRIORITY=1`, which
 sets the same two switches for a device run, against `=0`): on 31.7, 31.7
 and **64.9 s**, off 35.0, 32.8, 35.8 s. The 64.9 s boot held the kernel
 lock 41.2 s over its run (a normal boot 14.3 s) and its start hold released
@@ -650,10 +650,10 @@ lock 41.2 s over its run (a normal boot 14.3 s) and its start hold released
 likely mechanism: a darwin-bg thread in the idle class (`cpu.idle`) that
 takes L0 while the host is busy gets no CPU while it holds it, and every
 other thread waits (a priority inversion; xnu's turnstiles push the
-waiters' priority onto a lock owner, §2.4; Ycode's L0 is a plain mutex).
+waiters' priority onto a lock owner, §2.4; SwiftCode's L0 is a plain mutex).
 Over the seven boots with QoS and the backend the median is 32.5 s against
 35.0 s for the nine without, but the outlier rules out a default: it stays
-behind `YCODE_BOOT_PRIORITY=1` (or the two switches) until a holder of L0
+behind `SWIFTCODE_BOOT_PRIORITY=1` (or the two switches) until a holder of L0
 runs at least at its waiters' class, or class 0 uses a small weight
 instead of `cpu.idle`. Early quiet releases also occur without QoS (C-base
 1 and 3, C-hand 3: 35.4–39.5 s, against 32.6–34.8 s without them): the
@@ -663,13 +663,13 @@ phase begins. Both are addressed in §4.2, §4.7 and measured in §7.5.
 
 ### 7.5 Holder promotion, the quiet test's CPU condition, defaults (agent PRIO-3, 2026-10-27)
 
-Thor, `SX/bin/timed.sh` around each series (no other ycode-simd, load
+Thor, `SX/bin/timed.sh` around each series (no other swiftcode-simd, load
 under 4 at the start), unprofiled cold boots of one device copy booted
-before at its own path (`ide-remote/prio3`, `YCODE_HOME_WATCH`), arms
+before at its own path (`ide-remote/prio3`, `SWIFTCODE_HOME_WATCH`), arms
 rotated each round, 5 s held after home. *main* is the main line 229b8b2
 with the one-line link fix of this branch (the main line did not link on
 arm64 Linux), default switches. *off* is this branch with
-`YCODE_BOOT_PRIORITY=0` (the start hold's new quiet test, no QoS); *new*
+`SWIFTCODE_BOOT_PRIORITY=0` (the start hold's new quiet test, no QoS); *new*
 is this branch's defaults (boot priority on: QoS, cgroup backend, class 0
 weight 5, holder promotion by class weight after 200 µs, send push,
 classes off L0). Kernel lock: L0's hold over the whole run (home + 5 s +
@@ -680,7 +680,7 @@ stop), from the exit summary; "at home" from the home-watch line (§5).
 | Arm | median home_s | range | worst | boots > 33 s | L0 held, median / max | L0 at home |
 |---|---|---|---|---|---|---|
 | main | 35.42 | 31.45–41.10 | 41.10 | 6 | 6.13 / 7.91 s | — |
-| off (`YCODE_BOOT_PRIORITY=0`) | 31.21 | 30.41–34.73 | 34.73 | 2 | 5.92 / 6.32 s | 4.2–5.0 s |
+| off (`SWIFTCODE_BOOT_PRIORITY=0`) | 31.21 | 30.41–34.73 | 34.73 | 2 | 5.92 / 6.32 s | 4.2–5.0 s |
 | **new (defaults)** | **30.14** | **29.62–33.01** | **33.01** | 1 (33.01) | 6.91 / 7.72 s | 5.1–6.0 s |
 
 **All series pooled** (A–D; the arms that ran the same configuration):
@@ -688,7 +688,7 @@ stop), from the exit summary; "at home" from the home-watch line (§5).
 | Configuration | n | median | range | > 33 s | L0 held median / p90 / max |
 |---|---|---|---|---|---|
 | main | 27 | 34.24 | 29.77–47.05 | 17 | 6.09 / 7.22 / **22.50** s |
-| main + `YCODE_BOOT_PRIORITY=1` (QoS before this change: class 0 `cpu.idle`, no promotion, ulock on L0; series C) | 9 | 32.65 | 30.44–37.02 | 4 | 9.61 / 10.53 / 12.17 s |
+| main + `SWIFTCODE_BOOT_PRIORITY=1` (QoS before this change: class 0 `cpu.idle`, no promotion, ulock on L0; series C) | 9 | 32.65 | 30.44–37.02 | 4 | 9.61 / 10.53 / 12.17 s |
 | off | 32 | 30.95 | 29.77–34.73 | 8 | 5.89 / 6.31 / 6.39 s |
 | new, promotion after 1000 µs (A, B) | 14 | 30.91 | 29.61–32.60 | 0 | 7.30 / 7.77 / 8.22 s |
 | **new, promotion after 200 µs (B, C, D; the default)** | 23 | **30.44** | 29.27–33.01 | 1 | 7.09 / 7.60 / 8.22 s |
@@ -729,14 +729,14 @@ Reading:
 - **Host moves**: the old backend made 9,110 moves in a run (C-oldprio-1).
   Now about 2,900 per run (the demotion delay puts off 1,500–2,300), 2.6 s
   in all. Moving another thread by id averaged 8.7 ms during a boot (774
-  holder moves, 6.7 s, in a test run with `YCODE_LOCK_HOLDER_PROMOTION=thread`):
+  holder moves, 6.7 s, in a test run with `SWIFTCODE_LOCK_HOLDER_PROMOTION=thread`):
   Linux takes its global threadgroup lock for it. A thread moving itself
   (writing `0`) costs about 1 ms during a boot and 4 µs on an idle host;
   a `cpu.weight` write about 40 µs during a boot. Hence promotion by class
   weight.
 - Class 0 weight 25 instead of 5 was slower (5 boots, 32.66 s median).
 
-Debug suites with `YCODE_LOCK_ORDER_CHECK=1 YCODE_IPC_LOCKS_TESTS=1` on
+Debug suites with `SWIFTCODE_LOCK_ORDER_CHECK=1 SWIFTCODE_IPC_LOCKS_TESTS=1` on
 the Thor: kernel 370 tests, simd 43, ABI 154, all passed; full `swift
 build && swift test` on the x86-64 workstation passed.
 
@@ -766,13 +766,13 @@ fileindexerd and intelligencetasksd crashes (`service-fidelity.md` §11,
 | Clutch buckets, WCEL and warp values (§2.5) | 1 (xnu `doc/scheduler/sched_clutch_edge.md`) |
 | Start delays, priorities, states, CPU (§3) | 3 (`ps` sampling of a throwaway device, 2026-10-17; deleted afterwards) |
 | Thor arms (§7.1) | 3 (SX harness runs m1–m5, h1a, h3–h5, q8–q11; exit reports, guest `launchd.log` of h5) |
-| Mac with the same device data (§7.2) | 3 (`ycode-test-prio-aged-1`, `-2`, 2026-10-19: `launchd.log` read as a format, `ps`; deleted afterwards) |
+| Mac with the same device data (§7.2) | 3 (`swiftcode-test-prio-aged-1`, `-2`, 2026-10-19: `launchd.log` read as a format, `ps`; deleted afterwards) |
 | Unprivileged cgroup v2 delegation and threaded children on the Thor (§4.7) | Linux cgroup-v2 documentation; tried on the Thor |
 | Boots of §7.5: home times, kernel-lock holds, quiet releases, eligibilityd's boost, promotion and move counters | 3 (Thor, `ide-remote/prio3` series A–D: `ab-*.txt`, run logs' home-watch and exit lines) |
 | Cost of cgroup moves by thread id, by `0`, and of `cpu.weight` writes (§4.7, §7.5) | Linux cgroup-v2 documentation and kernel source (the `cgroup.threads` write path skips the threadgroup lock for the writer itself); timed on the Thor (`prio3/probes/cgcost.py`, idle host) and in boots (exit counters) |
 | Send turnstile: blocked senders push onto the receiver side (§4.6) | 1 (xnu `osfmk/ipc/ipc_port.c` send turnstile and its inheritor, `osfmk/kern/turnstile.c`) |
 | Timed boots with and without QoS and the cgroup backend (§7.4) | 3 (Thor, `ide-remote/bootcp` series C: runs `C-base-*`, `C-hand-*`, `C-qos-*`, `C-prof-qos`; series D: `D-dflt-*`, `D-off-*`; exit reports: kernel-lock hold, start-hold releases) |
-| Everything in §4–§6 | Ycode design |
-| Shell-ready holds; the boost's source; background CPUs (§4.2, §4.7) | Ycode design; `SchedPolicyTests.shellReadyHoldWaitsForTheShell`; Thor boots of `visionos.md` §10.26 |
+| Everything in §4–§6 | SwiftCode design |
+| Shell-ready holds; the boost's source; background CPUs (§4.2, §4.7) | SwiftCode design; `SchedPolicyTests.shellReadyHoldWaitsForTheShell`; Thor boots of `visionos.md` §10.26 |
 
 No disassembly or decompilation was used (level 5 not used).

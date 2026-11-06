@@ -1,12 +1,12 @@
 // StoreKitTest: `SKTestSession` and friends as a thin client of the engine's
 // control interface (design.md §4 item 5; testing-session.md §2, §9, §11).
 import Foundation
-@_spi(Ycode) import StoreKit
+@_spi(SwiftCode) import StoreKit
 import StoreKitConfiguration
 import StoreKitEngine
 
 /// `SKTestErrorDomain` errors (errors.md §3). The reference returned another
-/// form for every failing control call; `ycodeObservedError` gives it for parity checks.
+/// form for every failing control call; `swiftcodeObservedError` gives it for parity checks.
 public struct SKTestError: CustomNSError, Hashable, Sendable {
     public enum Code: Int, Hashable, Sendable {
         case serviceUnavailable = 0, invalidProductIdentifier, invalidProductType, invalidURL, fileNotFound
@@ -29,7 +29,7 @@ public struct SKTestError: CustomNSError, Hashable, Sendable {
 
     /// The form the reference returned: `SKServiceErrorDomain` 2 with an
     /// underlying `SKInternalErrorDomain` 17 and `client-environment-type` = `Xcode` (testing-session.md §11).
-    public var ycodeObservedError: NSError {
+    public var swiftcodeObservedError: NSError {
         NSError(domain: TestSessionError.observedDomain, code: TestSessionError.observedCode, userInfo: [
             NSUnderlyingErrorKey: NSError(domain: TestSessionError.observedUnderlyingDomain, code: TestSessionError.observedUnderlyingCode),
             "client-environment-type": "Xcode",
@@ -79,7 +79,7 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         case oneRenewalEveryThirtySeconds = 1003, oneRenewalEveryTenSeconds = 1004, oneRenewalEveryTwoSeconds = 1005
     }
 
-    let runtime: YcodeStoreKit
+    let runtime: SwiftCodeStoreKit
     var store: AppTestStore { runtime.store }
 
     /// Loads `<name>.storekit` from the main bundle (or any loaded bundle) and installs it for this app.
@@ -101,7 +101,7 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         do { configuration = try StoreConfiguration(contentsOf: url) } catch {
             throw SKTestError(.invalidURL, detail: "\(url.lastPathComponent) is not a StoreKit configuration (\(error)).")
         }
-        runtime = YcodeStoreKit.shared
+        runtime = SwiftCodeStoreKit.shared
         super.init()
         runtime.store.installConfiguration(configuration, appName: ProcessInfo.processInfo.processName)
     }
@@ -249,7 +249,7 @@ open class SKTestSession: NSObject, @unchecked Sendable {
         }
         let record: TransactionRecord
         do { record = try store.buyProduct(productID: identifier, options: o) } catch { throw SKTestError(error) }
-        guard let result = await Transaction.ycodeVerified(record) else { throw SKTestError(.invalidAction, detail: "signing failed") }
+        guard let result = await Transaction.swiftcodeVerified(record) else { throw SKTestError(.invalidAction, detail: "signing failed") }
         return result.unsafePayloadValue
     }
 
@@ -257,11 +257,11 @@ open class SKTestSession: NSObject, @unchecked Sendable {
 
     /// Sets (or with nil clears) the simulated error of one API.
     public func setSimulatedError<API: FailableStoreKitAPI>(_ error: API.Failure?, forAPI api: API) async {
-        store.setSimulatedError(error?.ycodeFailure, for: api.ycodeAPI)
+        store.setSimulatedError(error?.swiftcodeFailure, for: api.swiftcodeAPI)
     }
 
     public func simulatedError<API: FailableStoreKitAPI>(forAPI api: API) async -> API.Failure? {
-        store.simulatedError(for: api.ycodeAPI).flatMap(API.Failure.init(ycode:))
+        store.simulatedError(for: api.swiftcodeAPI).flatMap(API.Failure.init(swiftcode:))
     }
 }
 

@@ -5,7 +5,7 @@
 `configd_sim` (job `com.apple.configd_sim`, `KeepAlive` = true) loads the
 SimulatorSupport plug-in. That plug-in opens a session on the **host's**
 SystemConfiguration dynamic store, asserts that it succeeded, and mirrors a
-few host keys into the simulator's own store. Ycode had no host store:
+few host keys into the simulator's own store. SwiftCode had no host store:
 
 - Without a host name the session is NULL. `configd_sim` aborts with
   "Assertion failed: (store_host != NULL), function load_SimulatorSupport".
@@ -51,10 +51,10 @@ is the request id + 100. `xmlData` and `xmlDataOut` are out-of-line byte
 arrays: an OOL descriptor, and a count word in the body after the NDR
 record. Every reply body begins with the NDR record (8 bytes: 0, 0, 0, 1,
 then 4 zero bytes). A non-complex reply then has `RetCode` (`kern_return_t`).
-Ycode always sends `RetCode` = 0, and the result is in `status`
+SwiftCode always sends `RetCode` = 0, and the result is in `status`
 (`kSCStatus*`).
 
-| Id | Routine | Request (after the header) | Ycode's reply |
+| Id | Routine | Request (after the header) | SwiftCode's reply |
 |---|---|---|---|
 | 20000 | `configopen` | 2 OOL (name, options); NDR, nameCnt, optionsCnt | complex: 1 port descriptor (the new **session** port, MAKE_SEND, received as PORT_SEND); NDR, `status` 0. Total 52 bytes |
 | 20008 | `configlist` | on a session: 1 OOL (key); NDR, cnt, isRegex | complex: 1 OOL (empty array, binary plist); NDR, cnt, `status` 0 |
@@ -95,16 +95,16 @@ kept notify right.
 ## 7. The network state (NET-IMPL)
 
 The store holds the guest's network keys (`networking.md` §3.3 and §7 item
-7; built by `SCDynamicStoreNetworkState.swift` from Ycode's interface
-model, `networking-ycode.md` §5): `State:/Network/Interface`,
+7; built by `SCDynamicStoreNetworkState.swift` from SwiftCode's interface
+model, `networking-swiftcode.md` §5): `State:/Network/Interface`,
 `State:/Network/Interface/<if>/IPv4|IPv6|Link`, `State:/Network/Global/
 IPv4|IPv6|DNS|Proxies`, `State:/Network/Service/<id>` and its `IPv4`,
 `IPv6`, `DNS`, `Setup:/Network/Global/IPv4` (ServiceOrder),
 `Setup:/Network/Service/<id>` and its `Interface`, `IPv4`, `IPv6`,
 `Proxies`, `State:/Network/MulticastDNS`, `State:/Network/PrivateDNS`. Empty
-with `YCODE_NO_NETWORK=1`.
+with `SWIFTCODE_NO_NETWORK=1`.
 
-| Id | Routine | Ycode's reply with the network state |
+| Id | Routine | SwiftCode's reply with the network state |
 |---|---|---|
 | 20010 | `configget` | the key's value as a binary property list (OOL), `status` 0; a missing key as before (1004) |
 | 20016 | `configget_m` | the keys given and the keys matching the patterns (each pattern anchored, `^(…)$`): a binary-plist dictionary key → binary-plist data of the value (`_SCSerializeMultiple`), `status` 0; nothing matching: as before (1004) |
@@ -112,14 +112,14 @@ with `YCODE_NO_NETWORK=1`.
 
 SimulatorSupport's copy-multiple returns the service and interface
 entities; configd_sim computes `State:/Network/Global/*` and its DNS
-configuration from them (Ycode's guest store, `networking-ycode.md` §5).
+configuration from them (SwiftCode's guest store, `networking-swiftcode.md` §5).
 The service logs the keys a copy-multiple returned.
 
 ## 6. Diagnostics
 
-`YCODE_DEBUG_NO_SCDYNAMICSTORE=1` skips the service (the old abort loop).
+`SWIFTCODE_DEBUG_NO_SCDYNAMICSTORE=1` skips the service (the old abort loop).
 The service logs the first 16 requests (id, session, size) as
-`ycode-simd: scdynamicstore: …` lines.
+`swiftcode-simd: scdynamicstore: …` lines.
 
 ## Evidence
 
@@ -127,9 +127,9 @@ The service logs the first 16 requests (id, session, size) as
 |---|---|
 | Routine numbers, parameter lists, `skip`s, `UseSpecialReplyPort`, `ServerAuditToken` (`config.defs`) | 1 (Apple open source, configd project, APSL 2.0) |
 | What SimulatorSupport calls and asserts, its keys and patterns | 1 (configd `Plugins/SimulatorSupport/simulator_support.c`) |
-| MIG request/reply layout (NDR record, OOL descriptor + count, `RetCode`, reply id = id + 100, 52-byte `configopen` reply with one port descriptor) | 1 (MIG conventions in open-source xnu/MIG); 3 (the 52-byte reply size seen in Ycode traces of `configd_sim`'s own server) |
+| MIG request/reply layout (NDR record, OOL descriptor + count, `RetCode`, reply id = id + 100, 52-byte `configopen` reply with one port descriptor) | 1 (MIG conventions in open-source xnu/MIG); 3 (the 52-byte reply size seen in SwiftCode traces of `configd_sim`'s own server) |
 | `kSCStatus*` values | 1 (public SystemConfiguration headers) |
-| The abort and its rate without a host store; 49 of 61 `guest_fatal` | 3 (Ycode boots, 2026-10-13) |
+| The abort and its rate without a host store; 49 of 61 `guest_fatal` | 3 (SwiftCode boots, 2026-10-13) |
 | The names are registered by the host into the guest (701) | 3 (`launchd-sim.md` §6.3) |
 | §7: `configget`/`configget_m`/`configlist` value encodings (`_SCSerialize`, `_SCSerializeMultiple`, anchored patterns); key and property names | 1 (configd open source; public `SCSchemaDefinitions.h`) |
-| §7: which keys SimulatorSupport copies; configd_sim builds the global keys | 3 (Ycode boots: the service's log, the guest store read by `p_netpath`) |
+| §7: which keys SimulatorSupport copies; configd_sim builds the global keys | 3 (SwiftCode boots: the service's log, the guest store read by `p_netpath`) |

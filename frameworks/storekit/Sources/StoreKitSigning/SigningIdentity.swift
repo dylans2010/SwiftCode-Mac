@@ -51,7 +51,7 @@ public struct SigningIdentity: @unchecked Sendable {
     }
 
     /// The device's StoreKit 1 receipt identity. The reference uses one
-    /// fixed certificate valid 2020-04-01 to 2040-03-27; Ycode creates its own
+    /// fixed certificate valid 2020-04-01 to 2040-03-27; SwiftCode creates its own
     /// per device with the same subject and validity (README deviation 3).
     public static func deviceReceiptIdentity(directory: URL?, now: Date) throws -> SigningIdentity {
         try loadOrCreate(directory: directory, name: "receipt", now: now) {

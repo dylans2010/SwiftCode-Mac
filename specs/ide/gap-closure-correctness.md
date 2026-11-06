@@ -2,7 +2,7 @@
 
 Date: 2026-11-06. Slice: correctness gaps (family 4 of the
 gap-closure wave). Destination: SwiftCode-Mac main `d3cf493`
-(Ycode base, SwiftPM; the slice started on `f9f66c05` and the
+(SwiftCode base, SwiftPM; the slice started on `f9f66c05` and the
 Wave 18 landing moved HEAD mid-task — the slice's files were
 re-verified against `d3cf493`, which did not touch any of them).
 Legacy: SwiftCode-Legacy `d51a8f0d` (read-only). Ledger: all six tools below were already
@@ -44,21 +44,21 @@ key alongside `is_new`.
 
 No Myers engine existed. Two positional diffs stood in:
 
-- `file_compare_diff` (`YcodeTools+FileInspection.swift`):
+- `file_compare_diff` (`SwiftCodeTools+FileInspection.swift`):
   lines at the same index compared; one inserted line made the
   whole tail read as changed.
-- `EnginesPatch.unifiedDiff` (`YcodeTools+EnginesSupport.swift`,
+- `EnginesPatch.unifiedDiff` (`SwiftCodeTools+EnginesSupport.swift`,
   Wave 5): same positional shape, no hunk headers, no context
   lines.
 
-`file_create` and `code_replace` (`YcodeTools+FileWriting.swift`)
+`file_create` and `code_replace` (`SwiftCodeTools+FileWriting.swift`)
 returned no `diff` key, and `file_write`
-(`YcodeTools+Content.swift`) neither — all recorded as "pending
+(`SwiftCodeTools+Content.swift`) neither — all recorded as "pending
 Myers engine" in the Wave 2 notes.
 
 ### What now exists
 
-`ycode/Sources/YcodeIDECore/MyersDiff.swift` — `public enum
+`swiftcode/Sources/SwiftCodeIDECore/MyersDiff.swift` — `public enum
 MyersDiff`, an original implementation of the published Myers
 O(ND) algorithm (E. W. Myers, Algorithmica 1986): forward greedy
 search with a stored V-trace, then backtracking to a minimal
@@ -92,7 +92,7 @@ only the diff engine differs.
 - Owned file: `file_create` and `code_replace` now return a
   `diff` key (output schemas extended), rendered by the new
   `FileWritingSupport.unifiedDiff(old:new:file:)` helper in
-  `ycode/Sources/YcodeMCP/YcodeTools+FileWritingSupport.swift`
+  `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+FileWritingSupport.swift`
   (new file; the family's calling convention — `old == nil` is a
   new file, rendered as all-insertion).
 - Coordinator patches (exact old/new text in the slice report):
@@ -103,14 +103,14 @@ only the diff engine differs.
 
 ### Tests
 
-`ycode/Tests/YcodeIDECoreTests/CorrectnessGapTests.swift`
+`swiftcode/Tests/SwiftCodeIDECoreTests/CorrectnessGapTests.swift`
 (`CorrectnessGapDiffTests`): empty/empty, identical, pure
 insert, pure delete, interleaved, middle insertion leaving the
 tail equal (the positional diff's failure case), a 2,000-line
 file with one middle insertion (one hunk), far-apart changes
 splitting into two hunks, huge edit distance falling back
 honestly (`usedFallback`, `editDistance == nil`).
-`ycode/Tests/YcodeMCPTests/CorrectnessGapTests.swift`: diff keys
+`swiftcode/Tests/SwiftCodeMCPTests/CorrectnessGapTests.swift`: diff keys
 on `file_create` (new + overwrite) and `code_replace` through
 the server.
 
@@ -148,16 +148,16 @@ the `required` list. Waves 1–6 recorded this as unimplemented.
 
 ### What now exists
 
-`ycode/Sources/YcodeMCP/MCPParameterAliases.swift` —
+`swiftcode/Sources/SwiftCodeMCP/MCPParameterAliases.swift` —
 `public enum MCPParameterAliases` with Legacy's table verbatim
 (plus `csvPath`) and `normalized(_:declaredProperties:)`.
 
-Rules (Legacy's, plus the one Ycode needs):
+Rules (Legacy's, plus the one SwiftCode needs):
 
 - An alias only fills its canonical when the canonical is
   absent; a caller passing both keeps the canonical value.
 - The alias key is dropped either way (Legacy could keep it;
-  Ycode cannot — an unconsumed alias key would still trip the
+  SwiftCode cannot — an unconsumed alias key would still trip the
   unknown-argument rejection, which would make "pass both"
   fail for having supplied a redundant name).
 - An alias key is only consumed when it is NOT itself a
@@ -209,8 +209,8 @@ fails with "At least two snapshots are required".
 ### Decision: a separate lightweight journal, not the `project_snapshot` store
 
 The destination's Wave 7 `project_snapshot` store
-(`YcodeSnapshots/<uuid>/files` + `metadata.json`,
-`YcodeTools+ProjectModel.swift`) is the same full-tree layout
+(`SwiftCodeSnapshots/<uuid>/files` + `metadata.json`,
+`SwiftCodeTools+ProjectModel.swift`) is the same full-tree layout
 as Legacy's. This slice deliberately does NOT unify
 `safe_undo` with it, for three reasons:
 
@@ -230,17 +230,17 @@ as Legacy's. This slice deliberately does NOT unify
 
 ### What now exists
 
-`ycode/Sources/YcodeIDECore/SafeUndoJournal.swift` —
+`swiftcode/Sources/SwiftCodeIDECore/SafeUndoJournal.swift` —
 `public final class SafeUndoJournal` (shared instance; a
 `baseDirectory` initializer exists for tests). Storage:
-Application Support `YcodeUndo/<workspace-key>/journal.json`
+Application Support `SwiftCodeUndo/<workspace-key>/journal.json`
 (never inside the workspace), keyed by an FNV-1a hash of the
 workspace root path. Entries hold the workspace-relative path,
 the previous text (`nil` = the file did not exist), an
 `unrecorded` flag, the tool, and the date; capped at 100
 entries per workspace.
 
-`ycode/Sources/YcodeMCP/CorrectnessGapHandlers.swift` —
+`swiftcode/Sources/SwiftCodeMCP/CorrectnessGapHandlers.swift` —
 `correctnessSafeUndo`: pops the last entry, asks approval
 (`approveFileWritingChange`, the file-writing approval path),
 then restores the previous text — or removes the file when it
@@ -253,7 +253,7 @@ nothing is changed.
 
 ### Wiring
 
-- Coordinator patch P-commit (`YcodeTools+Content.swift`,
+- Coordinator patch P-commit (`SwiftCodeTools+Content.swift`,
   `commit()`): after approval succeeds and before writing,
   record the change — `SafeUndoJournal.shared.record(
   workspaceRoot:folder, relativePath:change.relativePath,
@@ -266,7 +266,7 @@ nothing is changed.
   Recording only happens for changes that passed approval;
   a failed write leaves a harmless stale entry (its recorded
   original equals the current content).
-- Coordinator patch P5 (`YcodeTools+ReviewDocs.swift`):
+- Coordinator patch P5 (`SwiftCodeTools+ReviewDocs.swift`):
   `reviewDocsSafeUndo` delegates to `correctnessSafeUndo`, and
   the file header's honestly-failing note is replaced.
 
@@ -305,7 +305,7 @@ session."
 
 ### Destination before
 
-Ycode has no phase coordinator, so the counts were always 0
+SwiftCode has no phase coordinator, so the counts were always 0
 and the message always the no-phases line. Only the
 agent-notes line was real (workspace `agent_notes.md`
 modification time).
@@ -329,13 +329,13 @@ no-phases message and zero counts.
 
 ### Wiring
 
-- Coordinator patch P8 (`YcodeTools+AgenticPlanning.swift`):
+- Coordinator patch P8 (`SwiftCodeTools+AgenticPlanning.swift`):
   add `func plans(workspace: String) -> [AgenticPlanningPlan]`
   to `AgenticPlanningPlanStore` (the `plans` dictionary is
   `private`, so no other file can enumerate it). COMPILE
   DEPENDENCY: `CorrectnessGapHandlers.swift` calls it, so the
-  YcodeMCP target does not build until P8 is applied.
-- Coordinator patch P5 (`YcodeTools+ReviewDocs.swift`):
+  SwiftCodeMCP target does not build until P8 is applied.
+- Coordinator patch P5 (`SwiftCodeTools+ReviewDocs.swift`):
   `reviewDocsSessionProgress` delegates to
   `correctnessSessionProgress`, and the header deviation note
   is replaced.
@@ -361,13 +361,13 @@ the regex fallback — never shelling out to Apple's toolchain.
 ### Destination before
 
 Regex only, as documented in
-`YcodeTools+StaticAnalysis.swift`: a type name inside a string
+`SwiftCodeTools+StaticAnalysis.swift`: a type name inside a string
 or a comment was reported as a declaration; there were no line
 numbers, no functions, no imports, no parse-error signal.
 
 ### What now exists
 
-`ycode/Sources/YcodeMCP/SwiftASTInspection.swift` — `enum
+`swiftcode/Sources/SwiftCodeMCP/SwiftASTInspection.swift` — `enum
 SwiftASTInspection`, parsing with `SwiftParser` (`Parser.parse`)
 and walking the tree with a `SyntaxVisitor`. Reports types
 (class / struct / enum / protocol / actor / extension) with
@@ -380,13 +380,13 @@ matching member keeps its ancestors, with only matching
 descendants). `hasError` (`tree.hasError`) is reported as a
 "parse errors; results may be incomplete" note.
 
-Why swift-syntax directly, not `YcodeSyntax`: `YcodeSyntax`
+Why swift-syntax directly, not `SwiftCodeSyntax`: `SwiftCodeSyntax`
 is a tokenizer / block-structure library — it exposes
 `SyntaxDocument` tokens and classification, but no parse tree
 (`SwiftClassifier` is internal and classification-only). The
 engine therefore uses the same swift-syntax 604.0.0 library
-`YcodeSyntax` is built on, via a direct product dependency
-(see §7) — it does not duplicate `YcodeSyntax`'s lexer work
+`SwiftCodeSyntax` is built on, via a direct product dependency
+(see §7) — it does not duplicate `SwiftCodeSyntax`'s lexer work
 and does not re-implement parsing.
 
 Limits, stated plainly: this is syntactic, not semantic.
@@ -397,14 +397,14 @@ It replaces Legacy's regex fallback, not `swiftc -dump-ast`
 
 ### Wiring
 
-- Coordinator patch P6 (`YcodeTools+StaticAnalysis.swift`):
+- Coordinator patch P6 (`SwiftCodeTools+StaticAnalysis.swift`):
   `staticAnalysisSwiftASTInspector` delegates to
   `correctnessSwiftASTInspector` (same path resolution and
   failure messages), the tool description gains "(parsed with
   swift-syntax)", and the header deviation note is replaced.
   The old regex body is deleted by the patch.
 - Package wiring (§7): `SwiftSyntax` + `SwiftParser` products
-  on the YcodeMCP target.
+  on the SwiftCodeMCP target.
 
 ### Tests
 
@@ -429,7 +429,7 @@ in comments and strings.
 
 ### What now exists
 
-`ycode/Sources/YcodeMCP/SymbolRenameEngine.swift` — a
+`swiftcode/Sources/SwiftCodeMCP/SymbolRenameEngine.swift` — a
 token-aware rename on the same swift-syntax parse. It walks
 the parse tree's tokens and renames only real identifier
 tokens, rebuilding the source from trivia + token text (so
@@ -456,7 +456,7 @@ tool does not claim to be one.
 
 ### Wiring
 
-Coordinator patch P7 (`YcodeTools+Search.swift`):
+Coordinator patch P7 (`SwiftCodeTools+Search.swift`):
 `renameSymbolProject` delegates to
 `correctnessRenameSymbolProject`, the tool description states
 the token-aware behaviour and the limit, and the header note
@@ -472,20 +472,20 @@ summary); a string-only occurrence changes nothing and says so.
 
 ## 7. Package.swift wiring needed (coordinator applies)
 
-`ycode/Package.swift` — YcodeMCP target only:
+`swiftcode/Package.swift` — SwiftCodeMCP target only:
 
-- Add `"YcodeSyntax"`? NO — not needed: the AST/rename
+- Add `"SwiftCodeSyntax"`? NO — not needed: the AST/rename
   engines import `SwiftSyntax` / `SwiftParser` directly (see
-  §5 for why `YcodeSyntax` itself is not used).
+  §5 for why `SwiftCodeSyntax` itself is not used).
 - Add `.product(name: "SwiftSyntax", package: "swift-syntax")`
   and `.product(name: "SwiftParser", package: "swift-syntax")`
-  to the `.target(name: "YcodeMCP", ...)` dependencies.
+  to the `.target(name: "SwiftCodeMCP", ...)` dependencies.
   `swift-syntax` 604.0.0 is already a package dependency
-  (used by YcodeSyntax and YcodeStrings).
-- No test-target change: `YcodeMCPTests` already depends on
-  `YcodeMCP` + `YcodeIDECore`; the new MCP tests use only
-  those modules. `YcodeIDECoreTests` already depends on
-  `YcodeIDECore` (+ `YcodeSyntax`).
+  (used by SwiftCodeSyntax and SwiftCodeStrings).
+- No test-target change: `SwiftCodeMCPTests` already depends on
+  `SwiftCodeMCP` + `SwiftCodeIDECore`; the new MCP tests use only
+  those modules. `SwiftCodeIDECoreTests` already depends on
+  `SwiftCodeIDECore` (+ `SwiftCodeSyntax`).
 
 ## 8. What is still pending
 
@@ -493,7 +493,7 @@ summary); a string-only occurrence changes nothing and says so.
   slice (no Swift toolchain in this environment; static checks
   only — see the slice report for the exact checks run).
   After the coordinator applies patches P1–P8 + P-commit,
-  re-run the full `YcodeMCPTests` / `YcodeIDECoreTests` suites
+  re-run the full `SwiftCodeMCPTests` / `SwiftCodeIDECoreTests` suites
   and the end-to-end checks listed in §2/§3 (aliased
   `file_write` via `tools/call`; write-then-`safe_undo`).
 - Dylan must supply nothing new for this slice: no API key, no
@@ -520,21 +520,21 @@ summary); a string-only occurrence changes nothing and says so.
   `Tools/AssistDataMutationTools.swift` (`csvPath`),
   `Tools/AssistPatchApplicationEngine.swift` (naive diff note).
   Evidence level 1 (Dylan's own code, authorised for direct
-  porting under MIT) + level 2 (the Ycode destination as the
+  porting under MIT) + level 2 (the SwiftCode destination as the
   format/behaviour reference for the unified-diff rendering
   already in the repo).
-- Destination verified live: `YcodeTools+FileWriting.swift`
-  (no diff keys, aliases rejected), `YcodeTools+FileInspection.
-  swift` + `YcodeTools+EnginesSupport.swift` (positional
+- Destination verified live: `SwiftCodeTools+FileWriting.swift`
+  (no diff keys, aliases rejected), `SwiftCodeTools+FileInspection.
+  swift` + `SwiftCodeTools+EnginesSupport.swift` (positional
   diffs), `MCPServer.swift` (`argumentProblem`, `run()`),
-  `YcodeTools+ReviewDocs.swift` (`safe_undo` always failing,
-  phase counts always 0), `YcodeTools+StaticAnalysis.swift`
-  (regex inspector), `YcodeTools+Search.swift` (textual
-  rename), `YcodeTools+ProjectModel.swift` (`YcodeSnapshots`
-  store), `YcodeTools+AgenticPlanning.swift` (plan store,
-  `private` dict), `YcodeTools+Content.swift` (`commit()`),
-  `ycode/Sources/YcodeSyntax/` (no parse-tree API),
-  `ycode/Package.swift` (swift-syntax 604.0.0 already a
+  `SwiftCodeTools+ReviewDocs.swift` (`safe_undo` always failing,
+  phase counts always 0), `SwiftCodeTools+StaticAnalysis.swift`
+  (regex inspector), `SwiftCodeTools+Search.swift` (textual
+  rename), `SwiftCodeTools+ProjectModel.swift` (`SwiftCodeSnapshots`
+  store), `SwiftCodeTools+AgenticPlanning.swift` (plan store,
+  `private` dict), `SwiftCodeTools+Content.swift` (`commit()`),
+  `swiftcode/Sources/SwiftCodeSyntax/` (no parse-tree API),
+  `swiftcode/Package.swift` (swift-syntax 604.0.0 already a
   dependency).
 - The Myers implementation is an original implementation of
   the published algorithm, not a copy of Legacy's

@@ -1,7 +1,7 @@
 # Testing
 
-Ycode modules: `YcodeBuild` (`TestResultParser`, `TestOutcome`,
-`TestRunner`), `YcodeUI` (`TestDiscovery`, Test navigator, gutter
+SwiftCode modules: `SwiftCodeBuild` (`TestResultParser`, `TestOutcome`,
+`TestRunner`), `SwiftCodeUI` (`TestDiscovery`, Test navigator, gutter
 diamonds, `WorkspaceSession.runTests`, `TestRunnerSelection`).
 
 ## Discovery (lexer-based, until an index exists)
@@ -35,18 +35,18 @@ a partial run update only the tests that ran.
 | Container | Command | Filter |
 |---|---|---|
 | package | `swift test` in the package folder (SwiftPM builds and runs both XCTest and swift-testing) | `--filter Suite.name\b` (the filter is a regular expression; the word boundary keeps `testAdd` from also running `testAddsMore`) |
-| project / workspace | `ycodebuild … test` when the build system is swift-build and `ycodebuild` is found; else `xcodebuild … test` | `-only-testing:<Target>/<Suite>/<name>` |
+| project / workspace | `swiftcodebuild … test` when the build system is swift-build and `swiftcodebuild` is found; else `xcodebuild … test` | `-only-testing:<Target>/<Suite>/<name>` |
 
-Status (2026-10-28): `TestRunner` (`YcodeBuild`) builds these commands;
-`TestRunnerSelection` (`YcodeUI`) swaps `xcodebuild` for `ycodebuild`
+Status (2026-10-28): `TestRunner` (`SwiftCodeBuild`) builds these commands;
+`TestRunnerSelection` (`SwiftCodeUI`) swaps `xcodebuild` for `swiftcodebuild`
 when the IDE's build system is swift-build (`build.md` §Engines) and the
-runner's tool was not set explicitly. `ycodebuild` builds the test bundles
+runner's tool was not set explicitly. `swiftcodebuild` builds the test bundles
 with swift-build and runs them in the platform's `xctest` runner, which
 also runs swift-testing tests (`specs/xcodebuild/test-actions.md`). With
-xcodebuild chosen, or when `ycodebuild` is not found, project and
+xcodebuild chosen, or when `swiftcodebuild` is not found, project and
 workspace tests run through `xcodebuild`. `swbuild` itself still has no
 test-execution step. Tests hosted in an app (2026-10-30) run in the app,
-on this Mac or on the Ycode simulator ("Ycode implementation").
+on this Mac or on the SwiftCode simulator ("SwiftCode implementation").
 
 ## Results
 
@@ -89,8 +89,8 @@ passed, else outlined.
 The Test navigator's row menu has Run “<row>” and Run “<row>”
 Repeatedly…. The second opens a sheet: **Repeat** (Fixed Iterations,
 Until Failure, Retry on Failure) and **Maximum Repetitions** (default 100,
-1–10000). Ycode runs the iterations itself, each a normal test run of the
-same tests (its report, results, issues), and prints "Ycode: <mode>: N
+1–10000). SwiftCode runs the iterations itself, each a normal test run of the
+same tests (its report, results, issues), and prints "SwiftCode: <mode>: N
 iterations, M with failures." to the console at the end.
 
 - Fixed Iterations: the tests, the maximum number of times.
@@ -99,8 +99,8 @@ iterations, M with failures." to the console at the end.
   they pass or the maximum is reached.
 
 Only the outcomes of the tests asked for count. Product ▸ Stop ends the
-series after the current iteration. Code: `YcodeIDECore`
-`TestRepetition`, `WorkspaceSession+Repetition.swift`; `YcodeUI`
+series after the current iteration. Code: `SwiftCodeIDECore`
+`TestRepetition`, `WorkspaceSession+Repetition.swift`; `SwiftCodeUI`
 `WorkspaceWindowController+TestRepetition.swift`. Tests:
 `IDEQuickWinsTests.repetitionModes`,
 `IDEQuickWinsUITests.runTestsRepeatedly`. Not yet: the gutter diamond's
@@ -117,20 +117,20 @@ Failure fails (its failure summaries become the report's issues, with file
 and line), Skipped is skipped. The report's date is the bundle's
 modification date. A bundle that cannot be read says so in a sheet and the
 console. Not yet: coverage, logs and attachments of the bundle, the
-reference's own result viewer layout. Code: `YcodeIDECore`
-`ResultBundleReport.swift`; `YcodeUI`
-`WorkspaceWindowController.openResultBundle`, `YcodeDocumentController`.
+reference's own result viewer layout. Code: `SwiftCodeIDECore`
+`ResultBundleReport.swift`; `SwiftCodeUI`
+`WorkspaceWindowController.openResultBundle`, `SwiftCodeDocumentController`.
 Tests: `IDEQuickWinsTests.resultBundleReport`,
 `IDEQuickWinsUITests.openResultBundle`.
 
-## Ycode implementation (TEST-HOST, 2026-10-30)
+## SwiftCode implementation (TEST-HOST, 2026-10-30)
 
 Tests hosted in an application (`TEST_HOST`, with `BUNDLE_LOADER` naming
 the same executable) run inside that application, as in the reference.
-Ycode does not use the reference's injection library or its test
+SwiftCode does not use the reference's injection library or its test
 configuration file: it has its own agent and its own protocol, described
-here. Code: `Sources/YcodeTestAgent` (with `Sources/CYcodeTestAgentLoader`),
-`YcodeXcodebuild/HostedTests.swift`, `RemoteTestHost.swift`.
+here. Code: `Sources/SwiftCodeTestAgent` (with `Sources/CSwiftCodeTestAgentLoader`),
+`SwiftCodeXcodebuild/HostedTests.swift`, `RemoteTestHost.swift`.
 
 ### Building
 
@@ -140,7 +140,7 @@ swift-build (open source) builds a bundle with `TEST_HOST` into the host's
 executable (`-bundle_loader`). A UI test bundle builds into
 `<PRODUCT_NAME>-Runner.app/…/PlugIns`. swift-build requires entitlements
 for a UI test bundle (`ENTITLEMENTS_REQUIRED` with the runner), although it
-is not an executable; Ycode's signing composes them as for one
+is not an executable; SwiftCode's signing composes them as for one
 (`signing.md` §4.1).
 
 The testing frameworks: swift-build's test-host task copies them into the
@@ -152,31 +152,31 @@ host's `Frameworks` folder (`XCTestHostTaskProducer`: `XCTest`, `Testing`,
 that one `_Testing_*` overlay, since the others share a bundle identifier),
 unless `SKIP_COPYING_TEST_FRAMEWORKS` is YES, its default for Xcode 27 and
 later (devices get the frameworks from their developer disk image).
-ycodebuild sets it to NO for `build-for-testing` and `test` builds for a
-simulator SDK, because the Ycode simulator's runtime has none of them
+swiftcodebuild sets it to NO for `build-for-testing` and `test` builds for a
+simulator SDK, because the SwiftCode simulator's runtime has none of them
 (`TestActions.testFrameworkCopying`). On macOS the default stays: the host
 finds them through `DYLD_FRAMEWORK_PATH`, as tool-hosted runs do.
 
 ### The agent
 
-`libYcodeTestAgent.dylib` is Ycode's own library. It links neither XCTest
+`libSwiftCodeTestAgent.dylib` is SwiftCode's own library. It links neither XCTest
 nor Testing; it finds them at run time once the bundle has loaded them.
-ycodebuild starts the host's executable with:
+swiftcodebuild starts the host's executable with:
 
 | Variable | Value |
 |---|---|
-| `DYLD_INSERT_LIBRARIES` | the agent (macOS: its path; the simulator: `@executable_path/Frameworks/libYcodeTestAgent.dylib`), after any libraries already there |
-| `YCODE_TEST_PLAN` | JSON: `session` (a UUID), `bundles` (`path`, `module`, `only`, `skip`), `repetition` (`mode`, `count`), `launchTimeout` (seconds) |
+| `DYLD_INSERT_LIBRARIES` | the agent (macOS: its path; the simulator: `@executable_path/Frameworks/libSwiftCodeTestAgent.dylib`), after any libraries already there |
+| `SWIFTCODE_TEST_PLAN` | JSON: `session` (a UUID), `bundles` (`path`, `module`, `only`, `skip`), `repetition` (`mode`, `count`), `launchTimeout` (seconds) |
 
 and, on macOS, the tool-hosted run's `DYLD_FRAMEWORK_PATH`,
 `DYLD_LIBRARY_PATH` and `__XCODE_BUILT_PRODUCTS_DIR_PATHS`, the plan's
 environment and arguments, and `-ApplePersistenceIgnoreState YES` (no
 window restoration). A host started through a SIP-protected program loses
-`DYLD_*` variables, so ycodebuild starts the executable itself.
+`DYLD_*` variables, so swiftcodebuild starts the executable itself.
 
-1. At load (a C constructor) the agent reads `YCODE_TEST_PLAN`; without it
+1. At load (a C constructor) the agent reads `SWIFTCODE_TEST_PLAN`; without it
    it does nothing. It removes `DYLD_INSERT_LIBRARIES` and
-   `YCODE_TEST_PLAN` from the environment (the app's own child processes
+   `SWIFTCODE_TEST_PLAN` from the environment (the app's own child processes
    are not injected) and reports `agentLoaded`.
 2. It waits for the application to finish launching: AppKit's or UIKit's
    launch notification (the exported constants' values, looked up by name),
@@ -191,7 +191,7 @@ window restoration). A host started through a SIP-protected program loses
    (`Class`, `Class/method`, `Class/method()`, without the module), into
    a suite named "All tests" (no selection) or "Selected tests", run on the
    main thread with `-runTest`. An `XCTestObservation` observer (the
-   protocol is added to Ycode's class at run time) reports each test.
+   protocol is added to SwiftCode's class at run time) reports each test.
    XCTest prints its usual console lines itself.
 5. Swift Testing, when the bundle's image has a non-empty
    `__DATA_CONST,__swift5_tests` section (where the testing library looks
@@ -218,7 +218,7 @@ failed.
 Every report is one line on the host's standard error, written with one
 `write`:
 
-    ##ycode-test## {"kind": "...", "session": "<id>", "v": 1, ...}
+    ##swiftcode-test## {"kind": "...", "session": "<id>", "v": 1, ...}
 
 | `kind` | Fields |
 |---|---|
@@ -245,14 +245,14 @@ end the run.
 ### On this Mac
 
 One launch of the host per bundle. The run ends when the host exits; it is
-killed when the agent has not reported within 60 s (`YCODE_TEST_AGENT_TIMEOUT`;
+killed when the agent has not reported within 60 s (`SWIFTCODE_TEST_AGENT_TIMEOUT`;
 the message names the hardened runtime's "Allow DYLD Environment Variables"
 and "Disable Library Validation" exceptions, which such a host needs for
-its test builds), or after `YCODE_TEST_HOST_TIMEOUT` seconds (3600). A
+its test builds), or after `SWIFTCODE_TEST_HOST_TIMEOUT` seconds (3600). A
 host that exits before `runFinished` fails the run: "<Host> exited with
 status N before its tests finished (while running <Suite/test>)."
 
-### On the Ycode simulator
+### On the SwiftCode simulator
 
 One simulator run per host app, for every bundle it hosts:
 
@@ -263,33 +263,33 @@ One simulator run per host app, for every bundle it hosts:
 2. It is copied to `<data>/test-apps/<App>.app` (rsync over ssh, keys
    only), apart from the IDE's run copies in `<data>/apps`.
 3. One ssh command removes the device's old app output, prints the shell's
-   pid, follows `<device>/data/tmp/ycode-app.err` (the app's standard
+   pid, follows `<device>/data/tmp/swiftcode-app.err` (the app's standard
    error, where ylaunch puts it; `tail --pid` ends with the simulator) with
-   each line prefixed `YCODE-APP|`, and becomes the simulator:
-   `ycode-simd … --install-app <copy> --launch <bundle id> --app-env
-   DYLD_INSERT_LIBRARIES=… --app-env YCODE_TEST_PLAN=…` (`--app-env`,
+   each line prefixed `SWIFTCODE-APP|`, and becomes the simulator:
+   `swiftcode-simd … --install-app <copy> --launch <bundle id> --app-env
+   DYLD_INSERT_LIBRARIES=… --app-env SWIFTCODE_TEST_PLAN=…` (`--app-env`,
    ylaunch's `__Environment`, `specs/simulator/app-install-launch.md`
    §4.4).
 4. The app's lines go to the parser and the console; the simulator's own
    lines are kept (the last ones are shown when the run fails). When the
-   agent reports `runFinished`, ycodebuild sends SIGINT to the remote pid,
+   agent reports `runFinished`, swiftcodebuild sends SIGINT to the remote pid,
    as the IDE's Stop does (the launcher saves a warm-boot device), and
    closes the connection 150 s later at the latest. An install or launch
-   failure line, no agent report within `YCODE_SIM_TEST_LAUNCH_TIMEOUT`
+   failure line, no agent report within `SWIFTCODE_SIM_TEST_LAUNCH_TIMEOUT`
    (900 s; a cold boot takes minutes), or a run longer than
-   `YCODE_SIM_TEST_TIMEOUT` (3600 s) stops it too.
+   `SWIFTCODE_SIM_TEST_TIMEOUT` (3600 s) stops it too.
 
 Measured (the Thor, iPhone 18 Pro, iOS 27.0, two bundles, warm boot):
-about 25 s from ycode-simd's start to the tests' end; the boot slot can add
+about 25 s from swiftcode-simd's start to the tests' end; the boot slot can add
 minutes when the host is busy.
 
 ### UI tests
 
-Ycode has no UI automation service. A UI test bundle runs in the
+SwiftCode has no UI automation service. A UI test bundle runs in the
 platform's xctest runner (on this Mac): tests that do not drive an app
 pass or fail normally; a test that calls `XCUIApplication` fails with
 XCTest's own message that no target application was configured. On the
-Ycode simulator UI test bundles are reported as not supported. A Ycode
+SwiftCode simulator UI test bundles are reported as not supported. A SwiftCode
 runner that drives apps through the simulator's HID input
 (`specs/simulator/hid-input.md`) and an accessibility snapshot is future
 work; the facts it needs are dirty-room questions (Evidence).
@@ -304,7 +304,7 @@ work; the facts it needs are dirty-room questions (Evidence).
 | `defaultOptions`, `configurations[]` {`id`, `name`, `options`} | the options below; a configuration's option replaces the default's |
 | `environmentVariableEntries[]` | {`key`, `value`, `enabled` (default true)} into the test process |
 | `commandLineArgumentEntries[]` | {`argument`, `enabled`} after the host's arguments |
-| `testRepetitionMode`, `maximumTestRepetitions` | `fixedIterations`, `untilFailure`, `retryOnFailure`; maximum 3 when absent (Ycode's choice) |
+| `testRepetitionMode`, `maximumTestRepetitions` | `fixedIterations`, `untilFailure`, `retryOnFailure`; maximum 3 when absent (SwiftCode's choice) |
 | `language`, `region` | the host's `-AppleLanguages (<language>)`, `-AppleLocale <language>_<region>`; the result bundle's testable language and region |
 | `codeCoverage`, `testTimeoutsEnabled`, `defaultTestExecutionTimeAllowance` | read; coverage still follows the scheme and `-enableCodeCoverage` |
 
@@ -317,25 +317,25 @@ configuration, named after it. The plan's targets are built by `test` and
 ### The IDE
 
 Product ▸ Test (⌘U), the diamonds and Test Again run hosted tests through
-ycodebuild like any project test; the Test navigator, gutter and issues
-get their results from the same console lines. With the Ycode simulator
-chosen, the session passes ycodebuild
-`-destination 'platform=iOS Simulator,name=Ycode Simulator,arch=arm64'`
-and the `YCODE_SIM_*` variables of the destination's settings
+swiftcodebuild like any project test; the Test navigator, gutter and issues
+get their results from the same console lines. With the SwiftCode simulator
+chosen, the session passes swiftcodebuild
+`-destination 'platform=iOS Simulator,name=SwiftCode Simulator,arch=arm64'`
+and the `SWIFTCODE_SIM_*` variables of the destination's settings
 (`RemoteSimulator.testEnvironment`: host, data directory, runtime,
 launcher, device directory, options, warm and lean boot).
 
 ### Tests
 
 `HostedTestsTests.swift` (protocol, collector, plans, remote command,
-`.xctestrun` keys, result-bundle reader); `HostedTestRunTests` (YcodeUITests:
-⌘U on `Samples/TestHostSamples/HostMac`, and opt-in with `YCODE_E2E_*` on
-HostPhone on a real Ycode simulator); `RemoteTestEnvironmentTests`.
+`.xctestrun` keys, result-bundle reader); `HostedTestRunTests` (SwiftCodeUITests:
+⌘U on `Samples/TestHostSamples/HostMac`, and opt-in with `SWIFTCODE_E2E_*` on
+HostPhone on a real SwiftCode simulator); `RemoteTestEnvironmentTests`.
 
-## Ycode implementation: the Linux IDE (B2-SCM, 2026-11-04)
+## SwiftCode implementation: the Linux IDE (B2-SCM, 2026-11-04)
 
-The SwiftUI shell (`YcodeIDEShell/TestShellModel.swift`,
-`ycode-ide/TestNavigator.swift`) uses the session's discovery,
+The SwiftUI shell (`SwiftCodeIDEShell/TestShellModel.swift`,
+`swiftcode-ide/TestNavigator.swift`) uses the session's discovery,
 `runTests(only:)` and reports, as the AppKit IDE does:
 
 - **Test navigator (⌘6):** the package or project with "N Tests", each
@@ -361,11 +361,11 @@ The SwiftUI shell (`YcodeIDEShell/TestShellModel.swift`,
   result, suite, time and failures (failed first), and its Log page the
   output.
 
-Tests: `YcodeIDEShellTests/TestShellTests.swift` (a package with XCTest and
+Tests: `SwiftCodeIDEShellTests/TestShellTests.swift` (a package with XCTest and
 Swift Testing tests and a stand-in runner printing Linux output: rows,
 results, issues at lines, diamonds, reports, filters, Test Again; the
 Linux XCTest failure form; file resolution). End to end on Linux:
-`ycode-ide` with `YCODE_IDE_TESTS=<prefix>` (`ShellDriver+Tests.swift`).
+`swiftcode-ide` with `SWIFTCODE_IDE_TESTS=<prefix>` (`ShellDriver+Tests.swift`).
 
 ## Evidence
 
@@ -386,18 +386,18 @@ Linux XCTest failure form; file resolution). End to end on Linux:
   swift-testing tests appear in the navigator.
 - Repetition modes: xcodebuild's public `-test-iterations`,
   `-run-tests-until-failure`, `-retry-tests-on-failure` (`man xcodebuild`,
-  level 1). The menu items, the sheet and its labels are Ycode's
+  level 1). The menu items, the sheet and its labels are SwiftCode's
   (the reference's were not observed).
-- Ycode implementation: swift-build's test-host settings and the
+- SwiftCode implementation: swift-build's test-host settings and the
   frameworks it embeds (open-source swift-build, Apache-2.0, level 1);
   Swift Testing's ABI entry point, its configuration keys, filters and
   test content section (open-source swift-testing, Apache-2.0, level 1);
   XCTest's public classes and observation protocol (public documentation,
   level 1); `.xctestplan` keys from open-source projects' plans (llbuild,
   Apache-2.0; react-native, sentry-cocoa, LLM.swift, MIT; level 2);
-  `ylaunch`'s environment (`app-install-launch.md`). Runs of Ycode's own
-  samples with Ycode's own agent (level 3, our code).
-- DIRTY-ROOM QUESTIONS (for an observation; Ycode does not need them to
+  `ylaunch`'s environment (`app-install-launch.md`). Runs of SwiftCode's own
+  samples with SwiftCode's own agent (level 3, our code).
+- DIRTY-ROOM QUESTIONS (for an observation; SwiftCode does not need them to
   run its own hosted tests):
   1. How the reference starts a hosted test: the variables its
      `.xctestrun` `TestingEnvironmentVariables` give the host for an
@@ -408,13 +408,13 @@ Linux XCTest failure form; file resolution). End to end on Linux:
      third-party service must answer for `XCUIApplication().launch()` and
      element queries to work.
   3. Test plans: the values of `testRepetitionMode` other than
-     `retryOnFailure` (Ycode reads `fixedIterations` and `untilFailure`),
+     `retryOnFailure` (SwiftCode reads `fixedIterations` and `untilFailure`),
      the default `maximumTestRepetitions`, whether a configuration's
      environment list replaces or merges with the default's, and the
      language and region arguments a host receives.
-  4. Result bundles of hosted and UI tests: `testKind` values (Ycode
+  4. Result bundles of hosted and UI tests: `testKind` values (SwiftCode
      writes `app hosted`, `UI test`) and the run summary names of a plan
      with several configurations.
   5. Whether the reference embeds the testing frameworks into the host app
-     at build time in every case (swift-build as Ycode runs it did not)
+     at build time in every case (swift-build as SwiftCode runs it did not)
      and which launch arguments it passes to a macOS test host.

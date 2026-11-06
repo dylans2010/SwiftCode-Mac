@@ -47,7 +47,7 @@ struct FreshStoreTests {
         #expect(try t.store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: anyone.identifier)).map(\.identifier) == [local])
         #expect(try t.store.containers(matching: CNContainer.predicateForContainers(withIdentifiers: [local, "bogus"])).count == 1)
         #expect(try t.store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: "bogus")).isEmpty)
-        // Ycode answers with the group's container (open question C-CN-Q2).
+        // SwiftCode answers with the group's container (open question C-CN-Q2).
         let g = CNMutableGroup()
         g.name = "Probe Group"
         try save(t.store) { $0.add(g, toContainerWithIdentifier: nil) }
@@ -76,7 +76,7 @@ struct SaveTests {
         let ids = made.map(\.identifier)
         let r = CNSaveRequest()
         #expect(r.shouldRefetchContacts)
-        r.transactionAuthor = "ycode-probe"
+        r.transactionAuthor = "swiftcode-probe"
         for c in made { r.add(c, toContainerWithIdentifier: nil) }
         try t.store.execute(r)
         #expect(made.map(\.identifier) == ids)
@@ -226,7 +226,7 @@ struct SaveTests {
     @Test("notes: without the entitlement a saved note is dropped; with it the note round-trips")
     func notes() throws {
         let t = TestStore()
-        try YcodeContactsEnvironment.$notesOverride.withValue(true) {
+        try SwiftCodeContactsEnvironment.$notesOverride.withValue(true) {
             let c = person("Avery", "Example")
             c.note = "Bring the blue folder."
             try save(t.store) { $0.add(c, toContainerWithIdentifier: nil) }
@@ -343,7 +343,7 @@ struct AccessTests {
         let seed = try t.store.unifiedContacts(matching: nil, keysToFetch: [])
         let other = person("Other", "App")
         try save(t.another(bundle: "org.example.other")) { $0.add(other, toContainerWithIdentifier: nil) }
-        let lim = t.another(status: .limited, limited: [seed[0].identifier, seed[2].identifier], bundle: "org.ycode.limited")
+        let lim = t.another(status: .limited, limited: [seed[0].identifier, seed[2].identifier], bundle: "org.swiftcode.limited")
         let own = person("Own", "Contact")
         try save(lim) { $0.add(own, toContainerWithIdentifier: nil) }
         let visible = Set(try lim.unifiedContacts(matching: nil, keysToFetch: []).map(\.identifier))

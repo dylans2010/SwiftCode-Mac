@@ -9,7 +9,7 @@ import Darwin
 // Desktop settings that feed the environment (round R10; 08 §1: colour
 // scheme, contrast, Dynamic Type, accessibility flags, locale).
 //
-// Sources, strongest first (Ycode's design, documented in the package
+// Sources, strongest first (SwiftCode's design, documented in the package
 // README "Environment, persistence and accessibility design (R10)"):
 //
 //  1. Environment variables, fixed for the process: OV_COLOR_SCHEME
@@ -35,7 +35,7 @@ import Darwin
 //  4. The reference defaults of 08 §1 (light, standard contrast, large,
 //     every accessibility flag off, en_US).
 //
-// Text scale → Dynamic Type size (Ycode's mapping): < 0.85 xSmall, < 0.9
+// Text scale → Dynamic Type size (SwiftCode's mapping): < 0.85 xSmall, < 0.9
 // small, < 0.95 medium, < 1.1 large, < 1.2 xLarge, < 1.3 xxLarge, < 1.45
 // xxxLarge, < 1.6 accessibility1, < 1.8 accessibility2, < 2.0
 // accessibility3, < 2.3 accessibility4, else accessibility5.

@@ -1,10 +1,10 @@
 // swift-tools-version:6.0
 //
-// ycode-usd: a Swift-native, Linux-buildable USD library (layers, USDA text,
+// swiftcode-usd: a Swift-native, Linux-buildable USD library (layers, USDA text,
 // USDC crate binary, USDZ packages, a composed stage view, UsdShade/MaterialX
 // networks). Written from Pixar's public OpenUSD documentation and open source
 // (TOST 1.0) and the MaterialX specification and libraries (Apache-2.0) under
-// the clean-room protocol of AGENTS.md. Shared by the Ycode Scene Composer
+// the clean-room protocol of AGENTS.md. Shared by the SwiftCode Scene Composer
 // (`composer/`) and, later, the OpenReality package.
 //
 // No third-party code and no system libraries: LZ4 block coding, the crate
@@ -12,7 +12,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ycode-usd",
+    name: "swiftcode-usd",
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "USDCore", targets: ["USDCore"]),

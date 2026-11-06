@@ -1,16 +1,16 @@
-# Ycode Scene Composer
+# SwiftCode Scene Composer
 
-The Ycode Scene Composer is a scene editor for RealityKit content that
+The SwiftCode Scene Composer is a scene editor for RealityKit content that
 runs on Linux (x86-64 and arm64) and macOS, and later Windows. It reads and
 writes the same USD scenes and content packages as Apple's Reality Composer
 Pro, so content moves both ways, and it validates and packages them for the
-runtime. Its command-line tool is `ycode-scene`.
+runtime. Its command-line tool is `swiftcode-scene`.
 
 "Reality Composer Pro" (RCP) appears in this document only to explain
 compatibility. The composer is clean-room code: the behaviour it matches
 comes from `specs/tools/scene-composer/` (written by the dirty room) and
-from public USD and MaterialX sources. Normative Ycode decisions are in
-`specs/tools/scene-composer/ycode-design.md`.
+from public USD and MaterialX sources. Normative SwiftCode decisions are in
+`specs/tools/scene-composer/swiftcode-design.md`.
 
 Status: round 1 (COMPOSER-CORE, 2026-10-29) — design, the USD library, the
 document model, the MaterialX network model and the CLI. No user interface
@@ -23,7 +23,7 @@ From the OBS-RCP specs (`specs/tools/scene-composer/README.md`):
 - RCP 3.0 keeps its own projects in an engine-native format and hands
   `.reality` files to Xcode. The **RCP 1/2 content package** — a Swift
   package with a `.rkassets` folder of USDA scenes — is still compiled by
-  every Xcode build, opens in RCP 3 (by migration) and is plain USD. Ycode's
+  every Xcode build, opens in RCP 3 (by migration) and is plain USD. SwiftCode's
   native project format is that package (shape B of `project-format.md`),
   plus plain `.usda` files in an app target (shape A).
 - Scenes are USDA with fixed conventions (`scene-usd.md` §1): a `Root`
@@ -36,9 +36,9 @@ From the OBS-RCP specs (`specs/tools/scene-composer/README.md`):
 - Materials are UsdShade networks of MaterialX nodedefs, including
   RealityKit's `ND_realitykit_*` nodes; the PBR node to write is `_2_0`,
   not `_v2` (`materials.md` §5).
-- `realitytool compile` exits 0 on bad input (`compile.md` §2.5); Ycode's
+- `realitytool compile` exits 0 on bad input (`compile.md` §2.5); SwiftCode's
   validator is the only place errors are reported. On macOS the build can
-  run Apple's tool; on Linux Ycode ships validated USD (the open RealityKit
+  run Apple's tool; on Linux SwiftCode ships validated USD (the open RealityKit
   loads USD directly, `specs/frameworks/realitykit/07-assets.md` §8).
 
 ## 2. Architecture
@@ -49,7 +49,7 @@ From the OBS-RCP specs (`specs/tools/scene-composer/README.md`):
             │  UI toolkit (§3)                     viewport (Vulkan, §2.4)             │
             └───────────────┬──────────────────────────────────┬──────────────────────┘
                             │                                  │
-   ycode-scene (CLI) ───────┤                                  │
+   swiftcode-scene (CLI) ───────┤                                  │
                             ▼                                  ▼
    composer/  SceneComposerCore: SceneDocument · commands/undo · selection ·
               transforms · clipboard · components (catalogue) · validator
@@ -61,7 +61,7 @@ From the OBS-RCP specs (`specs/tools/scene-composer/README.md`):
                   shared later with OpenReality (frameworks/realitykit)
 ```
 
-### 2.1 Core libraries (`frameworks/usd`, package `ycode-usd`)
+### 2.1 Core libraries (`frameworks/usd`, package `swiftcode-usd`)
 
 - **USDCore** — the Sdf-level data model: `Path`, `Value` (every USD value
   type, arrays as flat component buffers), `Spec`, `Layer` (a value type: a
@@ -92,7 +92,7 @@ From the OBS-RCP specs (`specs/tools/scene-composer/README.md`):
   `inherit`; the open MaterialX 1.39.5 stdlib, pbrlib and bxdf definitions
   are bundled).
 
-### 2.2 Document model (`composer/`, package `ycode-scene-composer`)
+### 2.2 Document model (`composer/`, package `swiftcode-scene-composer`)
 
 - **SceneDocument** — one layer is the edit target; a `Stage` over it gives
   the composed view (references to imported assets, variants). The layer
@@ -120,7 +120,7 @@ From the OBS-RCP specs (`specs/tools/scene-composer/README.md`):
   MaterialX interfaces, the `_v2` PBR node, and every component problem the
   runtime drops silently.
 
-### 2.3 Command-line tool (`ycode-scene`)
+### 2.3 Command-line tool (`swiftcode-scene`)
 
 `info`, `tree`, `cat` (USDA, optionally flattened or sorted), `convert`
 (USDA ⇄ USDC ⇄ USDZ, USDZ with relative dependencies), `validate` (exit 1
@@ -136,7 +136,7 @@ implicit shapes, PBR from `UsdPreviewSurface`/`ND_realitykit_pbr`, lights,
 IBL, selection outlines, gizmos, grid). Building it as the R2 headless
 renderer plus an interactive surface means the composer and the open
 RealityKit share one renderer. On macOS it runs on MoltenVK
-(Apache-2.0) or Ycode's own Metal-on-Vulkan pieces, never on Apple's
+(Apache-2.0) or SwiftCode's own Metal-on-Vulkan pieces, never on Apple's
 RealityKit.
 
 ### 2.5 Compiler (later round)
@@ -160,7 +160,7 @@ editor, a timeline and one or more Vulkan viewports, on Linux first.
 | Web UI with a Swift back end | front end any (MIT libraries); back end e.g. Hummingbird (Apache-2.0); a WebView shell or the browser | back end in Swift, UI in TypeScript | yes (browser) | two languages; the viewport must be WebGPU/WebGL in the page (a second renderer) or a streamed image; good for remote use on the Thor |
 
 **Decision (2026-10-30): OpenViews.** The composer's editor UI,
-like the Linux IDE, is built on Ycode's own SwiftUI port
+like the Linux IDE, is built on SwiftCode's own SwiftUI port
 (`frameworks/swiftui`), behind a thin `ComposerUI` module so panels talk
 only to `SceneComposerCore`:
 
@@ -179,12 +179,12 @@ underneath OpenViews (R7) rather than as the UI toolkit.
 
 ## 4. Where the code lives
 
-- `frameworks/usd/` (package `ycode-usd`): the reusable USD library, so the
+- `frameworks/usd/` (package `swiftcode-usd`): the reusable USD library, so the
   future OpenReality package (`10-plan.md` R5 asset loading, R9 USDKit) and
   the IDE share one implementation.
-- `composer/` (package `ycode-scene-composer`, repository top level): the
+- `composer/` (package `swiftcode-scene-composer`, repository top level): the
   document model, CLI, and later the compiler front end and the app shell.
-  A separate package keeps the IDE's large `ycode/` package (simulator,
+  A separate package keeps the IDE's large `swiftcode/` package (simulator,
   translators) out of the composer's build, which matters on the Thor; the
   IDE integrates by depending on `composer/` as a path package (round
   SC-IDE below).
@@ -209,7 +209,7 @@ same `Layer`/`Stage` API for platforms where its build cost is acceptable.
 
 | Round | Scope | Spec input | Exit |
 |---|---|---|---|
-| **COMPOSER-CORE** (done) | this document; `ycode-usd`; document model; MaterialX model; `ycode-scene` | public USD/MaterialX; `scene-usd.md` §1, §4 | tests green on macOS, x86-64 and arm64 Linux |
+| **COMPOSER-CORE** (done) | this document; `swiftcode-usd`; document model; MaterialX model; `swiftcode-scene` | public USD/MaterialX; `scene-usd.md` §1, §4 | tests green on macOS, x86-64 and arm64 Linux |
 | SC-USD | composition gaps (instancing as prototypes, relocates, clips), unknown-field pass-through checks on RCP samples, writer test emitting every catalogue component, macOS load harness (public RealityKit API) | `scene-usd.md` §1–3, §7 | per README round 1 |
 | SC-PROJECT | create/open/save the content package and shape A (`main.json`, `Package.swift`, `Bundle.module` file), asset import into `.rkassets`, rename with reference fix-up | `project-format.md` §3, §5, §6 | a new package builds with `xcodebuild` |
 | SC-EDITOR | app shell (§3), hierarchy, inspector generated from the catalogue, viewport v1, gizmos, menus/shortcuts of `editor-behavior.md` §3/§15a | `editor-behavior.md` | a scene with model, collider, input target and light authored end-to-end on Linux |
@@ -218,7 +218,7 @@ same `Layer`/`Stage` API for platforms where its build cost is acceptable.
 | SC-TIMELINES | timelines, actions, behaviors, notifications | `timelines-behaviors.md` | each action kind round-trips |
 | SC-FX-AUDIO | particle emitters and audio components | `particles-audio.md` | emitter and audio round trip |
 | SC-RCP3-IMPORT | read-only import of RCP 3 projects (after a dirty round) | `project-format.md` §4 | per README round 8 |
-| SC-IDE | Ycode IDE integration: open `.realitycomposerpro`/`.rkassets` from the navigator, build phase (validate; on macOS `realitytool`), schema step | `compile.md` §3 | an app target with a content package builds in Ycode |
+| SC-IDE | SwiftCode IDE integration: open `.realitycomposerpro`/`.rkassets` from the navigator, build phase (validate; on macOS `realitytool`), schema step | `compile.md` §3 | an app target with a content package builds in SwiftCode |
 
 ## 7. Open questions for OBS-RCP
 
@@ -229,10 +229,10 @@ node name. Still open, and needed by later rounds:
 1. Trigger colliders (`scene-usd.md` Q1) — the catalogue writes `type =
    "Default"` only.
 2. Which RCP-written prims carry `active = true` and `references = None`
-   (written "on most prims the editor created"): should Ycode write them on
+   (written "on most prims the editor created"): should SwiftCode write them on
    every new prim to keep diffs with RCP small?
 3. `customLayerData` creator string: exact format RCP writes (the composer
-   writes `"Ycode Scene Composer"`; `scene-usd.md` §1 suggests
+   writes `"SwiftCode Scene Composer"`; `scene-usd.md` §1 suggests
    `"<tool name> <version>"`).
 4. Does RCP sort properties (as OpenUSD's writer does) or keep authored
    order? The composer keeps authored order by default and can sort.
@@ -243,7 +243,7 @@ node name. Still open, and needed by later rounds:
 
     cd frameworks/usd && swift build && swift test
     cd composer && swift build && swift test
-    ycode/scripts/lint.sh
+    swiftcode/scripts/lint.sh
 
 Both packages build with Swift 6.4 and no system libraries on macOS and
 Linux. Results for this round are in `frameworks/usd/README.md` and

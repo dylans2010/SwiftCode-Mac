@@ -53,7 +53,7 @@ level 2).
 | `viewControllerForNewContact:` prefilled "Prefilled Probe", in a navigation controller, full-access app, `contactStore` not set | "New Contact" form with monogram, Add Photo, the name fields (first focused, keyboard shown; on a fresh device a one-time keyboard tip covers the keyboard) and Done/Cancel |
 | tap Done | `contactViewController:didCompleteWithContact:` with the new contact; the contact **is saved** in the store (identifier `<UUID>:ABPerson`) although no store was set |
 
-## 4. What Ycode must provide
+## 4. What SwiftCode must provide
 
 In-process UIKit controllers with these classes, properties and delegate
 calls. The picker must not grant the app store access: it hands over only

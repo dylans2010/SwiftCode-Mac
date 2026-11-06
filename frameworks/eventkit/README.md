@@ -1,8 +1,8 @@
-# ycode-eventkit — open EventKit
+# swiftcode-eventkit — open EventKit
 
 A clean-room, Linux-buildable reimplementation of Apple's EventKit, written
 only from `specs/frameworks/eventkit/` under the protocol in `AGENTS.md`.
-Package `ycode-eventkit`, library module `EventKit` (the framework's module
+Package `swiftcode-eventkit`, library module `EventKit` (the framework's module
 name, an interop identifier), so `import EventKit` source compiles against it.
 
 ```
@@ -14,7 +14,7 @@ swift build && swift test          # macOS and Linux, Swift 6.4
 | Round | State | What is here |
 |---|---|---|
 | R2 model and store | done (Linux package) | `EKObject` change tracking (`hasChanges`, `isNew`, `rollback`, `reset`, `refresh`); sources and calendars with the fresh-device seed and the fixed identifiers; identifiers (`<source>:<UUID>`, `/RID=<seconds since 2001>`); SQLite store; save/remove/commit/reset; staged batches (`commit: false`); change journal and `EKEventStoreChanged` on the main queue, one per commit, also across processes; all-day normalization; floating events; window rule and four-year cap; the error codes of `errors.md` §2; the write-only virtual view and the no-access view |
-| R3 recurrence engine | done | Ycode's own RFC 5545 expander; EventKit's normalizations (§4); rule text form; detached occurrences; splits; future deletes; several rules as a union; floating and all-day series |
+| R3 recurrence engine | done | SwiftCode's own RFC 5545 expander; EventKit's normalizations (§4); rule text form; detached occurrences; splits; future deletes; several rules as a union; floating and all-day series |
 | R4 reminders | done | reminder model, lists, async fetch with cancel, the three predicates, recurring completion |
 | R5 authorization | deferred | statuses come from the store configuration (recorded answers); requests answer from it; no prompts, no usage-string checks, no `simctl privacy` verbs |
 | R6–R8 | not started | EventKitUI, accounts and derived calendars (the Birthdays calendar exists but stays empty), guest drop-in |
@@ -53,16 +53,16 @@ framework; no workaround was needed. Do not add this package to a target that
 also needs Apple's EventKit. (As `frameworks/README.md` says, each package is
 built and tested on its own.)
 
-## Ycode-specific API
+## SwiftCode-specific API
 
-- `YcodeEventStoreConfiguration` (database URL, reader time zone, recorded
-  access levels) and `EKEventStore(ycodeConfiguration:)`;
-  `EKEventStore.ycodeDefaultConfiguration` backs `EKEventStore()` and
+- `SwiftCodeEventStoreConfiguration` (database URL, reader time zone, recorded
+  access levels) and `EKEventStore(swiftcodeConfiguration:)`;
+  `EKEventStore.swiftcodeDefaultConfiguration` backs `EKEventStore()` and
   `authorizationStatus(for:)`. The default database is
-  `$YCODE_EVENTKIT_DATABASE`, else `ycode-eventkit/Calendar.sqlite` under
+  `$SWIFTCODE_EVENTKIT_DATABASE`, else `swiftcode-eventkit/Calendar.sqlite` under
   `$XDG_DATA_HOME` / `~/.local/share` (Linux) or Application Support (macOS).
   The default access levels are full access.
-- `EKCalendar.ycodeColor` (`YcodeRGBColor`): the calendar color without
+- `EKCalendar.swiftcodeColor` (`SwiftCodeRGBColor`): the calendar color without
   CoreGraphics. On Apple platforms `cgColor` mirrors it.
 - On platforms without Core Location, a minimal `CLLocation` /
   `CLLocationCoordinate2D` (coordinate only) for `EKStructuredLocation`.
@@ -103,16 +103,16 @@ and all-day values as wall-clock text), `rule` (RRULE text), `exception_date`,
 
 1. `recurrence.md` §3 states the part order BYDAY, BYMONTHDAY, BYMONTH,
    BYWEEKNO, …, but its golden rows print `BYMONTH=11;BYDAY=4TH` and
-   `BYWEEKNO=20;BYDAY=MO`. Ycode follows the rows: BYMONTH, BYWEEKNO,
+   `BYWEEKNO=20;BYDAY=MO`. SwiftCode follows the rows: BYMONTH, BYWEEKNO,
    BYYEARDAY, BYMONTHDAY, BYDAY, BYSETPOS, WKST. The place of BYMONTHDAY
    relative to BYDAY is not observed.
 2. §4 item 5 says UNTIL is the last second of "the day before the removed
    occurrence", but the golden `UNTIL=20261013T035959Z` (removing 10-14 from
    an every-other-day series) is the end of 10-12, the day of the previous
-   occurrence. Ycode uses the end of the day of the last remaining
+   occurrence. SwiftCode uses the end of the day of the last remaining
    occurrence, which matches the golden value and the text whenever the
    previous occurrence is the day before.
-3. §4 item 1 shows only the 31st (`BYMONTHDAY=28,29,30,31`). Ycode applies
+3. §4 item 1 shows only the 31st (`BYMONTHDAY=28,29,30,31`). SwiftCode applies
    the same rule to starts on the 29th and 30th (`28…day`, `BYSETPOS=-1`).
 4. §4 item 2: a yearly rule whose only day part is BYMONTHDAY is expanded in
    the start's month (as the spec says), which differs from RFC 5545 (every
@@ -125,6 +125,6 @@ and all-day values as wall-clock text), `rule` (RRULE text), `exception_date`,
    saves; the test reconstructs a seventh (the priority-12 reminder saved
    again with priority 9).
 7. Underlying integer types of the enums (Int vs UInt) are not in the spec;
-   Ycode uses `Int` except `EKEntityType`, `EKReminderPriority` and the masks.
+   SwiftCode uses `Int` except `EKEntityType`, `EKReminderPriority` and the masks.
 8. Saving a series master with `.thisEvent` and removing a master object
    (not an occurrence) are not covered by the observations.

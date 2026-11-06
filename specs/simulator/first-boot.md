@@ -3,11 +3,11 @@
 Status: **reference** for stage 7 (integrator I4, 2026-10-12). It explains
 why the first boot of a new device takes longer than later boots, which
 guest components take part, what marks the work as done, and what the
-host (Ycode) must provide so that the work can finish. Facts come from
+host (SwiftCode) must provide so that the work can finish. Facts come from
 black-box runs on this Mac (iOS 27.1 runtime 24A94401, a throwaway iPhone
 Duo device, `xcrun simctl boot` / `bootstatus` / `spawn … log show`, the
 device directory read as files), from our own probe programs run on the
-Mac's simulator and under Ycode, and from Ycode runs on the Thor. No
+Mac's simulator and under SwiftCode, and from SwiftCode runs on the Thor. No
 disassembly or decompilation was used.
 
 Terms are as in `launchd-sim.md`: **RR** (RuntimeRoot), **DEV** (the device
@@ -67,7 +67,7 @@ directory; `DEV/data` is the guest's writable world).
 
 SpringBoard looks up its own application record in LaunchServices early in
 its start. When the record is missing (an empty or partial store) it ends
-with the uncaught exception "Got nil for _systemAppInfo." (level 3, Ycode
+with the uncaught exception "Got nil for _systemAppInfo." (level 3, SwiftCode
 runs before the fixes of §3).
 
 ## 2. What marks the work as done
@@ -106,9 +106,9 @@ lsd registers each bundle together with the volume it is on ("adding
 container for <FSNode> path = '<mount point>'", "Adding database record for
 volume … with volume ID <n>"). It learns the volume through Foundation's
 URL resource values. Our probe `fsprobe` (§5) shows what the Mac's
-simulator reports and what Ycode reported before the fix:
+simulator reports and what SwiftCode reported before the fix:
 
-| Query on a directory in RR | Mac simulator | Ycode before | Ycode after |
+| Query on a directory in RR | Mac simulator | SwiftCode before | SwiftCode after |
 |---|---|---|---|
 | `stat` `st_dev` | `0x100002b` | host device (`0x801`, the same for RR and DEV) | `0x1000011` (RR's volume) |
 | `statfs` `f_mntonname`, `f_fsid` | the runtime volume's mount point, `{0x100002b, 0x1a}` | the prefix root, `{0x801, 0x1a}` | the prefix root, `{0x1000011, 0x1a}` |
@@ -117,7 +117,7 @@ simulator reports and what Ycode reported before the fix:
 | `NSURLVolumeNameKey` | "iOS 27.1 Simulator" | nil | the prefix root's name |
 | `contentsOfDirectoryAtURL:` | 134 entries | **error 256** (underlying ENOTDIR) | 134 entries |
 
-Two Ycode gaps caused the failures (level 3, Ycode traces of `fsprobe`):
+Two SwiftCode gaps caused the failures (level 3, SwiftCode traces of `fsprobe`):
 
 1. **`getfsstat64` returned 0 volumes.** Foundation finds a file's volume by
    reading its `ATTR_CMN_FSID` (getattrlist) and looking for the
@@ -128,7 +128,7 @@ Two Ycode gaps caused the failures (level 3, Ycode traces of `fsprobe`):
    1. The store kept only CoreTypes and extension points.
 2. **getattrlist packed `ATTR_CMN_ERROR`.** `getattrlist` (not
    `getattrlistbulk`) neither packs `ATTR_CMN_ERROR` nor lists it in the
-   returned set; Ycode packed a zero word, which shifted every later
+   returned set; SwiftCode packed a zero word, which shifted every later
    attribute. Foundation's directory listing asks for it and read a
    non-directory object type (our probe `gadump` on the Mac: request
    `0xf01f9e0d/0/5/1/0x240`, options `0x25`, returned common set
@@ -139,13 +139,13 @@ Two Ycode gaps caused the failures (level 3, Ycode traces of `fsprobe`):
    options include `FSOPT_PACK_INVAL_ATTRS`. Without that option an object
    without an error gets neither the bit nor the word; packing them anyway
    stops Foundation's deep directory listing from descending.
-   **Ycode since 2026-10-27** (VISIONOS-R5, `visionos.md` §10.16):
+   **SwiftCode since 2026-10-27** (VISIONOS-R5, `visionos.md` §10.16):
    `getattrlistbulk` packs the zero word and returns the bit only with
    `FSOPT_PACK_INVAL_ATTRS` (then the returned common set is the requested
    set); without it a requested `ATTR_CMN_ERROR` is dropped from both, so
    the next attribute (usually the `ATTR_CMN_NAME` reference) follows the
    20-byte attribute set. Records stay multiples of 8 bytes. An entry that
-   Ycode cannot `lstat` (removed after the directory was read) is skipped
+   SwiftCode cannot `lstat` (removed after the directory was read) is skipped
    rather than returned with an error. `getattrlist` is unchanged (never
    packs the field).
 
@@ -153,13 +153,13 @@ Two Ycode gaps caused the failures (level 3, Ycode traces of `fsprobe`):
 root is a volume of its own; the other directory prefixes belong to "/"'s
 volume. The earlier model, kept for the record:
 
-**Ycode's model (normative for Ycode until 2026-10-13).** In device mode every directory
+**SwiftCode's model (normative for SwiftCode until 2026-10-13).** In device mode every directory
 prefix of the guest file system is a volume: its root is the mount point
 (`statfs`, getattrlist `ATTR_VOL_MOUNTPOINT`), and everything below it has
 the volume's device as `st_dev` and `f_fsid.val[0]` (`ATTR_CMN_DEVID`,
 `ATTR_CMN_FSID`). Devices: `0x01000010` for "/" and the synthetic
 directories above the prefixes, then `0x01000011 + i` for prefix *i* in
-the order `ycode-simd` lists them (the runtime root first). A single-file
+the order `swiftcode-simd` lists them (the runtime root first). A single-file
 prefix (a host library) belongs to the runtime root's volume. An open
 descriptor keeps the device it was opened on. `getfsstat64` lists "/" and
 every directory prefix, one `struct statfs` (2168 bytes) each, in that
@@ -198,19 +198,19 @@ of the same device without the option behaves as the Mac's second boot.
 
 ## 6. After the volumes: what else the path to the home screen needed
 
-Found with Ycode runs on the Thor (level 3) after §3 was fixed:
+Found with SwiftCode runs on the Thor (level 3) after §3 was fixed:
 
 1. **A file mapped after it was written read as zeros.** lsd saves its
    store by creating a temporary file in `DEV/data/tmp` (`O_CREAT|O_EXCL`,
    so empty when opened), writing it, `fstat`, then mapping it read-only
    (`mmap` of the whole file) as the new in-memory store, and unlinking it.
-   Ycode's private file mapping used the file size recorded when the file
+   SwiftCode's private file mapping used the file size recorded when the file
    was **opened** (0), so every byte read as zero: lsd logged "Failed to
    read DB header, generating new one", then "Failed to get unit … from
    store" and every later registration failed; a later save computed a
    checksum over a bogus 1 GiB length and crashed (SIGSEGV in libz). It
    showed after about 130 of the 162 apps, once the shared read-only file
-   window no longer served the mapping. Ycode now reports a file's current
+   window no longer served the mapping. SwiftCode now reports a file's current
    size to the mapping code. With that, all 162 apps register, seeding
    completes ("posting LSNotificationDatabaseSeedingComplete") and the store
    is saved (7.1 MB) in about 15 minutes on the Thor. (Until 2026-10-13
@@ -224,15 +224,15 @@ Found with Ycode runs on the Thor (level 3) after §3 was fixed:
    serial queue during startup; its main thread then waits (`kevent_id`,
    `NOTE_WL_SYNC_WAIT`) for that queue, and the reply never came, so
    SpringBoard stopped right after "UI unlocked" and never pushed its home
-   screen window. Ycode now answers `msync` (argument checks of the manual
-   page; nothing to flush, because Ycode maps files private).
+   screen window. SwiftCode now answers `msync` (argument checks of the manual
+   page; nothing to flush, because SwiftCode maps files private).
 3. **SpringBoard waits for the migration milestone too.** SpringBoard's
    check-in with backboardd logs "checkIn(first): (waits for migration:
    YES)", then "checkIn(first): complete" and "Milestone reached:
    FBSServiceMilestoneDataMigrationCompleted" once backboardd's
    datamigrator call has returned. Only then does it initialize FrontBoard
    and build the home screen.
-4. **Time must be one clock.** For a while Ycode's library read the
+4. **Time must be one clock.** For a while SwiftCode's library read the
    counter (`CNTVCT_EL0`) in place for `mach_absolute_time`. Under KVM each
    vCPU of a guest process has its own counter offset (our probe
    `clockprobe.c`: the counter of vCPU 0 and of the other vCPUs of one
@@ -244,17 +244,17 @@ Found with Ycode runs on the Thor (level 3) after §3 was fixed:
 5. **Preferences were never written.** cfprefsd creates a missing
    preferences plist (`open` with `O_CREAT`), then makes Sandbox call 12
    (`__mac_syscall("Sandbox", 12, …)`, argument block: the new descriptor,
-   flags 0x102, the path) and, when that fails, deletes the file again. Ycode
+   flags 0x102, the path) and, when that fails, deletes the file again. SwiftCode
    answered ENOPOLICY, so every preference write failed ("Couldn't write
    values for keys … Path not accessible") and `DEV/data/Library/Preferences`
    stayed empty — including datamigrator's `com.apple.migration.plist`
-   (written through cfprefsd), so the next boot migrated again. Ycode now
+   (written through cfprefsd), so the next boot migrated again. SwiftCode now
    allows call 12, as it allows the check call (2). Our probe `prefprobe.m`
    (write, synchronize, look for the file) succeeds on the Mac's simulator and
-   now under Ycode.
+   now under SwiftCode.
 6. **`accessx_np`** (BSD 284 `access_extended`) was an unimplemented library
    function; Foundation's file checks call it (CoreServicesInternal imports
-   it; 194 calls in one boot). Ycode implements it as `access` (existence).
+   it; 194 calls in one boot). SwiftCode implements it as `access` (existence).
 
 **Result (2026-10-13):** the second boot of a device whose LaunchServices
 store was built by an earlier boot, with `--skip-first-boot-migration`
@@ -264,7 +264,7 @@ store was built by an earlier boot, with `--skip-first-boot-migration`
 Settings icon and one dock icon as grey placeholders; black wallpaper), as
 `headless-rendering.md` §1 predicts without Metal.
 
-**Ycode timings (Thor, release build, `--debug-no-metal`, 2026-10-13, all
+**SwiftCode timings (Thor, release build, `--debug-no-metal`, 2026-10-13, all
 items above fixed):**
 
 | Boot | Seeding done | Migration | Home screen window |
@@ -298,17 +298,17 @@ report).
 | backboardd is the client that blocks (§1 item 1) | 3 | datamigrator's log: client pid and its signing identifier |
 | Migration marker keys and values, second-boot decision and timing (§2) | 2, 3 | `com.apple.migration.plist` read with `plutil` after each boot; the second boot's datamigrator log; `bootstatus` times |
 | Pre-boot device contents (§2) | 2 | directory listing of the device right after `simctl create` |
-| Volume values, listing results (§3 table) | 3 | `fsprobe` on the Mac's simulator and under Ycode on the Thor |
-| getfsstat and getattrlist calls that Foundation makes (§3 items 1–2) | 3 | Ycode `--exec --trace` of `fsprobe` |
+| Volume values, listing results (§3 table) | 3 | `fsprobe` on the Mac's simulator and under SwiftCode on the Thor |
+| getfsstat and getattrlist calls that Foundation makes (§3 items 1–2) | 3 | SwiftCode `--exec --trace` of `fsprobe` |
 | `ATTR_CMN_ERROR` in getattrlist vs getattrlistbulk (§3 item 2) | 3 | `gadump`, `gabulk` on the Mac's simulator |
 | `getattrlistbulk` packs `ATTR_CMN_ERROR` only with `FSOPT_PACK_INVAL_ATTRS` (§3 item 2 correction) | 1, 3 | `visionos.md` §10.15.2 (`bulkprobe`, `fsrec`); xnu `bsd/vfs/vfs_attrlist.c` (`attr_pack_common`, `get_error_attributes`) |
 | Attribute and option bit meanings, `struct statfs` layout | 1 | xnu `sys/attr.h`, `sys/mount.h`; getattrlist(2), getattrlistbulk(2), getfsstat(2) |
-| lsd registration status before and after (§3, §6) | 3 | `log stream` one-shot inside Ycode runs (TransactionLog lines) |
-| Zero-filled store mapping, msync assertion, SpringBoard's wait chain, home screen (§6) | 3 | Ycode runs on the Thor: `log stream` one-shots, `--trace-name` traces of lsd and SpringBoard, blocked-thread reports, screenshots |
-| Per-vCPU counter offsets (§6 item 4) | 3 | `clockprobe.c` under `ycode-simd --exec` on the Thor |
-| Preference writes, Sandbox call 12 (§6 item 5) | 3 | `prefprobe.m` on the Mac's simulator and under Ycode; a `--trace-name cfprefsd` trace |
+| lsd registration status before and after (§3, §6) | 3 | `log stream` one-shot inside SwiftCode runs (TransactionLog lines) |
+| Zero-filled store mapping, msync assertion, SpringBoard's wait chain, home screen (§6) | 3 | SwiftCode runs on the Thor: `log stream` one-shots, `--trace-name` traces of lsd and SpringBoard, blocked-thread reports, screenshots |
+| Per-vCPU counter offsets (§6 item 4) | 3 | `clockprobe.c` under `swiftcode-simd --exec` on the Thor |
+| Preference writes, Sandbox call 12 (§6 item 5) | 3 | `prefprobe.m` on the Mac's simulator and under SwiftCode; a `--trace-name cfprefsd` trace |
 | `msync` arguments and errors | 1 | msync(2) manual page; xnu `bsd/kern/kern_mman.c` |
-| Ycode's volume model, option semantics (§3, §4), `msync` answer | — | Ycode decisions |
+| SwiftCode's volume model, option semantics (§3, §4), `msync` answer | — | SwiftCode decisions |
 
 Level 5 was not used. `.claude/Xcode.app`, `research/dirty/`, and Ghidra
 were not opened.

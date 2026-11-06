@@ -137,11 +137,11 @@ copy of the anchors in the map — apps may edit the list before saving),
   saved session's. A map that cannot be used makes the run fail with
   `ARErrorCodeInvalidWorldMap` (302).
 
-**Ycode position:** Ycode's world-map payload is its own format, wrapped in a
+**SwiftCode position:** SwiftCode's world-map payload is its own format, wrapped in a
 keyed archive of class `ARWorldMap` with the public properties encoded under
 our own keys plus an opaque data blob. Maps are **not** expected to be
 interchangeable with Apple devices (a real map holds Apple's proprietary
-feature descriptors). Ycode's simulated-world mode can relocalize trivially,
+feature descriptors). SwiftCode's simulated-world mode can relocalize trivially,
 because ground-truth poses are known (`simulated-world.md`). Only the
 anchors' archive format (`anchors.md` §1.2) is matched, so that anchor lists
 survive a round trip.
@@ -162,7 +162,7 @@ survive a round trip.
 
 Asset-catalog AR resource groups are compiled by `actool` into the app's
 `Assets.car`; reading them is a CoreUI catalog lookup (the simulator logs an
-attempt to open a catalog named "Assets" from the main bundle). Ycode needs a
+attempt to open a catalog named "Assets" from the main bundle). SwiftCode needs a
 catalog reader for this (shared with the asset-catalog work in
 `specs/ide/asset-catalog.md`).
 
@@ -205,10 +205,10 @@ the maps of two participants are merged, each session adds an
 keep their `sessionIdentifier`, which tells which participant owns them).
 Corrupt data is reported as error 304.
 
-**Ycode position:** collaboration data is an opaque payload; only its
+**SwiftCode position:** collaboration data is an opaque payload; only its
 transport contract (secure coding, the priority flag, idempotent delivery) is
-interop. Collaboration between a Ycode simulated device and a real device is
-out of scope; between two Ycode simulated devices sharing one simulated world
+interop. Collaboration between a SwiftCode simulated device and a real device is
+out of scope; between two SwiftCode simulated devices sharing one simulated world
 it is straightforward (shared ground truth).
 
 ## 9. Geo tracking (14.0)
@@ -221,7 +221,7 @@ regions. Flow: check availability (class methods; `session.md` §3.3) → run �
 `getGeoLocationForPoint:completionHandler:` converts world points back to
 coordinates. World axes in geo tracking: `coordinates.md` §2.
 
-**Ycode position:** Ycode cannot localize against Apple's map data. In
+**SwiftCode position:** SwiftCode cannot localize against Apple's map data. In
 simulated-world mode the simulated world carries its own geodetic reference
 (origin latitude/longitude/altitude and heading), so geo states can be driven
 to "localized" deterministically and conversions are exact.
@@ -230,7 +230,7 @@ to "localized" deterministically and conversions are exact.
 
 With `appClipCodeTrackingEnabled` the session detects App Clip Codes in the
 image and adds `ARAppClipCodeAnchor`s whose URL is decoded asynchronously
-(`anchors.md` §7). The code format is Apple's; Ycode can support it only in
+(`anchors.md` §7). The code format is Apple's; SwiftCode can support it only in
 simulated-world mode (the world declares where codes are and which URL each
 encodes).
 
@@ -242,4 +242,4 @@ encodes).
 | Semantics of targets, results, tracked raycasts, maps, collaboration, geo, reference images and objects | 1 | ARKit documentation and header documentation (summarized) |
 | World-map garbage decode error, `referenceImagesInGroupNamed:` nil for a missing group, catalog lookup in the main bundle | 3 | `ARProbe` (simulator log and output) |
 | `ARReferenceObjectArchiveExtension` value | 3 | `ARProbe` constants run |
-| "Ycode position" paragraphs | — | Ycode design decisions |
+| "SwiftCode position" paragraphs | — | SwiftCode design decisions |

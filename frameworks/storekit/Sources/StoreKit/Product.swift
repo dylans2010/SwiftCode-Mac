@@ -51,7 +51,7 @@ public struct Product: Identifiable, Hashable, Sendable {
     /// `Product.products(for:)`: the configured products among `identifiers`;
     /// unknown ones are left out (configuration-file.md §8 item 4).
     public static func products<C: Collection>(for identifiers: C) async throws -> [Product] where C.Element == String {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         let found: [CatalogProduct]
         do { found = try rt.store.products(for: Array(identifiers)) } catch { throw StoreKitError(error.kind) }
         guard let catalog = rt.store.catalog else { return [] }
@@ -61,7 +61,7 @@ public struct Product: Identifiable, Hashable, Sendable {
 
     /// Buys the product (testing-session.md §4–§9).
     public func purchase(options: Set<PurchaseOption> = []) async throws -> PurchaseResult {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         let settings = rt.store.settings
         let opts = PurchaseOption.engineOptions(options)
         if !settings.disableDialogs {

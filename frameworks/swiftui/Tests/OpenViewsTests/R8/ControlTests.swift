@@ -12,7 +12,7 @@ import Testing
 // Round R8, suite T-CTL (interaction rules; the sizes are the golden cases
 // in GoldenViewLayoutTests): 06 §4 — a toggle tap flips its value, a button
 // acts on release inside, a tap on a slider's track does nothing (only the
-// thumb drags), a stepper's "+" adds 1 — plus Ycode's rules for pickers,
+// thumb drags), a stepper's "+" adds 1 — plus SwiftCode's rules for pickers,
 // menus and their pop-up windows, keyboard focus and text editing. Headless
 // application hosts on the virtual clock (R7Support.swift).
 

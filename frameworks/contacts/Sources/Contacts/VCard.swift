@@ -1,4 +1,4 @@
-// CNContactVCardSerialization (formats.md §3): Ycode's own vCard 3.0 writer
+// CNContactVCardSerialization (formats.md §3): SwiftCode's own vCard 3.0 writer
 // and a lenient reader for vCard 2.1, 3.0 and 4.0 (RFC 2426, RFC 6350).
 
 import Foundation
@@ -40,7 +40,7 @@ public final class CNContactVCardSerialization: NSObject {
 
 enum VCardTables {
     /// Known instant-message services: X- property name and URI scheme.
-    /// AIM and Jabber are the spec's; the rest are Ycode's choice.
+    /// AIM and Jabber are the spec's; the rest are SwiftCode's choice.
     static let imServices: [(service: String, property: String, scheme: String)] = [
         (CNInstantMessageServiceAIM, "X-AIM", "aim"),
         (CNInstantMessageServiceJabber, "X-JABBER", "xmpp"),
@@ -60,7 +60,7 @@ enum VCardTables {
         CNSocialProfileServiceTencentWeibo, CNSocialProfileServiceTwitter, CNSocialProfileServiceYelp,
     ]
 
-    /// Phone label → vCard types (formats.md §3.1; work fax and pager are Ycode's).
+    /// Phone label → vCard types (formats.md §3.1; work fax and pager are SwiftCode's).
     static let phoneTypes: [String: [String]] = [
         CNLabelPhoneNumberMobile: ["CELL", "VOICE"],
         CNLabelHome: ["HOME", "VOICE"],
@@ -100,7 +100,7 @@ struct VCardWriter {
 
     init(_ d: ContactData) { self.d = d }
 
-    static let productID = "-//Ycode//Ycode Contacts 1.0//EN"
+    static let productID = "-//SwiftCode//SwiftCode Contacts 1.0//EN"
 
     static func escape(_ s: String, structured: Bool = false) -> String {
         var out = ""

@@ -10,13 +10,13 @@ import StoreKitEngine
 import StoreKitSigning
 
 enum ID {
-    static let coins = "dev.ycode.skprobe.coins100"
-    static let pro = "dev.ycode.skprobe.pro"
-    static let season = "dev.ycode.skprobe.season"
-    static let monthly = "dev.ycode.skprobe.plus.monthly"
-    static let yearly = "dev.ycode.skprobe.plus.yearly"
-    static let lite = "dev.ycode.skprobe.plus.lite"
-    static let weekly = "dev.ycode.skprobe.extra.weekly"
+    static let coins = "dev.swiftcode.skprobe.coins100"
+    static let pro = "dev.swiftcode.skprobe.pro"
+    static let season = "dev.swiftcode.skprobe.season"
+    static let monthly = "dev.swiftcode.skprobe.plus.monthly"
+    static let yearly = "dev.swiftcode.skprobe.plus.yearly"
+    static let lite = "dev.swiftcode.skprobe.plus.lite"
+    static let weekly = "dev.swiftcode.skprobe.extra.weekly"
     static let all = [coins, pro, season, monthly, yearly, lite, weekly]
     static let plus = "200000001"
     static let extra = "200000002"
@@ -24,18 +24,18 @@ enum ID {
 
 let start = Date(timeIntervalSince1970: 1_792_411_200)
 let vendor = UUID(uuidString: "6A1D3C2E-0F00-4B6B-9C1D-5E0D7C4C9A11")!
-let configurationURL = Bundle.module.resourceURL!.appendingPathComponent("Fixtures/YcodeProbe.storekit")
+let configurationURL = Bundle.module.resourceURL!.appendingPathComponent("Fixtures/SwiftCodeProbe.storekit")
 
 /// A fresh runtime on a manual clock; StoreKit 1 callbacks on a private queue.
 @discardableResult
-func freshRuntime(bundleID: String = "dev.ycode.skprobe") throws -> (ManualClock, YcodeStoreKit) {
+func freshRuntime(bundleID: String = "dev.swiftcode.skprobe") throws -> (ManualClock, SwiftCodeStoreKit) {
     let clock = ManualClock(start)
-    let rt = try YcodeStoreKit(
+    let rt = try SwiftCodeStoreKit(
         device: StoreDevice(clock: clock, timeZone: TimeZone(identifier: "America/New_York")!), bundleID: bundleID, vendorID: vendor,
         applicationVersion: "12")
     rt.callbackQueue = DispatchQueue(label: "storekit-tests")
-    YcodeStoreKit.configure(rt)
-    SKPaymentQueue.ycodeReset()
+    SwiftCodeStoreKit.configure(rt)
+    SKPaymentQueue.swiftcodeReset()
     return (clock, rt)
 }
 
@@ -95,7 +95,7 @@ struct APITests {
             Issue.record("no error")
         } catch let e as StoreKitError {
             guard case .systemError(let payload) = e else { Issue.record("\(e)"); return }
-            #expect(payload as? YcodeStoreSystemError == .noAccount)
+            #expect(payload as? SwiftCodeStoreSystemError == .noAccount)
             #expect((e as NSError).code == 1)
         }
         #expect(await collect(Transaction.all).isEmpty)
@@ -108,7 +108,7 @@ struct APITests {
         try freshRuntime()
         _ = try session()
         #expect(try await Product.products(for: ID.all).count == 7)
-        try freshRuntime(bundleID: "dev.ycode.skprobe.b")
+        try freshRuntime(bundleID: "dev.swiftcode.skprobe.b")
         #expect(try await Product.products(for: ID.all).isEmpty)
     }
 
@@ -127,7 +127,7 @@ struct APITests {
     func products() async throws {
         try freshRuntime()
         _ = try session()
-        let products = try await Product.products(for: ID.all + ["dev.ycode.skprobe.bogus"])
+        let products = try await Product.products(for: ID.all + ["dev.swiftcode.skprobe.bogus"])
         #expect(products.map(\.id) == ID.all)
         #expect(products.map(\.type) == [.consumable, .nonConsumable, .nonRenewable, .autoRenewable, .autoRenewable, .autoRenewable, .autoRenewable])
         #expect(products.map(\.displayName) == [
@@ -138,7 +138,7 @@ struct APITests {
         #expect(products.map(\.isFamilyShareable) == [false, true, false, false, false, false, true])
         #expect(products[0].priceLocale.identifier == "en_US@currency=USD")
         let monthly = try #require(products[3].subscription)
-        #expect(monthly.subscriptionGroupID == ID.plus && monthly.groupLevel == 1 && monthly.groupDisplayName == "Ycode Plus")
+        #expect(monthly.subscriptionGroupID == ID.plus && monthly.groupLevel == 1 && monthly.groupDisplayName == "SwiftCode Plus")
         #expect(monthly.subscriptionPeriod == .monthly)
         #expect(monthly.introductoryOffer?.paymentMode == .freeTrial && monthly.introductoryOffer?.period == .weekly)
         #expect(monthly.introductoryOffer?.displayPrice == "$0.00" && monthly.introductoryOffer?.id == nil)
@@ -189,7 +189,7 @@ struct APITests {
         // U3: the app transaction; no StoreKit 1 receipt after StoreKit 2 purchases.
         let app = try await AppTransaction.shared
         guard case .verified(let a) = app else { Issue.record("unverified"); return }
-        #expect(a.bundleID == "dev.ycode.skprobe" && a.appVersion == "12" && a.originalAppVersion == "12")
+        #expect(a.bundleID == "dev.swiftcode.skprobe" && a.appVersion == "12" && a.originalAppVersion == "12")
         #expect(a.environment == .xcode && a.originalPlatform == .iOS && a.originalPurchaseDate == Date(timeIntervalSince1970: 0))
         #expect(rt.receipt == nil)
     }
@@ -246,7 +246,7 @@ struct APITests {
         let pro = try verified(try await p[ID.pro]!.purchase())
         let monthly = try verified(try await p[ID.monthly]!.purchase())
         try s.refundTransaction(identifier: UInt(pro.id))
-        #expect(try await monthly.ycodeRequestRefund(developerIssue: true) == .success)
+        #expect(try await monthly.swiftcodeRequestRefund(developerIssue: true) == .success)
         let refunded = try #require(await Transaction.latest(for: ID.pro)).unsafePayloadValue
         #expect(refunded.revocationDate == start && refunded.revocationReason == .other && refunded.revocationType == .fullRefund)
         #expect(await Transaction.latest(for: ID.monthly)?.unsafePayloadValue.revocationReason == .developerIssue)
@@ -257,12 +257,12 @@ struct APITests {
             Issue.record("no error")
         } catch let e as SKTestError {
             #expect(e.code == .noTransactionFound)
-            #expect(e.ycodeObservedError.domain == "SKServiceErrorDomain" && e.ycodeObservedError.code == 2)
-            #expect((e.ycodeObservedError.userInfo[NSUnderlyingErrorKey] as? NSError)?.code == 17)
+            #expect(e.swiftcodeObservedError.domain == "SKServiceErrorDomain" && e.swiftcodeObservedError.code == 2)
+            #expect((e.swiftcodeObservedError.userInfo[NSUnderlyingErrorKey] as? NSError)?.code == 17)
         }
         await s.setSimulatedError(.refundRequest(.duplicateRequest), forAPI: .refundRequest)
         let coins = try verified(try await p[ID.coins]!.purchase())
-        await #expect(throws: Transaction.RefundRequestError.duplicateRequest) { try await coins.ycodeRequestRefund() }
+        await #expect(throws: Transaction.RefundRequestError.duplicateRequest) { try await coins.swiftcodeRequestRefund() }
     }
 
     @Test("A1: Ask to Buy: pending, deferred in the session, approval delivered as an update")
@@ -299,7 +299,7 @@ struct APITests {
                 _ = try await p[ID.coins]!.purchase()
                 Issue.record("no error")
             } catch let error as StoreKitError {
-                #expect(error.ycodeKind == "unknown")
+                #expect(error.swiftcodeKind == "unknown")
             }
         }
         #expect(rt.alerts.count == 4 && rt.alerts.allSatisfy { $0.title == "Can't Complete This Purchase" })
@@ -368,11 +368,11 @@ struct APITests {
         let (_, rt) = try freshRuntime()
         _ = try session()
         let delegate = ProductsDelegate()
-        let request = SKProductsRequest(productIdentifiers: [ID.pro, ID.monthly, "dev.ycode.skprobe.bogus"])
+        let request = SKProductsRequest(productIdentifiers: [ID.pro, ID.monthly, "dev.swiftcode.skprobe.bogus"])
         request.delegate = delegate
         let response = await delegate.run(request)
         #expect(response.products.map(\.productIdentifier) == [ID.monthly, ID.pro])
-        #expect(response.invalidProductIdentifiers == ["dev.ycode.skprobe.bogus"])
+        #expect(response.invalidProductIdentifiers == ["dev.swiftcode.skprobe.bogus"])
         let monthly = response.products[0]
         #expect(monthly.priceLocale.identifier == "en_US@currency=USD" && monthly.price == NSDecimalNumber(string: "3.99"))
         #expect(monthly.subscriptionPeriod?.unit == .month && monthly.subscriptionPeriod?.numberOfUnits == 1)

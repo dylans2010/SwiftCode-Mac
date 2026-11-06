@@ -1,13 +1,13 @@
 # Spec: Mach-O images and the dyld shared cache (read-only)
 
-Status: **in progress** in `ycode/Sources/YcodeMachO`. This is the format layer
+Status: **in progress** in `swiftcode/Sources/SwiftCodeMachO`. This is the format layer
 of the Linux simulator loader (see `docs/SIMULATOR.md`, option B). It parses
 files and maps nothing. Execution is a later stage.
 
 All integers are little-endian unless noted otherwise. The layouts come from
 Apple's open-source `xnu` (`EXTERNAL_HEADERS/mach-o/loader.h`, `fat.h`) and
 `dyld` (`include/mach-o/dyld_cache_format.h`) headers, which are under the
-APSL. This spec restates them as interop facts. Ycode's code is written from
+APSL. This spec restates them as interop facts. SwiftCode's code is written from
 this spec and does not copy those headers.
 
 ## 1. Universal (fat) files
@@ -24,7 +24,7 @@ this spec and does not copy those headers.
 - Observed: the simulator runtime ships host-side helpers
   (`launchd_sim_trampoline`, `iokitsimd`) as **macOS-platform** universal
   binaries with arm64, arm64e, and subtype-12 slices. Apple's `lipo` names
-  the subtype-12 slice `arm64e.x1`. There is no published mapping, so Ycode
+  the subtype-12 slice `arm64e.x1`. There is no published mapping, so SwiftCode
   shows the raw subtype.
 
 ## 2. Thin 64-bit Mach-O
@@ -47,7 +47,7 @@ kext bundle as 0xC; the SDK's public `mach-o/loader.h` has `MH_DSYM` 0xa,
 `MH_KEXT_BUNDLE` 0xb, `MH_FILESET` 0xc. Gauge matches dSYMs by this type.)
 
 The load commands follow the header. Each one starts with `cmd` (u32) and
-`cmdsize` (u32, a multiple of 8). The commands Ycode reads:
+`cmdsize` (u32, a multiple of 8). The commands SwiftCode reads:
 
 | cmd | Name | Payload after cmd/cmdsize |
 |---|---|---|
@@ -62,7 +62,7 @@ The load commands follow the header. Each one starts with `cmd` (u32) and
 | `0x1D`, `0x80000034`, `0x80000033`, `0x26`, `0x29` | CODE_SIGNATURE, DYLD_CHAINED_FIXUPS, DYLD_EXPORTS_TRIE, FUNCTION_STARTS, DATA_IN_CODE | `dataoff` u32, `datasize` u32 (offsets into `__LINKEDIT`'s file range) |
 | `0x02` | SYMTAB | `symoff`, `nsyms`, `stroff`, `strsize` |
 | `0x0B` | DYSYMTAB | 18 × u32 |
-| `0x2C` | ENCRYPTION_INFO_64 | `cryptoff`, `cryptsize`, `cryptid` (nonzero means the image is encrypted; Ycode refuses to load it), `pad` |
+| `0x2C` | ENCRYPTION_INFO_64 | `cryptoff`, `cryptsize`, `cryptid` (nonzero means the image is encrypted; SwiftCode refuses to load it), `pad` |
 
 The fields of a SEGMENT_64 section (80 bytes) are: `sectname[16]`,
 `segname[16]`, `addr` u64, `size` u64, `offset` u32, `align` u32, `reloff`

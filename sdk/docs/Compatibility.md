@@ -26,7 +26,7 @@ are checked on their own paths.
 
 ## `SwiftCodeSDK.json` — canonical version metadata
 
-`ycode/Sources/YcodeSDK/Resources/SwiftCodeSDK.json` is the canonical
+`swiftcode/Sources/SwiftCodeSDK/Resources/SwiftCodeSDK.json` is the canonical
 host version metadata, managed by internal developers:
 
 ```json

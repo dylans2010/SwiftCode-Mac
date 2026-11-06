@@ -1,5 +1,5 @@
-// The Linux IDE's Symbol navigator symbol (Ycode's own navigator, which
-// takes the third place of the selector there), drawn for Ycode in the same
+// The Linux IDE's Symbol navigator symbol (SwiftCode's own navigator, which
+// takes the third place of the selector there), drawn for SwiftCode in the same
 // plain style as SymbolArtwork.swift: outlines on the 24 × 24 grid, stroke
 // 1.5 to 1.75. Licence: the repository's (MIT).
 

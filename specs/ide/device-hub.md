@@ -1,9 +1,9 @@
 # Spec: Device Hub (the simulator and device window)
 
-Status: **proposed** (OBS-DEVHUB, 2026-10-28); Ycode's implementation
+Status: **proposed** (OBS-DEVHUB, 2026-10-28); SwiftCode's implementation
 in §I (HUB-UI, 2026-10-28; council round 3 in §I.13, 2026-11-05). It tells a clean
 implementer how the reference's Device Hub looks and behaves as a window,
-so that Ycode's simulator window can be rebuilt to match. Reference:
+so that SwiftCode's simulator window can be rebuilt to match. Reference:
 Xcode 27.1 (Device Hub 27.1, build 255.6.6.1) on macOS 27.2. Dirty-room
 notes: `research/notes/obs-devhub-2026-10-28.md`.
 
@@ -19,14 +19,14 @@ simulator opens that simulator's compact window.
   appearance, accessibility, location and sound: `specs/simulator/simulator-features.md` §7.1;
 - the iPhone Duo fold mechanism and its poses: `specs/simulator/foldable.md` §3, §4;
 - visionOS canvas input and camera modes: `specs/simulator/visionos.md` §5.1;
-- Ycode's current Devices and Simulators window: `specs/ide/devices.md`;
+- SwiftCode's current Devices and Simulators window: `specs/ide/devices.md`;
 - the toolbar's glass metrics shared with the workspace window: `specs/ide/liquid-glass.md` §1, §2.2.
 
 **Rules for the implementer.** Labels in quotation marks are exact. Shapes
-and symbols are described in words: Ycode draws its own glyphs and device
+and symbols are described in words: SwiftCode draws its own glyphs and device
 frames (AGENTS.md rule 5; no Apple artwork, no device photographs). Colours
 are system materials and semantic colours only. Sizes are in points; "AX"
-means an accessibility frame, "drawn" means the visible shape. **Ycode
+means an accessibility frame, "drawn" means the visible shape. **SwiftCode
 decision** marks a choice the reference does not dictate.
 
 ## 1. Summary
@@ -110,7 +110,7 @@ decision** marks a choice the reference does not dictate.
   then a separator and "Cancel" and "Create" (default) at the bottom right.
   The new simulator appears under Available.
 - **Pair Nearby Device…**: a sheet with device-type buttons at the top and
-  per-type instructions; then a PIN step. Not needed by Ycode.
+  per-type instructions; then a PIN step. Not needed by SwiftCode.
 - **Settings window**: the app menu shows no Settings… item; the app's
   strings name four options (OPEN Q3): "Simulate hardware keyboard by
   default", "Capture keyboard shortcuts" ("Most keyboard shortcuts will be
@@ -189,7 +189,7 @@ the controls.
   concentric with the screen's corners, side buttons as short raised bars
   on the edges (volume and action on the left, side button on the right of
   a portrait iPhone), drawn flat with a slight shade. The Dynamic Island or
-  notch belongs to the screen picture, not the frame. Ycode draws its own
+  notch belongs to the screen picture, not the frame. SwiftCode draws its own
   frame from the device type's screen size and corner radius.
 - Frame parts are **clickable**: Sleep/Wake (click = Lock, hold = Siri), Volume Up / Down (click
   or hold), Action button; on a watch the Digital Crown (click; scroll over
@@ -277,7 +277,7 @@ is shown; holding Escape ends it.
 rounded corners and a short grab bar centred on each of its four sides;
 dragging a bar resizes the app's screen, or the user types a size in the
 "W × H" field below; the size snaps to the nearest valid size; "Exit resize
-mode" restores. **Ycode decision**: not built until Ycode's guest supports
+mode" restores. **SwiftCode decision**: not built until SwiftCode's guest supports
 resizable scenes; the toggle is omitted.
 
 ## 5. Sidebar
@@ -285,7 +285,7 @@ resizable scenes; the toggle is omitted.
 ### 5.1 Content and sections
 
 - Lists the simulators added in Device Hub or used as run destinations
-  (Ycode: every simulator in Ycode's device set) and paired physical
+  (SwiftCode: every simulator in SwiftCode's device set) and paired physical
   devices.
 - Grouped by availability: **"Available"** then **"Unavailable"**
   (disconnected or unsupported devices). Each section header is a small
@@ -386,8 +386,8 @@ Menu bar: Device Hub, File, Edit, View, Device, Controls, Window, Help.
 
 Key equivalents: **Screenshot ⇧⌘S** (stated by Apple). All others are
 OPEN (Q9 in `simulator-features.md`). Public feedback notes that ⌘W did
-not close the window in the first seeds. **Ycode decision** for the rest,
-until observed: keep Ycode's current ones (⇧⌘H Home, ⌘L Lock, ⌘← / ⌘→
+not close the window in the first seeds. **SwiftCode decision** for the rest,
+until observed: keep SwiftCode's current ones (⇧⌘H Home, ⌘L Lock, ⌘← / ⌘→
 rotate, ⌥⌘↑ / ⌥⌘↓ volume) and move Screenshot from ⌘S to ⇧⌘S.
 
 ## 8. Look
@@ -410,12 +410,12 @@ rotate, ⌥⌘↑ / ⌥⌘↓ volume) and move Screenshot from ⌘S to ⇧⌘S.
 - Text: title in the toolbar's title style (about 13, semibold), subtitle
   smaller in secondary colour; row name in body size, subtitle and version
   in small secondary text; empty-state messages in secondary text.
-- Symbol names: Ycode picks public SF Symbols that match the descriptions
-  (**Ycode decision**; the reference's own symbol names were not read).
+- Symbol names: SwiftCode picks public SF Symbols that match the descriptions
+  (**SwiftCode decision**; the reference's own symbol names were not read).
 
-## 9. What Ycode must change (priority order)
+## 9. What SwiftCode must change (priority order)
 
-Ycode today: `ycode-sim-viewer` is a separate titled window ("Ycode
+SwiftCode today: `swiftcode-sim-viewer` is a separate titled window ("SwiftCode
 Simulator Viewer") with the stream filling the content, a footer of small
 push buttons (Home, Lock, Vol +, Vol −, Rotate, Screenshot), a fold bar
 (segmented Closed / Half Open / Open Flat, an always-visible hinge slider,
@@ -444,35 +444,35 @@ and Devices controls at the same time; coordinate file ownership.)
 3. **iPhone Duo controls** (§4.4): the three pose buttons (Closed,
    Partially Open, Open) in the capsule after Rotate; Option-drag shows the
    hinge slider; drop the always-visible slider and segmented control.
-   Rename Ycode's "Half Open" / "Open Flat" to the reference's "Partially
+   Rename SwiftCode's "Half Open" / "Open Flat" to the reference's "Partially
    Open" / "Open" in the controls (`foldable.md` §4 names).
-4. **Device frame** (§4.3): Ycode-drawn frame per device type (screen
+4. **Device frame** (§4.3): SwiftCode-drawn frame per device type (screen
    size, corner radius, button positions from the device type), clickable
    buttons, View ▸ Show / Hide Bezels; Duo pose view; no frame for
    visionOS.
 5. **Zoom** (§4.2): toolbar segments Zoom Out, Zoom to Fit (default),
    Actual (physical) Size, Zoom In and the View-menu items; retire Half
-   Size / Point Accurate / Pixel Accurate (keep pixel-accurate as a Ycode
+   Size / Point Accurate / Pixel Accurate (keep pixel-accurate as a SwiftCode
    extra only if wanted).
 6. **Menus** (§7): Device and Controls menus with the reference's items
    and order, contextual to the device; Screenshot ⇧⌘S; Record Screen /
    Stop Recording; Start / Restart / Shut Down / Force Shut Down; Edit's
-   clipboard items when Ycode syncs the pasteboard.
+   clipboard items when SwiftCode syncs the pasteboard.
 7. **Rotation** (§4.4): one Rotate control (click left, Option-click
    right) instead of two buttons; the frame and compact window turn.
 8. **Screenshot and recording feedback** (§4.4): save to the Desktop (or
    the configured location), show "Screenshot Saved"; Record toggles to
    Stop and names the file "Screen Recording <device> <time>". Recording
-   is new work for Ycode's stream.
+   is new work for SwiftCode's stream.
 9. **Status line**: Device Hub has none. Move fps / KB/s / latency to a
    debug option (for example under More Actions); keep boot progress in
    the canvas status view instead.
 10. **Keyboard capture** toggle with the "Capturing Keyboard" / "Hold
-    Escape to cancel" notice (§4.6); today Ycode forwards non-⌘ keys
+    Escape to cancel" notice (§4.6); today SwiftCode forwards non-⌘ keys
     whenever the screen has focus.
 11. **Scrolling** (§4.5): the reference sends scroll events, not a drag;
-    Ycode keeps its scroll-as-drag until its guest path can deliver scroll
-    events. Ycode's Option-drag two-finger gestures stay as a **Ycode
+    SwiftCode keeps its scroll-as-drag until its guest path can deliver scroll
+    events. SwiftCode's Option-drag two-finger gestures stay as a **SwiftCode
     extension** (the reference has none).
 12. **Empty and error states** (§4.1, §5.1): "No Selection", "Multiple
     Devices Selected", "No Results for “…”", "Start the simulator to
@@ -481,53 +481,53 @@ and Devices controls at the same time; coordinate file ownership.)
 13. **Inspector** content: Settings per `simulator-features.md` §6/§7;
     Info rows with Edit Visibility; Apps / Profiles / Reports later.
 14. **Persistence** (§2.1): selection, tab, sub-tab, collapsed sections,
-    sidebar visibility, window frames, in Ycode's own preferences domain.
+    sidebar visibility, window frames, in SwiftCode's own preferences domain.
 15. Resize mode (§4.7) and physical-device pairing: not planned.
 
 ## 10. Open questions
 
 - Q1. What the canvas shows while a simulator boots (progress bar,
   spinner, the Apple-logo screen, text), and whether Start becomes a
-  progress state. **Ycode decision** (I.6): the device's picture with a
+  progress state. **SwiftCode decision** (I.6): the device's picture with a
   spinner in place of Start, then the frame with "Starting… N s" on its
   screen until the first picture.
 - Q2. Device controls and frames for Apple Watch and Apple TV (labels,
-  symbols). **Ycode decision** (I.6): not built; Ycode has no watch or TV
-  simulator, and Add Device lists them disabled. *Apple Watch, Ycode
-  decision (WATCH-DISPLAY, `watchos.md` §11.3):* Ycode's watch frame (a
+  symbols). **SwiftCode decision** (I.6): not built; SwiftCode has no watch or TV
+  simulator, and Add Device lists them disabled. *Apple Watch, SwiftCode
+  decision (WATCH-DISPLAY, `watchos.md` §11.3):* SwiftCode's watch frame (a
   16-point band, the Digital Crown as a ridged cylinder and the side
   button as a long bar on the right edge, the Action button on the left
   of an Ultra) and the control row [Screenshot · Record]; the crown and
   side button on the frame are the watch's Home and Sleep/Wake until the
   watch's input round (`watchos.md` W3). Apple TV: still open.
 - Q3. Whether a Settings window exists (no menu item seen) and its layout.
-  **Ycode decision** (I.6): none; Capture Keyboard is the toolbar toggle,
-  and devices started in the hub are shut down when Ycode quits.
+  **SwiftCode decision** (I.6): none; Capture Keyboard is the toolbar toggle,
+  and devices started in the hub are shut down when SwiftCode quits.
 - Q4. Whether clicking the selected inspector tab hides the inspector.
-  **Ycode decision** (I.6): no; choosing a tab shows a collapsed inspector.
+  **SwiftCode decision** (I.6): no; choosing a tab shows a collapsed inspector.
 - Q5. Whether Expand closes the compact window or opens the hub beside it;
-  how many compact windows a device can have. **Ycode decision** (I.6):
+  how many compact windows a device can have. **SwiftCode decision** (I.6):
   Expand brings the hub forward with the device selected and closes the
   compact window; one compact window per device.
 - Q6. Exact items and order of the More Actions menu and the sidebar
-  context menu. **Ycode decision** (I.6).
+  context menu. **SwiftCode decision** (I.6).
 - Q7. Zoom step sizes and limits; the margin used by Zoom to Fit.
-  **Ycode decision** (I.4): steps ¼, ⅓, ½, ⅔, ¾, 1, 1¼, 1½, 2, 3, 4;
+  **SwiftCode decision** (I.4): steps ¼, ⅓, ½, ⅔, ¾, 1, 1¼, 1½, 2, 3, 4;
   margin 24 points.
 - Q8. The rotation animation (duration, whether the frame spins or
-  cross-fades). **Ycode decision** (I.6): none; the frame is redrawn turned
+  cross-fades). **SwiftCode decision** (I.6): none; the frame is redrawn turned
   and the compact window takes its new shape at once.
 - Q9. How "Screenshot Saved" is presented (banner over the canvas, a
   system notification, a flash); the Record button's recording state.
-  **Ycode decision** (I.5): a glass banner over the canvas for 2 s; Record
+  **SwiftCode decision** (I.5): a glass banner over the canvas for 2 s; Record
   shows a red stop symbol while recording.
-- Q10. Sort By options and the default sort. **Ycode decision** (I.3):
-  Name and OS Version; by default none (Ycode's own order).
-- Q11. Key equivalents other than Screenshot. **Ycode decision** (I.5).
+- Q10. Sort By options and the default sort. **SwiftCode decision** (I.3):
+  Name and OS Version; by default none (SwiftCode's own order).
+- Q11. Key equivalents other than Screenshot. **SwiftCode decision** (I.5).
 - Q12. How the Duo slider appears and what it shows (angle text?).
-  **Ycode decision** (I.4): a glass capsule over the control row with a
+  **SwiftCode decision** (I.4): a glass capsule over the control row with a
   slider and the angle ("90°"); the hinge sweeps on release.
-- Q13. The full Orientation submenu. **Ycode decision** (I.5): Portrait,
+- Q13. The full Orientation submenu. **SwiftCode decision** (I.5): Portrait,
   Portrait Upside Down, Landscape Left, Landscape Right, Face Up, Face
   Down.
 
@@ -561,14 +561,14 @@ above, and a flat tablet.
 
 ### 11.2 The device frame's position and scale
 
-| Element | Reference | Ycode now |
+| Element | Reference | SwiftCode now |
 |---|---|---|
 | Canvas | x 0–820.5 (the inspector starts at 820.5), y 52 (toolbar bottom) to 800 | the same |
 | Frame's centre | x **411.5**, y **402.75**: centred horizontally on the canvas and **vertically in the space between the toolbar's bottom (52) and the capsules' top (755.5)** | x 409.5, y 316: high in the canvas |
 | Frame size at Zoom to Fit | the Duo frame **274 × 379.5**: 54 % of the 703.5-point free height, 33 % of the width. Zoom to Fit was the selected zoom segment. Fit therefore does **not** enlarge the device to fill the canvas here. | a generic phone outline 213 × 463 (66 % of the height) |
 | Label under the device | **none** | the device's name and "iOS 27.1" drawn under the frame (y 557–567 for the OS) |
 
-The scale rule at Zoom to Fit is not settled (§11.4). Until it is, Ycode
+The scale rule at Zoom to Fit is not settled (§11.4). Until it is, SwiftCode
 should draw the frame at its point size (one device point to one Mac
 point) and shrink it only when it does not fit between the toolbar and the
 capsules with a margin.
@@ -583,9 +583,9 @@ capsules with a margin.
 | Row parts | a symbol (13 wide, from x 843.5: 13.5 inside the card), the label from x 868 (38 inside the card), #000000, regular; the trailing control: a pop-up's value ends 18 before its up/down chevron, which ends 20 inside the card (x 1070); a switch ends 13 inside (x 1077); sliders span about x 869–977 of the row's trailing part with tick marks |
 | Grouping (iOS) | card 1: Appearance (pop-up), Liquid Glass (slider), Color Filter (pop-up), Text Size (slider), Reduce Motion, Increase Contrast, Show Borders, Reduce Transparency, VoiceOver (switches) — 9 rows, y 60–446; card 2: Location (pop-up), y 456–498; card 3: Sound (slider), Output (pop-up), Input (pop-up), y 508–636 |
 
-**Ycode now:** no cards; the inspector shows only the text that no
+**SwiftCode now:** no cards; the inspector shows only the text that no
 settings are available, in #878788 at the top (x 832.5, y 65–107), with a
-full-height scroll track at the right (x 1086–1097). When Ycode cannot
+full-height scroll track at the right (x 1086–1097). When SwiftCode cannot
 offer a setting it should still draw the cards, with the rows disabled,
 or one card holding the message; the empty scroll track should not show.
 
@@ -597,7 +597,7 @@ or one card holding the message; the empty scroll track should not show.
   a capsule holding Open in New Window and More Actions, then the
   inspector tabs over the inspector (§3). With the sidebar hidden, **Add
   Device and Filter are hidden too**.
-- Ycode adds a "+" circle left of the sidebar toggle with the sidebar
+- SwiftCode adds a "+" circle left of the sidebar toggle with the sidebar
   hidden, lacks the resize-mode toggle beside Capture Keyboard, shows a
   "»" overflow circle after More Actions (the items should fit at 1100),
   and draws the inspector's "i" tab inside a circle.
@@ -613,43 +613,43 @@ or one card holding the message; the empty scroll track should not show.
   recording state.
 - Whether the capsules stay at the canvas bottom in the compact window.
 
-## I. Ycode implementation (HUB-UI, 2026-10-28)
+## I. SwiftCode implementation (HUB-UI, 2026-10-28)
 
 Clean-room work from this spec, `simulator-features.md` §7 and its
-"Ycode implementation", `foldable.md` §4 and §10, `liquid-glass.md`,
-`liquid-glass-ycode.md`, `display-stream.md`, `hid-input.md`, `devices.md`,
+"SwiftCode implementation", `foldable.md` §4 and §10, `liquid-glass.md`,
+`liquid-glass-swiftcode.md`, `display-stream.md`, `hid-input.md`, `devices.md`,
 Apple's public AppKit documentation and the public SF Symbols names. No
 Apple binary, Xcode, Device Hub or Simulator was opened, run or observed;
-no Apple artwork is used: Ycode draws its frames from its own device data.
+no Apple artwork is used: SwiftCode draws its frames from its own device data.
 
 ### I.1 Where the code is
 
 | Module | What |
 |---|---|
-| `YcodeDeviceModel` (every platform) | `DeviceFrameSpec` (each Ycode device type's panels: pixels, scale, pixels per inch, corner radii, family — the values of `ycode-simd`'s `DeviceTypes.swift`), `DeviceFrameGeometry` (band, body, screen, buttons, hinge, turning), `DevicePosture`, `DeviceOrientation`, `DeviceZoom` and `CompactWindowLayout` (scale and window-size math), `HubSidebarModel` (sections, filter, search, sort, collapse), `HubCanvasState`, `DeviceCommand` (titles and key equivalents), `DeviceCaptureNames` |
-| `YcodeDeviceUI` (macOS) | `DeviceLiveSession` (one device's display-stream connection, shared by every window that shows it), `DeviceView` (the screen: touch, keys, Capture Keyboard), `DeviceFrameView`, `DeviceControlsRow`, `DeviceCanvasView`, `DeviceWindowController` (the compact window and its expanded form), `DeviceMenus`, `ScreenRecorder`, `ViewerConnection` and `ViewerSettingsMenu` (moved from the viewer) |
-| `ycode-sim-viewer` | the command line, the menu bar, the script runner; one compact window |
-| `YcodeUI` | `DevicesController` (now the hub), `DeviceHubToolbar`, `DeviceHubRemote.swift` (display socket, ssh forward, Start / Shut Down) |
-| `ycode-simd` | the display hello's new `deviceType` and `osVersion` (`display-stream.md` §3.1) |
+| `SwiftCodeDeviceModel` (every platform) | `DeviceFrameSpec` (each SwiftCode device type's panels: pixels, scale, pixels per inch, corner radii, family — the values of `swiftcode-simd`'s `DeviceTypes.swift`), `DeviceFrameGeometry` (band, body, screen, buttons, hinge, turning), `DevicePosture`, `DeviceOrientation`, `DeviceZoom` and `CompactWindowLayout` (scale and window-size math), `HubSidebarModel` (sections, filter, search, sort, collapse), `HubCanvasState`, `DeviceCommand` (titles and key equivalents), `DeviceCaptureNames` |
+| `SwiftCodeDeviceUI` (macOS) | `DeviceLiveSession` (one device's display-stream connection, shared by every window that shows it), `DeviceView` (the screen: touch, keys, Capture Keyboard), `DeviceFrameView`, `DeviceControlsRow`, `DeviceCanvasView`, `DeviceWindowController` (the compact window and its expanded form), `DeviceMenus`, `ScreenRecorder`, `ViewerConnection` and `ViewerSettingsMenu` (moved from the viewer) |
+| `swiftcode-sim-viewer` | the command line, the menu bar, the script runner; one compact window |
+| `SwiftCodeUI` | `DevicesController` (now the hub), `DeviceHubToolbar`, `DeviceHubRemote.swift` (display socket, ssh forward, Start / Shut Down) |
+| `swiftcode-simd` | the display hello's new `deviceType` and `osVersion` (`display-stream.md` §3.1) |
 
 ### I.2 Per gap item (§9)
 
-| # | Item | Status | What Ycode does |
+| # | Item | Status | What SwiftCode does |
 |---|---|---|---|
-| 1 | Compact device window | done | `DeviceWindowController` (viewer and IDE): unified toolbar, no separator; title = the device type's name ("iPhone 18 Pro"; the hub's title is the row's, "iPhone 18 Pro (Ycode)"), subtitle = the OS from the hello ("iOS 27.1"); one capsule Expand (`arrow.up.left.and.arrow.down.right`, help "Expand to view all controls") │ More Actions (`ellipsis`); the device in Ycode's frame, 17 points from each side, 4 below the toolbar; the control row 8 above the bottom edge. `windowWillResize` keeps the device's aspect (the width decides), so resizing scales the device; a rotation, the Duo's other panel or Show / Hide Bezels reshapes the window at the same scale, keeping its top centre. The window is at least 340 points wide (AppKit's toolbar needs it for the capsule beside the title; the reference's saved window was 296 wide); a portrait iPhone 18 Pro opens at 340 × 751. Scale and position are kept per device type. The push buttons, the fold bar and the status line are gone |
-| 2 | Hub window | done (Ycode's own simulators operate; others are listed) | Manage Devices… (⇧⌘2) and Ycode ▸ Open Developer Tool ▸ Device Hub open it. `NSSplitViewController`: sidebar 240 (full height), canvas, inspector 280 with a one-point divider. Sidebar: search field (placeholder "Search"), "Available" / "Unavailable" headers that collapse, 46-point rows (32-point disc: glyph `iphone`, `ipad` or `vision.pro` in the accent colour on white while running, grey on grey otherwise; name over "Simulator" or the model; major.minor version 16 from the right edge), the no-results view, multiple selection ("Multiple Devices Selected"; double-click opens a compact window per running device). Toolbar in §3's order (I.3). Canvas: the live screen of a running Ycode simulator, the status view with **Start** for a stopped one, "No Selection". Inspector: Settings hosts FEAT-IMPL's boxes unchanged (`settingsControls()`), followed by CAMERA-GUEST's Camera box (`cameraControls()`, after Sound, shown for a stopped device too; `devices.md` §Camera), Reports ("No Diagnostic Reports"), Info (Info · Apps · Profiles; Info rows in a rounded group box with inset separators and Edit Visibility / Done). The Devices / Simulators switch is the Filter menu. Open in New Window and Expand move a device between the window kinds |
+| 1 | Compact device window | done | `DeviceWindowController` (viewer and IDE): unified toolbar, no separator; title = the device type's name ("iPhone 18 Pro"; the hub's title is the row's, "iPhone 18 Pro (SwiftCode)"), subtitle = the OS from the hello ("iOS 27.1"); one capsule Expand (`arrow.up.left.and.arrow.down.right`, help "Expand to view all controls") │ More Actions (`ellipsis`); the device in SwiftCode's frame, 17 points from each side, 4 below the toolbar; the control row 8 above the bottom edge. `windowWillResize` keeps the device's aspect (the width decides), so resizing scales the device; a rotation, the Duo's other panel or Show / Hide Bezels reshapes the window at the same scale, keeping its top centre. The window is at least 340 points wide (AppKit's toolbar needs it for the capsule beside the title; the reference's saved window was 296 wide); a portrait iPhone 18 Pro opens at 340 × 751. Scale and position are kept per device type. The push buttons, the fold bar and the status line are gone |
+| 2 | Hub window | done (SwiftCode's own simulators operate; others are listed) | Manage Devices… (⇧⌘2) and SwiftCode ▸ Open Developer Tool ▸ Device Hub open it. `NSSplitViewController`: sidebar 240 (full height), canvas, inspector 280 with a one-point divider. Sidebar: search field (placeholder "Search"), "Available" / "Unavailable" headers that collapse, 46-point rows (32-point disc: glyph `iphone`, `ipad` or `vision.pro` in the accent colour on white while running, grey on grey otherwise; name over "Simulator" or the model; major.minor version 16 from the right edge), the no-results view, multiple selection ("Multiple Devices Selected"; double-click opens a compact window per running device). Toolbar in §3's order (I.3). Canvas: the live screen of a running SwiftCode simulator, the status view with **Start** for a stopped one, "No Selection". Inspector: Settings hosts FEAT-IMPL's boxes unchanged (`settingsControls()`), followed by CAMERA-GUEST's Camera box (`cameraControls()`, after Sound, shown for a stopped device too; `devices.md` §Camera), Reports ("No Diagnostic Reports"), Info (Info · Apps · Profiles; Info rows in a rounded group box with inset separators and Edit Visibility / Done). The Devices / Simulators switch is the Filter menu. Open in New Window and Expand move a device between the window kinds |
 | 3 | iPhone Duo controls | done | [Rotate │ Closed · Partially Open · Open] after Rotate, the current pose's button on a recessed pill; Option-drag on a pose button or on the Duo's frame shows the hinge slider (I.4). The always-visible slider and segmented control are gone (viewer and IDE); the presets are named "Closed", "Partially Open", "Open" everywhere (menus, context menu, Info's Fold row) |
-| 4 | Device frame | done | `DeviceFrameGeometry`: a band of 12 points (phone) or 20 (iPad) all round, outer radii = screen radii + band (per corner: the Duo's cover has 8-point corners on its hinge side), buttons as 3-point bars — phone: Action, Volume Up, Volume Down on the left, Sleep/Wake on the right; iPad: top button on the top edge near the right corner, volume on the right edge near the top; the open Duo: Sleep/Wake and volume on its right edge, Action on the top edge. Drawn near-black with a lighter rim, buttons a step lighter; the screen keeps its rounded corners (a mask). The frame turns with the device. Clicking a button presses it on the device (down on mouse down, up on mouse up: a click is a press, a hold a long press); tooltips name them. Partially Open: the inner panel's frame with a hinge line and the left half in shade (Ycode's flat stand-in for the perspective view). visionOS: no frame. Show / Hide Bezels in the viewer's View menu and in More Actions (viewer and IDE), kept as a preference |
+| 4 | Device frame | done | `DeviceFrameGeometry`: a band of 12 points (phone) or 20 (iPad) all round, outer radii = screen radii + band (per corner: the Duo's cover has 8-point corners on its hinge side), buttons as 3-point bars — phone: Action, Volume Up, Volume Down on the left, Sleep/Wake on the right; iPad: top button on the top edge near the right corner, volume on the right edge near the top; the open Duo: Sleep/Wake and volume on its right edge, Action on the top edge. Drawn near-black with a lighter rim, buttons a step lighter; the screen keeps its rounded corners (a mask). The frame turns with the device. Clicking a button presses it on the device (down on mouse down, up on mouse up: a click is a press, a hold a long press); tooltips name them. Partially Open: the inner panel's frame with a hinge line and the left half in shade (SwiftCode's flat stand-in for the perspective view). visionOS: no frame. Show / Hide Bezels in the viewer's View menu and in More Actions (viewer and IDE), kept as a preference |
 | 5 | Zoom | done | Hub canvas (and the viewer's expanded window): toolbar segments Zoom Out · Zoom to Fit · Zoom To Actual Size · Zoom In (`minus.magnifyingglass`, `arrow.up.left.and.down.right.magnifyingglass`, `1.magnifyingglass`, `plus.magnifyingglass`), Zoom to Fit selected by default; View menu Zoom In ⌘+, Zoom Out ⌘−, Zoom to Fit ⌘9, Physical Size ⌘0 (viewer). Physical size: one device point = scale ÷ pixels per inch inches, the Mac display's points per inch from its size in millimetres. The canvas scrolls when the device is larger. Half Size / Point Accurate / Pixel Accurate are retired; the compact window has no zoom (its width sets the scale) |
-| 6 | Menus | done (viewer); IDE: toolbar, context and More Actions menus | Viewer: View (zoom, bezels, Show Frame Rate, Enter Full Screen), Device (Accessibility ▸, Appearance ▸, Color Filter ▸, Location ▸, Orientation ▸, Sound ▸, Keyboard ▸ Keyboard Capture ⇧⌘K, Fold ▸ for the Duo, Refresh Display), Controls (Home ⇧⌘H, Lock ⌘L, App Switcher, Action Button, Rotate Left ⌘←, Rotate Right ⌘→, Screenshot ⇧⌘S, Record Screen / Stop Recording ⇧⌘R, Volume Up ⌥⌘↑, Volume Down ⌥⌘↓), Window (Expand, Open in New Window). Items a device lacks are hidden (Action Button, Fold). IDE: its menu bar stays Xcode's (golden-tested); the hub and compact windows take the same key equivalents (the canvas handles them before the menu bar), Start / Shut Down / Restart / Force Shut Down are in More Actions and the row's context menu. Edit's clipboard items: not done (Ycode does not sync the pasteboard yet) |
-| 7 | Rotation | done | One Rotate control: click = Rotate Left, Option-click = Rotate Right; the frame and the compact window turn. Ycode's stream turns foldables only (`display-stream.md` §11): for other devices Rotate is shown disabled |
+| 6 | Menus | done (viewer); IDE: toolbar, context and More Actions menus | Viewer: View (zoom, bezels, Show Frame Rate, Enter Full Screen), Device (Accessibility ▸, Appearance ▸, Color Filter ▸, Location ▸, Orientation ▸, Sound ▸, Keyboard ▸ Keyboard Capture ⇧⌘K, Fold ▸ for the Duo, Refresh Display), Controls (Home ⇧⌘H, Lock ⌘L, App Switcher, Action Button, Rotate Left ⌘←, Rotate Right ⌘→, Screenshot ⇧⌘S, Record Screen / Stop Recording ⇧⌘R, Volume Up ⌥⌘↑, Volume Down ⌥⌘↓), Window (Expand, Open in New Window). Items a device lacks are hidden (Action Button, Fold). IDE: its menu bar stays Xcode's (golden-tested); the hub and compact windows take the same key equivalents (the canvas handles them before the menu bar), Start / Shut Down / Restart / Force Shut Down are in More Actions and the row's context menu. Edit's clipboard items: not done (SwiftCode does not sync the pasteboard yet) |
+| 7 | Rotation | done | One Rotate control: click = Rotate Left, Option-click = Rotate Right; the frame and the compact window turn. SwiftCode's stream turns foldables only (`display-stream.md` §11): for other devices Rotate is shown disabled |
 | 8 | Screenshot and recording feedback | done | Screenshot (button, ⇧⌘S): the server's full-resolution PNG, saved to the system's screenshot location when one is set, else the Desktop, as "Screenshot <device> <yyyy-MM-dd at HH.mm.ss>.png"; banner "Screenshot Saved". Record: the shown pictures become an H.264 QuickTime movie on the Mac (`ScreenRecorder`), "Screen Recording <device> <time>.mov"; the button turns into a red stop symbol; Stop Recording writes it ("Recording Saved"); a dropped connection stops it with "Screen recording was stopped because the device disconnected." |
 | 9 | Status line | done | Gone; More Actions ▸ Show Frame Rate (viewer: also View) shows the old line (phase, fps, KB/s, input → screen, round trip, the Duo's panel and hinge) at the canvas's bottom edge. Boot progress and connection problems are written on the device's screen in the canvas |
-| 10 | Keyboard capture | done | Toolbar toggle (hub, expanded window), Device ▸ Keyboard ▸ Keyboard Capture (viewer). While on, command shortcuts go to the device too, a glass notice "Capturing Keyboard" / "Hold Escape to cancel" shows, and holding Escape for one second ends it. Off: unchanged (keys without ⌘ go to the device while its screen has focus; **Ycode decision**) |
-| 11 | Scrolling | unchanged | scroll-as-drag stays until the guest takes scroll events; Option-drag two-finger gestures stay as a **Ycode extension** |
+| 10 | Keyboard capture | done | Toolbar toggle (hub, expanded window), Device ▸ Keyboard ▸ Keyboard Capture (viewer). While on, command shortcuts go to the device too, a glass notice "Capturing Keyboard" / "Hold Escape to cancel" shows, and holding Escape for one second ends it. Off: unchanged (keys without ⌘ go to the device while its screen has focus; **SwiftCode decision**) |
+| 11 | Scrolling | unchanged | scroll-as-drag stays until the guest takes scroll events; Option-drag two-finger gestures stay as a **SwiftCode extension** |
 | 12 | Empty and error states | done | "No Selection", "Multiple Devices Selected", "No Results for “…”" with "Check the spelling or try a new search.", "Start the simulator to customize behavior and appearance." (FEAT-IMPL's), "Connecting display", "Starting… N s", "The device is not running or the connection dropped; reconnecting", "Waiting for the first frame" on the device's screen |
-| 13 | Inspector content | partial | Settings: FEAT-IMPL's boxes and the Camera box for Ycode's simulators, else "No settings are available for the selected device. …"; Info: Name, OS, Model, State or Connection, Identifier, Available, the Duo's Fold row, Erase status, with Edit Visibility; Apps ("No Apps"), Profiles ("No Profiles") and Reports ("No Diagnostic Reports") are placeholders |
-| 14 | Persistence | done | Ycode's preferences: the hub window's frame (autosave "YcodeDeviceHub") and split widths, the selected device, the inspector tab and Info sub-tab, collapsed sections, the filter, whether the sidebar is shown (View ▸ Hide Sidebar through the hub), zoom, bezels, hidden Info rows; the compact window's scale and position per device type |
+| 13 | Inspector content | partial | Settings: FEAT-IMPL's boxes and the Camera box for SwiftCode's simulators, else "No settings are available for the selected device. …"; Info: Name, OS, Model, State or Connection, Identifier, Available, the Duo's Fold row, Erase status, with Edit Visibility; Apps ("No Apps"), Profiles ("No Profiles") and Reports ("No Diagnostic Reports") are placeholders |
+| 14 | Persistence | done | SwiftCode's preferences: the hub window's frame (autosave "SwiftCodeDeviceHub") and split widths, the selected device, the inspector tab and Info sub-tab, collapsed sections, the filter, whether the sidebar is shown (View ▸ Hide Sidebar through the hub), zoom, bezels, hidden Info rows; the compact window's scale and position per device type |
 | 15 | Resize mode, pairing | not planned | the resize toggle is left out (§4.7); Pair Nearby Device… is listed disabled |
 | 16 | Add Device ▸ Apple Vision Pro… | done (IDE-SMALL, §I.11) | with a visionOS runtime root set up: the New Simulator form, a created Apple Vision Pro, Start to its room, Delete… |
 
@@ -664,16 +664,16 @@ the zoom segments, [Open in New Window
 More Actions], the inspector tracking separator, and the inspector tabs
 (`slider.horizontal.3` Settings, `doc.text` Reports, `info.circle` Info).
 Capture Keyboard, zoom and More Actions are dimmed with nothing selected;
-Open in New Window needs a running Ycode simulator.
+Open in New Window needs a running SwiftCode simulator.
 
 - Add Device: iPhone…, iPad… (they open Settings ▸ Simulators, where
-  Ycode's runtimes and device types are set), Apple Watch… and iPhone with
+  SwiftCode's runtimes and device types are set), Apple Watch… and iPhone with
   Paired Watch… (§I.9), Apple Vision Pro… (§I.11), Apple TV… (disabled),
-  —, Pair Nearby Device… (disabled). **Ycode decision.**
+  —, Pair Nearby Device… (disabled). **SwiftCode decision.**
 - Filter: All Devices, Simulators, Physical Devices, —, Sort By ▸ Name, OS
-  Version. **Ycode decision (Q10):** no sort is chosen by default: physical
+  Version. **SwiftCode decision (Q10):** no sort is chosen by default: physical
   devices first, then simulators by platform, name and version (`simctl`'s
-  list), Ycode's own simulators last; choosing the checked sort again
+  list), SwiftCode's own simulators last; choosing the checked sort again
   returns to that order.
 
 ### I.4 Canvas and controls
@@ -696,7 +696,7 @@ Open in New Window needs a running Ycode simulator.
   Start or Shut Down runs, a spinner instead (Q1).
 - Frame buttons → the stream's buttons: Sleep/Wake and the iPad's top button
   → `lock`, volume → `volumeUp` / `volumeDown`, Action → `side`
-  (`hid-input.md` §5.5). **Ycode decision.**
+  (`hid-input.md` §5.5). **SwiftCode decision.**
 
 ### I.5 Commands and key equivalents (Q9, Q11, Q13)
 
@@ -704,12 +704,12 @@ Open in New Window needs a running Ycode simulator.
 |---|---|---|
 | Home | ⇧⌘H | |
 | Lock | ⌘L | |
-| App Switcher | — | Home pressed twice, 250 ms apart (**Ycode decision**) |
+| App Switcher | — | Home pressed twice, 250 ms apart (**SwiftCode decision**) |
 | Action Button | — | the side usage; shown for devices with one |
 | Rotate Left / Right | ⌘← / ⌘→ | the cycle portrait → landscape left → landscape right (upside down is not offered by Rotate; the guest path refuses it) |
 | Screenshot | ⇧⌘S | the reference's |
 | Record Screen / Stop Recording | ⇧⌘R | |
-| Volume Up / Down | ⌥⌘↑ / ⌥⌘↓ | Ycode's |
+| Volume Up / Down | ⌥⌘↑ / ⌥⌘↓ | SwiftCode's |
 | Zoom In / Out / to Fit / Physical Size | ⌘+ / ⌘− / ⌘9 / ⌘0 | hub and expanded window |
 | Keyboard Capture | ⇧⌘K | |
 | Closed / Partially Open / Open | ⌥⌘1 / ⌥⌘2 / ⌥⌘3 | the iPhone Duo |
@@ -724,8 +724,8 @@ failures.
 
 - **Start** (status view, More Actions, context menu) runs the launcher
   over ssh without an app, with the display server (`RemoteSimulator.
-  startCommand`: `mkdir -p <data>/display; echo YCODE-REMOTE-PID $$; exec
-  env YCODE_WARM_BOOT=… <launcher> --device DEV --runtime-root RR
+  startCommand`: `mkdir -p <data>/display; echo SWIFTCODE-REMOTE-PID $$; exec
+  env SWIFTCODE_WARM_BOOT=… <launcher> --device DEV --runtime-root RR
   [--device-type T] --display-server unix:<data>/display/<device dir>.sock
   [extra options]`) — warm boot restores the saved device as for a run.
   **Shut Down** sends SIGINT to the launcher (with warm boot the device is
@@ -739,7 +739,7 @@ failures.
   snapshot fingerprint, so the first run after this change boots cold once.
 - **The live display** of a running device: `ssh -N -o
   ExitOnForwardFailure=yes -o StreamLocalBindUnlink=yes -L
-  <tmp>/ycode-hub-<pid>-<n>.sock:<host socket> <destination>` (keys only),
+  <tmp>/swiftcode-hub-<pid>-<n>.sock:<host socket> <destination>` (keys only),
   restarted when it ends; one `DeviceLiveSession` per device feeds the
   canvas and the device's compact window together (the stream takes one
   viewer at a time, so they share it). The session reconnects every second
@@ -760,13 +760,13 @@ failures.
 - Q4: choosing an inspector tab shows a collapsed inspector; clicking the
   selected tab does nothing more.
 - Q8: no rotation animation.
-- Launch options of Ycode.app for verification runs (the argument
-  domain): `-YcodeOpenDeviceHub YES` opens the hub once the first
-  workspace window shows; `-YcodeDeviceHubSelect <row name>`,
-  `-YcodeDeviceHubSearch <text>`, `-YcodeDeviceHubTab
-  settings|reports|info`, `-YcodeDeviceHubStart YES`,
-  `-YcodeDeviceHubCompact YES` (the compact window once the display is
-  live). `YCODE_DEVICE_CAPTURE_DIR` puts screenshots and recordings in
+- Launch options of SwiftCode.app for verification runs (the argument
+  domain): `-SwiftCodeOpenDeviceHub YES` opens the hub once the first
+  workspace window shows; `-SwiftCodeDeviceHubSelect <row name>`,
+  `-SwiftCodeDeviceHubSearch <text>`, `-SwiftCodeDeviceHubTab
+  settings|reports|info`, `-SwiftCodeDeviceHubStart YES`,
+  `-SwiftCodeDeviceHubCompact YES` (the compact window once the display is
+  live). `SWIFTCODE_DEVICE_CAPTURE_DIR` puts screenshots and recordings in
   another directory (tests).
 - The viewer's command line is unchanged except `--zoom` (now the compact
   window's scale; default: the saved one). Script commands added:
@@ -777,39 +777,39 @@ failures.
 
 ### I.7 Verification
 
-All on Ycode's own simulator on the Thor (iOS 27.1 runtime 24A94401 and
-27.0 runtime 24A434, this branch's `ycode-simd` with the hello's new keys,
-the launcher `scripts/ycode-sim.sh` with warm boot) and Ycode's own windows
-on the Mac (`screencapture -l <window id>` of the viewer's and Ycode.app's
-windows only; Ycode.app run as a test bundle with its own preferences
-domain and the launch options of I.6's `-YcodeOpenDeviceHub` family).
+All on SwiftCode's own simulator on the Thor (iOS 27.1 runtime 24A94401 and
+27.0 runtime 24A434, this branch's `swiftcode-simd` with the hello's new keys,
+the launcher `scripts/swiftcode-sim.sh` with warm boot) and SwiftCode's own windows
+on the Mac (`screencapture -l <window id>` of the viewer's and SwiftCode.app's
+windows only; SwiftCode.app run as a test bundle with its own preferences
+domain and the launch options of I.6's `-SwiftCodeOpenDeviceHub` family).
 
 | Check | Result |
 |---|---|
-| Viewer, iPhone Duo (`ycode-sim-viewer --script`) | compact window 391 × 621 titled "iPhone Duo" / "iOS 27.1" (from the hello); frame with the cover's 8-point hinge-side corners, Action, volume and Sleep/Wake bars; control row with the Closed pill. Open → the window turns wide at the same scale (inner panel, 2853 × 2007 upright); Partially Open → hinge line and shaded half, pill on Partially Open; Rotate Left → tall window, frame turned; Rotate Right back; Closed → portrait again; `window-size 420` keeps the aspect; Hide Bezels → the screen alone; Capture Keyboard → the notice; Expand → the expanded form (Capture Keyboard, zoom segments with Zoom to Fit selected, Open in New Window │ More), Open in New Window → compact |
+| Viewer, iPhone Duo (`swiftcode-sim-viewer --script`) | compact window 391 × 621 titled "iPhone Duo" / "iOS 27.1" (from the hello); frame with the cover's 8-point hinge-side corners, Action, volume and Sleep/Wake bars; control row with the Closed pill. Open → the window turns wide at the same scale (inner panel, 2853 × 2007 upright); Partially Open → hinge line and shaded half, pill on Partially Open; Rotate Left → tall window, frame turned; Rotate Right back; Closed → portrait again; `window-size 420` keeps the aspect; Hide Bezels → the screen alone; Capture Keyboard → the notice; Expand → the expanded form (Capture Keyboard, zoom segments with Zoom to Fit selected, Open in New Window │ More), Open in New Window → compact |
 | Frame buttons | `frame-button side` (a mouse click on the drawn Sleep/Wake bar) locked the device (lock screen, 82 % of the picture changed in 2.75 s); again + Home unlocked it; `frame-button volumeUp` showed the guest's volume indicator |
 | Screenshot, recording | Screenshot: "Screenshot Saved", a 1398 × 2034 PNG of the cover; Record → Stop after 4 s: "Recording Saved", an H.264 movie 1398 × 2034, 4.0 s |
-| Hub, iPhone Duo | Device Hub from the launch option, the Duo selected, **Start** → warm restore (home screen 7.7 s after `ycode-simd` started); the canvas showed the live screen in the frame with the control row; the Settings tab read the device's settings (Light, …, System) once live; its compact window opened from the same session (both live at once) |
+| Hub, iPhone Duo | Device Hub from the launch option, the Duo selected, **Start** → warm restore (home screen 7.7 s after `swiftcode-simd` started); the canvas showed the live screen in the frame with the control row; the Settings tab read the device's settings (Light, …, System) once live; its compact window opened from the same session (both live at once) |
 | Hub, iPhone 18 Pro (27.0) | Start → "Starting… N s" on the frame's dark screen, then a cold boot to the home screen in 76.9 s; canvas, compact window 340 × 751 ("iPhone 18 Pro" / "iOS 27.0"), Info tab (Name, OS, Model, State Booted, Identifier, Available, Edit Visibility); Rotate shown disabled (the stream turns foldables only) |
 | Hub, iPad (A16) (27.1) | Start → cold boot, home screen in 120.6 s; iPad frame (20-point band, top button near the right corner, volume on the right edge) in the canvas and the compact window |
-| Quit | quitting Ycode sent Shut Down to the started device: "stop: the device was saved", the next Start restored it |
-| Sidebar | the Mac's own `simctl` simulators and paired devices listed with Ycode's (Available; a disconnected device under Unavailable), search "Ycode" narrowed the list, the running row's glyph lit on a white disc |
+| Quit | quitting SwiftCode sent Shut Down to the started device: "stop: the device was saved", the next Start restored it |
+| Sidebar | the Mac's own `simctl` simulators and paired devices listed with SwiftCode's (Available; a disconnected device under Unavailable), search "SwiftCode" narrowed the list, the running row's glyph lit on a white disc |
 | visionOS | not run this round (no visionOS device in this data area); the canvas draws it without a frame by `DeviceFrameSpec.visionPro` (unit tests) |
-| Created Apple Vision Pro (IDE-SMALL, §I.11) | the hub's Start command for a device created by Add Device ▸ Apple Vision Pro… (`--device-type vision-pro`, the visionOS 27.0 runtime root, the display server, cold boot) run over ssh with the host's launcher: the device directory was made at boot, `ycode-simd` reported "device type vision-pro (Apple Vision Pro, RealityDevice14,1, 3840x2160 @2)", and the 180 s frame showed the room with the Home View; Shut Down (SIGINT to the printed pid) stopped it in 11 s, and Delete…'s command (`ycode-sim --erase --device …`) erased it |
+| Created Apple Vision Pro (IDE-SMALL, §I.11) | the hub's Start command for a device created by Add Device ▸ Apple Vision Pro… (`--device-type vision-pro`, the visionOS 27.0 runtime root, the display server, cold boot) run over ssh with the host's launcher: the device directory was made at boot, `swiftcode-simd` reported "device type vision-pro (Apple Vision Pro, RealityDevice14,1, 3840x2160 @2)", and the 180 s frame showed the room with the Home View; Shut Down (SIGINT to the printed pid) stopped it in 11 s, and Delete…'s command (`swiftcode-sim --erase --device …`) erased it |
 
-Before and after (outside the repository): the old viewer (title "Ycode
+Before and after (outside the repository): the old viewer (title "SwiftCode
 Simulator Viewer", stream filling the window, the fold bar, push buttons,
 status line) and the old Devices and Simulators window (switch, list,
 bold key-value details) against the compact window and the hub above.
 
-Tests: `YcodeDeviceModelTests` (frame geometry, turning, hit testing,
+Tests: `SwiftCodeDeviceModelTests` (frame geometry, turning, hit testing,
 zoom, physical size, compact layout, sidebar sections, filter, search,
 sort, collapse, canvas states, commands, key equivalents, capture names;
-also on Linux), `YcodeDeviceUITests` (window title and shape, aspect on
+also on Linux), `SwiftCodeDeviceUITests` (window title and shape, aspect on
 resize, reshaping on the Duo's panel and rotation, bezels, More Actions,
 the expanded form and zoom, canvas states and controls, frame hit testing
 and button mapping, Capture Keyboard and banners, the hinge slider, the
-menus' titles, keys and validation), and in `YcodeUITests`
+menus' titles, keys and validation), and in `SwiftCodeUITests`
 `FoldControlsTests`, `OrganizerTests`, `SimulatorSideR37Tests`,
 `RunTargetTests` (the display server in the run command),
 `MenuBarGoldenTests` and `MenuBarBehaviorTests` (Open Developer Tool ▸
@@ -829,7 +829,7 @@ sources).
   the mouse, trackpad and keys (`visionos.md` §5.5.8 item 4), Controls ▸
   Reset Camera and Device ▸ Room (the six rooms, switched live) are
   there; the reference's segmented interaction modes, Capture Pointer and
-  the Settings inspector's Simulated Scenes are not (Ycode's mapping uses
+  the Settings inspector's Simulated Scenes are not (SwiftCode's mapping uses
   modifiers instead of modes).
 - Physical devices are listed (from `devicectl`) but not shown or operated;
   other `simctl` simulators are listed with their picture and no Start.
@@ -839,16 +839,16 @@ sources).
 ### I.9 Pairs of phones and watches (PAIR-IDE, 2026-10-30)
 
 Clean-room work from `specs/simulator/device-pairing.md` (§2, §6, §8.2,
-§11.4, P-8, P-9), `watchos.md` §8, §12 and this spec's §4.1, §5.2. Ycode's
+§11.4, P-8, P-9), `watchos.md` §8, §12 and this spec's §4.1, §5.2. SwiftCode's
 results and runs are in `device-pairing.md` §13. Every change is one
-`ycode-sim` pairing command over ssh; the hub then reads the host's pairs
-again (`ycode-sim list-pairs --json`). No Apple simulator, Xcode or
+`swiftcode-sim` pairing command over ssh; the hub then reads the host's pairs
+again (`swiftcode-sim list-pairs --json`). No Apple simulator, Xcode or
 Device Hub was run or observed.
 
-- **Pairs shown.** A Ycode iPhone with an active pair shows the capsule
+- **Pairs shown.** A SwiftCode iPhone with an active pair shows the capsule
   "Paired with <watch row name> ›" between the device and its control row
   (§4.1; under the picture when it is not running); a paired watch shows
-  "Paired with <phone row name> ›" (**Ycode decision**: §4.1 names the
+  "Paired with <phone row name> ›" (**SwiftCode decision**: §4.1 names the
   phone's capsule only). Clicking it selects the other device. A glass
   capsule 28 points tall, a trailing `chevron.right`. Info adds, for an
   iPhone: Active Watch (its name, or "None"), Paired Watches (each name,
@@ -857,18 +857,18 @@ Device Hub was run or observed.
   and Pairing (the last command's outcome: "Pairing…", "Paired (<UUID>)",
   "Unpaired; the watch was erased", "Active", "Failed: …"). These rows show
   only when a watchOS runtime root is set up or a pair exists.
-- **Context menu** (Q6, **Ycode decision**), after Open in New Window: an
+- **Context menu** (Q6, **SwiftCode decision**), after Open in New Window: an
   iPhone's **Pair Watch…**, then per pair **Make “<watch>” Active** (the
   inactive ones) and **Unpair “<watch>”**; a watch's **Unpair from
   “<phone>”**; **Delete…** for a device created in the hub (not while it
   runs; refused while it is paired: "Unpair “<name>” before deleting it.").
   Unpair asks first ("Unpair “<watch>” from “<phone>”?", "The watch is shut
   down and erased: its apps, their data and its settings are deleted. The
-  iPhone is kept.", Unpair / Cancel), as `ycode-sim unpair` erases the
+  iPhone is kept.", Unpair / Cancel), as `swiftcode-sim unpair` erases the
   watch (P-3).
 - **Pair Watch…** (§7's Device ▸ "Pair Apple Watch…" names the command;
   its form was not observed, §10 Q6 of `device-pairing.md`): a sheet
-  "Pair a Watch with “<phone>”" with **Watch:** (the Ycode watches that have
+  "Pair a Watch with “<phone>”" with **Watch:** (the SwiftCode watches that have
   no pair — a watch pairs with one phone, `device-pairing.md` §2.3 — then
   "New Watch"), and the New Simulator form's rows (§2.3) for a new watch,
   **Name:** (placeholder: the model), **OS Version:** ("watchOS 27.0", one
@@ -876,37 +876,37 @@ Device Hub was run or observed.
   offers, `watchos.md` §11.3), enabled for New Watch only; Pair / Cancel.
 - **Add Device ▸ Apple Watch…** (now enabled when a watchOS runtime is set
   up) creates a watch with the same three rows. **Add Device ▸ iPhone
-  with Paired Watch…** (**Ycode decision** for "create an iPhone with a
+  with Paired Watch…** (**SwiftCode decision** for "create an iPhone with a
   paired watch in one step"; §2.3 lists no such item) creates an iPhone
   (Name, OS Version "iOS 27.0", Model: the phone that runtime offers,
   `iphone-types.md` §5 I3) and a watch (under a "Paired Watch" header) and
   pairs them; the phone's first pair is active (`device-pairing.md` §2.2).
-- **Created devices** (**Ycode decision**): `RemoteCreatedDevice` {name,
+- **Created devices** (**SwiftCode decision**): `RemoteCreatedDevice` {name,
   type id, runtime root, directory} in the defaults key
-  `Ycode.remote.createdDevices` (JSON); the directory is `<device
+  `SwiftCode.remote.createdDevices` (JSON); the directory is `<device
   name>-<type id>-<runtime version>-<8 hex digits>` under `<data>/devices`.
   Each is a hub row with its own name (subtitle "Simulator"), a run
-  destination (identifier `ycode-remote-simulator:device:<directory>`) and
-  the other Ycode-simulator commands. Delete erases it on the host
-  (`ycode-sim --erase`) and forgets it.
+  destination (identifier `swiftcode-remote-simulator:device:<directory>`) and
+  the other SwiftCode-simulator commands. Delete erases it on the host
+  (`swiftcode-sim --erase`) and forgets it.
 - **Commands.** Pair: the devices that never booted get their type record
-  first (`ycode-device-type`, what a boot writes; `ycode-simd` refuses to
+  first (`swiftcode-device-type`, what a boot writes; `swiftcode-simd` refuses to
   pair a directory without one, `device-pairing.md` §8.2), then
-  `exec env YCODE_SIM_DEVICE_SET='<data>/devices' '<launcher>' pair
+  `exec env SWIFTCODE_SIM_DEVICE_SET='<data>/devices' '<launcher>' pair
   '<watch dir>' '<phone dir>'`; the last line that is a UUID is the pair.
   Unpair and Make Active: `… unpair <pair>`, `… pair-activate <pair>`.
   The hub reads the pairs when it opens, after each command and every
   eighth state poll (about 16 s) while it shows; the listing is kept in the
-  defaults (`Ycode.remote.pairs`) so the run destinations stay put across
+  defaults (`SwiftCode.remote.pairs`) so the run destinations stay put across
   launches.
 - **The watch's compact window** is the existing one (`watchos.md` §11.3,
   §12): Open in New Window on a running watch row; the scroll wheel turns
   the crown.
 
-Code: `YcodeUI` `DevicesController+Pairing.swift` (`HubPairing`,
+Code: `SwiftCodeUI` `DevicesController+Pairing.swift` (`HubPairing`,
 `HubDeviceForm`, `HubDeviceFields`), `WorkspaceWindowController+RemotePairing.swift`,
-`DeviceHubToolbar.addItems`; `YcodeDeviceUI` `DeviceCanvasView.pairedTitle`;
-`YcodeIDECore` `RemotePairing.swift` (`RemoteDevicePair`,
+`DeviceHubToolbar.addItems`; `SwiftCodeDeviceUI` `DeviceCanvasView.pairedTitle`;
+`SwiftCodeIDECore` `RemotePairing.swift` (`RemoteDevicePair`,
 `RemotePairListing`, `RemoteCreatedDevice`, `RemotePairsStore`, the
 commands). Tests: `PairIDEHubTests`, `PairIDETests`, the opt-in
 `PairedRunEndToEndTests`.
@@ -917,10 +917,10 @@ Clean-room work from `specs/simulator/device-pairing.md` §14 (P-14) and
 `watchos.md` §5.2. No Apple simulator, Xcode or Device Hub was run or
 observed.
 
-- **Make “<watch>” Active on a running iPhone** (P-14, **Ycode
+- **Make “<watch>” Active on a running iPhone** (P-14, **SwiftCode
   decision**): the reference's phone apps keep their WatchConnectivity
   session with the previous watch until the phone restarts
-  (`device-pairing.md` §14.1), and so do Ycode's. After the switch the hub
+  (`device-pairing.md` §14.1), and so do SwiftCode's. After the switch the hub
   shows an alert "“<watch>” is now the active watch of “<phone>”." with the
   text "Apps on the iPhone keep using the previous watch until the iPhone
   restarts. Restart the iPhone now to connect its apps to “<watch>”." and
@@ -935,12 +935,12 @@ observed.
   stream's new button `action` (value 6, `display-stream.md` §5.3) when the
   server lists "action" in its hello, else `side` as before. Controls ▸
   Lock sends the screen toggle (0x0C/0x30). The usage pairs come from one
-  table, `DeviceButtonTable` (YcodeDisplayStream), which the server's
+  table, `DeviceButtonTable` (SwiftCodeDisplayStream), which the server's
   input bridge and the `button` command use.
 
 Code: `DevicesController+Pairing.swift` (`HubPairing.offerPhoneRestart`,
 `restartTask`, `DevicesController.activate(_:)`),
-`YcodeDeviceUI` `DeviceLiveSession.displayButton(for:)`. Tests:
+`SwiftCodeDeviceUI` `DeviceLiveSession.displayButton(for:)`. Tests:
 `PairIDEHubTests.makeActiveOffersToRestartARunningIPhone`,
 `WatchWindowTests` (the frame buttons).
 
@@ -948,7 +948,7 @@ Code: `DevicesController+Pairing.swift` (`HubPairing.offerPhoneRestart`,
 
 Clean-room work from §2.3 (the New Simulator form), §I.9 (created devices)
 and `specs/simulator/visionos.md` §2.1, §3 (V-1: the Apple Vision Pro type,
-`vision-pro` in `ycode-simd`, runs only on visionOS (xrOS) runtimes). No
+`vision-pro` in `swiftcode-simd`, runs only on visionOS (xrOS) runtimes). No
 Apple simulator, Xcode or Device Hub was run or observed.
 
 - **visionOS runtimes.** A runtime root of Settings ▸ Simulators whose
@@ -957,7 +957,7 @@ Apple simulator, Xcode or Device Hub was run or observed.
   bundle's `Contents/Resources/RuntimeRoot`; not the directories above it)
   names `xrOS` or `visionOS`, is a visionOS runtime (the same rule for
   `watchOS`).
-  It gives one fixed hub row "Apple Vision Pro (Ycode)" (device directory
+  It gives one fixed hub row "Apple Vision Pro (SwiftCode)" (device directory
   `<device name>-vision-pro-<runtime version>`, `RemoteSimulatorSettings.visionTargets`),
   and its roots no longer produce iPhone and iPad rows (they did when every
   root that was not watchOS counted as iOS).
@@ -971,16 +971,16 @@ Apple simulator, Xcode or Device Hub was run or observed.
 - **Start** sends the hub's start command with `--device-type vision-pro`
   and the visionOS runtime root; the launcher makes the device directory
   at its first boot, which ends in the room. **Delete…** (not while it
-  runs) erases it on the host (`ycode-sim --erase`) and forgets it.
-- **Not yet** (**Ycode decision**): Vision Pro rows are not run
+  runs) erases it on the host (`swiftcode-sim --erase`) and forgets it.
+- **Not yet** (**SwiftCode decision**): Vision Pro rows are not run
   destinations; visionOS apps run from the command line
-  (`ycode-sim --install-app`, `visionos.md`). Apple TV… stays disabled
+  (`swiftcode-sim --install-app`, `visionos.md`). Apple TV… stays disabled
   (no tvOS simulator).
 
-Code: `YcodeIDECore` `RemoteSimulatorTargets.swift`
-(`YcodeSimulatorDeviceType.visionPro`, `visionTargets`,
+Code: `SwiftCodeIDECore` `RemoteSimulatorTargets.swift`
+(`SwiftCodeSimulatorDeviceType.visionPro`, `visionTargets`,
 `runtimePlatform(forRoot:)`), `RemotePairing.swift`
-(`newDeviceTypes(platform:root:)`); `YcodeUI`
+(`newDeviceTypes(platform:root:)`); `SwiftCodeUI`
 `DevicesController+Pairing.swift` (`presentNewVisionDevice`,
 `canCreateVisionDevices`, `HubDeviceForm.Kind.newVision`),
 `DeviceHubToolbar.addItems`. Tests: `VisionHubTests` (a stand-in ssh and
@@ -991,15 +991,15 @@ launcher). Thor check: see §I.7's table (IDE-SMALL row).
 Clean-room work from `specs/simulator/xr-viewer.md` (the headset viewer),
 `display-stream.md` §1 (one viewer at a time), `sim-link.md`,
 `visionos.md` §5.5–§5.6 (pose, gaze, the display's size sets the field of
-view), `simframebuffer.md` (Ycode's framebuffer library), WiVRn's user
+view), `simframebuffer.md` (SwiftCode's framebuffer library), WiVRn's user
 documentation and its running server's D-Bus properties (an external
 program, studied black-box as an interoperation target; no WiVRn code
 read or used), Meta's public Quest documentation and the Khronos OpenXR
 loader's documentation. No Apple binary, Xcode, Device Hub or Simulator was
-opened, run or observed; this is a Ycode feature (the reference has no
+opened, run or observed; this is a SwiftCode feature (the reference has no
 headset view of a simulator).
 
-**What it is.** A running Ycode Vision Pro moves between the hub's canvas
+**What it is.** A running SwiftCode Vision Pro moves between the hub's canvas
 and an OpenXR headset (a Meta Quest through WiVRn on a Linux PC, the
 **viewer host**), both ways, without restarting the device. A guided
 setup, **Set Up Headset…**, gets a developer from nothing to a working
@@ -1008,7 +1008,7 @@ live check, its reason and its exact fix.
 
 #### I.12.1 Where it shows
 
-- **Settings tab** of a Ycode visionOS simulator: a **Headset** box — the
+- **Settings tab** of a SwiftCode visionOS simulator: a **Headset** box — the
   status capsule (**Not Set Up** / **Ready** / **In Headset**), **Set Up
   Headset…**, **View in Headset** / **Back to Desktop**, the **Display**
   pop-up (§I.12.5) and a one-line note (what step needs the user, or that
@@ -1030,7 +1030,7 @@ live check, its reason and its exact fix.
   viewer takes the display (a second window, a script), the capsule says
   "Another viewer has this device" with **Take Back**.
 
-**The onboarding's look** is `liquid-glass-ycode.md` §11, the paged
+**The onboarding's look** is `liquid-glass-swiftcode.md` §11, the paged
 assistant: one centred page per step (glyph, title, summary, then the
 choices and the step's checks in a grouped box), page dots for progress
 that also jump between steps, and Back / Re-check / Continue (Finish on the
@@ -1038,7 +1038,7 @@ last step) in the footer, with a push between pages (a crossfade under
 Reduce Motion). Step glyphs: Viewer Host `server.rack`, Workstation `shippingbox`,
 Headset `eyeglasses`, Tracking `hand.raised`, Connect `link`.
 
-#### I.12.2 The checklist (`HeadsetChecker`, YcodeIDECore)
+#### I.12.2 The checklist (`HeadsetChecker`, SwiftCodeIDECore)
 
 Five steps (the onboarding's left column, each with its state): **Viewer
 Host**, **Workstation**, **Headset**, **Tracking**, **Connect**. Every
@@ -1055,7 +1055,7 @@ each has a reason and at most one fix.
 | OpenXR runtime | `$XR_RUNTIME_JSON` or `~/.config/openxr/1/active_runtime.json` (or `/etc/openxr/1/…`), and `/usr/share/openxr/1/openxr_wivrn.json` | names WiVRn: ok. Another or none but WiVRn's manifest is there: ok — WiVRn makes itself the active runtime while a headset is connected (its documentation), and the viewer is started with `XR_RUNTIME_JSON` naming WiVRn's manifest for its own process; nothing in the user's configuration changes. No manifest: missing |
 | WiVRn server installed | `wivrn-server --version` ("WiVRn version 26.9") | fix `sudo apt install wivrn-server wivrn-dashboard` |
 | WiVRn server running | `pgrep -x wivrn-server` | fix `systemctl --user start wivrn` (or start the dashboard) |
-| ycode-xr-viewer | `<viewer> --help` | missing, or "too old for switching" without `--state-file`; fix: build it on the viewer host (`swift build -c release --product ycode-xr-viewer`) or copy it, and name its path |
+| swiftcode-xr-viewer | `<viewer> --help` | missing, or "too old for switching" without `--state-file`; fix: build it on the viewer host (`swift build -c release --product swiftcode-xr-viewer`) or copy it, and name its path |
 | Route to the simulator | `ssh -o BatchMode=yes <simulator host> true` (ssh route) | link route: ok; no device selected: unknown; fails: fix `ssh-copy-id <simulator host>` |
 | adb | `command -v adb` | missing over USB (fix `sudo apt install adb`); unknown over Wi-Fi |
 | Headset on USB | `adb devices -l`, `lsusb -d 2833:` (Meta's USB vendor) | `device`: ok, the model ("Quest Pro"); `unauthorized`: "Put the headset on and accept Allow USB debugging"; `no permissions`: udev rules, fix `sudo apt install android-sdk-platform-tools-common && sudo usermod -aG plugdev $USER`; on USB but not listed: "developer mode is needed" — turn it on in the Meta Horizon app (Devices ▸ the headset ▸ Headset Settings ▸ Developer Mode; a verified Meta developer account is required); neither: "Not connected." A Quest is preferred when several are listed; emulators are ignored; `-s <serial>` from then on |
@@ -1070,16 +1070,16 @@ and eye tracking) and those that may stay unknown (USB items over Wi-Fi, an
 unchecked route, an unreadable GPU). The capsule shows Ready or Not Set
 Up after a check; In Headset while the headset has the device.
 
-**Installs are never silent** (Ycode decision). Nothing runs sudo: system
+**Installs are never silent** (SwiftCode decision). Nothing runs sudo: system
 packages are shown as commands with a **Copy** button and "Run this
 yourself on <host>". **Install on Headset…** shows first what it is and
 where it comes from — WiVRn's headset app, the server's version, from
 WiVRn's own releases
 (`https://github.com/WiVRn/WiVRn/releases/download/v<version>/WiVRn-release.apk`),
-a separate GPLv3 program that Ycode does not bundle, and the Meta Store as
+a separate GPLv3 program that SwiftCode does not bundle, and the Meta Store as
 the alternative — and only after **Download and Install** runs on the
 viewer host: `curl -fL` into a temporary directory, a check against the
-release's published SHA-256 when Ycode knows it (26.9:
+release's published SHA-256 when SwiftCode knows it (26.9:
 `1df6649e…11331`, from GitHub's release API; otherwise the dialog says the
 download is not verified), `adb -s <serial> install -r`, and the
 temporary directory removed. **Connect** runs, as WiVRn's documentation
@@ -1090,7 +1090,7 @@ headset is not connected (USB).
 
 **Settings** (`HeadsetSettings`, the IDE's defaults, one set): the viewer
 host (ssh destination; empty: this machine on Linux, none on a Mac), the
-viewer's path (default `ycode-xr-viewer`), USB or Wi-Fi, the simulator
+viewer's path (default `swiftcode-xr-viewer`), USB or Wi-Fi, the simulator
 host as the viewer host names it (empty: the hub's own destination), and
 the viewer's options (default `--foveate`).
 
@@ -1119,19 +1119,19 @@ come back.
   (`takeBack`): it connects at once, which takes the display from the
   headset.
 - **Not fighting** (`display-stream.md` §1.1, new): every viewer —
-  the hub's canvas, the macOS and Linux `ycode-sim-viewer`, the headset
+  the hub's canvas, the macOS and Linux `swiftcode-sim-viewer`, the headset
   viewer — that receives the takeover notice stops reconnecting (before:
   each reconnected after 1 s, and two viewers took the display from each
   other forever). The canvas and the Linux viewer offer Take Back (a click
   on the screen in the Linux viewer); the headset viewer ends.
 - **The viewer on the viewer host** (`HeadsetViewerPlan`,
   `ScriptHeadsetViewerLauncher`): one directory per device,
-  `${XDG_RUNTIME_DIR:-/tmp}/ycode-headset/<device>` (mode 0700), holding
+  `${XDG_RUNTIME_DIR:-/tmp}/swiftcode-headset/<device>` (mode 0700), holding
   `viewer.pid`, `forward.pid`, `state.json`, `viewer.log` and, on the ssh
   route, the forwarded display socket. Start: `setsid nohup ssh -N -L
   <dir>/display.sock:<device's socket> <simulator host>` (keys only,
   `ExitOnForwardFailure`), wait for the socket (≤ 5 s), then `setsid nohup
-  ycode-xr-viewer --connect unix:<dir>/display.sock --state-file
+  swiftcode-xr-viewer --connect unix:<dir>/display.sock --state-file
   <dir>/state.json <options>` with `XR_RUNTIME_JSON` naming WiVRn's
   manifest when it exists (link route: `--link <device> [--host N]`, no
   forward). A viewer already running for the device is left alone. State:
@@ -1141,7 +1141,7 @@ come back.
   `ssh`; no `pkill`. Polled every 0.2 s while entering, once a second in the headset.
 - **Head pose and camera.** Entering: the viewer anchors the stage at the
   wearer's head (`xr-viewer.md` §3), so the headset starts at the guest's
-  default eye point, as a fresh headset session does. Returning (**Ycode
+  default eye point, as a fresh headset session does. Returning (**SwiftCode
   decision**): the desktop sends **its own camera as it was before the
   switch** (`DeviceView.restoreSpatialCamera`, on the new hello); the
   wearer's last head pose, tilt included, never stays on the desktop.
@@ -1163,12 +1163,12 @@ changed.
 The headset wants a tall display (2160 × 3840: 90° × 121°), the desktop
 3840 × 2160 (90° × 58.7°; `visionos.md` §5.6.6).
 
-**Can Ycode change it live? No (measured, Thor, 2026-11-02).** A
-diagnostic in Ycode's framebuffer library
-(`YCODE_FRAMEBUFFER_LIVE_SIZE=1`: a file the library polls on the
+**Can SwiftCode change it live? No (measured, Thor, 2026-11-02).** A
+diagnostic in SwiftCode's framebuffer library
+(`SWIFTCODE_FRAMEBUFFER_LIVE_SIZE=1`: a file the library polls on the
 display-updated handler's queue, giving a new size and calling the
 display-updated handler, or the disconnected-then-connected handlers) and
-its call log (`YCODE_FRAMEBUFFER_CALLS=1`) on a visionOS 27.0 boot: the
+its call log (`SWIFTCODE_FRAMEBUFFER_CALLS=1`) on a visionOS 27.0 boot: the
 only process that uses the library asks `SFBConnectionCreate`, `Connect`,
 `CopyDisplays`, `DisplayGetType`, `GetCurrentMode`, `GetDeviceSize` (twice)
 and `CreateSwapchain` once at start and then only swaps (1022 swaps
@@ -1177,11 +1177,11 @@ so the library has no way to tell it of a new size, and five size changes
 during the run changed nothing (every screenshot stayed 3840 × 2160, no
 crash). The size is read once, when the compositor starts.
 
-**So one size for both, chosen at boot** (Ycode decision):
+**So one size for both, chosen at boot** (SwiftCode decision):
 - **Display ▸ Desktop (3840 × 2160)** (the default, the device type's):
   the headset shows the guest's 90° × 58.7° (letterboxed vertically in the
   Quest Pro's 94° × 96°); the box's note says so.
-- **Display ▸ Headset (2160 × 3840)**: `ycode-simd --vision-display
+- **Display ▸ Headset (2160 × 3840)**: `swiftcode-simd --vision-display
   2160x3840` at the next start (an argument, so it is in the warm boot's
   fingerprint: a snapshot of the other size is not restored). The desktop
   shows **the picture's centre at 16:9**: the same 90° × 58.7° view as the
@@ -1202,24 +1202,24 @@ disconnected handlers) on its framebuffer connection, and does the
 reference ever change that simulator's display mode or size while it runs?
 If so: which process, what does it call after the handler (`GetCurrentMode`,
 `GetDeviceSize`, a new `CreateSwapchain`), and what is the handler's 64-bit
-argument (`simframebuffer.md` §9 Q2)? A yes would let Ycode switch the
+argument (`simframebuffer.md` §9 Q2)? A yes would let SwiftCode switch the
 size live on View in Headset.
 
 #### I.12.6 The Linux shell and the command line
 
 The shell has no device surface yet (its device window is
-`ycode-sim-viewer --link`, `sim-link.md` §11). The hook:
+`swiftcode-sim-viewer --link`, `sim-link.md` §11). The hook:
 `ShellRemoteRun.headsetArguments(destination:toHeadset:)` /
 `switchHeadset(…)` give a visionOS link destination's switch, carried out
 by `HeadsetCLI` with the viewer on this machine; the shell's device window
 waits while the headset has the display and takes it back on a click.
 
 ```
-ycode sim headset check [--viewer-host user@host] [--wifi] [--viewer PATH] [ROUTE]
-ycode sim headset view <device> [--viewer-host …] [--viewer PATH] [--wait S] ROUTE [-- viewer options]
-ycode sim headset desktop <device> | state <device>
-ycode sim remote [--host N] view <device> --xr --background [viewer options]   (= headset view … --link)
-ycode sim remote [--host N] view <device> --desktop [--no-window]             (= headset desktop, then the desktop viewer)
+swiftcode sim headset check [--viewer-host user@host] [--wifi] [--viewer PATH] [ROUTE]
+swiftcode sim headset view <device> [--viewer-host …] [--viewer PATH] [--wait S] ROUTE [-- viewer options]
+swiftcode sim headset desktop <device> | state <device>
+swiftcode sim remote [--host N] view <device> --xr --background [viewer options]   (= headset view … --link)
+swiftcode sim remote [--host N] view <device> --desktop [--no-window]             (= headset desktop, then the desktop viewer)
 ROUTE: --link [--host N] | --ssh <user@simhost> --socket <path>
 ```
 
@@ -1228,17 +1228,17 @@ when Ready.
 
 #### I.12.7 Code and tests
 
-Code: `YcodeIDECore` `HeadsetSetup.swift` (checks, fixes, actions,
+Code: `SwiftCodeIDECore` `HeadsetSetup.swift` (checks, fixes, actions,
 runners), `HeadsetSwitch.swift` (state machine, controller, plan,
-launcher), `HeadsetCLI.swift`; `YcodeUI` `DevicesController+Headset.swift`,
+launcher), `HeadsetCLI.swift`; `SwiftCodeUI` `DevicesController+Headset.swift`,
 `HeadsetSetupWindowController.swift`, `DeviceHubToolbar.swift`;
-`YcodeDeviceUI` (`DeviceLiveSession` hold / take back and the tall crop,
+`SwiftCodeDeviceUI` (`DeviceLiveSession` hold / take back and the tall crop,
 `ViewerConnection`, `DeviceCanvasView` capsule, `DeviceWindowController`
-toggle, `DeviceView.restoreSpatialCamera`); `YcodeRemoteViewer`
+toggle, `DeviceView.restoreSpatialCamera`); `SwiftCodeRemoteViewer`
 (`DisplayStreamClient`, `RemoteDeviceSession` take back);
-`YcodeDisplayStream` (`DisplayNotice`); `YcodeXRViewer/XRControl.swift`;
-`ycode-simd` `--vision-display`; `SimFramebuffer` live-size diagnostic;
-`YcodeIDEShell/ShellRemoteRun.swift`.
+`SwiftCodeDisplayStream` (`DisplayNotice`); `SwiftCodeXRViewer/XRControl.swift`;
+`swiftcode-simd` `--vision-display`; `SimFramebuffer` live-size diagnostic;
+`SwiftCodeIDEShell/ShellRemoteRun.swift`.
 
 Tests: `HeadsetChecklistTests` (every state above with a stand-in runner:
 host, GPU, loader, runtime, server, viewer, route, adb, USB states,
@@ -1248,14 +1248,14 @@ failures, timeout, device stop; the controller with stand-in launcher and
 desktop; the plan's commands; the plan's shell run for real with a
 stand-in viewer), `HeadsetHubTests` (macOS: the onboarding's steps and
 Re-check, View in Headset → Back to Desktop twice against a stand-in
-display server that hands over as `ycode-simd` does and a stand-in
+display server that hands over as `swiftcode-simd` does and a stand-in
 launcher; another viewer is not fought), `ShellRemoteRunTests.headsetHook`.
 Also `DeviceWindowTests.aTallVisionProShowsTheCentreAtTheDesktopsView` (the
 crop, its centre, the pointer's tangent at the top edge) and the opt-in
-`HeadsetHubTests.realDeviceThroughTheRealPath` (`YCODE_XR_HUB_LIVE`). Runs:
+`HeadsetHubTests.realDeviceThroughTheRealPath` (`SWIFTCODE_XR_HUB_LIVE`). Runs:
 §I.12.8.
 
-#### I.12.8 Runs (2026-11-02, Ycode's own device, no headset)
+#### I.12.8 Runs (2026-11-02, SwiftCode's own device, no headset)
 
 A tall Vision Pro of this branch (visionOS 27.0, `--vision-display 2160x3840`,
 boots `sw1`–`sw3`) on the Thor under other agents' load (load average about
@@ -1283,22 +1283,22 @@ at 1.42 s. The cause was not found; it did not recur in the 21 switches back
 after it. The target of about 2 s was met in 24 of 25 switches back and in all
 25 switches in.
 
-**The device kept running:** the same `ycode-simd` throughout, its status
+**The device kept running:** the same `swiftcode-simd` throughout, its status
 rising through every switch: uptime 150 → 227 s and `guestFrames` 3404 → 7083
 over 5 rounds, 380 → 525 s and 16005 → 24526 over 10. The headset viewer ended
 by itself each time the desktop took the display back.
 
 **A real tall stream in the hub** (`realDeviceThroughTheRealPath`): hello
 2160 × 3840, the canvas's picture 2160 × 1215, the room and home view in the
-right proportions, the pointer's space 1920 × 1080. Checked by eye in Ycode's
+right proportions, the pointer's space 1920 × 1080. Checked by eye in SwiftCode's
 window, drawn by the window server over the real picture
-(`screencapture -l` of Ycode's own window, placed off the screens): the In
+(`screencapture -l` of SwiftCode's own window, placed off the screens): the In
 Headset capsule and the setup window's panel. Those windows are inactive
 (the test host never takes the focus from the desktop), so the system draws
 them flat and Next without its tint; the tint is asserted as a property
 only and has not been seen.
 
-**The real workstation's checklist** (`ycode sim headset check`, read-only,
+**The real workstation's checklist** (`swiftcode sim headset check`, read-only,
 owner's x86 PC with the Quest Pro connected): all 15 checks ok, "status: Ready
 (connected)", exit 0: RTX 4060 Ti, WiVRn 26.9 on both sides,
 `org.meumeu.wivrn.github`, hands and eyes offered. Nothing was installed or
@@ -1323,10 +1323,10 @@ picture whole (no crop; only the macOS canvas crops).
 Clean-room work from §11 (checklist rows 65–67 of `fidelity-council.md`,
 "Round 3") and the sections it corrects (§4.4, §6), with Apple's public
 AppKit documentation. No Apple binary, Xcode, Device Hub or Simulator was
-opened, run or observed; the glyphs on Linux are Ycode's own drawings.
+opened, run or observed; the glyphs on Linux are SwiftCode's own drawings.
 
 **Row 65, the control capsules (both device windows).** One layout for
-macOS and Linux, `DeviceControlsLayout` (YcodeDeviceModel): capsules 36.5
+macOS and Linux, `DeviceControlsLayout` (SwiftCodeDeviceModel): capsules 36.5
 tall, glyphs on a 34-point pitch with the first and last 20 from the
 capsule's edges (three controls make 108), a 1-point divider after Rotate
 that adds 3.5 (Rotate and the three poses make 145.5), 7.5 between the
@@ -1342,19 +1342,19 @@ gone); the other glyphs in the label colour (black in light).
   floats them at its bottom in the hub and the compact window. Each button
   still sends its `DeviceCommand` to the canvas (Rotate: click left,
   Option-click right; Option-drag on a pose: the hinge slider).
-- Linux (`ycode-sim-viewer`, the SDL window): `DeviceWindowChrome`
-  (YcodeRemoteViewer) gives the same rectangles and each control's state
+- Linux (`swiftcode-sim-viewer`, the SDL window): `DeviceWindowChrome`
+  (SwiftCodeRemoteViewer) gives the same rectangles and each control's state
   and help; the window draws the glass (a soft shadow, a rim shaded #EBEBEB
-  → #E7E7E7, a fill #FDFCFC → #FAFAFA in light; Ycode's dark equivalents)
-  and Ycode's own glyphs (a 3 × 3 grid of dots, a camera in viewfinder
+  → #E7E7E7, a fill #FDFCFC → #FAFAFA in light; SwiftCode's dark equivalents)
+  and SwiftCode's own glyphs (a 3 × 3 grid of dots, a camera in viewfinder
   corners, a dot in a ring, a square with a curved arrow, the three poses,
   a circular arrow), with the current pose in #007AFF on #BFDDFE. The pose
   buttons send the stream's fold message (as the macOS window); Rotate
   turns left, Alt-click right. **Record is shown disabled** with the
-  tooltip "Record Screen is not in this beta" (**Ycode decision**: the
+  tooltip "Record Screen is not in this beta" (**SwiftCode decision**: the
   Linux viewer cannot record yet; the screenshot path gives single PNGs
   only). Tooltips show after 0.6 s over a control, above it.
-- Linux, the old push buttons (**Ycode decision**): the window has no
+- Linux, the old push buttons (**SwiftCode decision**): the window has no
   toolbar, so a 30-point glass circle "…" at its top right, 8 from the
   edges, is More Actions: Lock, Volume Up / Down, Rotate Right, Mute /
   Unmute Sound, Zoom to Fit / Point Accurate / Pixel Accurate (checked),
@@ -1369,14 +1369,14 @@ gone); the other glyphs in the label colour (black in light).
 
 **Row 67, the canvas.** The device is centred both ways in the space
 between the toolbar's bottom (the window's top on Linux) and the capsules'
-top. The frame's scale is unchanged (**Ycode decision** while §11.5 is
+top. The frame's scale is unchanged (**SwiftCode decision** while §11.5 is
 open): Zoom to Fit fits the frame into that space less 24 points on each
 side (Linux: 12), and a fitted device never brings up scroll bars. **No
 name or OS label is drawn on the canvas**: the toolbar's title and
 subtitle carry them. A stopped device is drawn at the same place and
 scale as a running one, and its **Start** (or a spinner and "Starting…"
 while it starts) sits in a glass capsule where the control capsules float;
-a simulator Ycode does not operate shows its picture alone. Toolbar
+a simulator SwiftCode does not operate shows its picture alone. Toolbar
 (§11.4): with the sidebar hidden, Add Device and Filter are hidden too
 (macOS 15 and later); the resize-mode toggle shares Capture Keyboard's
 capsule (`rectangle.inset.filled`, "Enter resize mode", shown with a
@@ -1385,7 +1385,7 @@ segments and the inspector tabs never fold into a pop-up; the Info tab is
 a plain "i" (`info`); every item fits at 1100 points with the sidebar
 shown or hidden (no overflow "»").
 
-**Row 66, the Settings inspector.** `InspectorCard` (YcodeUI): cards 260
+**Row 66, the Settings inspector.** `InspectorCard` (SwiftCodeUI): cards 260
 wide, 10 inside the 280-point inspector on each side, the first 8 under
 the toolbar, 10 apart, radius 12, filled #E6E6E7 in light (a step lighter
 than the inspector in dark), no border. Rows 42 tall with a 1-point
@@ -1395,20 +1395,20 @@ inside, the control at the trailing edge (a switch 13 inside, a borderless
 pop-up — its value and up/down chevron — about 14 inside, a slider 108
 wide). Cards: Appearance, Liquid Glass, Color Filter, Text Size and the
 five switches (9 rows); Location; Sound, Output, Input; then the Camera
-card with its note. A stopped Ycode simulator shows the same cards with
+card with its note. A stopped SwiftCode simulator shows the same cards with
 every row disabled and "Start the simulator to customize behavior and
 appearance." under them; another device shows one card holding "No
 settings are available for the selected device. …". The inspector's
 scroller is an overlay that shows only when the cards are taller than it.
 
-Code: `YcodeDeviceModel/DeviceControlsLayout.swift`;
-`YcodeDeviceUI/DeviceControlsRow.swift`, `DeviceCanvasView.swift`;
-`YcodeUI/Window/DeviceInspectorCard.swift`,
+Code: `SwiftCodeDeviceModel/DeviceControlsLayout.swift`;
+`SwiftCodeDeviceUI/DeviceControlsRow.swift`, `DeviceCanvasView.swift`;
+`SwiftCodeUI/Window/DeviceInspectorCard.swift`,
 `DevicesController+Settings.swift`, `DevicesController+Camera.swift`,
-`DeviceHubToolbar.swift`; `YcodeRemoteViewer/DeviceWindowChrome.swift`,
+`DeviceHubToolbar.swift`; `SwiftCodeRemoteViewer/DeviceWindowChrome.swift`,
 `ViewerLayout.swift` (the capsule band 44.5), `ViewerScript.swift`
 (`chrome more|close|hover <control>|click <control>|appearance
-light|dark`); `YcodeRemoteViewerSDL/RemoteDeviceWindow.swift`,
+light|dark`); `SwiftCodeRemoteViewerSDL/RemoteDeviceWindow.swift`,
 `ViewerMain.swift` (`--appearance`), `SDL.swift` (`SDL_GetSystemTheme`).
 Tests: `DeviceControlsLayoutTests` (sizes, pitch, divider, position, the
 device's centre; also on Linux), `DeviceCanvasR3Tests` (the capsules'
@@ -1437,7 +1437,7 @@ appearance resolution, the light palette).
 | Settings-window labels, "Quit and Shutdown Simulators" (§2.3) | 4 | strings of Device Hub (no level 1–3 source available) |
 | Key-combination preference values (§2.3) | 1 | Xcode 27 release notes |
 | "Quit and Keep Simulators Running", app menu without Settings… (§2.3) | 3 | menu bar |
-| §11 round 3: control capsules (size, position, material, glyph pitch), frame placement and size at Zoom to Fit, no label under the frame, inspector cards and row metrics, toolbar differences | 3 | Council round 3 Retina still of the hub window (1100 × 800, sidebar hidden, iPhone Duo on iOS 27.1, active) and Ycode's matching still; colour runs and ink boxes measured in the dirty room |
+| §11 round 3: control capsules (size, position, material, glyph pitch), frame placement and size at Zoom to Fit, no label under the frame, inspector cards and row metrics, toolbar differences | 3 | Council round 3 Retina still of the hub window (1100 × 800, sidebar hidden, iPhone Duo on iOS 27.1, active) and SwiftCode's matching still; colour runs and ink boxes measured in the dirty room |
 | Toolbar items, order, accessibility names and frames (§3) | 3 | accessibility tree; drawn extents from the capture |
 | Resize toggle, Zoom to Fit selected, paired-watch capsule, Info/Apps layout (§3, §4.1, §6) | 1 | Apple documentation screenshots |
 | Canvas states: Start, View Screen, Pair, status picture (§4.1) | 1 | "Configuring the environment…", "Managing your simulated and physical devices…", "Interacting with your app…" and screenshots |
@@ -1454,22 +1454,22 @@ appearance resolution, the light palette).
 | Keyboard capture (§4.6) | 1, 4 | WWDC26 session 260, visionOS documentation; DeviceKit strings for the notice |
 | Resize mode (§4.7) | 1 | "Configuring the environment of a simulated device" and its screenshot |
 | Sidebar sections, collapse, search empty state, row layout, filter menu (§5) | 3 | capture, accessibility tree, filter control pressed |
-| Row glyph colour for running vs shut down (§5.2) | 3 | `ycode-test-hub-iphone` booted and shut down with `simctl`, sidebar captured each time |
+| Row glyph colour for running vs shut down (§5.2) | 3 | `swiftcode-test-hub-iphone` booted and shut down with `simctl`, sidebar captured each time |
 | Unavailable section, physical-device subtitle, selection highlight, Filter button fill (§5) | 1, 3 | documentation screenshots; capture |
 | Context-menu items, Remove/Unpair, which devices are listed (§5) | 1, 4 | "Managing your simulated and physical devices…", "Configuring the environment…", forum; DeviceKit strings for the Remove message |
 | Inspector tabs and sub-tabs, Info rows, Edit Visibility, Apps list and filter (§6) | 1, 3 | "Locating device identifiers", "Managing apps on devices", Xcode 27 release notes; View ▸ Inspectors menu; preferences keys |
 | Menus (§7) | 3 | menu bar read through accessibility; Device/Controls items beyond those seen come from OBS-FEATURES (`simulator-features.md` §7.1) and the documentation (Slow Animations, Shake, Stop Recording) |
 | Look (§8) | 1, 3 | capture; `liquid-glass.md` |
-| Gap list (§9) | — | comparison with `ycode-sim-viewer` and `specs/ide/devices.md`; Ycode decisions |
-| Ycode implementation, round 3 (§I.13): the capsules' layout, the Linux glyphs and More Actions, the cards, the canvas placement | — | §11's measurements; Ycode decisions; public AppKit API (`NSToolbarItemGroup.controlRepresentation`, `NSToolbarItem.isHidden`), SDL 3's public `SDL_GetSystemTheme` (level 1) |
-| Ycode implementation (§I): frame proportions, symbols, steps, banners, lifecycle, persistence, the answers to Q1–Q13 | — | Ycode decisions; public AppKit API (`NSSplitViewController`, `NSToolbarItemGroup`, `NSMenuToolbarItem`, `NSGlassEffectView`, `NSTrackingSeparatorToolbarItem`), public SF Symbols names, AVFoundation (`AVAssetWriter`) and Core Graphics (`CGDisplayScreenSize`) documentation (level 1) |
-| Device panel data (§I.1): pixels, scale, pixels per inch, corner radii | — | Ycode's own device types (`Sources/ycode-simd/DeviceTypes.swift`, `device-capabilities.md`, `foldable.md` §10) |
-| Pairs in the hub (§I.9): capsule on phone and watch, Info rows, menu items, forms, created devices | 1, 3 | §4.1 and §7 for the phone's capsule and Pair Apple Watch…; `device-pairing.md` §2 (level 2–3) for the rules; the rest Ycode decisions; `PairIDEHubTests` |
-| Add Device ▸ Apple Vision Pro… (§I.11) | — | Ycode decisions on §2.3 (level 1) and `visionos.md` §3 V-1 (level 2–3); `VisionHubTests`; the Thor check |
-| Make Active's note and Restart iPhone; the watch's frame buttons (§I.10) | — | Ycode decisions from `device-pairing.md` §14.1 (level 3) and `watchos.md` §5.2 (level 2–3); `PairIDEHubTests`, `WatchWindowTests` |
-| Headset onboarding and switching (§I.12): checks, fixes, states, the switch, the display-size choice | — | Ycode decisions; WiVRn's README (client packages, version match, USB `adb reverse` and `wivrn+tcp://` link, the runtime taken while connected; level 1 for WiVRn as a documented external program), WiVRn 26.9's D-Bus properties read with `busctl` on the owner's workstation (`HeadsetConnected`, `HandTracking`, `EyeGaze`, `SystemName`; black-box), GitHub's release API for WiVRn v26.9 (asset name, size, SHA-256), Ubuntu package names (`libopenxr-loader1`, `wivrn-server`, `adb`, `vulkan-tools`); `HeadsetChecklistTests`, `HeadsetSwitchTests`, `HeadsetHubTests` |
+| Gap list (§9) | — | comparison with `swiftcode-sim-viewer` and `specs/ide/devices.md`; SwiftCode decisions |
+| SwiftCode implementation, round 3 (§I.13): the capsules' layout, the Linux glyphs and More Actions, the cards, the canvas placement | — | §11's measurements; SwiftCode decisions; public AppKit API (`NSToolbarItemGroup.controlRepresentation`, `NSToolbarItem.isHidden`), SDL 3's public `SDL_GetSystemTheme` (level 1) |
+| SwiftCode implementation (§I): frame proportions, symbols, steps, banners, lifecycle, persistence, the answers to Q1–Q13 | — | SwiftCode decisions; public AppKit API (`NSSplitViewController`, `NSToolbarItemGroup`, `NSMenuToolbarItem`, `NSGlassEffectView`, `NSTrackingSeparatorToolbarItem`), public SF Symbols names, AVFoundation (`AVAssetWriter`) and Core Graphics (`CGDisplayScreenSize`) documentation (level 1) |
+| Device panel data (§I.1): pixels, scale, pixels per inch, corner radii | — | SwiftCode's own device types (`Sources/swiftcode-simd/DeviceTypes.swift`, `device-capabilities.md`, `foldable.md` §10) |
+| Pairs in the hub (§I.9): capsule on phone and watch, Info rows, menu items, forms, created devices | 1, 3 | §4.1 and §7 for the phone's capsule and Pair Apple Watch…; `device-pairing.md` §2 (level 2–3) for the rules; the rest SwiftCode decisions; `PairIDEHubTests` |
+| Add Device ▸ Apple Vision Pro… (§I.11) | — | SwiftCode decisions on §2.3 (level 1) and `visionos.md` §3 V-1 (level 2–3); `VisionHubTests`; the Thor check |
+| Make Active's note and Restart iPhone; the watch's frame buttons (§I.10) | — | SwiftCode decisions from `device-pairing.md` §14.1 (level 3) and `watchos.md` §5.2 (level 2–3); `PairIDEHubTests`, `WatchWindowTests` |
+| Headset onboarding and switching (§I.12): checks, fixes, states, the switch, the display-size choice | — | SwiftCode decisions; WiVRn's README (client packages, version match, USB `adb reverse` and `wivrn+tcp://` link, the runtime taken while connected; level 1 for WiVRn as a documented external program), WiVRn 26.9's D-Bus properties read with `busctl` on the owner's workstation (`HeadsetConnected`, `HandTracking`, `EyeGaze`, `SystemName`; black-box), GitHub's release API for WiVRn v26.9 (asset name, size, SHA-256), Ubuntu package names (`libopenxr-loader1`, `wivrn-server`, `adb`, `vulkan-tools`); `HeadsetChecklistTests`, `HeadsetSwitchTests`, `HeadsetHubTests` |
 | Headset menu paths in the instructions (§I.12.2): eye tracking, per-app permission, hand tracking, developer mode, USB debugging | 1, not checked on a headset | Meta's public pages, read 2026-11-02: "Learn about Eye Tracking on Meta Quest Pro" (meta.com/help/quest/8107387169303764: Settings ▸ Hands and eyes ▸ Eye tracking; Settings ▸ Privacy and safety ▸ App permissions), Meta's developer "Eye Tracking Overview" (Settings ▸ Movement Tracking ▸ Eye Tracking), the Hand and Body Privacy Notice (Settings ▸ Movement tracking ▸ Hand and body tracking), "Test your app on your device" (Meta Horizon app ▸ Devices ▸ headset ▸ Headset Settings ▸ Developer Mode; verified account; Always allow from this computer). Meta's pages differ by software version, and the UI says so; nobody has compared them with the owner's headset menus |
-| No live display-size change (§I.12.5) | — | Ycode's own simulator on the Thor with Ycode's own framebuffer library's call log and live-size diagnostic (2026-11-02); Q-HUB-XR1 is for the reference |
-| Verification (§I.7) | — | Ycode's own windows on the Mac (`screencapture -l` with their window ids), Ycode's devices on the Thor |
+| No live display-size change (§I.12.5) | — | SwiftCode's own simulator on the Thor with SwiftCode's own framebuffer library's call log and live-size diagnostic (2026-11-02); Q-HUB-XR1 is for the reference |
+| Verification (§I.7) | — | SwiftCode's own windows on the Mac (`screencapture -l` with their window ids), SwiftCode's devices on the Thor |
 
 Level 5 was not used.

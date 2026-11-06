@@ -12,8 +12,8 @@ import re
 import subprocess
 import sys
 
-GIT = ["git", "-c", "user.name=ycode-build", "-c", "user.email=build@invalid", "-c", "commit.gpgsign=false",
-       "-c", "init.defaultBranch=ycode-pinned"]
+GIT = ["git", "-c", "user.name=swiftcode-build", "-c", "user.email=build@invalid", "-c", "commit.gpgsign=false",
+       "-c", "init.defaultBranch=swiftcode-pinned"]
 ENV = dict(os.environ, GIT_AUTHOR_DATE="2000-01-01T00:00:00Z", GIT_COMMITTER_DATE="2000-01-01T00:00:00Z")
 
 

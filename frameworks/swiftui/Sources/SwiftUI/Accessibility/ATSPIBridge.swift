@@ -11,7 +11,7 @@ import SwiftUICore
 // The AT-SPI export of OpenViews windows (R10, finished in OV-ATSPI): the
 // accessibility tree (AccessibilityTree.swift) mapped onto the exporter's
 // model (OVAccessibilityATSPI), and the exporter's requests run on the
-// elements. Ycode's mapping; the table is in the package README
+// elements. SwiftCode's mapping; the table is in the package README
 // ("AT-SPI export").
 //
 // - Started by `App.main()` on window-system back ends when an
@@ -25,7 +25,7 @@ import SwiftUICore
 //   `AccessibilityTree.perform`), then mark the window for a frame.
 
 /// Maps OpenViews accessibility elements to AT-SPI roles, states and
-/// actions (Ycode's table; README "AT-SPI export").
+/// actions (SwiftCode's table; README "AT-SPI export").
 package enum ATSPIMapping {
     /// The AT-SPI role of an element. `multiline` is for text inputs,
     /// `inTree` for lists and rows of an outline, `popup` for windows.

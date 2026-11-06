@@ -11,7 +11,7 @@ private func domain(_ e: (any Error)?) -> String? { (e as NSError?)?.domain }
 struct StoreTests {
     @Test("§4.1 save, resave without duplicate, completion off the caller's thread")
     func saveAndResave() async throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
         let s = T.stepSample(100, T.at(0, 8), T.at(0, 8, 5))
         let thread = Locked<Bool?>(nil)
@@ -27,7 +27,7 @@ struct StoreTests {
         #expect(try await store.count(T.steps) == 1)
         let back = try #require(try await store.samples(T.steps).first as? HKQuantitySample)
         #expect(back.uuid == s.uuid)
-        #expect(back.sourceRevision.source.bundleIdentifier == "dev.ycode.healthprobe")
+        #expect(back.sourceRevision.source.bundleIdentifier == "dev.swiftcode.healthprobe")
         #expect(back.sourceRevision.source.name == "HealthProbe")
         #expect(back.sourceRevision.version == "7")
         #expect(back.device == nil)
@@ -40,8 +40,8 @@ struct StoreTests {
     @Test("§4.5 delete; delete twice and other apps' objects fail with code 3; delete of type")
     func deletion() async throws {
         let daemon = try T.daemon()
-        let a = HKHealthStore(ycodeDaemon: daemon, client: T.clientA)
-        let b = HKHealthStore(ycodeDaemon: daemon, client: T.clientB)
+        let a = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
+        let b = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientB)
         try await a.grant()
         try await b.grant()
         let s1 = T.stepSample(1, T.at(0, 8), T.at(0, 8, 1)), s2 = T.stepSample(2, T.at(0, 9), T.at(0, 9, 1))
@@ -60,7 +60,7 @@ struct StoreTests {
 
     @Test("§3.1 before authorization: save, query, statistics, delete answer code 5; background delivery succeeds")
     func notDetermined() async throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         await expectCode(5) { try await store.save(T.stepSample(1, T.at(0), T.at(0))) }
         await expectCode(5) { _ = try await store.samples(T.steps) }
         let (stats, error) = await store.statistics(T.steps, nil, .cumulativeSum)
@@ -75,7 +75,7 @@ struct StoreTests {
     @Test("§3.3 after the grant: statuses, request status, read-only types, a second request needs no consent")
     func afterGrant() async throws {
         let daemon = try T.daemon()
-        let store = HKHealthStore(ycodeDaemon: daemon, client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
         try await store.grant(share: [T.steps], read: [T.steps, T.heartRate])
         #expect(store.authorizationStatus(for: T.steps) == .sharingAuthorized)
         #expect(store.authorizationStatus(for: T.heartRate) == .sharingDenied)      // read-only: never disclosed
@@ -98,7 +98,7 @@ struct StoreTests {
     @Test("interface.md §6 characteristics after the grant")
     func characteristics() async throws {
         let daemon = try T.daemon()
-        let store = HKHealthStore(ycodeDaemon: daemon, client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
         try await store.grant()
         #expect(try store.dateOfBirthComponents() == DateComponents())
         #expect(try store.biologicalSex().biologicalSex == .notSet)
@@ -132,8 +132,8 @@ struct StoreTests {
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         var counts: [String: Int] = [:]
         do {
-            let daemon = try YcodeHealthDaemon(databaseURL: url)
-            let store = HKHealthStore(ycodeDaemon: daemon, client: T.clientA)
+            let daemon = try SwiftCodeHealthDaemon(databaseURL: url)
+            let store = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
             try await store.grant()
             try await store.save([T.stepSample(1, T.at(0, 8), T.at(0, 8, 1)), T.stepSample(2, T.at(0, 9), T.at(0, 9, 1)),
                                   T.qs(T.heartRate, 60, T.bpm, T.at(0, 8),
@@ -141,9 +141,9 @@ struct StoreTests {
             counts = daemon.objectCounts()
             daemon.close()
         }
-        let daemon = try YcodeHealthDaemon(databaseURL: url)
+        let daemon = try SwiftCodeHealthDaemon(databaseURL: url)
         daemon.setConsentResponder { _ in nil }   // grants must be remembered, not re-asked
-        let store = HKHealthStore(ycodeDaemon: daemon, client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
         #expect(daemon.objectCounts() == counts)
         #expect(counts[T.steps.identifier] == 2)
         #expect(store.authorizationStatus(for: T.steps) == .sharingAuthorized)
@@ -169,7 +169,7 @@ struct AnchorTests {
 
     @Test("§4 tombstones carry UUID and metadata; the limit counts them (29 deletions, then 8 samples)")
     func tombstones() async throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
         let doomed = (0..<29).map { T.stepSample(Double($0), T.at(-1, 0, $0), T.at(-1, 0, $0), ["n": $0]) }
         try await store.save(doomed)
@@ -199,7 +199,7 @@ struct AnchorTests {
 
     @Test("§9 sync identifier v1 → v2 → v1: stored v2 (8); live updates +1, then +1/−1, nothing for v1")
     func syncReplacement() async throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
         let events = Locked<[(Int, Int)]>([])
         let started = Locked(false)
@@ -212,7 +212,7 @@ struct AnchorTests {
         store.execute(q)
         #expect(await eventually { started.current })
         func sync(_ v: Double, _ version: Int) -> HKQuantitySample {
-            T.stepSample(v, T.at(0, 20), T.at(0, 20, 1), [HKMetadataKeySyncIdentifier: "ycode-sync", HKMetadataKeySyncVersion: version])
+            T.stepSample(v, T.at(0, 20), T.at(0, 20, 1), [HKMetadataKeySyncIdentifier: "swiftcode-sync", HKMetadataKeySyncVersion: version])
         }
         try await store.save(sync(7, 1))
         #expect(await eventually { events.current.count == 1 })

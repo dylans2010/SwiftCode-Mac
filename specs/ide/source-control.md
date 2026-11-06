@@ -1,6 +1,6 @@
 # Source control (git)
 
-Ycode module: `YcodeUI` (`GitRepository` and its history extension,
+SwiftCode module: `SwiftCodeUI` (`GitRepository` and its history extension,
 `CommitController`, `CommitEditorController`, `BranchHistoryController`,
 `SourceControlCoordinator`, Source Control navigator, project-navigator
 badges). Everything goes through the
@@ -99,7 +99,7 @@ shown, else the project navigator's selection, else the open file.
 
 Files show their status letter at the right edge of the row. Correction
 (2026-10-19): group, folder and project rows show no letter
-(`reference-ui-5.md` §5.1; Ycode formerly showed `M` on them). Badges refresh when
+(`reference-ui-5.md` §5.1; SwiftCode formerly showed `M` on them). Badges refresh when
 the window opens, after Save, after a commit, and with Integrate ▸ Refresh
 File Status.
 
@@ -123,7 +123,7 @@ is refused before git runs; a path outside the repository is refused.
 - Merge workflow and the merge sheet: council round 3 captures (level 3),
   in `merge-sheet.md`.
 - OPEN QUESTION: Xcode's exact badge letters for renamed/conflicted files;
-  what "Recents" lists exactly (Ycode uses the reflog); per-hunk staging;
+  what "Recents" lists exactly (SwiftCode uses the reflog); per-hunk staging;
   the Commit button menu's items; Push/Pull option sheets (remote and
   branch choice).
 
@@ -138,24 +138,24 @@ commit footers with a change stepper, and Cancel and Merge buttons. The
 measured description, with the menu's items and order, the alert's text
 and timings, the sheet's geometry, colours and transitions, is
 **`merge-sheet.md`**. It replaces the in-window three-pane conflict editor
-described under "Ycode implementation" below (and in `comparison.md`);
+described under "SwiftCode implementation" below (and in `comparison.md`);
 the git operations underneath are unchanged.
 
-**Ycode implementation (B3-MERGE, 2026-11-05).** Both IDEs now start a
+**SwiftCode implementation (B3-MERGE, 2026-11-05).** Both IDEs now start a
 merge this way and resolve every conflict (merge, rebase, cherry-pick,
 pull, stash apply) in the merge sheet, drawn from the shared model
 (`MergeSheet.swift`, `ConflictEditorState+Sheet.swift`); the macOS
 navigator's Source Control rows gained their context menu, and
 Integrate gained **Merge…** after Cherry-Pick…. Details, tests and every
-"Ycode's choice, open question" are in `merge-sheet.md` §12. The local
+"SwiftCode's choice, open question" are in `merge-sheet.md` §12. The local
 branch row's menu below is replaced by `merge-sheet.md` §1.1's; the
 current branch's row follows §12; Rebase stays on remote branch rows.
 Compare Files keeps the three-pane `ConflictEditorController`.
 
-## Ycode implementation: branch workflows (SCM-BRANCHES, 2026-10-31)
+## SwiftCode implementation: branch workflows (SCM-BRANCHES, 2026-10-31)
 
-Gap #13 of `docs/PARITY.md`. Ycode's design unless an evidence line says
-otherwise; everything is in the portable core (`YcodeIDECore/SourceControl/`)
+Gap #13 of `docs/PARITY.md`. SwiftCode's design unless an evidence line says
+otherwise; everything is in the portable core (`SwiftCodeIDECore/SourceControl/`)
 except the AppKit views, so the Linux shell can use the same models.
 
 ### Operations (`GitRepository+Branches.swift`, `+Integration.swift`)
@@ -215,7 +215,7 @@ commit rebased onto (short hash), theirs the branch being replayed;
 cherry-pick — the picked short hash; a stash apply — "Stashed changes".
 Resolving writes the result (refused while it has markers) and runs
 `add`; resolving a delete moves the file to the Trash and runs `rm
---cached`. The editor itself is in `comparison.md` ("Ycode implementation").
+--cached`. The editor itself is in `comparison.md` ("SwiftCode implementation").
 
 ### Source Control navigator menus (`SourceControlRowMenu`)
 
@@ -227,7 +227,7 @@ Rows carry keys; groups get `group:Branches|Tags|Remotes`, remotes
 | Repository | New Branch…, New Tag… — Add Remote… |
 | Branches / Tags / Remotes group | New Branch… / New Tag… / Add Remote… |
 | Branch (not current) | `merge-sheet.md` §1.1 (12 items in 6 groups) |
-| Current branch | `merge-sheet.md` §12 (Ycode's choice, open question 7) |
+| Current branch | `merge-sheet.md` §12 (SwiftCode's choice, open question 7) |
 | Remote branch | Check Out “b”… — New Branch from “r/b”… — Merge…, Rebase… — Delete “b” from “r”… |
 | Tag | New Branch from “t”…, Push “t”… (with a remote) — Delete… |
 | Stash | Apply Stashed Changes, Apply and Delete Stash — Delete… |
@@ -268,11 +268,11 @@ lines of one commit form a block.
 
 ### Tests
 
-`YcodeIDECoreTests/SourceControlBranchesTests.swift` and
+`SwiftCodeIDECoreTests/SourceControlBranchesTests.swift` and
 `ThreeWayMergeTests.swift` (every operation on repositories in temporary
 folders, a bare repository there as the only remote, a conflicting merge,
 rebase and cherry-pick resolved through the model);
-`YcodeUITests/SourceControlBranchWorkflowTests.swift` (navigator menus,
+`SwiftCodeUITests/SourceControlBranchWorkflowTests.swift` (navigator menus,
 the conflict editor through Continue Merge, Abort Rebase from Integrate,
 Compare Files, Authors and Show Last Change).
 
@@ -284,16 +284,16 @@ Compare Files, Authors and Show Last Change).
   level 1), verified on repositories the tests create (level 3).
 - That Xcode offers branch creation, merge, rebase, stash, tags and an
   Authors view: Apple's public Xcode Help (level 1). Menu titles, the
-  switch prompt and the Authors column's look are Ycode's design.
+  switch prompt and the Authors column's look are SwiftCode's design.
 - OPEN QUESTION: the reference's branch, tag, stash and remote context
   menu titles and order; the merge sheet (Xcode Help describes choosing
   "Merge into" / "Merge from"); whether the reference rebases from the
   navigator; the Authors column's width, format and hover card.
 
-## Ycode implementation: the Linux IDE (B2-SCM, 2026-11-04)
+## SwiftCode implementation: the Linux IDE (B2-SCM, 2026-11-04)
 
-The SwiftUI shell (`YcodeIDEShell/SourceControlShellModel.swift`,
-`SourceControlRows.swift`; views in `ycode-ide/SourceControlNavigator.swift`
+The SwiftUI shell (`SwiftCodeIDEShell/SourceControlShellModel.swift`,
+`SourceControlRows.swift`; views in `swiftcode-ide/SourceControlNavigator.swift`
 and `SourceControlEditor.swift`) shows the core's models; it runs no git
 of its own beyond `GitRepository`'s operations, always off the main actor,
 one command after another, then reads `SourceControlSnapshot` again. In
@@ -333,10 +333,10 @@ the Flatpak `git` is the host-tool wrapper (`HostTool.path("git")`).
   and back (`repoPath`, `workspacePath`).
 - **Merge sheet** (B3-MERGE, 2026-11-05; it replaces B3-CONFLICT's
   in-window conflict editor of #75): the alert and the sheet of
-  `merge-sheet.md` over the window (`ycode-ide/MergeOverlay.swift`,
+  `merge-sheet.md` over the window (`swiftcode-ide/MergeOverlay.swift`,
   `MergeAlertCard.swift`, `MergeSheetView.swift`,
   `MergeComparisonView.swift`), drawn from the core's
-  `ConflictEditorState`; `YcodeIDEShell/ConflictEditorShellModel.swift`
+  `ConflictEditorState`; `SwiftCodeIDEShell/ConflictEditorShellModel.swift`
   reads and writes git off the main actor and performs Merge and Cancel,
   `SourceControlShellModel+Conflicts.swift` opens and closes it and
   `SourceControlShellModel+Merge.swift` shows the alert and handles View
@@ -350,7 +350,7 @@ the Flatpak `git` is the host-tool wrapper (`HostTool.path("git")`).
   files conflict (`MenuConditions`). Abort, from the sheet's Cancel, the
   banner or the menu, asks "Abort the <operation>?" first.
 
-Tests: `YcodeIDEShellTests/SourceControlShellTests.swift` (repositories with
+Tests: `SwiftCodeIDEShellTests/SourceControlShellTests.swift` (repositories with
 a repository-local `user.name` and `user.email` and a bare repository as the
 remote: both trees, the commit editor, scopes, staging, amend, the sheet,
 discard, branches, checkout with stash, merge, delete, history, push, pull,
@@ -358,9 +358,9 @@ Commit and Push, change bars, file history, the Integrate menu outside
 git); `ConflictEditorShellTests.swift` (a merge resolved by sides and by
 hand, then continued; markers refused; the row and Integrate items; a
 rebase aborted after the question; a cherry-pick continued) and
-`YcodeIDECoreTests/ConflictEditorStateTests.swift`. End to end on Linux:
-`ycode-ide` with `YCODE_IDE_SCM=<prefix>` (`ShellDriver+SourceControl.swift`)
-and `scripts/linux-conflict/run.sh` (`YCODE_IDE_CONFLICT`,
+`SwiftCodeIDECoreTests/ConflictEditorStateTests.swift`. End to end on Linux:
+`swiftcode-ide` with `SWIFTCODE_IDE_SCM=<prefix>` (`ShellDriver+SourceControl.swift`)
+and `scripts/linux-conflict/run.sh` (`SWIFTCODE_IDE_CONFLICT`,
 `ShellDriver+Conflicts.swift`: the Merger repository's merge started
 from the branch row's menu and resolved in the merge sheet through the
 pointer, one file by choosing sides and one by typing, completed with
@@ -373,6 +373,6 @@ aborted, then checked with git).
   verified on repositories the tests create (level 3).
 - Layout and labels: `reference-ui-4.md` §2–§3 (level 3) through the AppKit
   IDE's implementation. The change-row menu items, the banner, the
-  questions' wording and the push and pull fallbacks are Ycode's design.
+  questions' wording and the push and pull fallbacks are SwiftCode's design.
 - The merge sheet: `merge-sheet.md` (level 3, council round 3) and its
   §12 choices.

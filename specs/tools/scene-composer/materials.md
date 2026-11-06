@@ -4,7 +4,7 @@ Status: draft, round 0 (OBS-RCP, 2026-10-29). Reference: Reality Composer Pro
 3.0 (the editor) and the RealityKit of Xcode 27.1 / macOS 27 (the consumer).
 This file says how a Shader Graph material is stored in USD, which node
 identifiers exist, which of them the build and the runtime accept, and what
-Ycode's editor must write so that both read its files.
+SwiftCode's editor must write so that both read its files.
 
 Sources, in evidence order: Apple's MIT-licensed MaterialX node definitions
 published in the open-source repository `apple/plugins-for-godot`
@@ -151,7 +151,7 @@ authored value. Observed conversions of an authored `(0.5, 0.5, 0.5)`
 | `lin_displayp3` | linear Display P3, 0.5 |
 
 Apple's public USD documentation also lists `srgb_displayp3` and
-`sourceColorSpace` fallbacks for textures (`07-assets.md` §3). A Ycode writer
+`sourceColorSpace` fallbacks for textures (`07-assets.md` §3). A SwiftCode writer
 uses the MaterialX/USD tokens (`lin_srgb`, `srgb_texture`, `lin_displayp3`,
 `srgb_displayp3`, `raw`) and reads the OCIO-style names as aliases.
 
@@ -219,7 +219,7 @@ extended shader `ND_realitykit_pbr_surfaceshader_v2` (first twenty inputs of
 the list above, `bakedIndirectIrradiance` as half3). The macOS 27 runtime
 and Xcode 27.1's `realitytool` do **not** know `_v2`: the material silently
 became the fallback material (§5.5) and the compiled file held no shader graph
-for it **[mat-probe]**. Ycode writes `ND_realitykit_pbr_surfaceshader` (or
+for it **[mat-probe]**. SwiftCode writes `ND_realitykit_pbr_surfaceshader` (or
 `_2_0` when the deployment target is 27 or later) and reads `_v2` as an alias
 of `_2_0`. Whether Reality Composer Pro 3.0 ever writes `_v2` into USDA is
 open (Q1).
@@ -268,11 +268,11 @@ compiled material depended on a texture asset **[mat-probe]**; open (Q4).
 ### 5.5 Fallback
 
 An unknown `info:id` anywhere in the surface network (our test:
-`ND_ycode_does_not_exist`), an unsupported surface node, or `_v2` produced a
+`ND_swiftcode_does_not_exist`), an unsupported surface node, or `_v2` produced a
 `PhysicallyBasedMaterial` with base colour 0.18 grey, roughness 0.5,
 metallic 0, keeping the material's name. Neither the loader nor
 `realitytool compile` reported an error, and `compile` exited 0
-**[mat-probe]**. Ycode's editor must therefore validate node ids itself and
+**[mat-probe]**. SwiftCode's editor must therefore validate node ids itself and
 warn, since the reference toolchain is silent.
 
 ## 6. Geometry modifier
@@ -337,7 +337,7 @@ loaded as a `ShaderGraphMaterial` **[mat-probe]**. The deprecated
 filters, `max_anisotropy`, `lod_min`, `lod_max`) and
 `ND_realitykit_cubeimage_*` (`file`, `default`, `texcoord` = world normal,
 `filtertype` default `closest`) remain in the libraries for reading old files.
-Ycode reads them and writes the `RealityKitTexture*` family.
+SwiftCode reads them and writes the `RealityKitTexture*` family.
 
 ### 7.2 Asset paths
 
@@ -397,11 +397,11 @@ uv1,time}`. The Xcode library marks a further set as unsupported
 roughness,metallic,specular,opacity,clearcoat,clearcoat_roughness,
 ambient_occlusion,custom_parameter}`, `…_geometry_modifier_{*_offset,
 *_transform,custom_parameter,custom_attribute*}`, `curveadjust`,
-`curvelookup`): Ycode's editor does not offer them.
+`curvelookup`): SwiftCode's editor does not offer them.
 
 ## 9. Node families beyond the table
 
-| Family | Id pattern | Count (Xcode 27.1 library) | Source of truth for Ycode |
+| Family | Id pattern | Count (Xcode 27.1 library) | Source of truth for SwiftCode |
 |---|---|---|---|
 | Standard MaterialX 1.38/1.39 stdlib, pbrlib, bxdf | `ND_<node>_<type>` | ~780 | MaterialX open source (Apache-2.0). Apple adds four overrides of `position`, `normal`, `tangent`, `bitangent` (vector3) for 1.39. |
 | Half-precision variants | `ND_<node>_half[2-4]`, some with `_v2` suffix | 247 | Same interfaces as the float version with `half` types. |
@@ -410,7 +410,7 @@ ambient_occlusion,custom_parameter}`, `…_geometry_modifier_{*_offset,
 | Comparison with half/boolean results | `ND_if{greater,greatereq,equal}_<t>[H|B…]` | ~70 | |
 | Metal intrinsics | `ND_MTL_<function>_<type>` (e.g. `ND_MTL_fma_float`, `ND_MTL_simd_sum_float`, `ND_MTL_quad_shuffle_up_*`) | ~700 | nodegroups `math`, `realitykit`, `realitykit_private` |
 | Bitwise | `ND_MTL_bitwise_{and,or,xor,not}_*`, shifts, rotates | ~50 | |
-| Internal | `ND_INTERNAL_realitykit_*`, `ND_InternalRealityKitTexture*` | ~70 | Never written by Ycode. |
+| Internal | `ND_INTERNAL_realitykit_*`, `ND_InternalRealityKitTexture*` | ~70 | Never written by SwiftCode. |
 
 Apple publishes its node-definition files under the MIT licence in the
 open-source repository `apple/plugins-for-godot` (folder
@@ -479,11 +479,11 @@ this material is a `ShaderGraphMaterial` named after the asset, with
 `rcp_` name, stable across five exports of the same project) holding the
 256×256 texture. The exporter therefore exposes graph data (here the
 texture) as material parameters under generated names. The number looks
-like a packed pair of small engine ids, not a hash; Ycode treats such
+like a packed pair of small engine ids, not a hash; SwiftCode treats such
 names as opaque, never generates them, and maps them back to the node
 input on import only by position in the graph.
 
-## 11. Rules for Ycode's editor
+## 11. Rules for SwiftCode's editor
 
 Writing:
 

@@ -8,7 +8,7 @@ import SwiftUICore
 
 // The accessibility tree of a window (round R10; 08 §2).
 //
-// Built from the laid-out view graph (Ycode's rules; the observed results
+// Built from the laid-out view graph (SwiftCode's rules; the observed results
 // of 08 §2 are the tests' expectations):
 //  - A `Text` is a static-text element labelled with its string; an
 //    `Image` an image element labelled with its `accessibilityLabel`, its own

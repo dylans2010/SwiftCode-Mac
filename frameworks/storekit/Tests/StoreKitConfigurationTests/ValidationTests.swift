@@ -34,12 +34,12 @@ struct ValidationTests {
     @Test("§3 product ids unique across the whole file")
     func duplicateProductID() {
         var c = catalog
-        c.subscriptionGroups![1].subscriptions![0].productID = "dev.ycode.skprobe.pro"
+        c.subscriptionGroups![1].subscriptions![0].productID = "dev.swiftcode.skprobe.pro"
         let issues = c.validate()
         #expect(issues.count == 1)
         #expect(issues[0].rule == "product.id.duplicate")
         #expect(issues[0].path == "subscriptionGroups[1].subscriptions[0].productID")
-        #expect(issues[0].message == "The product identifier \"dev.ycode.skprobe.pro\" is already used by products[1].")
+        #expect(issues[0].message == "The product identifier \"dev.swiftcode.skprobe.pro\" is already used by products[1].")
     }
 
     @Test("§3, §5.1 internal ids: digits, unique across products and offers")

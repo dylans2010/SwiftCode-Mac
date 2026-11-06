@@ -1,4 +1,4 @@
-// Ycode's RFC 5545 RRULE expander (written from the RFC, recurrence.md §5).
+// SwiftCode's RFC 5545 RRULE expander (written from the RFC, recurrence.md §5).
 //
 // The engine works on wall-clock values (LocalDateTime) and converts to
 // instants only to test UNTIL and for the caller's window. Every rule is

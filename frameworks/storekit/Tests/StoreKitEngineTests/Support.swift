@@ -4,17 +4,17 @@ import StoreKitConfiguration
 @testable import StoreKitEngine
 
 enum ID {
-    static let coins = "dev.ycode.skprobe.coins100"
-    static let pro = "dev.ycode.skprobe.pro"
-    static let season = "dev.ycode.skprobe.season"
-    static let monthly = "dev.ycode.skprobe.plus.monthly"
-    static let yearly = "dev.ycode.skprobe.plus.yearly"
-    static let lite = "dev.ycode.skprobe.plus.lite"
-    static let weekly = "dev.ycode.skprobe.extra.weekly"
+    static let coins = "dev.swiftcode.skprobe.coins100"
+    static let pro = "dev.swiftcode.skprobe.pro"
+    static let season = "dev.swiftcode.skprobe.season"
+    static let monthly = "dev.swiftcode.skprobe.plus.monthly"
+    static let yearly = "dev.swiftcode.skprobe.plus.yearly"
+    static let lite = "dev.swiftcode.skprobe.plus.lite"
+    static let weekly = "dev.swiftcode.skprobe.extra.weekly"
     static let all = [coins, pro, season, monthly, yearly, lite, weekly]
     static let plus = "200000001"
     static let extra = "200000002"
-    static let app = "dev.ycode.skprobe"
+    static let app = "dev.swiftcode.skprobe"
 }
 
 /// The catalog of plan.md §3.1 (our own data).
@@ -45,7 +45,7 @@ func probeConfiguration(settings: Settings = Settings(
                     displayPrice: "2.99", familyShareable: false, localizations: [loc("en_US", "Probe Season Pass", "One season.")]),
         ],
         subscriptionGroups: [
-            SubscriptionGroup(id: ID.plus, name: "Plus", localizations: [loc("en_US", "Ycode Plus", "Plus plans.")], subscriptions: [
+            SubscriptionGroup(id: ID.plus, name: "Plus", localizations: [loc("en_US", "SwiftCode Plus", "Plus plans.")], subscriptions: [
                 sub(ID.monthly, "Plus Monthly", "100000011", "3.99", group: ID.plus, level: 1, period: "P1M",
                     intro: Offer(internalID: "100000031", paymentMode: .free, subscriptionPeriod: "P1W", numberOfPeriods: 1),
                     promos: [Offer(internalID: "100000032", offerID: "plus.promo3", referenceName: "Promo", paymentMode: .payAsYouGo,

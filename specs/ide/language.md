@@ -1,18 +1,18 @@
 # Language services
 
-Ycode modules: `YcodeLanguage` (`LSPClient`, `BuildServerLaunch`),
-`YcodeBuildServer` (the build server, §Build server), wired into the
-window by `YcodeIDECore` (`LanguageService`, the session's start of the
-language server) and `YcodeUI` (editor completion popup). The server is
+SwiftCode modules: `SwiftCodeLanguage` (`LSPClient`, `BuildServerLaunch`),
+`SwiftCodeBuildServer` (the build server, §Build server), wired into the
+window by `SwiftCodeIDECore` (`LanguageService`, the session's start of the
+language server) and `SwiftCodeUI` (editor completion popup). The server is
 sourcekit-lsp, Apple's open-source Language Server Protocol server for Swift
 and C-family languages.
 
 ## Locating the server
 
-`YCODE_SOURCEKIT_LSP`, else `xcrun -f sourcekit-lsp` (macOS), else
+`SWIFTCODE_SOURCEKIT_LSP`, else `xcrun -f sourcekit-lsp` (macOS), else
 `sourcekit-lsp` on PATH. One server per workspace window, started when the
 window opens. The root is the package folder. For a project or workspace
-it is a private folder that connects sourcekit-lsp to Ycode's build server
+it is a private folder that connects sourcekit-lsp to SwiftCode's build server
 (§Build server); with the build server off or not found, it is the folder
 that contains the project or workspace.
 
@@ -25,7 +25,7 @@ once: `workspace/configuration` with one `null` per item, others with
 `null`.
 
 Sequence: `initialize` (processId, rootUri, workspaceFolders, clientInfo
-"Ycode", capabilities: didSave, completion with snippet support (snippet
+"SwiftCode", capabilities: didSave, completion with snippet support (snippet
 placeholders become editor placeholders), definition,
 publishDiagnostics with related information, workspace configuration) →
 `initialized`. Closing: `shutdown` → `exit`.
@@ -79,10 +79,10 @@ line index converts both ways (clamping columns to the line).
 
 ### The Linux IDE
 
-`ycode-ide` has the same features through the shell model
-(`WorkspaceShellModel+Language.swift`, `YcodeIDEShell`) over the
+`swiftcode-ide` has the same features through the shell model
+(`WorkspaceShellModel+Language.swift`, `SwiftCodeIDEShell`) over the
 session's language service; the requests and their mappings are the
-core's (`YcodeIDECore/Session/LanguageNavigation.swift`), shared with the
+core's (`SwiftCodeIDECore/Session/LanguageNavigation.swift`), shared with the
 macOS window:
 
 - Quick Help: ⌥-click on a symbol, or Help ▸ Show Quick Help for Selected
@@ -114,8 +114,8 @@ running server.
 
 sourcekit-lsp knows packages; for a project or workspace it needs a build
 server that says which files belong to which target and how each file is
-compiled. Ycode has one: module `YcodeBuildServer` (portable), executable
-`ycode-bsp` (also `ycode bsp`). It speaks the Build Server Protocol (BSP)
+compiled. SwiftCode has one: module `SwiftCodeBuildServer` (portable), executable
+`swiftcode-bsp` (also `swiftcode bsp`). It speaks the Build Server Protocol (BSP)
 with sourcekit-lsp's extensions.
 
 ### Connection
@@ -125,44 +125,44 @@ sourcekit-lsp looks for a connection file in the folder it opens:
 Swift or C-family language), else `<folder>/buildServer.json`. The file:
 
 ```json
-{"name": "Ycode", "version": "0.1", "bspVersion": "2.2.0",
+{"name": "SwiftCode", "version": "0.1", "bspVersion": "2.2.0",
  "languages": ["swift", "c", "objective-c", "cpp", "objective-cpp"],
- "argv": ["<path>/ycode-bsp", "serve", "<container>", "--scheme", "S", "--destination", "D"]}
+ "argv": ["<path>/swiftcode-bsp", "serve", "<container>", "--scheme", "S", "--destination", "D"]}
 ```
 
 sourcekit-lsp starts `argv` and talks JSON-RPC over its standard input and
 output (the same `Content-Length` framing as LSP).
 
-The IDE (`BuildServerLaunch` in `YcodeLanguage`): for a `.xcodeproj` or
-`.xcworkspace`, with the setting on (`Ycode.buildServer`,
-`specs/ide/settings.md`) and `ycode-bsp` found (`YCODE_BSP`, next to the
+The IDE (`BuildServerLaunch` in `SwiftCodeLanguage`): for a `.xcodeproj` or
+`.xcworkspace`, with the setting on (`SwiftCode.buildServer`,
+`specs/ide/settings.md`) and `swiftcode-bsp` found (`SWIFTCODE_BSP`, next to the
 running executable, the app's `Contents/Helpers`, then `PATH`), it writes
-`.bsp/ycode.json` into a private folder,
-`~/Library/Caches/Ycode/BuildServer/<name>-<hash of the container path>`
-(Linux: `$XDG_CACHE_HOME/ycode/build-server/…`), and opens sourcekit-lsp
+`.bsp/swiftcode.json` into a private folder,
+`~/Library/Caches/SwiftCode/BuildServer/<name>-<hash of the container path>`
+(Linux: `$XDG_CACHE_HOME/swiftcode/build-server/…`), and opens sourcekit-lsp
 on that folder with the window's scheme and destination in `argv`.
 **Decision:** a private folder, so that nothing is written into the
 user's project; sourcekit-lsp assigns files to the workspace by the
 build server's sources, not by folder, so sources outside the folder are
-served. External editors can use `ycode-bsp config <container>`, which
-writes `.bsp/ycode.json` next to the container.
+served. External editors can use `swiftcode-bsp config <container>`, which
+writes `.bsp/swiftcode.json` next to the container.
 
 Workspace trust: sourcekit-lsp 6.4 as shipped with the toolchain asks the
 client (`window/showMessageRequest`) whether to trust a folder with
 workspace-scoped configuration (`.bsp/`, `.sourcekit-lsp/`) before it
 starts anything named there; an unanswered or declined request means no
-build server. Ycode wrote the folder and its connection file itself, so
+build server. SwiftCode wrote the folder and its connection file itself, so
 it passes `initializationOptions: {"bypassWorkspaceTrust": true}` in
 `initialize` for that folder only. Servers without the feature ignore the
 key.
 
 ### Requests
 
-| Message | Ycode's answer |
+| Message | SwiftCode's answer |
 |---|---|
-| `build/initialize` | `displayName` "Ycode", `bspVersion` "2.2.0", `capabilities.buildTargetChangedProvider` true, `dataKind` "sourceKit", `data` {`indexStorePath`, `indexDatabasePath`, `prepareProvider` true, `sourceKitOptionsProvider` true, `watchers` [`**/*.pbxproj`, `**/*.xcconfig`, `**/contents.xcworkspacedata`, `**/*.xcscheme`]} |
+| `build/initialize` | `displayName` "SwiftCode", `bspVersion` "2.2.0", `capabilities.buildTargetChangedProvider` true, `dataKind` "sourceKit", `data` {`indexStorePath`, `indexDatabasePath`, `prepareProvider` true, `sourceKitOptionsProvider` true, `watchers` [`**/*.pbxproj`, `**/*.xcconfig`, `**/contents.xcworkspacedata`, `**/*.xcscheme`]} |
 | `build/initialized` | — (changes are reported from now on) |
-| `workspace/buildTargets` | one target per native target of every project: `id.uri` `ycode-target:<project path>/<object id>?name=<target>`, `displayName`, `baseDirectory` (the project folder), `tags` (`application` for apps and tools, `test` for test bundles, else `library`), `languageIds`, `dependencies`, `dataKind` "sourceKit" |
+| `workspace/buildTargets` | one target per native target of every project: `id.uri` `swiftcode-target:<project path>/<object id>?name=<target>`, `displayName`, `baseDirectory` (the project folder), `tags` (`application` for apps and tools, `test` for test bundles, else `library`), `languageIds`, `dependencies`, `dataKind` "sourceKit" |
 | `buildTarget/sources` | the target's compiled sources and its headers, each `{uri, kind: 1, generated: false, dataKind: "sourceKit", data: {language, kind: "source"\|"header"}}` |
 | `textDocument/sourceKitOptions` | `{compilerArguments, workingDirectory}` (the project folder), or null for a file the target does not have |
 | `buildTarget/prepare` | prepares the targets (below), then null; a failed module emission is reported with `build/logMessage` (type 2) |
@@ -198,7 +198,7 @@ targets included).
 
 ### Settings
 
-Each target's settings come from Ycode's own engine (`YcodeSettings`,
+Each target's settings come from SwiftCode's own engine (`SwiftCodeSettings`,
 `specs/build-settings.md`): the project's levels over a defaults level
 the arguments need, values from swift-build's open-source
 specifications:
@@ -220,7 +220,7 @@ specifications:
 | `CURRENT_ARCH`, `ARCHS` | the destination's `arch=`, else the host's |
 | `DEVELOPER_DIR`, `TOOLCHAIN_DIR`, `PLATFORM_DIR`, `SDK_VERSION` | from the active developer folder and the SDK |
 
-With `--settings swift-build` and the `ycode-swb` helper
+With `--settings swift-build` and the `swiftcode-swb` helper
 (`specs/xcodebuild/show-build-settings.md`), swift-build evaluates every
 setting instead, for the same SDK and with the index arena; the
 arguments below read the same names (and swift-build's
@@ -239,10 +239,10 @@ likewise). **Decision:** simulators by default, as indexing needs no
 device. On Linux there is no SDK: Swift compiles for the host triple.
 
 Index locations: `<derived-data root>/<name>-<hash>/Index.noindex`, the
-root `~/Library/Developer/Ycode/DerivedData` (Linux:
-`$XDG_CACHE_HOME/ycode/DerivedData`) or `--derived-data`, the folder name
-as ycodebuild's (`DerivedDataName`). Index store `…/DataStore`; index
-database `…/ycode-index-db`. Index products are kept apart from build
+root `~/Library/Developer/SwiftCode/DerivedData` (Linux:
+`$XDG_CACHE_HOME/swiftcode/DerivedData`) or `--derived-data`, the folder name
+as swiftcodebuild's (`DerivedDataName`). Index store `…/DataStore`; index
+database `…/swiftcode-index-db`. Index products are kept apart from build
 products so that the editor's module-only builds never mix with real ones.
 
 ### Compiler arguments
@@ -334,12 +334,12 @@ target itself:
    plus, on Apple platforms, `-emit-objc-header -emit-objc-header-path
    <products>/include/<Module>/<SWIFT_OBJC_INTERFACE_HEADER_NAME>`. Skipped
    when the module exists, was emitted with the same arguments (kept in
-   `<Module>.swiftmodule.ycode-args`) and is newer than the target's
+   `<Module>.swiftmodule.swiftcode-args`) and is newer than the target's
    sources, headers, bridging header and dependency modules.
 
-`swiftc`: `YCODE_SWIFTC`, else `xcrun --find swiftc` (macOS), else `PATH`.
+`swiftc`: `SWIFTCODE_SWIFTC`, else `xcrun --find swiftc` (macOS), else `PATH`.
 Preparations run one at a time, apart from other requests.
-**Decision:** a module-only build of Ycode's own rather than a full build
+**Decision:** a module-only build of SwiftCode's own rather than a full build
 through xcodebuild or swift-build: it needs no link, signing or resources,
 takes about a second for a small framework, works on Linux, and writes
 only into the index arena.
@@ -350,7 +350,7 @@ Targets that use Swift package products (`packageProductDependencies`)
 take them from the PIF swift-build builds the container with
 (`XcodePIFSource().makePIF(for:)`, `build-pif.md` §Package products): the
 package graph from SwiftPM, with the IDE's `SourcePackages` folder. Code:
-`YcodeBuildServer/PackageProducts.swift`.
+`SwiftCodeBuildServer/PackageProducts.swift`.
 
 - **Arguments.** The products a target's PIF target depends on, and their
   package targets transitively (products first), give the settings their
@@ -369,12 +369,12 @@ package graph from SwiftPM, with the IDE's `SourcePackages` folder. Code:
   products folder, which `-I` already names.
 - **Preparation.** Before the Swift modules of a target and its
   dependencies, the product targets they use are built by swift-build
-  (`ycode-swb build`, the same PIF) into the index arena (derived data
+  (`swiftcode-swb build`, the same PIF) into the index arena (derived data
   `Index.noindex`: products and intermediates where the index arguments
   point, index data into its `DataStore`), with the client's
   configuration, its platform and architecture as the run destination
   (host tools build for the host) and `CODE_SIGNING_ALLOWED = NO`. Without
-  the helper (`YCODE_SWB`, `PATH`, next to `ycode-bsp`) products are not
+  the helper (`SWIFTCODE_SWB`, `PATH`, next to `swiftcode-bsp`) products are not
   built and the log says so. swift-build's own up-to-date checks keep
   later preparations short.
 - Not covered: sources a build-tool plug-in generates for a project target
@@ -383,13 +383,13 @@ package graph from SwiftPM, with the IDE's `SourcePackages` folder. Code:
 ### Command line
 
 ```
-ycode-bsp [serve] <container> [--scheme S] [--configuration C] [--destination D]
+swiftcode-bsp [serve] <container> [--scheme S] [--configuration C] [--destination D]
           [--derived-data DIR] [--settings resolver|swift-build] [--log FILE]
-ycode-bsp config <container> [--output DIR] …    # writes DIR/.bsp/ycode.json
-ycode-bsp targets <container> …                  # targets, sources, headers, dependencies
-ycode-bsp args <container> <file> [--target T] … # the file's arguments, one per line
-ycode-bsp prepare <container> <target>… …        # emits the modules
-ycode-bsp sample <dir> [ios|portable]            # the sample project of the tests
+swiftcode-bsp config <container> [--output DIR] …    # writes DIR/.bsp/swiftcode.json
+swiftcode-bsp targets <container> …                  # targets, sources, headers, dependencies
+swiftcode-bsp args <container> <file> [--target T] … # the file's arguments, one per line
+swiftcode-bsp prepare <container> <target>… …        # emits the modules
+swiftcode-bsp sample <dir> [ios|portable]            # the sample project of the tests
 ```
 
 ### Context changes
@@ -403,7 +403,7 @@ context:
 
 1. A change only counts when the running server serves a context: a
    project or workspace opened through the build server. Packages, and
-   servers started without the build server (the setting off, `ycode-bsp`
+   servers started without the build server (the setting off, `swiftcode-bsp`
    not found), are left alone.
 2. The restart waits 0.3 s after the last change, so that a scheme switch
    that also picks a new destination restarts once.
@@ -474,7 +474,7 @@ has prepared the open files' targets.
   (framework with Swift and Objective-C, app with a bridging header, test
   bundle) type-checked with `swiftc -typecheck` / `clang -fsyntax-only`
   and the generated arguments after preparation; sourcekit-lsp through
-  Ycode's client gave the diagnostic, completion and cross-target
+  SwiftCode's client gave the diagnostic, completion and cross-target
   definition the tests check, on macOS (iOS Simulator SDK) and on x86-64
   Linux (the portable sample).
 - Package products (§Package products): SwiftPM's PIF and its
@@ -485,7 +485,7 @@ has prepared the open files' targets.
   with the generated arguments after preparation and sourcekit-lsp
   completes `LocalKit.` in `LocalPackageApp` (level 3, our code).
 - OPEN QUESTION: the reference IDE's own index arguments (its header maps,
-  VFS overlays and module maps for mixed targets) are not matched; Ycode's
+  VFS overlays and module maps for mixed targets) are not matched; SwiftCode's
   layout is its own.
 - OPEN QUESTION: whether Xcode's ⌥-click popover uses the same sections
   (ours is plain text).
@@ -493,5 +493,5 @@ has prepared the open files' targets.
   documentation pane), when it opens automatically, and how live issues
   and build issues are distinguished in the issue navigator.
 - Context changes (restart on a scheme or destination change) and the Linux
-  IDE's Quick Help popover, notices and jump bar symbol: Ycode's own design
+  IDE's Quick Help popover, notices and jump bar symbol: SwiftCode's own design
   over the LSP and BSP specifications (level 1); nothing observed.

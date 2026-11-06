@@ -168,7 +168,7 @@ extension Notification.Name {
 }
 
 /// User-info keys of the change notification (interface.md §5). They are
-/// observations, not SDK declarations; Ycode fills them with its own values.
+/// observations, not SDK declarations; SwiftCode fills them with its own values.
 enum ChangeKeys {
     static let changeType = "EKEventStoreChangeTypeUserInfoKey"
     static let calendarDataChanged = "EKEventStoreCalendarDataChangedUserInfoKey"

@@ -2,7 +2,7 @@
  * Capability → scope ID list for `@swiftcode/sdk`.
  *
  * GENERATED — do not hand-edit. Regenerated from the Swift host table
- * `ycode/Sources/YcodeSDK/Host/ScopesIDLists.swift` (`ScopesIDLists.all`)
+ * `swiftcode/Sources/SwiftCodeSDK/Host/ScopesIDLists.swift` (`ScopesIDLists.all`)
  * by `~/SwiftCode-Migration-Workspace/scripts/generate-scopes-ts.py`.
  * The two files are kept in sync by `tests/scopes-sync.test.mjs`, which
  * parses BOTH files and fails on any ID, kind, ipcMethod, or viewId drift

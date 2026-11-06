@@ -164,7 +164,7 @@ public final class SceneDocument {
 
     /// A new scene with the conventions of `scene-usd.md` §1: an `Xform`
     /// default prim named `Root`, metres, +Y up, and a creator tag.
-    public static func newScene(identifier: String = "Untitled.usda", creator: String = "Ycode Scene Composer") -> SceneDocument {
+    public static func newScene(identifier: String = "Untitled.usda", creator: String = "SwiftCode Scene Composer") -> SceneDocument {
         var layer = Layer(identifier: identifier)
         layer.defaultPrim = "Root"
         layer.metersPerUnit = 1

@@ -9,7 +9,7 @@ import SwiftUICore
 // The Settings scene (round R11; public API: `Settings`, `OpenSettingsAction`
 // / `EnvironmentValues.openSettings`, `SettingsLink`).
 //
-// Ycode's rules: a `Settings` scene is not opened at launch; the application
+// SwiftCode's rules: a `Settings` scene is not opened at launch; the application
 // menu's "Settings…" item (Ctrl+,), `openSettings()` and `SettingsLink` open
 // it as a window of its own, or raise it when it is open (one window). The
 // window is titled "Settings", takes its content's ideal size (at least

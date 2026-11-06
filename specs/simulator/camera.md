@@ -1,11 +1,11 @@
 # Spec: cameras in the simulator guest
 
-Status: **reference** (agent OBS-CAMERA, 2026-10-27); **Ycode's camera
+Status: **reference** (agent OBS-CAMERA, 2026-10-27); **SwiftCode's camera
 extension implemented** (§9, agent CAMERA-GUEST, 2026-10-27/28). This spec records how
 the iOS 27.1 (24A94401) and iOS 27.0 (24A434) simulator runtimes of Xcode
 27.1 handle cameras: what a guest app sees, which guest parts take part,
 which endpoints they use, how permission works, and where discovery comes up
-empty. It then states what Ycode must do. There are two cases: plain parity
+empty. It then states what SwiftCode must do. There are two cases: plain parity
 (no camera) and the planned extension, a USB webcam on the Linux host shown
 to the guest as a camera.
 
@@ -39,7 +39,7 @@ Mach name registered by the host into the guest's bootstrap
    capabilities-plist camera keys, the environment, preferences and files
    were varied or recorded, and none of them changes discovery. The
    simulator's capture library contains no capture pipeline. To give the
-   guest a camera, Ycode must therefore add its own capture layer (§7.2). It
+   guest a camera, SwiftCode must therefore add its own capture layer (§7.2). It
    cannot feed Apple's.
 4. **Permission works as on a device**, through the guest's `tccd`: the
    usage-string check, the system alert, `simctl privacy grant|revoke|reset
@@ -207,7 +207,7 @@ discovery.
 
 - **Smallest input that would make a device appear:** there is none in the
   reference. The simulator build of the capture library has no capture
-  pipeline to feed. A camera in the guest needs a capture layer that Ycode
+  pipeline to feed. A camera in the guest needs a capture layer that SwiftCode
   provides itself (§7.2).
 
 ## 6. Permission path
@@ -256,11 +256,11 @@ discovery.
   `com.apple.TCC.kTCCServiceCamera.authorization.changed`. An alert the app
   had pending stayed on screen after the app was terminated.
 
-## 7. What Ycode must do
+## 7. What SwiftCode must do
 
 ### 7.1 Parity (no camera, as the reference)
 
-Ycode runs the runtime's own frameworks in the guest, so parity mostly comes
+SwiftCode runs the runtime's own frameworks in the guest, so parity mostly comes
 from them:
 
 1. Provide **no** capture service and no camera keys beyond those of the
@@ -268,7 +268,7 @@ from them:
    picker gives §2.4.
 2. The permission path needs the guest's `tccd`, the device's
    `data/Library/TCC/` folder, and SpringBoard serving
-   `com.apple.SBUserNotification` (for the alert). Ycode's equivalent of
+   `com.apple.SBUserNotification` (for the alert). SwiftCode's equivalent of
    `simctl privacy … camera` must reach `tccd` as CoreSimulatorBridge does
    (§6.2). As a fallback while the device is shut down, it may write the
    row of §6.2 to the database. It must terminate the running app when the
@@ -281,38 +281,38 @@ from them:
 
 ### 7.2 Extension: a host webcam as a guest camera
 
-The reference gives no protocol to copy, so this is Ycode's own design. It
+The reference gives no protocol to copy, so this is SwiftCode's own design. It
 must stay faithful at the **public API surface**: everything an app can
 observe through AVFoundation, CoreMedia, CoreVideo and UIKit should match
 what the same app sees on a real device with one camera.
 
 **A. Host side (Linux).**
 
-1. A Ycode host camera service opens one USB webcam through the Linux video
+1. A SwiftCode host camera service opens one USB webcam through the Linux video
    capture API (V4L2: query capabilities, list formats, frame sizes and frame
    intervals, set the format, memory-mapped buffers, stream on/off; level 1,
    Linux kernel documentation). It runs only when the user turns it on
-   explicitly for that device. The host has no TCC, so Ycode's own opt-in is
-   the host-side consent. Ycode should show that the camera is in use.
+   explicitly for that device. The host has no TCC, so SwiftCode's own opt-in is
+   the host-side consent. SwiftCode should show that the camera is in use.
 2. Convert each frame to one of the guest formats of §2.2: bi-planar 4:2:0
    video range `'420v'` (preferred: real devices default to it), bi-planar
    4:2:0 full range `'420f'`, or `'BGRA'`. Webcams usually deliver
-   YUYV 4:2:2 or MJPEG. Conversion is Ycode's work.
+   YUYV 4:2:2 or MJPEG. Conversion is SwiftCode's work.
 3. Offer a small, fixed format list built from what the webcam really
    supports. Example: 640×480, 1280×720 and 1920×1080 at the rates the
    webcam reports (usually 30 fps, some 60).
 
 **B. Transport to the guest.**
 
-4. Register a Ycode-named host-side endpoint (for example
-   `dev.ycode.camera`, not an Apple name) in the guest's `user/<uid>` domain,
+4. Register a SwiftCode-named host-side endpoint (for example
+   `dev.swiftcode.camera`, not an Apple name) in the guest's `user/<uid>` domain,
    as for the other host services (`launchd-sim.md` §6.3).
 5. Requests the endpoint must answer: list devices (ID, name, formats with
    size, pixel format and frame-rate ranges, position); open a device with a
    format; start; stop; close. It must also send connect and disconnect
    events for hot-plug.
 6. Frames: a ring of guest-visible buffers. The best choice is IOSurfaces
-   created through Ycode's IOSurface service (`iosurface-remote.md`), so the
+   created through SwiftCode's IOSurface service (`iosurface-remote.md`), so the
    guest can wrap them as pixel buffers with the public CoreVideo API. A
    shared memory region holding the planes is the alternative. For each
    frame, send the buffer index, a sequence number and a presentation time in
@@ -322,11 +322,11 @@ what the same app sees on a real device with one camera.
 7. Back-pressure: if the guest has not returned a buffer, drop the newest
    frame on the host. The guest output then sees no frame. Real devices
    report dropped frames to the video data output's drop callback, and
-   Ycode should do the same.
+   SwiftCode should do the same.
 
 **C. Guest side (the capture layer).**
 
-8. The runtime's capture library cannot be fed (§5). Ycode therefore
+8. The runtime's capture library cannot be fed (§5). SwiftCode therefore
    provides a **guest capture layer** written from this spec and public
    documentation only. It must not use Apple-private classes or their
    internals, and it must not be written from any disassembly. It is loaded
@@ -378,7 +378,7 @@ what the same app sees on a real device with one camera.
 12. With it on: one device with the configured formats; frames at the
     webcam's rate with increasing presentation times; `'420v'`, `'420f'` and
     `'BGRA'` each produce correct planes; the not-authorized input error; a
-    grant through the Ycode tool terminates a running app; unplugging gives a
+    grant through the SwiftCode tool terminates a running app; unplugging gives a
     disconnect notification.
 
 ## 8. Open questions
@@ -394,7 +394,7 @@ what the same app sees on a real device with one camera.
    process start or only in apps that link AVFoundation. This is a design
    choice for the clean room.
 
-## 9. Ycode implementation (agent CAMERA-GUEST, 2026-10-27)
+## 9. SwiftCode implementation (agent CAMERA-GUEST, 2026-10-27)
 
 Clean room: written from §1–§8 above, `camera-host.md`, `iosurface-remote.md`,
 `audio-host.md`, Apple's public AVFoundation, CoreMedia, CoreVideo,
@@ -402,15 +402,15 @@ IOSurface, QuartzCore and ImageIO documentation and SDK headers (class
 names, selectors, constants, error codes), and the public Objective-C
 runtime and dyld documentation. No Apple simulator, Xcode or reference
 tool was run, and no guest binary was disassembled. Everything here is
-Ycode's own design: the reference has no camera (§1).
+SwiftCode's own design: the reference has no camera (§1).
 
 ### 9.1 The switch (opt-in, off by default)
 
 | Where | What |
 |---|---|
-| `ycode-simd --device DEV --camera MODE` | MODE `off` (default), `on` (the first V4L2 camera of the host, else the synthetic pattern), `synthetic`, a node `/dev/videoN` or an ID `v4l2:<bus>` (`camera-host.md` §2.3). Kept in `DEV/ycode-camera.plist` (`Mode`, `Position`) for this and later boots; without `--camera` the device's setting is used |
+| `swiftcode-simd --device DEV --camera MODE` | MODE `off` (default), `on` (the first V4L2 camera of the host, else the synthetic pattern), `synthetic`, a node `/dev/videoN` or an ID `v4l2:<bus>` (`camera-host.md` §2.3). Kept in `DEV/swiftcode-camera.plist` (`Mode`, `Position`) for this and later boots; without `--camera` the device's setting is used |
 | `--camera-position back\|front\|external` | where the camera appears (default: back on an iPhone, external on an iPad) |
-| `--camera-library <path>` | the capture layer; default `libYcodeCamera.dylib` in the guest tools, else `SimGuestAgents/out` next to the shim |
+| `--camera-library <path>` | the capture layer; default `libSwiftCodeCamera.dylib` in the guest tools, else `SimGuestAgents/out` next to the shim |
 | Settings ▸ Simulators ▸ Camera | Off / Host webcam / Synthetic pattern (`specs/ide/run.md`) |
 
 With the switch off nothing of this section exists in the run: no endpoint is
@@ -427,9 +427,9 @@ port names, which snapshots depend on, do not move) and registered late
 (only apps look it up). The run prints `camera: on (<mode>, <position>):
 <host camera>; capture layer <path>` and, at its end, the stream counters.
 
-### 9.2 The endpoint `dev.ycode.camera` (host)
+### 9.2 The endpoint `dev.swiftcode.camera` (host)
 
-`CameraGuestService` (YcodeHostServices) on top of `CameraHostService`
+`CameraGuestService` (SwiftCodeHostServices) on top of `CameraHostService`
 (`camera-host.md`). Plain Mach messages in the MIG style, NDR record then
 32-bit little-endian words; request n has ID 0x59434D00 + n, its reply
 +100; messages to a client +200/+201 (`CameraGuestProtocol.swift`):
@@ -448,11 +448,11 @@ camera, or no permission on the node), 3 bad request, 4 failed.
 
 - **Device presentation.** One device. iPhone: `Back Camera` (or `Front
   Camera`), built-in wide angle, position 1 (2); iPad: the host camera's
-  own name, external, position 0. Unique ID `dev.ycode.camera.<position>:<host
+  own name, external, position 0. Unique ID `dev.swiftcode.camera.<position>:<host
   camera ID>` (stable while the camera stays on its USB port), model ID the
-  host camera's name, manufacturer `Ycode`. Formats: of the sizes 352×288,
+  host camera's name, manufacturer `SwiftCode`. Formats: of the sizes 352×288,
   640×480, 960×540, 1280×720, 1920×1080 and 3840×2160, those the camera
-  offers in a format Ycode converts, each with the slowest and fastest rate
+  offers in a format SwiftCode converts, each with the slowest and fastest rate
   over those source formats; a camera with none of them offers all its sizes.
   The C615 gives 640×480, 1280×720 and 1920×1080, 5–30 fps.
 - **Streams.** A start opens the host camera with the request (holding
@@ -482,24 +482,24 @@ The kernel calls `DarwinSystem.imageEnvironment` for every spawn and exec.
 With the switch on, an executable inside an `.app` bundle under an
 `Applications` folder or an installed-app container (not
 `System/Library/CoreServices` or `PrivateFrameworks`) gets
-`DYLD_INSERT_LIBRARIES` with the staged `DEV/ycode-camera/libYcodeCamera.dylib`
-(appended to any library already inserted) and `YCODE_CAMERA_SERVICE=dev.ycode.camera`.
+`DYLD_INSERT_LIBRARIES` with the staged `DEV/swiftcode-camera/libSwiftCodeCamera.dylib`
+(appended to any library already inserted) and `SWIFTCODE_CAMERA_SERVICE=dev.swiftcode.camera`.
 Daemons, SpringBoard and the rest of the system are unchanged.
 `DYLD_INSERT_LIBRARIES` is a public dyld feature, and the simulator's dyld
 honours it for these processes.
 
 The library links Foundation, CoreFoundation, CoreMedia, CoreVideo,
 IOSurface, QuartzCore, CoreGraphics and ImageIO, **not AVFoundation**: an
-app that never uses capture does not load it because of Ycode. Its
-constructor does nothing without `YCODE_CAMERA_SERVICE`; else it installs
+app that never uses capture does not load it because of SwiftCode. Its
+constructor does nothing without `SWIFTCODE_CAMERA_SERVICE`; else it installs
 the layer at once when AVFoundation's capture classes are present (an app
 that links AVFoundation), or later from an `objc_addLoadImageFunc`
 callback when an image brings them. Installing asks the endpoint for the
 device list; with no camera (or no endpoint) nothing is changed.
 
-Debugging (app environment, `--app-env`): `YCODE_CAMERA_DEBUG=1` prints the
+Debugging (app environment, `--app-env`): `SWIFTCODE_CAMERA_DEBUG=1` prints the
 layer's trace to the app's standard error with times since load and, for
-the discovery hooks, the calling image; `YCODE_CAMERA_SKIP=<parts>` (a
+the discovery hooks, the calling image; `SWIFTCODE_CAMERA_SKIP=<parts>` (a
 comma-separated list of `all`, `classes`, `discovery`, `photo`,
 `sessions`, `outputs`, `preview`, `connections`) leaves parts out, to find
 which part a failure needs.
@@ -512,11 +512,11 @@ constants are used; AVFoundation's string constants are read with `dlsym`
 and classes found with `objc_getClass`.
 
 - **Classes.** Run-time subclasses (`objc_allocateClassPair`) of the public
-  classes whose initializers are not public: `YcodeCaptureDevice`
-  (AVCaptureDevice), `YcodeCaptureDeviceFormat`, `YcodeFrameRateRange`,
-  `YcodeCaptureDeviceInput`, `YcodeCaptureInputPort`,
-  `YcodeCaptureConnection`, `YcodeCapturePhoto`,
-  `YcodeCaptureResolvedPhotoSettings`. Instances are made without running a
+  classes whose initializers are not public: `SwiftCodeCaptureDevice`
+  (AVCaptureDevice), `SwiftCodeCaptureDeviceFormat`, `SwiftCodeFrameRateRange`,
+  `SwiftCodeCaptureDeviceInput`, `SwiftCodeCaptureInputPort`,
+  `SwiftCodeCaptureConnection`, `SwiftCodeCapturePhoto`,
+  `SwiftCodeCaptureResolvedPhotoSettings`. Instances are made without running a
   superclass initializer and deallocate as plain objects; every public
   property an app reads is overridden (encodings from the superclass), so
   `isKindOfClass:` and Swift casts see the public classes. They also take
@@ -631,7 +631,7 @@ and classes found with `objc_getClass`.
 - **Photo output.** `capturePhotoWithSettings:delegate:` takes the next
   frame from the 10th frame of the stream on (a webcam's first frames after
   it opens are dark while its automatic exposure starts): will-begin, will-capture, did-capture, did-finish-processing (a
-  `YcodeCapturePhoto`: JPEG `fileDataRepresentation` encoded with ImageIO at
+  `SwiftCodeCapturePhoto`: JPEG `fileDataRepresentation` encoded with ImageIO at
   quality 0.9, `CGImageRepresentation`, a BGRA `pixelBuffer` when the
   settings ask for a pixel format, `timestamp`, `resolvedSettings` with the
   photo's dimensions) and did-finish-capture, on a serial queue. A session
@@ -645,18 +645,18 @@ and classes found with `objc_getClass`.
 
 ### 9.5 Privacy command
 
-`ycode-simd --device DEV --privacy grant|revoke|reset camera|microphone
+`swiftcode-simd --device DEV --privacy grant|revoke|reset camera|microphone
 <bundle ID>` writes §6.2's row into `DEV/data/Library/TCC/TCC.db` (table
 `access`; service `kTCCServiceCamera` or `kTCCServiceMicrophone`, client the
 bundle ID, client type 0, auth value 2 grant / 0 revoke, auth reason 4,
 auth version 1; reset deletes the row) through the host's SQLite library
 (loaded at run time). With the device running the command goes to its
-control socket (`privacy …`): the running ycode-simd writes the row and
+control socket (`privacy …`): the running swiftcode-simd writes the row and
 ends the app (`ylaunch kill`), as `tccd` does when an app's access
 changes. With the device stopped the row is written directly and read at
 the next boot. The database must exist (the guest's `tccd` makes it at the
-first boot). Ycode does not send `TCCAccessSetInternal` to `tccd` (§6.2):
-the control path is Ycode's own.
+first boot). SwiftCode does not send `TCCAccessSetInternal` to `tccd` (§6.2):
+the control path is SwiftCode's own.
 
 ### 9.6 Image picker, and what is not provided
 
@@ -676,24 +676,24 @@ the control path is Ycode's own.
   a device whose app was streaming is not designed or tested; the launcher's
   fingerprint includes `--camera`, so changing the switch boots cold.
 
-### 9.7 Verification (Ycode's simulator on the Thor, iOS 27.1, iPhone Duo device type; 2026-10-28)
+### 9.7 Verification (SwiftCode's simulator on the Thor, iOS 27.1, iPhone Duo device type; 2026-10-28)
 
 Our probe `CameraProbe` (`SimShim/guest-tests/camera`, public UIKit and
-AVFoundation API) installed and launched by `ycode-simd --install-app
+AVFoundation API) installed and launched by `swiftcode-simd --install-app
 --launch`, with the C615 webcam (`/dev/video0`) or the synthetic camera.
 
 | Check | Result |
 |---|---|
 | Switch off: discovery | default video device nil; discovery sessions: the microphone only; no endpoint, no library in the app (`--camera off`, and a new device) |
-| Switch on: discovery | default video device "Back Camera", built-in wide angle, position back, model "HD Webcam C615", manufacturer Ycode, connected; discovery (all types) the microphone and Back Camera; video discovery 1; formats `420v`/`420f` × 352×288, 640×480, 1280×720, 1920×1080 at 5–30 fps (the synthetic camera: 6 formats); system preferred camera Back Camera |
+| Switch on: discovery | default video device "Back Camera", built-in wide angle, position back, model "HD Webcam C615", manufacturer SwiftCode, connected; discovery (all types) the microphone and Back Camera; video discovery 1; formats `420v`/`420f` × 352×288, 640×480, 1280×720, 1920×1080 at 5–30 fps (the synthetic camera: 6 formats); system preferred camera Back Camera |
 | Permission: no record | status "not determined"; a request shows `tccd`'s alert ("Allow “Camera Probe” to access your camera?", the app's usage string, Don't Allow / Allow; screenshot) |
 | Permission: `--privacy revoke` (stopped device) | an input fails with AVFoundationErrorDomain −11852 |
 | Permission: `--privacy grant` (stopped device) | status "authorized", inputs are made (after the kernel fix of `sandbox-extensions.md` §5: before it, `tccd` allowed the record but its failed sandbox extension made the app see "denied") |
-| Permission: `--privacy revoke` (running device) | "ok revoke camera dev.ycode.CameraProbe; app: ylaunch: killed dev.ycode.CameraProbe"; the record's auth value 0 |
+| Permission: `--privacy revoke` (running device) | "ok revoke camera dev.swiftcode.CameraProbe; app: ylaunch: killed dev.swiftcode.CameraProbe"; the record's auth value 0 |
 | Stream 1280×720 `420v`, preview | 174 frames in 5.96 s (29.0 fps), none dropped, first frame 213 ms after its time stamp; sizes 1280×720, `420v`, IOSurface-backed; the preview layer previewing with the live webcam picture (aspect fill; screenshot). An earlier run under heavy host load (load average about 150) got its first frame 5.2 s late, then 30 fps |
 | Stream 640×480 BGRA, angle 90, mirrored | 233 frames in 7.96 s (29.2 fps), none dropped, first frame 264 ms after its time stamp; 480×640 BGRA, rotated and mirrored |
 | Stream 1920×1080 `420f` | 292 frames in 9.92 s (29.3 fps), none dropped, first frame 251 ms after its time stamp; host: MJPG 1920×1080 → `420f` |
-| Pixel content | the guest's last 1280×720 frame against a frame of `ycode-simd --camera-probe` taken minutes later: mean absolute difference 2.2 per channel (0–255); two host frames of the same scene 2.1 |
+| Pixel content | the guest's last 1280×720 frame against a frame of `swiftcode-simd --camera-probe` taken minutes later: mean absolute difference 2.2 per channel (0–255); two host frames of the same scene 2.1 |
 | Flow control | every frame the host sent was released (e.g. 298 sent, 298 released; 554 sent, 552 released when the app ended with frames held); 0 not taken |
 | Photo | `capturePhotoWithSettings:delegate:` (JPEG): will-begin (1920×1080), did-finish-processing with a 280 KB JPEG and a 1920×1080 CGImage, did-finish-capture, no error; the picture is the webcam's |
 | Webcam release | `fuser /dev/video0` empty after every run |
@@ -715,8 +715,8 @@ frames after the webcam opens are dark (§9.4 Photo output).
 |---|---|---|
 | Class names, selectors, constants, error codes, documented behavior of the capture API (§9.4) | 1 | Apple's public AVFoundation, CoreMedia, CoreVideo, IOSurface, QuartzCore, ImageIO and UIKit documentation and SDK headers |
 | `DYLD_INSERT_LIBRARIES`, the Objective-C runtime calls, `dladdr` (§9.3, §9.4) | 1 | public dyld, Objective-C runtime and dlfcn documentation |
-| Results in §9.6 and §9.7 | 3 | our probe on Ycode's simulator on the Thor (runs e1–e17, p1–p11, o1–o4); guest `log stream --process tccd`; kernel trace of `tccd` |
-| The endpoint, its protocol, the opt-in, time conversion, flow control, one client at a time, the privacy command, the IDE controls | — | Ycode design (the reference has no camera, §1) |
+| Results in §9.6 and §9.7 | 3 | our probe on SwiftCode's simulator on the Thor (runs e1–e17, p1–p11, o1–o4); guest `log stream --process tccd`; kernel trace of `tccd` |
+| The endpoint, its protocol, the opt-in, time conversion, flow control, one client at a time, the privacy command, the IDE controls | — | SwiftCode design (the reference has no camera, §1) |
 
 ## Evidence
 

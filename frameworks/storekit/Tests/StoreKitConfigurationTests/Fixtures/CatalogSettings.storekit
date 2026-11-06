@@ -22,7 +22,7 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "dev.ycode.skprobe.season",
+      "productID" : "dev.swiftcode.skprobe.season",
       "referenceName" : "Probe Season Pass",
       "type" : "NonRenewingSubscription"
     }
@@ -44,7 +44,7 @@
           "locale" : "de"
         }
       ],
-      "productID" : "dev.ycode.skprobe.coins100",
+      "productID" : "dev.swiftcode.skprobe.coins100",
       "referenceName" : "100 Probe Coins",
       "type" : "Consumable"
     },
@@ -59,7 +59,7 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "dev.ycode.skprobe.pro",
+      "productID" : "dev.swiftcode.skprobe.pro",
       "referenceName" : "Probe Pro",
       "type" : "NonConsumable"
     }
@@ -84,7 +84,7 @@
       "localizations" : [
         {
           "description" : "The Plus plans.",
-          "displayName" : "Ycode Plus",
+          "displayName" : "SwiftCode Plus",
           "locale" : "en_US"
         }
       ],
@@ -134,7 +134,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "dev.ycode.skprobe.plus.monthly",
+          "productID" : "dev.swiftcode.skprobe.plus.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Plus Monthly",
           "subscriptionGroupID" : "200000001",
@@ -161,7 +161,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "dev.ycode.skprobe.plus.yearly",
+          "productID" : "dev.swiftcode.skprobe.plus.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Plus Yearly",
           "subscriptionGroupID" : "200000001",
@@ -195,7 +195,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "dev.ycode.skprobe.plus.lite",
+          "productID" : "dev.swiftcode.skprobe.plus.lite",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Plus Lite",
           "subscriptionGroupID" : "200000001",
@@ -238,7 +238,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "dev.ycode.skprobe.extra.weekly",
+          "productID" : "dev.swiftcode.skprobe.extra.weekly",
           "recurringSubscriptionPeriod" : "P1W",
           "referenceName" : "Extra Weekly",
           "subscriptionGroupID" : "200000002",

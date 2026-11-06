@@ -3,7 +3,7 @@
 Part of `specs/frameworks/eventkit/`. Level 3 facts come from `EKProbe`
 (phases `basic` and `events`) on the iOS 27.1 simulator; level 1 from Apple's
 public documentation and RFC 5545 (iCalendar), summarized in our words. The
-rule model of EventKit is the RFC 5545 `RRULE` subset below; Ycode's engine
+rule model of EventKit is the RFC 5545 `RRULE` subset below; SwiftCode's engine
 should be an RFC 5545 expander with the EventKit-specific rules of §4.
 
 ## 1. Model
@@ -40,7 +40,7 @@ constructors (end date; occurrence count). `EKRecurrenceDayOfWeek` has
 | week number outside ±53 (e.g. 60) | accepted; the description shows `60SU` |
 | `BY` parts that RFC 5545 forbids for the frequency (BYDAY in daily, BYMONTHDAY in weekly, BYWEEKNO in monthly), out-of-range values (month day 32, month 13), set position 0, a week-numbered weekday in a weekly rule (`2MO`) | **accepted** at construction and kept in the text form; no exception |
 
-Ycode must accept the same inputs (no stricter validation) and raise the same
+SwiftCode must accept the same inputs (no stricter validation) and raise the same
 three exceptions with these reasons.
 
 ## 3. Text form
@@ -72,7 +72,7 @@ present, also when 1), then `COUNT` or `UNTIL`, then `BYDAY`, `BYMONTHDAY`,
 (its `occurrenceCount` is 0 when an end date is set).
 
 `WKST=MO` appeared only on the saved weekly rule with interval 2; rules with
-interval 1 did not print it (Ycode: print `WKST` only for weekly rules with
+interval 1 did not print it (SwiftCode: print `WKST` only for weekly rules with
 interval > 1; open question whether other frequencies with `BYWEEKNO` print
 it).
 
@@ -115,7 +115,7 @@ Occurrences are produced by `eventsMatchingPredicate:` /
 7. Week numbers (`BYWEEKNO`) follow ISO 8601 weeks starting Monday.
    **Quirk**: a yearly `BYWEEKNO=20;BYDAY=MO` rule with count 3 started
    2027-05-17 produced only the first occurrence in a window to 2030-09-01
-   (expected 2028-05-15 and 2029-05-14 by RFC 5545). Ycode records this as an
+   (expected 2028-05-15 and 2029-05-14 by RFC 5545). SwiftCode records this as an
    open question (plan C-REC-Q1) and implements RFC behavior unless a later
    round confirms the quirk.
 

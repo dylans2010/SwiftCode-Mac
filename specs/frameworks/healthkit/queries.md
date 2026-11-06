@@ -71,8 +71,8 @@ An instantaneous heart-rate sample at 09:00 is **not** in [08:00, 09:00]
 
 | Predicate | Count |
 |---|---|
-| metadata key `YcodeProbe` in {"golden"} | 1 |
-| metadata `YcodeNumber` > 40 (number comparison) | 1 |
+| metadata key `SwiftCodeProbe` in {"golden"} | 1 |
+| metadata `SwiftCodeNumber` > 40 (number comparison) | 1 |
 | metadata key exists (`HKExternalUUID`) | 1 |
 | quantity ≥ 1000 count (step samples) | 3 |
 | category value == asleep core (sleep) | 1 |
@@ -108,7 +108,7 @@ An instantaneous heart-rate sample at 09:00 is **not** in [08:00, 09:00]
   deletions a limit-2 query returned no samples; on a fresh store it
   returned the first two samples in insertion order (1000, 500).
 - The anchor is an opaque object with secure coding (414 bytes archived in
-  our run); `anchorFromValue:` builds one from an integer. A Ycode anchor encodes the sequence number.
+  our run); `anchorFromValue:` builds one from an integer. A SwiftCode anchor encodes the sequence number.
 - With an update handler, the query first reports the delta from its start
   anchor, then one callback per committed change set: a save of one sample
   gave "1 added"; replacing a synced sample gave "1 added, 1 deleted" in
@@ -189,7 +189,7 @@ samples' intervals (5700 s = 15 + 30 + 20 + 30 min).
   Whether 45 s is a pad or a minimum (samples closer than 45 s) is open.
 - **Equivalent continuous level** types (style 3, audio exposure, in dBASPL)
   were not measured; level 1 describes an energy-equivalent average
-  (10·log10 of the duration-weighted mean of 10^(L/10)). Ycode should
+  (10·log10 of the duration-weighted mean of 10^(L/10)). SwiftCode should
   implement that and confirm.
 - min / max / most recent: plain extrema; most recent is the sample with the
   latest end date (its date interval is reported).
@@ -224,7 +224,7 @@ Golden case (A = first app, granted first; B = second app, granted later):
 
 So in the reference B outranked A. Level 1 says the user orders sources in
 the Health app and that new apps are added to the list; the observed order
-is consistent with "most recently added app first". Ycode keeps an explicit
+is consistent with "most recently added app first". SwiftCode keeps an explicit
 priority list per type (`design.md` §6) seeded that way. Discrete types are
 not de-duplicated (merge rules apply to cumulative sums; level 1).
 
@@ -258,7 +258,7 @@ statistics and collection queries **excluded the app's own samples older
 than the earliest authorized date** (sum over all time 7104, without a 61
 step sample of D0−60d and a 1811 sample), while sample queries still
 returned those own samples. App B, granted "All Recorded Data", saw them in
-its collections. Ycode applies the date bound to statistics for every
+its collections. SwiftCode applies the date bound to statistics for every
 source and to sample/anchored queries for other sources' data only.
 
 ## 7. Own-data visibility

@@ -1,6 +1,6 @@
 # Assist testing / QA tools — behaviour (Wave 6)
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 79 Legacy Assist Testing/QA
 tools ported in Wave 6: test running & coverage (16, Part A), static
@@ -15,7 +15,7 @@ spec is the single source of truth for how the tools behave.
 
 ## Assist test-running / coverage tools — behaviour (Wave 6, slice A)
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 16 Legacy test-running
 and coverage tools ported in Wave 6, slice A: running one test,
@@ -24,19 +24,19 @@ coverage reporting (two tools), test-data fixtures, snapshot
 management, adding a test target, UI-test scaffolding, the SwiftUI
 interface/accessibility audit, preflight checks, benchmarking,
 compiler diagnostics, crash-log parsing, and runtime diagnostics.
-The implementation is `ycode/Sources/YcodeMCP/YcodeTools+Testing.swift`
-(+ `YcodeTools+TestingSupport.swift`); the tests are
-`ycode/Tests/YcodeMCPTests/YcodeTestingToolsTests.swift`.
+The implementation is `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Testing.swift`
+(+ `SwiftCodeTools+TestingSupport.swift`); the tests are
+`swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeTestingToolsTests.swift`.
 
 The per-tool sections below are catalogue-ready: each gives the
 tool's description and input schema verbatim (Legacy's
-`parametersSchema` plus the `workspace` parameter every Ycode tool
+`parametersSchema` plus the `workspace` parameter every SwiftCode tool
 carries), its output shape, and its error cases, so the coordinator
 can merge them into `specs/ide/assist-tool-catalogue.md` without
 re-deriving anything.
 
 Scope: what each tool does once called, what it returns, what it
-refuses, and which Ycode seam it runs through. The approval model
+refuses, and which SwiftCode seam it runs through. The approval model
 itself (write policy, `commit()` / `approve()`, the rejected
 Autopilot bypass) is `specs/ide/assist-approval-model.md` and is
 not repeated here beyond the per-tool gate column.
@@ -45,13 +45,13 @@ not repeated here beyond the per-tool gate column.
 
 - **IDs, titles, descriptions, schemas are Legacy's verbatim**,
   verified live from each Legacy tool file (see Evidence). The
-  only additions are the `workspace` parameter and Ycode's
+  only additions are the `workspace` parameter and SwiftCode's
   `additionalProperties: false`. Legacy's parameter-name aliases
-  (`filePath`, `file_content`, …) are NOT supported: Ycode's
+  (`filePath`, `file_content`, …) are NOT supported: SwiftCode's
   argument validation rejects unknown arguments before the handler
   runs.
 - **Structured data keeps Legacy's keys, with typed JSON values**
-  (integers, booleans, doubles) the way Ycode's other tools do —
+  (integers, booleans, doubles) the way SwiftCode's other tools do —
   Legacy's string-only map is not reproduced. Tools whose Legacy
   result carries no data return a plain text result instead.
 - **Paths resolve through the session resolvers**
@@ -64,7 +64,7 @@ not repeated here beyond the per-tool gate column.
   resolvers rejected any `..` as text.
 - **Failures are thrown as `MCPToolError`** with Legacy's message
   text, so the caller sees an `isError` result carrying that
-  message. Legacy's `.failure(…)` and Ycode's throw are the same
+  message. Legacy's `.failure(…)` and SwiftCode's throw are the same
   observable outcome.
 - **Risk / gate.** `safeRead` tools are `writes: false`,
   `readOnly: true, idempotent: true`. `execution` tools are
@@ -86,7 +86,7 @@ not repeated here beyond the per-tool gate column.
 
 ## 2. The test-runner seam (read before implementing the runners)
 
-The slice reuses Ycode's own test-runner seam and builds no
+The slice reuses SwiftCode's own test-runner seam and builds no
 parallel runner:
 
 - **Discovery:** `WorkspaceSession.discoverTests()` +
@@ -99,25 +99,25 @@ parallel runner:
   and swift-testing functions (a `func` preceded by `@Test`), in
   Swift sources, plus Objective-C XCTest (`- (void)test…` in an
   `@implementation` whose `@interface` extends `XCTestCase`).
-  Implementation: `ycode/Sources/YcodeIDECore/Model/TestDiscovery.swift`;
+  Implementation: `swiftcode/Sources/SwiftCodeIDECore/Model/TestDiscovery.swift`;
   spec: `specs/ide/testing.md` §Discovery.
 - **Running:** `WorkspaceSession.runTests(only: [DiscoveredTest])`
   → `[TestOutcome]` (`suite`, `name`, `status` passed/failed/
   skipped, `failures: [Diagnostic]`, `duration`). It re-discovers
   before each run, runs through the selected test runner
-  (ycodebuild for projects, SwiftPM's own runner for packages),
+  (swiftcodebuild for projects, SwiftPM's own runner for packages),
   and records the run in `s.reports`. The `test` tool
-  (`YcodeTools+Build.swift`) is the reference caller: it applies
+  (`SwiftCodeTools+Build.swift`) is the reference caller: it applies
   the scheme/destination first (`applyScheme`), saves all files
   (`delegate?.mcpHostSaveAll()`), reports progress
   (`reportingActivity`), and derives `status` as `failed` when any
   outcome failed or the newest report did not succeed.
-- **Results parsing:** `YcodeBuild/TestResults.swift`
+- **Results parsing:** `SwiftCodeBuild/TestResults.swift`
   (`TestOutcome`, `TestResultParser`) reads runner output: XCTest
   `Test Case '…' passed` lines (Darwin `-[Module.Class test]`
   and Linux `Class.test` forms) and swift-testing `✔` / `✘` /
   `➜` lines.
-- **Coverage:** `YcodeXcodebuild/Coverage.swift`
+- **Coverage:** `SwiftCodeXcodebuild/Coverage.swift`
   (`CoverageData`: targets → files → functions/lines, gathered
   with the toolchain's open-source `llvm-cov` from the merged
   profile, in its two result-bundle forms) and
@@ -129,9 +129,9 @@ parallel runner:
   the scheme document's TestAction `codeCoverageEnabled ==
   "YES"`). `CoverageModel.percent` formats a fraction as
   `"NN.N%"`.
-- **Result bundles:** `YcodeXcodebuild/XCResultReader.swift`
-  reads the result bundles ycodebuild writes (`XCResultStore`:
-  Zstandard-framed objects); `TestActions.swift` is ycodebuild's
+- **Result bundles:** `SwiftCodeXcodebuild/XCResultReader.swift`
+  reads the result bundles swiftcodebuild writes (`XCResultStore`:
+  Zstandard-framed objects); `TestActions.swift` is swiftcodebuild's
   `test` / `test-without-building` implementation (tests run in
   the platform's own `xctest` runner; swift-testing hooks into
   it); `SwiftTestingBridge.swift` bridges swift-testing.
@@ -139,7 +139,7 @@ parallel runner:
   slice does not fake: a process exit code for a test run (the
   runner reports per-test outcomes, so `test_run_single` has no
   `exitCode` key); an `.xcresult` path for a coverage run
-  (Ycode's runner writes its own reports, so
+  (SwiftCode's runner writes its own reports, so
   `test_coverage_report` has no `resultBundle` key); an
   `.xccovreport` reader (that format is read by the real `xcrun
   xccov`, §8, not by the llvm-cov seam).
@@ -178,7 +178,7 @@ Behaviour:
    (`destination contains characters that are not allowed.` /
    `scheme contains characters that are not allowed.`).
 3. The scheme/destination are applied with `applyScheme` (the
-   `test` tool's path): `destination` is a Ycode destination
+   `test` tool's path): `destination` is a SwiftCode destination
    name/id/specifier — Legacy's default `platform=macOS` is the
    specifier of the "My Mac" destination and matches as-is. An
    unknown scheme/destination fails with the `test` tool's
@@ -393,7 +393,7 @@ passed, <F> failed, <S> skipped.`
 Deviations from Legacy (deliberate): coverage is read from the
 session's coverage rows, not parsed out of `xcodebuild` stdout
 for `%` lines, and there is no `build/TestResults.xcresult`
-result bundle — Ycode's runner writes its own reports and no
+result bundle — SwiftCode's runner writes its own reports and no
 xcresult path is exposed, so there is no `resultBundle` key.
 When the scheme does not gather coverage the tool says so
 plainly (`No coverage data was gathered for this run. Enable
@@ -589,7 +589,7 @@ Error cases:
 | `action` not `list`/`clean` | `action must be 'list' or 'clean'.` |
 | `clean` without `confirm='true'` | `clean requires confirm='true'. No files were deleted.` |
 | No snapshots (clean) | Success: `No snapshot files found. Nothing to clean.` (`deletedCount` 0) |
-| Approval refused (clean) | `The change was rejected in Ycode's review; nothing was written.` |
+| Approval refused (clean) | `The change was rejected in SwiftCode's review; nothing was written.` |
 
 ## 11. `test_target_add` — Add Test Target
 
@@ -951,9 +951,9 @@ Output (structured): `error_count`, `warning_count` (ints),
 `buildFailed` (bool).
 
 Deviations from Legacy (deliberate): the build runs through
-the session (ycodebuild / SwiftPM), not a directly spawned
+the session (swiftcodebuild / SwiftPM), not a directly spawned
 `xcodebuild`, so there is no 300 s timeout and no macOS-only
-gate — Ycode builds on Linux too, and the `#if os(macOS)`
+gate — SwiftCode builds on Linux too, and the `#if os(macOS)`
 refusal (`Compiler diagnostics are only available on macOS
 runtime`) is not ported. The `project` argument cannot switch
 workspaces mid-call; it can only confirm the open one.
@@ -1122,8 +1122,8 @@ limitations, each named with its prerequisite, are:
   possible** — no Swift toolchain exists here. Static checks
   only: 16 tools, IDs unique, delimiters balanced in all three
   new files, no TODO/FIXME, no `testing`-prefixed helper
-  collides with an existing YcodeMCP symbol. The full test
-  suite (`YcodeTestingToolsTests`, 20 tests — the toolchain-
+  collides with an existing SwiftCodeMCP symbol. The full test
+  suite (`SwiftCodeTestingToolsTests`, 20 tests — the toolchain-
   gated tests run only when `canBuildPackages` is true) still
   needs a Mac run, as do the live checks: a real single-test
   run, a real coverage run with the scheme gathering coverage,
@@ -1131,10 +1131,10 @@ limitations, each named with its prerequisite, are:
   diagnostics collection through the session build.
 - **Wiring (coordinator-owned, NOT done here):** add
   `testingTools` to `installTools()` in
-  `ycode/Sources/YcodeMCP/YcodeTools.swift` (after
+  `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools.swift` (after
   `engineTools`), add the alias `"test_coverage":
   "test_coverage_reporter"` to `MCPServer.toolAliases` in
-  `ycode/Sources/YcodeMCP/MCPServer.swift` (verified against
+  `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (verified against
   Legacy's `AssistToolRegistry` alias table, line 532 — the
   only alias in this slice), and merge this spec's §3–§18 into
   `specs/ide/assist-tool-catalogue.md`.
@@ -1145,23 +1145,23 @@ limitations, each named with its prerequisite, are:
 |---|---|---|
 | All 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas | 1 | Legacy source, read directly: `SwiftCode/Backend/Assist/Tools/AssistTestRunSingleTool.swift`, `AssistXctestDiscoveryTool.swift`, `AssistTestLogParseTool.swift`, `AssistTestFlakyDetectTool.swift`, `AssistTestCoverageReportTool.swift`, `AssistTestCoverageReporterTool.swift`, `AssistTestDataFactoryTool.swift`, `AssistTestSnapshotManageTool.swift`, `AssistTestTargetAddTool.swift`, `AssistUITestScaffoldTool.swift`, `AssistInterfaceSimulatorTool.swift`, `AssistPreflightChecksTool.swift`, `AssistPerformanceBenchmarkTool.swift`, `AssistCompilerDiagnosticsEngine.swift`, `AssistCrashLogParseTool.swift`, `AssistRuntimeDiagnosticsEngine.swift` |
 | `test_coverage` → `test_coverage_reporter` is the only alias in this slice | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table (lines 430–556; the `test_coverage` entry at line 532) |
-| Test-runner seam: `discoverTests` / `testsDiscovered` / `runTests(only:)` / `runnerIdentifier` / `gathersCoverage` / `latestCoverage`; `test` tool as reference caller | 1 | Ycode `ycode/Sources/YcodeIDECore/Session/WorkspaceSession.swift` (`discoverTests`, `testsDiscovered`, `runnerIdentifier`, `runTests`, `gathersCoverage`), `ycode/Sources/YcodeIDECore/Session/WorkspaceSession+Coverage.swift` (`latestCoverage`), `ycode/Sources/YcodeMCP/YcodeTools+Build.swift` (`test`, `build`) |
-| Discovery rules (XCTest + swift-testing + ObjC), `TestOutcome` / `TestResultParser`, coverage via llvm-cov, result-bundle reading | 1 | Ycode `ycode/Sources/YcodeIDECore/Model/TestDiscovery.swift`, `ycode/Sources/YcodeBuild/TestResults.swift`, `ycode/Sources/YcodeXcodebuild/Coverage.swift`, `ycode/Sources/YcodeXcodebuild/XCResultReader.swift`, `ycode/Sources/YcodeXcodebuild/TestActions.swift`, `ycode/Sources/YcodeXcodebuild/SwiftTestingBridge.swift` |
-| `platform=macOS` is the specifier of the "My Mac" destination | 1 | Ycode `ycode/Sources/YcodeBuild/Destinations.swift` (`Destination.myMac`) |
-| Fixed-argv runner, timeout, off-main-actor use; `commit()` / explicit `MCPChange` + `approve()` gate shapes | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+TerminalSupport.swift` (`terminalRunFixed`), `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`commit`), `ycode/Sources/YcodeMCP/YcodeTools+FileWriting.swift` (`approveFileWritingChange`); approval model `specs/ide/assist-approval-model.md` |
-| Argument validation (required, unknown-argument, strict type checks) and alias resolution at `tools/call` time | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`argumentProblem`, `toolAliases`, `run`) |
-| Ycode port: `ycode/Sources/YcodeMCP/YcodeTools+Testing.swift`, `YcodeTools+TestingSupport.swift`; tests `ycode/Tests/YcodeMCPTests/YcodeTestingToolsTests.swift` | 1 | Files written in this slice (destination repo only, uncommitted) |
+| Test-runner seam: `discoverTests` / `testsDiscovered` / `runTests(only:)` / `runnerIdentifier` / `gathersCoverage` / `latestCoverage`; `test` tool as reference caller | 1 | SwiftCode `swiftcode/Sources/SwiftCodeIDECore/Session/WorkspaceSession.swift` (`discoverTests`, `testsDiscovered`, `runnerIdentifier`, `runTests`, `gathersCoverage`), `swiftcode/Sources/SwiftCodeIDECore/Session/WorkspaceSession+Coverage.swift` (`latestCoverage`), `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Build.swift` (`test`, `build`) |
+| Discovery rules (XCTest + swift-testing + ObjC), `TestOutcome` / `TestResultParser`, coverage via llvm-cov, result-bundle reading | 1 | SwiftCode `swiftcode/Sources/SwiftCodeIDECore/Model/TestDiscovery.swift`, `swiftcode/Sources/SwiftCodeBuild/TestResults.swift`, `swiftcode/Sources/SwiftCodeXcodebuild/Coverage.swift`, `swiftcode/Sources/SwiftCodeXcodebuild/XCResultReader.swift`, `swiftcode/Sources/SwiftCodeXcodebuild/TestActions.swift`, `swiftcode/Sources/SwiftCodeXcodebuild/SwiftTestingBridge.swift` |
+| `platform=macOS` is the specifier of the "My Mac" destination | 1 | SwiftCode `swiftcode/Sources/SwiftCodeBuild/Destinations.swift` (`Destination.myMac`) |
+| Fixed-argv runner, timeout, off-main-actor use; `commit()` / explicit `MCPChange` + `approve()` gate shapes | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+TerminalSupport.swift` (`terminalRunFixed`), `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Content.swift` (`commit`), `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+FileWriting.swift` (`approveFileWritingChange`); approval model `specs/ide/assist-approval-model.md` |
+| Argument validation (required, unknown-argument, strict type checks) and alias resolution at `tools/call` time | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`argumentProblem`, `toolAliases`, `run`) |
+| SwiftCode port: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Testing.swift`, `SwiftCodeTools+TestingSupport.swift`; tests `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeTestingToolsTests.swift` | 1 | Files written in this slice (destination repo only, uncommitted) |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 ## Part B — Static analysis
 
 ## Assist static-analysis tools — behaviour (Wave 6, slice B)
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools; the Wave 6
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools; the Wave 6
 slice-B port registers the tools below there).
 
 This spec covers the behaviour shared by the 22 Legacy Assist
-static-analysis tools ported into Ycode in Wave 6 (slice B), plus the
+static-analysis tools ported into SwiftCode in Wave 6 (slice B), plus the
 per-tool behaviour that the catalogue
 (`assist-tool-catalogue.md`) does not repeat: the workspace scan
 rules, the three path resolvers these tools use, the exact scan
@@ -1275,12 +1275,12 @@ failure is a tool error — see §18).
   `..` that escapes the workspace is an error, never a silent
   clamp. This replaces Legacy's bare
   `workspaceRoot.appendingPathComponent(path)` in these tools: the
-  Legacy form would happily read outside the workspace, which Ycode
+  Legacy form would happily read outside the workspace, which SwiftCode
   does not allow. The failure messages for missing / unreadable
   files are Legacy's (see §18).
 - **Strict file resolver** (`code_comment_extract`,
-  `swift_ast_inspector`): Ycode's `resolveFileWritingPath`, the
-  closest Ycode shape to Legacy's `AssistWorkspacePaths.resolve`
+  `swift_ast_inspector`): SwiftCode's `resolveFileWritingPath`, the
+  closest SwiftCode shape to Legacy's `AssistWorkspacePaths.resolve`
   (rejects empty paths, NUL bytes, a leading `~` and any `..`;
   relative paths resolve against the workspace root; a leading-`/`
   path must be under the root). A resolution failure is reported
@@ -1294,7 +1294,7 @@ kept (see `assist-approval-model.md` §7.2).
 ### 1.3 Structured data
 
 Structured data keeps Legacy's keys, with typed JSON values
-(integers for counts) the way Ycode's other tools do — Legacy's
+(integers for counts) the way SwiftCode's other tools do — Legacy's
 string-only map is not reproduced. Tools whose Legacy result
 carries no data return a plain text result instead. A tool that
 returns structured data always returns it, including on its
@@ -1309,7 +1309,7 @@ Legacy's registry-level `validate()` maps `filePath` /
 mappings for `content`, `target`, `replacement`, `command`), and
 individual tools accept further aliases (`import_cleanup` accepts
 `filePath` / `file_path` for `path`; `duplicate_code_scan`
-accepts `min_lines` for `minLines`). Ycode's argument validation
+accepts `min_lines` for `minLines`). SwiftCode's argument validation
 rejects unknown arguments before the handler runs, so none of
 these aliases work in the port — exactly as in Waves 1–3. The one
 exception is `dead_code_eliminator`, whose canonical Legacy
@@ -1333,9 +1333,9 @@ analysis, and none of them may be described as one:
   interpolation (`function_size_report`, `concurrency_audit`).
 - There is no Swift symbol index, no type checker, and no
   cross-file name resolution beyond whole-word text matching.
-- No YcodeSyntax AST is used: Ycode's `YcodeSyntax` is a
+- No SwiftCodeSyntax AST is used: SwiftCode's `SwiftCodeSyntax` is a
   tokenizer / block-structure library, not a Swift declaration
-  parser, and the `YcodeMCP` target does not depend on it. The
+  parser, and the `SwiftCodeMCP` target does not depend on it. The
   only tool whose Legacy implementation uses a real parser is
   `swift_ast_inspector`, and its parser path is not ported (see
   §15) — its regex structural fallback is the whole port.
@@ -1585,7 +1585,7 @@ No other alias in Legacy's table points at a tool in this slice.
   across <n> file(s):` with `- <relative>: import <Module>`
   lines. Structured data: `filesChanged` (changed relative paths,
   one per line), `removedImports`, `changedFileCount`, `removed`
-  (the `- `-less removal lines). Ycode's `MCPToolResult` has no
+  (the `- `-less removal lines). SwiftCode's `MCPToolResult` has no
   `filesChanged` field; the changed paths are carried in the data
   only.
 - **Errors:** missing or blank `path` → `Missing required
@@ -1866,7 +1866,7 @@ No other alias in Legacy's table points at a tool in this slice.
   runs `xcrun swiftc -dump-ast` on the file and returns the first
   250 lines of that dump (optionally filtered to lines containing
   the symbol, case-insensitively), falling back to the regex
-  parse only when the dump is empty or contains `error:`. Ycode's
+  parse only when the dump is empty or contains `error:`. SwiftCode's
   MCP host has no Swift toolchain and does not shell out to
   Apple's toolchain, so the `swiftc -dump-ast` path is not ported.
   The tool is not registered honestly-failing: the regex fallback
@@ -2062,11 +2062,11 @@ Nothing in this slice claims a build or test run passed.
   occurrences of those words are the tools' own subject matter:
   descriptions, the `todo_scan` regex, and the `code_lint`
   marker check).
-- Tests: `ycode/Tests/YcodeMCPTests/YcodeStaticAnalysisTests.swift`
+- Tests: `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeStaticAnalysisTests.swift`
   (registration test plus one behaviour test per tool, 23 tests)
   — not run here: no Swift toolchain in this environment.
 - Pending on Dylan's Mac: `swift build`, `swift test`
-  (YcodeMCPTests), and a live run of the tools against a real
+  (SwiftCodeMCPTests), and a live run of the tools against a real
   workspace, including `import_cleanup` under review policy.
 
 ## Evidence
@@ -2079,8 +2079,8 @@ Nothing in this slice claims a build or test run passed.
 | `swift_ast_inspector` runs `xcrun swiftc -dump-ast` first and falls back to the regex structural parse; the fallback pattern and inheritance capture | 1 | Legacy `Tools/AssistSwiftASTInspectorTool.swift`, read directly |
 | `import_cleanup` protected-module list, whole-word usage test, `@testable` import pattern, per-file direct writes, `filesChanged` result | 1 | Legacy `Tools/AssistImportCleanupTool.swift`, read directly |
 | Approval model: one gate (`MCPWritePolicy` / `run()`), `commit()` per changed file, no Autopilot, no second gate | 1 | `specs/ide/assist-approval-model.md` (§§2, 5, 6), read directly |
-| YcodeSyntax is a tokenizer / block-structure library, not a Swift declaration parser, and `YcodeMCP` does not depend on it | 1 | `ycode/Sources/YcodeSyntax/SyntaxDocument.swift`, `SyntaxStructure.swift`, and `ycode/Package.swift` (`YcodeMCP` target dependencies), read directly |
-| Test fixture facts (Greeter has 5 Swift files; `main.swift` is an entry point; no TODO/FIXME/MARK/`@available(*, deprecated)`/`@main` markers) | 1 | `ycode/Samples/AgentSamples/Greeter`, read directly |
+| SwiftCodeSyntax is a tokenizer / block-structure library, not a Swift declaration parser, and `SwiftCodeMCP` does not depend on it | 1 | `swiftcode/Sources/SwiftCodeSyntax/SyntaxDocument.swift`, `SyntaxStructure.swift`, and `swiftcode/Package.swift` (`SwiftCodeMCP` target dependencies), read directly |
+| Test fixture facts (Greeter has 5 Swift files; `main.swift` is an entry point; no TODO/FIXME/MARK/`@available(*, deprecated)`/`@main` markers) | 1 | `swiftcode/Samples/AgentSamples/Greeter`, read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 ## Part C — Security, privacy & platform audits
@@ -2088,7 +2088,7 @@ Nothing in this slice claims a build or test run passed.
 ## Assist security / privacy / platform audit tools — behaviour (Wave 6, slice C)
 
 Behaviour for the 18 Legacy Assist tools ported in Wave 6 (slice C) onto
-Ycode's MCP host: security, network, permissions, privacy-manifest,
+SwiftCode's MCP host: security, network, permissions, privacy-manifest,
 accessibility (×2), access-level, dependency-license, framework-linker,
 memory-leak, Mach-O, Core Data, SwiftData, bundle-resource, binary-size,
 image-asset-size, license-header, and secrets-scan audits. See
@@ -2102,9 +2102,9 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
 - **IDs, names, descriptions, property descriptions: Legacy verbatim.**
   The only description that differs in effect is
   `mach_o_binary_analyzer`'s ("via otool and file"): the words are kept
-  verbatim, but the implementation parses with YcodeMachO instead of
+  verbatim, but the implementation parses with SwiftCodeMachO instead of
   shelling out (§5). The input schema's top-level description is not
-  reproduced (Ycode's `Schema.object` carries none); every property
+  reproduced (SwiftCode's `Schema.object` carries none); every property
   description is Legacy's verbatim.
 - **Structured data keeps Legacy's keys, typed.** Legacy returns a
   string-only `[String: String]` data map; the port returns the same keys
@@ -2122,7 +2122,7 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
 - **Parameter-name aliases are NOT supported.** Legacy's registry
   rewrites `filePath` / `file_path` / `targetFile` / `file` to `path`
   (and `required_text` to `requiredText` for `license_header_check`).
-  Ycode's argument validation rejects unknown arguments before the
+  SwiftCode's argument validation rejects unknown arguments before the
   handler runs, so those aliases fail (same as Waves 1–2).
 - **Paths: two resolver shapes, both workspace-confined.**
   - *Session-aware* (`resolveFileReadingPath`): tools that in Legacy
@@ -2158,7 +2158,7 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
   generate action is refused in `readOnly` server mode by
   `MCPServer.run()` before the handler runs.
 - **No subprocesses, no shell.** No tool in this family spawns a
-  process. `mach_o_binary_analyzer` parses with YcodeMachO (§5);
+  process. `mach_o_binary_analyzer` parses with SwiftCodeMachO (§5);
   everything else reads files and parses text / plists in-process.
 
 ## 2. Per-tool behaviour
@@ -2370,7 +2370,7 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
   family whose Legacy parameter is not called `path`.)
 - **Behaviour:** Resolves `binaryPath` session-aware. Missing file fails:
   `Binary file not found at: <absolute path>`. The binary is parsed with
-  Ycode's own `YcodeMachO` target — see §5 for the seam. The report is:
+  SwiftCode's own `SwiftCodeMachO` target — see §5 for the seam. The report is:
   "### Mach-O Binary Analysis for `<name>`:\n\n#### Architectures
   (N):\n" with one line per slice — "`<arch>` (<file type>, N
   segment(s), N linked librar(y|ies))" — plus install name, UUID, build
@@ -2466,7 +2466,7 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
   `node_modules` skipped; hidden files NOT skipped — Legacy passes no
   enumerator options here). A file passes when the first 15 lines
   contain `requiredText` case-insensitively. Legacy also accepts the
-  `required_text` alias; Ycode does not (§1).
+  `required_text` alias; SwiftCode does not (§1).
 - **Outputs:** No Swift files → "License Header Check: no Swift files
   found." Otherwise "License Header Check: scanned N Swift file(s) for
   header text "<text>" in the first 15 lines — M with header, K
@@ -2654,7 +2654,7 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
   a Markdown table with headers Dependency | Manager | Version |
   License. The tool reports versions only — it does not fetch, read, or
   verify any license text. Legacy capability is `repositoryDiscovery`
-  (the only non-`diagnostics` tool in this family); Ycode's `MCPTool`
+  (the only non-`diagnostics` tool in this family); SwiftCode's `MCPTool`
   has no capability field, so the distinction is recorded here only.
 
 ### 2.18 `image_asset_size_report` — Image Asset Size Report
@@ -2667,7 +2667,7 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
   `totalBytes` (integer).
 - **Behaviour:** The threshold is `max(1, thresholdKB ?? 500)` KiB. Image
   files (`.png`, `.jpg`, `.jpeg`, `.heic`, `.webp`, `.tiff`, `.pdf`)
-  under the workspace are enumerated with Ycode's shared
+  under the workspace are enumerated with SwiftCode's shared
   `SearchWorkspace` scan (hidden files and top-level skipped
   directories excluded, as Legacy's `AssistWorkspaceScan` does) and
   only files whose path contains `.xcassets/` are counted. Files at or
@@ -2723,7 +2723,7 @@ Risk table for the catalogue (§1.3): 17 tools are Legacy `safeRead`
 `a11y_scanner` → `accessibility_audit_scanner`. No aliases exist for
 `permissions_audit`, `accessibility_audit`, `access_level_audit`,
 `dependency_licenses`, `binary_size_report`, `image_asset_size_report`,
-`license_header_check`, or `secrets_scan`. (Ycode resolves no aliases
+`license_header_check`, or `secrets_scan`. (SwiftCode resolves no aliases
 in this wave; the table is recorded here so the catalogue can carry it.)
 
 ## 5. Mach-O seam notes
@@ -2732,11 +2732,11 @@ in this wave; the table is recorded here so the catalogue can carry it.)
   `/usr/bin/file <path>` for the architecture line and `xcrun otool -L
   <path>` for linked libraries. Both are macOS-only (`xcrun` does not
   exist on Linux) and both shell out with a raw path argument.
-- The port does not build a parallel Mach-O parser. It reuses Ycode's
-  existing `YcodeMachO` target (`MachOFile` / `MachOImage` /
+- The port does not build a parallel Mach-O parser. It reuses SwiftCode's
+  existing `SwiftCodeMachO` target (`MachOFile` / `MachOImage` /
   `ByteReader`, specified in `specs/formats/macho-and-dyld-cache.md`
-  §2), which the `YcodeMCP` target now depends on (one-line
-  `Package.swift` change: `"YcodeMachO"` added to `YcodeMCP`'s
+  §2), which the `SwiftCodeMCP` target now depends on (one-line
+  `Package.swift` change: `"SwiftCodeMachO"` added to `SwiftCodeMCP`'s
   dependencies). `MachOFile` handles fat (universal) containers and
   thin images; `MachOImage` exposes CPU type / subtype, file type,
   segments, dylib references (path, kind, current / compatibility
@@ -2750,7 +2750,7 @@ in this wave; the table is recorded here so the catalogue can carry it.)
   `otool` lines at 25). There is no `file`-style free-text line to
   reproduce — the port reports the parsed facts instead of quoting a
   CLI.
-- Limits inherited from `YcodeMachO`, reported honestly rather than
+- Limits inherited from `SwiftCodeMachO`, reported honestly rather than
   worked around: only 64-bit images parse (`MachOImage` requires magic
   `0xFEEDFACF`); a 32-bit Mach-O, a non-Mach-O file, or a truncated
   header fails with `Not a Mach-O binary: <parser message>`. The tool
@@ -2789,18 +2789,18 @@ in this wave; the table is recorded here so the catalogue can carry it.)
 |---|---|---|
 | All 18 Legacy tool IDs, names, descriptions, schemas, risk levels, capabilities, and `execute()` behaviour | 1 | Legacy `SwiftCode/Backend/Assist/Tools/Assist{SecurityAudit,NetworkSecurityAuditor,PermissionsAudit,PrivacyManifestAuditor,AccessibilityAudit,AccessibilityAuditScanner,AccessLevelAudit,DependencyLicenses,FrameworkLinkerAuditor,MemoryLeakDetector,MachOBinaryAnalyzer,CoreDataModelInspector,SwiftDataSchemaAuditor,BundleResourceAuditor,BinarySizeReport,ImageAssetSizeReport,LicenseHeaderCheck,SecretsScan}Tool.swift`, read directly @ `d51a8f0d` |
 | Legacy `registerAllTools()` order; alias table (`security_audit`, `memory_leak`, `bundle_auditor`, `core_data_inspector`, `swift_data_schema`, `privacy_manifest`, `macho_analyzer`, `framework_linker`, `network_security`, `a11y_scanner`); common parameter aliases (`filePath`, `required_text`, …) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift`, read directly |
-| `YcodeMachO` API (`MachOFile`, `MachOImage`, `ByteReader`, `MachO.architectureName`, 64-bit-only parsing, fat containers) | 1 | Ycode `ycode/Sources/YcodeMachO/MachOImage.swift`, `ByteReader.swift`, read directly; `specs/formats/macho-and-dyld-cache.md` §2 |
-| Session-aware vs strict path resolvers; `commit()` / `approve()` gate; `MCPWritePolicy` modes; no Autopilot | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+FileReadingSupport.swift`, `YcodeTools+Content.swift` (`commit`), `specs/ide/assist-approval-model.md`, read directly |
-| `SearchWorkspace.files` skip set (Legacy `AssistWorkspaceScan` port) | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+SearchSupport.swift`, read directly |
+| `SwiftCodeMachO` API (`MachOFile`, `MachOImage`, `ByteReader`, `MachO.architectureName`, 64-bit-only parsing, fat containers) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMachO/MachOImage.swift`, `ByteReader.swift`, read directly; `specs/formats/macho-and-dyld-cache.md` §2 |
+| Session-aware vs strict path resolvers; `commit()` / `approve()` gate; `MCPWritePolicy` modes; no Autopilot | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+FileReadingSupport.swift`, `SwiftCodeTools+Content.swift` (`commit`), `specs/ide/assist-approval-model.md`, read directly |
+| `SearchWorkspace.files` skip set (Legacy `AssistWorkspaceScan` port) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+SearchSupport.swift`, read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 ## Part D — Docs, review & repo tooling
 
 ## Assist testing / review / docs tools — behaviour spec (Wave 6, slice D)
 
-Ycode module: `YcodeMCP` (the MCP server and its tools). Implementation:
-`ycode/Sources/YcodeMCP/YcodeTools+ReviewDocs.swift` (`reviewDocsTools`),
-tests: `ycode/Tests/YcodeMCPTests/YcodeReviewDocsTests.swift`.
+SwiftCode module: `SwiftCodeMCP` (the MCP server and its tools). Implementation:
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ReviewDocs.swift` (`reviewDocsTools`),
+tests: `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeReviewDocsTests.swift`.
 
 This spec is the behaviour contract for the 23 Legacy Assist tools that
 audit, document, review and report on a workspace: API-surface and
@@ -2837,7 +2837,7 @@ Conventions (same as Waves 1–3): schemas are Legacy's
 `parametersSchema` verbatim, plus the `workspace` parameter Wave 1 adds
 to every tool; structured data keeps Legacy's keys with typed JSON
 values (integers and booleans) instead of Legacy's string-only map;
-Legacy's parameter-name aliases are NOT supported (Ycode's argument
+Legacy's parameter-name aliases are NOT supported (SwiftCode's argument
 validation rejects unknown arguments before the handler runs); paths
 resolve as §3 describes; every writing handler gates through
 `commit()` / `approve()` before touching disk (§3); there is no
@@ -3098,7 +3098,7 @@ open one.") and is omitted from the per-tool property lists below.
   changes (snapshot diff), and build/diagnostic events, sends them to
   an LLM with the `CodeReviewSystemAsset.md` system prompt, and
   requires a JSON verdict whose `status` is `task_ready` or
-  `task_failed`. Ycode's MCP host has no LLM provider wired for this
+  `task_failed`. SwiftCode's MCP host has no LLM provider wired for this
   tool, so the handler always throws naming that prerequisite and
   verifies nothing. The tool is `safeRead` / `writes: false`, so it
   runs (and fails) even on a read-only server.
@@ -3370,7 +3370,7 @@ open one.") and is omitted from the per-tool property lists below.
   (`AssistSnapshotFunctions.listSnapshots`), requires at least two
   (current baseline + previous state), and restores `snapshots[1]`,
   failing with `At least two snapshots are required to undo (current
-  baseline + previous state).` when there are fewer. Ycode's MCP host
+  baseline + previous state).` when there are fewer. SwiftCode's MCP host
   keeps no snapshots and `commit()` records no previous file content,
   so there is nothing to restore. The handler always throws naming
   that prerequisite. It must only ever undo changes the host itself
@@ -3431,7 +3431,7 @@ open one.") and is omitted from the per-tool property lists below.
   `ISO8601DateFormatter` (no fractional seconds — Legacy's form here,
   unlike `AssistWorkspacePaths.iso8601`). The session ID is a
   deterministic UUID derived from the workspace root path (SHA-256 of
-  the path, first 16 bytes formatted as a UUID) — Ycode has no
+  the path, first 16 bytes formatted as a UUID) — SwiftCode has no
   agent-session UUID (§5). The Markdown body is Legacy's verbatim
   shape: `# <title>`, `- Exported: <timestamp>`, `- Session ID:
   <uuid>`, `- Workspace: <absolute root path>`, a `## Tool Registry`
@@ -3455,7 +3455,7 @@ open one.") and is omitted from the per-tool property lists below.
 - Behaviour: degraded (§4.4). Legacy reads `AgentPhaseCoordinator`
   (phases with `completed` / `inProgress` / `failed` / `pending` /
   `skipped` statuses and per-phase failure lists) and
-  `AgentNotesManager.lastSavedTimestamp`. Ycode has no phase
+  `AgentNotesManager.lastSavedTimestamp`. SwiftCode has no phase
   coordinator, so all five counts are always 0 and the message always
   starts `No engineering phases are registered for this session.` The
   agent-notes line is real: it reports the modification time of the
@@ -3477,12 +3477,12 @@ open one.") and is omitted from the per-tool property lists below.
 - Behaviour: adapted (§4.5). The id is trimmed; a blank id fails with
   `Missing required parameter: toolId`. Aliases resolve first through
   `MCPServer.toolAliases`, as Legacy's `getTool` does. The tool is
-  looked up in the live `server.tools` list — the Ycode registry — so
+  looked up in the live `server.tools` list — the SwiftCode registry — so
   it reports what is actually installed, including tools from other
   slices once the coordinator wires them in. The risk level is derived
   from the tool's annotations: `destructive` →
   `potentiallyDestructive`, `writes` → `safeMutation`, otherwise
-  `safeRead`. Ycode tools carry no capability taxonomy and no cost
+  `safeRead`. SwiftCode tools carry no capability taxonomy and no cost
   model, so the capability and estimated-cost lines Legacy reports are
   omitted, not invented.
 - Output text:
@@ -3565,19 +3565,19 @@ changes (snapshot diff) and build/diagnostic events, sends them to an
 LLM — Apple Foundation Models when enabled, else the configured
 provider via `LLMService` — and requires a JSON verdict whose `status`
 is `task_ready` or `task_failed` (anything else is a contract error).
-Ycode's MCP host has no LLM provider wired for this tool, so the
+SwiftCode's MCP host has no LLM provider wired for this tool, so the
 handler always throws:
 
 > `code_review is unavailable: Legacy performs the review by sending
 > the task history, repository changes and build state to an LLM
 > (Apple Foundation Models or the configured provider) and requiring a
-> JSON verdict with status task_ready or task_failed. Ycode's MCP host
+> JSON verdict with status task_ready or task_failed. SwiftCode's MCP host
 > has no LLM provider wired for this tool, so no review is performed
 > and nothing was verified.`
 
 No review is faked. Wiring a provider is the prerequisite for a real
 port; the session-history and snapshot-diff gathering Legacy does
-would also need Ycode equivalents (there is no agent session loop and
+would also need SwiftCode equivalents (there is no agent session loop and
 no snapshot store in the host).
 
 ### 4.2 `safe_undo` — honestly-failing (missing snapshot store)
@@ -3585,14 +3585,14 @@ no snapshot store in the host).
 Legacy's `AssistUndoTool.execute` lists workspace snapshots via
 `AssistSnapshotFunctions.listSnapshots()`, requires at least two, and
 restores `snapshots[1]` (the state before the last modification).
-Ycode's MCP host keeps no snapshots — `commit()` records no previous
+SwiftCode's MCP host keeps no snapshots — `commit()` records no previous
 file content, and `WorkspaceSession.noteFileEdited` records only a
 path, not content — so there is nothing to restore. The handler always
 throws:
 
 > `safe_undo is unavailable: Legacy reverts the last modification by
 > restoring the previous workspace snapshot (AssistSnapshotFunctions:
-> at least two snapshots, restore snapshot[1]). Ycode's MCP host keeps
+> at least two snapshots, restore snapshot[1]). SwiftCode's MCP host keeps
 > no snapshots and commit() records no previous file content, so there
 > is nothing to restore. Nothing was changed.`
 
@@ -3616,7 +3616,7 @@ report the result, but that would be new behaviour, not a port.
 
 ### 4.4 `session_progress_report` — degraded (no phase coordinator)
 
-Ycode has no equivalent of Legacy's `AgentPhaseCoordinator` or
+SwiftCode has no equivalent of Legacy's `AgentPhaseCoordinator` or
 `AgentNotesManager`. Phase counts are therefore always zero and the
 message always starts `No engineering phases are registered for this
 session.` The agent-notes line is real (modification time of the
@@ -3626,7 +3626,7 @@ a phase model to the host, this tool should read it and the spec's
 
 ### 4.5 `tool_capability_lookup` — adapted (no capability taxonomy)
 
-Ycode tools have no `ToolCapability` and no `estimatedCost`. The
+SwiftCode tools have no `ToolCapability` and no `estimatedCost`. The
 lookup reports what the live registry actually carries (id, title,
 description, input parameters, required list, and the
 annotations-derived risk level) and omits the capability and cost
@@ -3638,14 +3638,14 @@ than filled with a placeholder value.
 | Deviation | Reason |
 |---|---|
 | `code_review` / `safe_undo` honestly fail instead of running | Missing LLM provider / snapshot store (§4.1–4.2). Wave 2 `code_refactor` precedent. |
-| `session_progress_report` always reports zero phases | No phase coordinator in Ycode (§4.4). |
-| `tool_capability_lookup` omits capability and estimated cost | Ycode tools carry neither (§4.5). |
-| `session_export` session ID is a deterministic UUID derived from the workspace root path | Ycode has no agent-session UUID. Stable per workspace. |
+| `session_progress_report` always reports zero phases | No phase coordinator in SwiftCode (§4.4). |
+| `tool_capability_lookup` omits capability and estimated cost | SwiftCode tools carry neither (§4.5). |
+| `session_export` session ID is a deterministic UUID derived from the workspace root path | SwiftCode has no agent-session UUID. Stable per workspace. |
 | `session_export` timestamp is a plain `ISO8601DateFormatter` (no fractional seconds) | That is Legacy's form in this tool; `stale_files_report` / `session_progress_report` use `AssistWorkspacePaths.iso8601` (with fractional seconds), as Legacy does. |
 | `automated_repair_engine` performs no rebuild | Legacy's `execute()` never rebuilds either (§4.3). |
 | `code_snippet_manager` has no `keychain_helper` template | Legacy's `switch` has no such case; only its schema description lists it. Preserved, not fixed. |
 | `colorset_builder` rejects path-like `colorName` values | Legacy would silently create nested directories. Hardening; the error names the problem. |
-| `icon_generator_tool` / `colorset_builder` resolve catalog paths inside the workspace | Legacy appended the path to the workspace root without a containment check, honouring absolute outside paths. Ycode confinement wins. |
+| `icon_generator_tool` / `colorset_builder` resolve catalog paths inside the workspace | Legacy appended the path to the workspace root without a containment check, honouring absolute outside paths. SwiftCode confinement wins. |
 | `session_export` `overwrite` keeps Legacy's string type (`"true"`) | A JSON boolean is rejected by argument validation, as Legacy's `as? String` cast would ignore it. |
 | `docstring_generator` is `writes: false` | Legacy risk is `safeRead`; it returns text and writes nothing. |
 | `api_endpoint_audit` empty case returns only `count` | Legacy's data shape is preserved exactly (the output schema lists all three keys as optional). |
@@ -3653,10 +3653,10 @@ than filled with a placeholder value.
 
 ## 6. Wiring (for the coordinator)
 
-- Array: `reviewDocsTools` on `YcodeMCPHost`
-  (`ycode/Sources/YcodeMCP/YcodeTools+ReviewDocs.swift`), 23 tools in
+- Array: `reviewDocsTools` on `SwiftCodeMCPHost`
+  (`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ReviewDocs.swift`), 23 tools in
   the §1 table order. Add `+ reviewDocsTools` to `installTools()` in
-  `YcodeTools.swift`.
+  `SwiftCodeTools.swift`.
 - Writes: `automated_repair_engine`, `colorset_builder`,
   `icon_generator_tool`, `markdown_toc_generate`, `readme_generate`,
   `safe_undo`, `session_export` (`writes: true`; `safe_undo` is the
@@ -3667,16 +3667,16 @@ than filled with a placeholder value.
   `icon_generator` → `icon_generator_tool`, `colorset` →
   `colorset_builder`. No other slice-D tool has a Legacy alias (the
   full alias table was checked). Note `search` → `search_text` is
-  deliberately NOT an alias in Ycode (it would collide with Ycode's
+  deliberately NOT an alias in SwiftCode (it would collide with SwiftCode's
   `search`); `tool_capability_lookup` resolves the aliases that do
   exist in `MCPServer.toolAliases`.
-- Tests: `ycode/Tests/YcodeMCPTests/YcodeReviewDocsTests.swift`
+- Tests: `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeReviewDocsTests.swift`
   (26 tests). No Swift toolchain exists in this environment, so `swift
   build` / `swift test` and live runs on Dylan's Mac are still
   pending; the implementation and tests were statically checked only
   (tool count, ID uniqueness, delimiter balance, no outstanding task
   markers, helper names prefixed `reviewDocs` with no collisions in
-  `YcodeMCP`).
+  `SwiftCodeMCP`).
 
 ## Evidence
 
@@ -3690,7 +3690,7 @@ than filled with a placeholder value.
 | `tool_capability_lookup` reports capability, risk, estimated cost from the live registry | 1 | Legacy `Tools/AssistToolCapabilityLookupTool.swift`, read directly |
 | Aliases `docstring`, `snippet`, `icon_generator`, `colorset` | 1 | Legacy `AssistToolRegistry.swift` (`toolAliases`, lines 500, 502, 529, 530), read directly |
 | Scan skip rules, `iso8601` with fractional seconds, `findPbxproj` | 1 | Legacy `Tools/AssistToolSharedHelpers.swift` (`AssistWorkspaceScan`, `AssistWorkspacePaths`), read directly |
-| `commit()` / `approve()` gate, `MCPWritePolicy` modes, `readOnlyMessage`, `rejectedMessage`, unknown-argument rejection | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift`, `YcodeTools+Content.swift` (`commit`), read directly |
-| `resolveFileReadingPath` / `resolveFileWritingPath` / `resolveFileWritingClampedPath` semantics; `SearchWorkspace` scan rules | 1 | Ycode `YcodeTools+FileReadingSupport.swift`, `YcodeTools+FileWriting.swift`, `YcodeTools+SearchSupport.swift`, read directly |
-| No snapshot store, no phase coordinator, no LLM provider in Ycode's MCP host | 1 | Ycode `ycode/Sources/YcodeMCP/` and `YcodeIDECore/Session/WorkspaceSession.swift` (`noteFileEdited` records paths only), read directly |
+| `commit()` / `approve()` gate, `MCPWritePolicy` modes, `readOnlyMessage`, `rejectedMessage`, unknown-argument rejection | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift`, `SwiftCodeTools+Content.swift` (`commit`), read directly |
+| `resolveFileReadingPath` / `resolveFileWritingPath` / `resolveFileWritingClampedPath` semantics; `SearchWorkspace` scan rules | 1 | SwiftCode `SwiftCodeTools+FileReadingSupport.swift`, `SwiftCodeTools+FileWriting.swift`, `SwiftCodeTools+SearchSupport.swift`, read directly |
+| No snapshot store, no phase coordinator, no LLM provider in SwiftCode's MCP host | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/` and `SwiftCodeIDECore/Session/WorkspaceSession.swift` (`noteFileEdited` records paths only), read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |

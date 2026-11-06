@@ -141,7 +141,7 @@ available on iOS (out of scope for the first rounds).
 3. Lights and cameras orient along the entity's −Z.
 4. Many components are `Codable` (light shadows, particle emitters, audio
    components, `Transform` from 18). The encoding is not specified publicly;
-   Ycode defines its own if needed.
+   SwiftCode defines its own if needed.
 
 ## Evidence
 

@@ -1,7 +1,7 @@
 # Property list editor
 
-Ycode modules: `YcodePlist` (`PropertyListDocument`, `PropertyListItem`),
-`YcodeUI` (`PlistTree`, `PlistEditorController`).
+SwiftCode modules: `SwiftCodePlist` (`PropertyListDocument`, `PropertyListItem`),
+`SwiftCodeUI` (`PlistTree`, `PlistEditorController`).
 
 Opening a `.plist` or `.entitlements` file shows the property-list editor
 in the editor area: an outline with the columns Key, Type, Value under a
@@ -37,7 +37,7 @@ as base64 in lines of 68 characters indented like its tags, dates as
 `YYYY-MM-DDThh:mm:ssZ`, and `&`, `<`, `>` escaped. A file written by
 Foundation's XML property-list writer reads and writes back byte for
 byte. Binary property lists (`bplist` magic, format `bplist00`) are read
-and written by Ycode's own reader and writer, which keep the file's
+and written by SwiftCode's own reader and writer, which keep the file's
 dictionary key order (`reference-ui-5.md` §11.2; `reference-ui-3.md` §2).
 The writer lays the objects out as Foundation's binary writer does
 (depth-first, shared strings, numbers, dates and data, one object per
@@ -46,14 +46,14 @@ writes back byte for byte. Known limits: 4-byte reals are written back as
 8-byte reals, UID objects (keyed archives) are not read, and a container
 referenced twice is written twice.
 
-## Ycode implementation (Linux IDE, 1.0.0-beta.2)
+## SwiftCode implementation (Linux IDE, 1.0.0-beta.2)
 
-`ycode-ide` opens `.plist` and `.entitlements` files from the project
-navigator in the same editor (`YcodeIDEShell/PlistEditorModel.swift`,
-`ycode-ide/PlistEditorView.swift`): the Key | Type | Value outline with
+`swiftcode-ide` opens `.plist` and `.entitlements` files from the project
+navigator in the same editor (`SwiftCodeIDEShell/PlistEditorModel.swift`,
+`swiftcode-ide/PlistEditorView.swift`): the Key | Type | Value outline with
 the rows and rules above, + and − on the selected row, the Editor menu's
 Add Item, Value Type ▸ and Raw Keys and Values, and the column headers'
-sort (the view only). Ycode's own additions: Alt+Up / Alt+Down and the
+sort (the view only). SwiftCode's own additions: Alt+Up / Alt+Down and the
 row's context menu move an item among its siblings; the jump bar's Open
 As switch shows the file as source text and back (unsaved text is saved
 first). OpenStep lists (`openstep-plist.md`) are read too and written back

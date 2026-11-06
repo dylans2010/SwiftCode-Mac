@@ -1,11 +1,11 @@
 # Spec: simulator settings features (appearance, accessibility, location, sound)
 
-Status: **proposed** (OBS-FEATURES, 2026-10-27); Ycode implementation in §I (FEAT-IMPL, 2026-10-27). It tells a clean agent how
+Status: **proposed** (OBS-FEATURES, 2026-10-27); SwiftCode implementation in §I (FEAT-IMPL, 2026-10-27). It tells a clean agent how
 the reference simulator (Xcode 27.1, iOS 27.1 runtime 24A94401) lets the user
 change Appearance, Liquid Glass, Color Filters, Text Size, Reduce Motion,
 Increase Contrast, Show Borders, Reduce Transparency, VoiceOver, Location,
 Sound, Output and Input, what each change does inside the guest, and what
-Ycode must build to offer the same. Observations behind it:
+SwiftCode must build to offer the same. Observations behind it:
 `research/notes/obs-features-2026-10-27.md`. It builds on `audio-host.md`
 §12 (audio settings files), `launchd-sim.md` §3, `hid-input.md` and
 `foldable.md` §4 (Device Hub); it does not repeat them.
@@ -15,7 +15,7 @@ applies a change for the host; **AX domain** = the preference domain
 `com.apple.Accessibility` (file `DEV/data/Library/Preferences/com.apple.Accessibility.plist`);
 **DEV** = the device directory. Preference values are written through the
 guest's `cfprefsd` (the normal preferences API), never by editing the file
-behind its back. **Ycode decision** marks design choices.
+behind its back. **SwiftCode decision** marks design choices.
 
 ## 1. Summary
 
@@ -40,7 +40,7 @@ behind its back. **Ycode decision** marks design choices.
    Both paths end in the **same guest state** (§4).
 3. These agents are **host-supplied binaries** (they ship in Xcode's
    CoreSimulator platform folder, not in the runtime) and CoreSimulator copies
-   their launchd plists into `DEV/data/Library/LaunchDaemons/`. Ycode cannot
+   their launchd plists into `DEV/data/Library/LaunchDaemons/`. SwiftCode cannot
    ship them; it needs **its own guest agent** (§6).
 4. Xcode's **Environment Overrides** (debug bar) is different: it changes one
    debugged app through the debugger and leaves the device's settings alone
@@ -94,16 +94,16 @@ always includes the current user interface style. Services
 | dtlocationd | `simulatelocation` | available scenarios, set scenario, set simulated location, start location simulation, clear simulated location |
 
 The daemons are launchd Mach-service jobs started on demand and exit when
-idle. **Ycode decision**: Ycode does not need to speak this protocol (its
-IDE talks to its own agent, §6); it is recorded so a future Ycode can accept
+idle. **SwiftCode decision**: SwiftCode does not need to speak this protocol (its
+IDE talks to its own agent, §6); it is recorded so a future SwiftCode can accept
 `devicectl`-style requests if wanted.
 
 ## 4. Features
 
 Each subsection: controls, what changes in the guest (keys, notifications),
-live or relaunch, persistence, and what Ycode must do. "Setter posts" lists
+live or relaunch, persistence, and what SwiftCode must do. "Setter posts" lists
 the notifications the setting agent posts itself; "system posts" lists those
-that other guest processes (mostly backboardd) post in reaction and that Ycode
+that other guest processes (mostly backboardd) post in reaction and that SwiftCode
 gets for free by running the runtime's own daemons. All AX keys are integers
 0/1 unless noted.
 
@@ -120,7 +120,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   (SpringBoard).
 - **Live**: yes; trait collection's user interface style changes ~50 ms later.
 - **Persists**: yes.
-- **Ycode must**: write the key through the guest's preferences API (or, if
+- **SwiftCode must**: write the key through the guest's preferences API (or, if
   available in the runtime, through the same UIKit service so SpringBoard is
   told); verify SpringBoard posts the notification and apps flip. Auto is not
   specified (OPEN Q1).
@@ -139,7 +139,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   `UIViewGlassLegibilityUpdateNotification` (Darwin).
 - **Live**: yes (glass effect views turned opaque and pale on screen).
 - **Persists**: yes.
-- **Ycode must**: write the two keys, post the two notifications; report the
+- **SwiftCode must**: write the two keys, post the two notifications; report the
   supported looks as the runtime does (OPEN Q2: how the list is determined).
 
 ### 4.3 Color Filters
@@ -163,9 +163,9 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   taken from the framebuffer.
 - **Live**: yes. **Persists**: **no** — the guest empties
   `com.apple.mediaaccessibility` during boot.
-- **Ycode must**: write the keys, post the notifications; the filtering
+- **SwiftCode must**: write the keys, post the notifications; the filtering
   itself is done by the guest's compositor (backboardd) from these settings,
-  so Ycode's display path must not bypass it (check on Ycode that the
+  so SwiftCode's display path must not bypass it (check on SwiftCode that the
   framebuffer shows the filter; OPEN Q4).
 
 ### 4.4 Text Size (Dynamic Type)
@@ -185,7 +185,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
 - **Setter posts**: `ApplePreferredContentSizeCategoryChangedNotification`.
 - **Live**: yes (UIContentSizeCategoryDidChange and trait change ~20 ms).
 - **Persists**: yes.
-- **Ycode must**: write both keys, post the notification. Increment and
+- **SwiftCode must**: write both keys, post the notification. Increment and
   decrement step through the 12 names in order and stop at the ends.
 
 ### 4.5 Reduce Motion
@@ -198,7 +198,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   `com.apple.accessibility.reduce.motion.status`,
   `com.apple.accessibility.cache.pointer.effect.scaling`,
   `com.apple.accessibility.pointer.effect.scaling`.
-- **Live**: yes. **Persists**: yes. **Ycode must**: write, post.
+- **Live**: yes. **Persists**: yes. **SwiftCode must**: write, post.
 
 ### 4.6 Increase Contrast
 
@@ -213,7 +213,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   `com.apple.accessibility.status`.
 - **Live**: yes (UIAccessibility darker-colors notification; trait
   accessibility contrast becomes high). **Persists**: yes.
-- **Ycode must**: write, post. `simctl`-style getter answers enabled/disabled
+- **SwiftCode must**: write, post. `simctl`-style getter answers enabled/disabled
   from `DarkenSystemColors`.
 
 ### 4.7 Show Borders
@@ -225,7 +225,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   `com.apple.accessibility.button.shapes`. (The public show-borders status
   notification's value is `com.apple.accessibility.button.shapes`.)
 - **Visible**: text-style system buttons get an underline.
-- **Live**: yes. **Persists**: yes. **Ycode must**: write, post.
+- **Live**: yes. **Persists**: yes. **SwiftCode must**: write, post.
 
 ### 4.8 Reduce Transparency
 
@@ -234,7 +234,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   System posts `com.apple.accessibility.cache.enhance.background.contrast`
   and the status again.
 - **Visible**: blur materials and glass become opaque.
-- **Live**: yes. **Persists**: yes. **Ycode must**: write, post.
+- **Live**: yes. **Persists**: yes. **SwiftCode must**: write, post.
 
 ### 4.9 VoiceOver
 
@@ -255,8 +255,8 @@ gets for free by running the runtime's own daemons. All AX keys are integers
 - The reference setter waits until VoiceOver reports the new state (best
   effort with a timeout).
 - **Live**: yes (status notification). **Persists**: yes.
-- **Ycode must**: write, post, then poll `VOTIsRunningKey` (or the
-  voiceovertouch status) to confirm; Ycode's boot must allow the `vot` job to
+- **SwiftCode must**: write, post, then poll `VOTIsRunningKey` (or the
+  voiceovertouch status) to confirm; SwiftCode's boot must allow the `vot` job to
   start.
 
 ### 4.10 Location
@@ -293,7 +293,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   clearing makes running clients get a location error, code 0).
 - **Persists**: **no** (after reboot no simulation runs).
 - No preference keys change.
-- **Ycode must**: provide a guest agent with the simulation entitlement that
+- **SwiftCode must**: provide a guest agent with the simulation entitlement that
   drives CoreLocation's simulation manager (or locationd's simulation
   service) in these sequences; the presets are host-side coordinates (OPEN
   Q5 lists their values); routes and scenarios run inside locationd, so the
@@ -315,9 +315,9 @@ gets for free by running the runtime's own daemons. All AX keys are integers
 - Ringer: `sim_ringer_state` (1) in the same file and the guest notification
   `com.apple.springboard.ringerstate`; the reference offers no ringer/mute
   control for the iPhone Duo.
-- **Ycode must**: update `sim_volume` the way §12 of `audio-host.md` already
+- **SwiftCode must**: update `sim_volume` the way §12 of `audio-host.md` already
   writes the file (temporary file and rename) and post
-  `com.apple.springboard.volumestate`; Ycode's own audio service
+  `com.apple.springboard.volumestate`; SwiftCode's own audio service
   (`audio-host.md`) should apply the volume to its output.
 
 ### 4.12 Output and 4.13 Input (audio device selection)
@@ -340,7 +340,7 @@ gets for free by running the runtime's own daemons. All AX keys are integers
   output whatever the host device (the routing happens in the host audio
   service, `audio-host.md`).
 - **Persists**: yes (both files keep the selection across reboot).
-- **Ycode must**: keep the selection in Ycode's device state, write the host
+- **SwiftCode must**: keep the selection in SwiftCode's device state, write the host
   file, post the notification in the guest, rewrite `audiosettings.plist`,
   and route its host audio I/O (`audio-host.md`) to the chosen devices;
   "System" follows the Mac's default devices; "None" mutes (encoding OPEN
@@ -362,26 +362,26 @@ gets for free by running the runtime's own daemons. All AX keys are integers
 `Reset Content and Settings` (erase) resets all of them (fresh data
 directory).
 
-## 6. What Ycode must do
+## 6. What SwiftCode must do
 
-1. **A Ycode guest settings agent** (Ycode's own binary, launched by Ycode's
+1. **A SwiftCode guest settings agent** (SwiftCode's own binary, launched by SwiftCode's
    launchd plist in `DEV/data/Library/LaunchDaemons/` like the reference's
-   agents): a Mach service in the guest bootstrap that accepts Ycode's own
-   requests from the host (over Ycode's existing host↔guest transport) and
+   agents): a Mach service in the guest bootstrap that accepts SwiftCode's own
+   requests from the host (over SwiftCode's existing host↔guest transport) and
    applies them with the runtime's own APIs: the preferences API for the
    keys in §4, `notify_post` for the setter notifications, CoreLocation's
    simulation manager for §4.10. It needs entitlements for preferences in
    the listed system domains, `com.apple.locationd.simulation`, and
    whatever the UIKit style service requires (OPEN Q8).
 2. **Setter notifications are required**; system reactions come from the
-   runtime's own daemons, which Ycode already runs (backboardd, SpringBoard,
-   `vot`, AccessibilityUIServer). Ycode must not post the system ones itself.
-3. **Getters** read the same keys (and VoiceOver's running flag) so Ycode's
+   runtime's own daemons, which SwiftCode already runs (backboardd, SpringBoard,
+   `vot`, AccessibilityUIServer). SwiftCode must not post the system ones itself.
+3. **Getters** read the same keys (and VoiceOver's running flag) so SwiftCode's
    UI shows the device's real state, including changes made in the guest's
    own Settings app. The reference host watches the guest notifications
-   listed in §7.1 to refresh its controls; Ycode's agent should forward those
+   listed in §7.1 to refresh its controls; SwiftCode's agent should forward those
    to the host.
-4. **Host CLI**: Ycode's command-line tool offers at least the `simctl`
+4. **Host CLI**: SwiftCode's command-line tool offers at least the `simctl`
    forms (`ui appearance|increase_contrast|content_size`, `location
    set|start|run|clear|list`) with the same value names and output strings
    (`light`, `dark`, `enabled`, `disabled`, size names, "Parsed N
@@ -390,7 +390,7 @@ directory).
 5. **Audio**: §4.11–4.13 on top of `audio-host.md`.
 6. **Persistence** follows §5 automatically if the keys are written through
    the guest's preferences; location and colour filter must not be restored
-   by Ycode after a reboot.
+   by SwiftCode after a reboot.
 
 ## 7. IDE section (for `specs/ide/`): where Xcode 27 puts these controls
 
@@ -485,7 +485,7 @@ Reduce Transparency), Reduce Transparency, Reduce Motion, Differentiate
 Without Color. Behaviour: an override applies **only to the debugged
 process**, by the debugger running code inside that app; the device's
 settings and other apps are unchanged, and the override ends with the debug
-session. **Ycode decision**: Ycode's debugger implements overrides by
+session. **SwiftCode decision**: SwiftCode's debugger implements overrides by
 evaluating its own code in the target process (calling the runtime's public
 or private override entry points it finds), never by changing device
 preferences; the IDE layout follows this table.
@@ -498,7 +498,7 @@ preferences; the IDE layout follows this table.
   27.1 iPhone Duo).
 - Q3. `MADisplayFilterType` codes and intensity keys for grayscale,
   deuteranopia and tritanopia.
-- Q4. Whether Ycode's display path (`simframebuffer.md`) receives the frame
+- Q4. Whether SwiftCode's display path (`simframebuffer.md`) receives the frame
   after the guest's colour filter, as the reference's screenshots do.
 - Q5. Coordinates of Device Hub's location presets (host-side constants; not
   read).
@@ -510,51 +510,51 @@ preferences; the IDE layout follows this table.
   `UserInterfaceStyleMode` alone (without the service) is enough.
 - Q9. Device Hub keyboard shortcuts.
 - Q10. The host → CoreSimulatorBridge request format for `simctl ui` and
-  `simctl location` (not needed by Ycode, which uses its own transport).
+  `simctl location` (not needed by SwiftCode, which uses its own transport).
 - Q11. Environment Overrides pop-over layout, default switch states and the
   debug-bar button's look (only Xcode's declarations were read).
 
-## I. Ycode implementation (agent FEAT-IMPL, 2026-10-27)
+## I. SwiftCode implementation (agent FEAT-IMPL, 2026-10-27)
 
 Clean-room: written from §1–§8, public headers (CoreFoundation
 preferences, `notify.h`, CoreLocation, UIKit, dyld interposing), the GPX
 1.1 schema, and selector names of CoreLocation's simulation manager that
 open-source location tools publish; no Apple binary, simulator or Xcode was
-read or run. Shared model: `ycode/Sources/YcodeSimFeatures` (one table of
-§4's keys and notifications, used by ycode-simd, the viewer, the IDE and the
+read or run. Shared model: `swiftcode/Sources/SwiftCodeSimFeatures` (one table of
+§4's keys and notifications, used by swiftcode-simd, the viewer, the IDE and the
 tests).
 
 ### I.1 The agent
 
-`ycode-settings-agent` (`ycode/SimGuestAgents/settings`, Objective-C, built
+`swiftcode-settings-agent` (`swiftcode/SimGuestAgents/settings`, Objective-C, built
 for the iOS simulator by `SimGuestAgents/build.sh`, the entitlement
-`com.apple.locationd.simulation` in `__TEXT,__entitlements`). ycode-simd
-copies it to `DEV/data/Library/Ycode/bin/` at every cold boot (from the
+`com.apple.locationd.simulation` in `__TEXT,__entitlements`). swiftcode-simd
+copies it to `DEV/data/Library/SwiftCode/bin/` at every cold boot (from the
 guest-tools directory, `--settings-agent <binary>|none`) and writes
-`DEV/data/Library/LaunchDaemons/dev.ycode.simulator.settings.plist`:
+`DEV/data/Library/LaunchDaemons/dev.swiftcode.simulator.settings.plist`:
 `ProgramArguments` = the agent's DEV path, `RootedSimulatorPath` true (a
 DEV path, not a runtime path; without it launchd_sim looks for the program
 under the runtime root, `launchd-sim.md` §4.4), `RunAtLoad`, `KeepAlive`,
 `ProcessType` Interactive (an Adaptive job is held at boot until the system
 is quiet, about 65 s, `scheduling-policy.md` §4.2), stderr in
-`DEV/data/tmp/ycode-settings-agent.log`. launchd_sim runs it in
+`DEV/data/tmp/swiftcode-settings-agent.log`. launchd_sim runs it in
 `user/<uid>` with HOME = DEV/data, so `CFPreferences` with the current user
 and any host reaches the device's preference files through the guest's
 cfprefsd. On another platform's runtime the image is retagged
 (`GuestImagePlatform`) or left out.
 
-Ycode's health agent (`specs/simulator/health-simulation.md` §11) uses the
+SwiftCode's health agent (`specs/simulator/health-simulation.md` §11) uses the
 same design: a launchd daemon staged at every cold boot (its executable
-inside an app bundle, `YcodeHealth.app`, so that HealthKit gives it a
-source), and a host channel of its own, `/private/var/run/dev.ycode.health`,
+inside an app bundle, `SwiftCodeHealth.app`, so that HealthKit gives it a
+source), and a host channel of its own, `/private/var/run/dev.swiftcode.health`,
 with this section's framing and frames up to 16 MiB.
 
 ### I.2 The host channel
 
 The agent connects an AF_UNIX stream socket to
-`/private/var/run/dev.ycode.settings`. That path is a host-provided socket
+`/private/var/run/dev.swiftcode.settings`. That path is a host-provided socket
 of the VMM (`HostStreamSockets.serve`, next to the DNS service's): the
-connect succeeds with no guest listener and the bytes go to ycode-simd's
+connect succeeds with no guest listener and the bytes go to swiftcode-simd's
 `SimSettingsController`. Frames both ways: a 4-byte big-endian length, then
 an XML property list with a dictionary root (`SettingsChannel.swift`).
 Requests `{id, op}`: `apply` (writes `{domain, key, value?}` — no value
@@ -570,7 +570,7 @@ connection ends (a snapshot restore resets host-socket connections), so
 restored devices keep working. After the hello the host asks it to watch
 §7.1's notifications (and the system's cache notifications of §4.5–4.8)
 and sends the commands queued while the device was stopped (I.4). A
-command waits up to 60 s for the agent (`YCODE_SETTINGS_AGENT_WAIT_S`) and
+command waits up to 60 s for the agent (`SWIFTCODE_SETTINGS_AGENT_WAIT_S`) and
 15 s for an answer (20 s for VoiceOver).
 
 ### I.3 Per feature
@@ -585,14 +585,14 @@ command waits up to 60 s for the agent (`YCODE_SETTINGS_AGENT_WAIT_S`) and
 | Increase Contrast | done | `DarkenSystemColors`, `PointerIncreasedContrastEnabled` | live (trait contrast high); persists |
 | Show Borders | done | `ButtonShapesEnabled` | live (text buttons underlined); persists |
 | Reduce Transparency | done | `EnhancedBackgroundContrastEnabled` | live (materials opaque); persists |
-| VoiceOver | done | the three keys and three notifications; on: the agent starts the screen reader's on-demand job (an empty message to its Mach service `com.apple.VoiceOverTouch`, **Ycode decision**); waits up to 10 s for VoiceOver's running key | on: `vot` starts (it registers with Ycode's audio service and starts audio IO for speech), writes its running key, the VoiceOver focus rectangle is drawn on the home screen; off: `vot` ends within about 2 s and clears the key; apps get the VoiceOver status notification and `UIAccessibilityIsVoiceOverRunning` follows; after a reboot with VoiceOver on, the agent starts `vot` again (I.8) |
+| VoiceOver | done | the three keys and three notifications; on: the agent starts the screen reader's on-demand job (an empty message to its Mach service `com.apple.VoiceOverTouch`, **SwiftCode decision**); waits up to 10 s for VoiceOver's running key | on: `vot` starts (it registers with SwiftCode's audio service and starts audio IO for speech), writes its running key, the VoiceOver focus rectangle is drawn on the home screen; off: `vot` ends within about 2 s and clears the key; apps get the VoiceOver status notification and `UIAccessibilityIsVoiceOverRunning` follows; after a reboot with VoiceOver on, the agent starts `vot` again (I.8) |
 | Location | done | §4.10 sequences through the simulation manager | fixed point (preset): first fix in the app 92 ms after the command started, accuracy 5 m, speed/course −1; route with 3 waypoints at 20 m/s, a fix a second, course along the segment; City Run from the runtime; a GPX track replayed at its recorded spacing; clear → error 0; not restored after a reboot |
-| Sound | done | host writes `sim_volume` through the host-write hook (`HostDataWrites`, temporary file and rename); agent posts `com.apple.springboard.volumestate` | Ycode's audio output is scaled by the volume at once; a running app's `outputVolume` follows live (0.60 → 0.30 → 0.80 → 0.45, each in the probe's next 5 s sample; I.9); the file keeps the value and apps read it at their next launch (0.30 after a reboot) |
-| Output / Input | done (Ycode's devices) | both files, `com.apple.CoreSimulator.audio.devices_changed` | files rewritten, persist; None silences Ycode's output |
+| Sound | done | host writes `sim_volume` through the host-write hook (`HostDataWrites`, temporary file and rename); agent posts `com.apple.springboard.volumestate` | SwiftCode's audio output is scaled by the volume at once; a running app's `outputVolume` follows live (0.60 → 0.30 → 0.80 → 0.45, each in the probe's next 5 s sample; I.9); the file keeps the value and apps read it at their next launch (0.30 after a reboot) |
+| Output / Input | done (SwiftCode's devices) | both files, `com.apple.CoreSimulator.audio.devices_changed` | files rewritten, persist; None silences SwiftCode's output |
 
 All live changes reached the running probe app. Timed on the Linux host
 (run r6, the probe's wall clock against the host's, from the start of the
-`ycode-simd --ui …` client process, which itself takes about 20–40 ms to
+`swiftcode-simd --ui …` client process, which itself takes about 20–40 ms to
 connect and finish): appearance 110 ms, text size 134 ms, Increase Contrast
 94 ms, Show Borders 107 ms, Reduce Transparency 63 ms, Reduce Motion 399 ms,
 a fixed location's first fix 92 ms, an environment override 24–214 ms. The
@@ -618,19 +618,19 @@ not from a client process start.
   `enabled`, `disabled`, size names); a route answers "Parsed N waypoints".
   Diagnostics: `settings events|read <domain> <key>|write <domain> <key>
   int:N|real:X|bool:B|string:S|remove|notify <name>…|notify-state <name> <n>`.
-- **Health**: `health …` on the control socket and `ycode-simd --device DEV
+- **Health**: `health …` on the control socket and `swiftcode-simd --device DEV
   --health <words>` (`health-simulation.md` §11.4): import, scenarios,
   streams and clear through the guest health agent; grant, revoke and seed
   edit the shut-down device's health store.
-- **Command line**: `ycode-simd --device DEV --ui|--accessibility|--location|--audio|--overrides
+- **Command line**: `swiftcode-simd --device DEV --ui|--accessibility|--location|--audio|--overrides
   <words…>` and `--settings` (the same words; getters print the bare
   value). With no running device, persistent settings (§5: everything but
   location and colour filters) are written into the device's preference
   files (binary plists, as cfprefsd keeps them) and queued in
-  `DEV/ycode-pending-settings.txt`, which the agent applies when it next
+  `DEV/swiftcode-pending-settings.txt`, which the agent applies when it next
   connects (so a warm-boot restore gets them too); location and colour
   filters answer "needs a running device" (exit 69). The launcher
-  `ycode-sim.sh` passes these options straight to ycode-simd.
+  `swiftcode-sim.sh` passes these options straight to swiftcode-simd.
 - **Viewer**: Device ▸ Accessibility ▸, Appearance ▸, Color Filter ▸,
   Location ▸, Sound ▸ with §7.1's items, as device commands over the
   display stream (`0x90` command, `0x10` answer; `display-stream.md`); check
@@ -650,29 +650,29 @@ Requests go to CoreLocation's simulation manager (class
 §4.10's orders. Appended points carry accuracy 5 m, vertical accuracy −1,
 course and speed −1. Scenarios: a runtime scenario by name
 (`DEV`-independent guest path in the runtime; its data never enters
-Ycode), a scenario file at a guest path, or Ycode's own: a GPX file
+SwiftCode), a scenario file at a guest path, or SwiftCode's own: a GPX file
 (`trkpt`/`rtept`/`wpt`, `ele`, `time`), the route JSON of §7.2 or
 "lat,lon" lines (`SimLocation.parseFile`). Points with times become a
-scenario the agent writes (`DEV/data/tmp/ycode-location-scenario.plist`,
+scenario the agent writes (`DEV/data/tmp/swiftcode-location-scenario.plist`,
 §4.10's format: each fix a keyed-archived `CLLocation` made with the public
 initializer, Options `LocationRepeatBehavior` 1 or 2,
 `LocationDeliveryBehavior` 0); anything else becomes a route at 20 m/s,
-one fix a second. **Finding on Ycode:** locationd plays a scenario fix only
+one fix a second. **Finding on SwiftCode:** locationd plays a scenario fix only
 when its `kCLLocationCodingKeyType` is 1; an archive of a new `CLLocation`
 has 0, and such a scenario delivers nothing (clients get error 0), so the
 agent sets the key to 1 in each archive.
 
 ### I.6 Environment Overrides
 
-**Ycode decision** (§7.3): a remote Ycode run has no debugger, so Ycode
+**SwiftCode decision** (§7.3): a remote SwiftCode run has no debugger, so SwiftCode
 puts its own code into the app at launch instead of evaluating code in it:
-with `--environment-overrides`, ycode-simd stages
-`libYcodeEnvironmentOverrides.dylib` (`SimGuestAgents/overrides`) into DEV
+with `--environment-overrides`, swiftcode-simd stages
+`libSwiftCodeEnvironmentOverrides.dylib` (`SimGuestAgents/overrides`) into DEV
 and launches the app with `DYLD_INSERT_LIBRARIES` naming it and
-`YCODE_ENV_OVERRIDES_DIR` naming `DEV/data/Library/Ycode/EnvironmentOverrides`.
+`SWIFTCODE_ENV_OVERRIDES_DIR` naming `DEV/data/Library/SwiftCode/EnvironmentOverrides`.
 The host keeps `<bundle id>.plist` there (removed at each launch: overrides
 end with the run) and has the agent post
-`dev.ycode.environment-overrides.changed`; the library rereads the file and
+`dev.swiftcode.environment-overrides.changed`; the library rereads the file and
 applies appearance, Dynamic Type, Increase Contrast and Bold Text as trait
 overrides of every window scene, and the nine accessibility items by
 answering UIKit's status functions (dyld interposing) and posting their
@@ -684,36 +684,36 @@ returned it to the device's settings. Limits: SwiftUI views that read
 accessibility settings through UIKit's private paths, not the public
 functions, may not follow the switch overrides.
 
-### I.7 Answers to the open questions (Ycode behaviour)
+### I.7 Answers to the open questions (SwiftCode behaviour)
 
-- Q1 (Auto): not offered; Light and Dark only (Ycode decision).
-- Q2: Ycode offers one look (no look pop-up); `ui liquid-glass … tinted|clear` sets the key.
-- Q3: **Ycode decision**: `MADisplayFilterType` grayscale 1, protanopia 2
+- Q1 (Auto): not offered; Light and Dark only (SwiftCode decision).
+- Q2: SwiftCode offers one look (no look pop-up); `ui liquid-glass … tinted|clear` sets the key.
+- Q3: **SwiftCode decision**: `MADisplayFilterType` grayscale 1, protanopia 2
   (observed in the reference), deuteranopia 4, tritanopia 8; intensities in
-  `MADisplayFilter{Red,Green,Blue}ColorCorrectionIntensity`. On Ycode each
+  `MADisplayFilter{Red,Green,Blue}ColorCorrectionIntensity`. On SwiftCode each
   code gives a different filter in screenshots (Safari's compass: none
   (127, 189, 235), protanopia (127, 197, 190), deuteranopia (125, 191, 187),
   tritanopia (126, 165, 235), grayscale (175, 175, 175)); whether they
   match the reference's codes is still open.
-- Q4: yes on Ycode: the display stream and screenshots show the filtered frame.
+- Q4: yes on SwiftCode: the display stream and screenshots show the filtered frame.
 - Q5: the cities' commonly published centres (`SimLocation.presets`).
-- Q6: **Ycode decision**: the file's volume applies after a reboot (apps read 0.30).
-- Q7: **Ycode decision**: None = empty UID with the host-default flag off.
-- Q8: on Ycode writing `UserInterfaceStyleMode` through cfprefsd is enough
+- Q6: **SwiftCode decision**: the file's volume applies after a reboot (apps read 0.30).
+- Q7: **SwiftCode decision**: None = empty UID with the host-default flag off.
+- Q8: on SwiftCode writing `UserInterfaceStyleMode` through cfprefsd is enough
   (SpringBoard announces it, apps flip); the AX keys need no entitlement
-  under Ycode. Ycode's agent has only the location entitlement.
-- Q9: the viewer's shortcuts are Ycode's (⇧⌘A Toggle Appearance, ⌥⌘+ / ⌥⌘−
+  under SwiftCode. SwiftCode's agent has only the location entitlement.
+- Q9: the viewer's shortcuts are SwiftCode's (⇧⌘A Toggle Appearance, ⌥⌘+ / ⌥⌘−
   text size).
-- Q10: not needed (Ycode's own channel).
-- Q11: Ycode's pop-over layout, `specs/ide/debug.md`.
+- Q10: not needed (SwiftCode's own channel).
+- Q11: SwiftCode's pop-over layout, `specs/ide/debug.md`.
 
 ### I.8 Verification
 
-Thor runs r2–r6 (iOS 27.1, iPhone Duo, full boot) with Ycode's probe app
+Thor runs r2–r6 (iOS 27.1, iPhone Duo, full boot) with SwiftCode's probe app
 `SimShim/guest-tests/features/FeatureProbe.m` (`build-features.sh`;
 prints trait collection, content size, the accessibility switches,
 location updates, audio volume and route, each line with milliseconds since
-launch and the wall clock), `ycode-display-probe` (taps; the new `command`
+launch and the wall clock), `swiftcode-display-probe` (taps; the new `command`
 step drives the display-stream command path) and control-socket
 screenshots. Persistence: a reboot kept appearance, text size (also one
 written while the device was stopped), contrast, Reduce Motion, Show
@@ -739,13 +739,13 @@ Settings), `feat-filter.png` (protanopia over the probe app),
 - What starts VoiceOver's screen reader in the reference is not in this
   spec (a dirty-room question: the launch condition of the job, or the
   request that starts it). Writing the keys and posting the notifications
-  does not start it under Ycode, so **Ycode decision**: the agent starts
+  does not start it under SwiftCode, so **SwiftCode decision**: the agent starts
   the job through one of its Mach services (`launchctl print` of the
-  running Ycode device lists the job in `user/<uid>` with the services
+  running SwiftCode device lists the job in `user/<uid>` with the services
   `com.apple.VoiceOverTouch`, `….xpc`, `….drag.xpc` and
   `com.apple.accessibility.AXVoiceOverServer`, all on demand), after a live
   switch and when it connects after a boot with VoiceOver enabled
-  (`SimFeatureMapping.bootPlan`). Ycode stops a device by killing its
+  (`SimFeatureMapping.bootPlan`). SwiftCode stops a device by killing its
   processes, so `vot`'s running key can outlive it; after a boot the agent
   therefore starts the reader whenever VoiceOver is enabled, and removes a
   left-over running key when it is not.
@@ -753,16 +753,16 @@ Settings), `feat-filter.png` (protanopia over the probe app),
   change.~~ Fixed (agent VNODE-EVENTS, 2026-10-28): the app's audio
   session watches the `simulatoraudio` directory with a dispatch vnode
   source (EVFILT_VNODE `NOTE_WRITE`, flags `EV_CLEAR | EV_DISPATCH |
-  EV_UDATA_SPECIFIC | EV_VANISHED`; seen with `YCODE_DEBUG_VNODE=1`, Ycode's
-  own registration log), and Ycode's kernel never fired such knotes. It now
-  does (`threads-and-events.md` §3.10), and ycode-simd writes the audio
+  EV_UDATA_SPECIFIC | EV_VANISHED`; seen with `SWIFTCODE_DEBUG_VNODE=1`, SwiftCode's
+  own registration log), and SwiftCode's kernel never fired such knotes. It now
+  does (`threads-and-events.md` §3.10), and swiftcode-simd writes the audio
   files through the host-write hook, so the directory gets `NOTE_WRITE`
   when the file is replaced. Verified on the Linux host (runs `vnode/v1`, `v2`,
   FEAT's check: FeatureProbe in front, `--audio volume 30`, `80`, `45`):
   the app got one `NOTE_WRITE` per change and its next 5 s sample showed
   0.30, 0.80, 0.45. The probe samples every 5 s, so the measured 4–5 s is
   its sampling period, not the delivery time.
-- Host audio device enumeration: Ycode's audio service has one output and
+- Host audio device enumeration: SwiftCode's audio service has one output and
   no input device and does not list the Linux host's devices.
 - devicectl's CoreDevice protocol (§3) is not served.
 
@@ -770,7 +770,7 @@ Settings), `feat-filter.png` (protanopia over the probe app),
 
 | Claim | Level | Source |
 |---|---|---|
-| `simctl ui`, `simctl location`, `status_bar` options, defaults, outputs (§2, §4) | 3 | `simctl help`, runs on `ycode-test-features-1` |
+| `simctl ui`, `simctl location`, `status_bar` options, defaults, outputs (§2, §4) | 3 | `simctl help`, runs on `swiftcode-test-features-1` |
 | `devicectl` commands and options (§2, §7.2) | 3 | `devicectl help`, runs |
 | Device Hub inspector labels, order, control kinds, menus (§7.1) | 3 | Device Hub window and menu bar read with background accessibility tools |
 | Device Hub alert titles, colour filter labels, watched notifications, GPX/custom coordinates items (§7.1) | 4 | DeviceKit framework strings |
@@ -786,9 +786,9 @@ Settings), `feat-filter.png` (protanopia over the probe app),
 | Audio files and notifications (§4.11–4.13) | 3, 4 | plist diffs, recorder, a host default-device change; audio service strings |
 | Persistence (§5) | 3 | reboot of the test device, `simctl ui` getters, plists, sample app relaunch |
 | Visible results (§4) | 3 | `simctl io screenshot` of the sample app |
-| Ycode implementation (§I): agent, channel, mapping, controls | 1 | §1–§8; public CoreFoundation, notify, CoreLocation, UIKit and dyld documentation and headers; GPX 1.1 schema; CLSimulationManager selector names from open-source location tools; Ycode code and tests (`SimFeaturesTests`, `SimSettingsTests`, `HostChannelTests`, `SimulatorSettingsUITests`, display-stream tests) |
-| VoiceOver's job, its Mach services and on-demand launch on Ycode (§I.3, I.9) | 3 | `launchctl print` in a running Ycode device (one-shot), Ycode's audio-service log, screenshots |
-| Results of §I.3, I.5 (type key), I.7 (Q3, Q4, Q6, Q8 on Ycode), I.9 | 3 | Ycode runs on the Linux host: Ycode's probe app, screenshots, launchd's log, the agent's log (no reference observed) |
-| The app's vnode watch of `simulatoraudio` and the live volume (§I.3 Sound, I.9) | 3 | Ycode run `vnode/v1` on the Linux host: Ycode's EVFILT_VNODE registration and delivery log (`YCODE_DEBUG_VNODE=1`), Ycode's probe app (no reference observed) |
+| SwiftCode implementation (§I): agent, channel, mapping, controls | 1 | §1–§8; public CoreFoundation, notify, CoreLocation, UIKit and dyld documentation and headers; GPX 1.1 schema; CLSimulationManager selector names from open-source location tools; SwiftCode code and tests (`SimFeaturesTests`, `SimSettingsTests`, `HostChannelTests`, `SimulatorSettingsUITests`, display-stream tests) |
+| VoiceOver's job, its Mach services and on-demand launch on SwiftCode (§I.3, I.9) | 3 | `launchctl print` in a running SwiftCode device (one-shot), SwiftCode's audio-service log, screenshots |
+| Results of §I.3, I.5 (type key), I.7 (Q3, Q4, Q6, Q8 on SwiftCode), I.9 | 3 | SwiftCode runs on the Linux host: SwiftCode's probe app, screenshots, launchd's log, the agent's log (no reference observed) |
+| The app's vnode watch of `simulatoraudio` and the live volume (§I.3 Sound, I.9) | 3 | SwiftCode run `vnode/v1` on the Linux host: SwiftCode's EVFILT_VNODE registration and delivery log (`SWIFTCODE_DEBUG_VNODE=1`), SwiftCode's probe app (no reference observed) |
 
 Level 5 was not used.

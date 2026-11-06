@@ -4,7 +4,7 @@ Part of `specs/frameworks/homekit/`. This is what a HomeKit app sees in the
 reference simulator (Xcode 27.1, iOS 27.1 runtime 24A94401 on iPhone Duo,
 and iOS 27.0 runtime 24A434 on iPhone 18 Pro, Apple-silicon Mac) **with no
 Apple Account signed in**, which is the state of every freshly created
-simulator. Ycode's simulator must behave the same way by default.
+simulator. SwiftCode's simulator must behave the same way by default.
 
 Every statement is level 3 (our own probe app,
 `research/experiments/homekit/HMProbe`, observations in
@@ -38,7 +38,7 @@ no Home app in either runtime.
 | Step | Observation |
 |---|---|
 | First `HMHomeManager` creation | `authorizationStatus` = 0 (no bits). The system shows an alert over the app; the app's scene resigns active. |
-| Alert | Title names the app's display name and the user's Home data; body is the app's usage string; two buttons, deny (left) and allow (right). Ycode writes its own wording. |
+| Alert | Title names the app's display name and the user's Home data; body is the app's usage string; two buttons, deny (left) and allow (right). SwiftCode writes its own wording. |
 | Allow | `homeManager:didUpdateAuthorizationStatus:` with 5 (Determined + Authorized), main thread; then `homeManagerDidUpdateHomes:` about 0.05–0.4 s later; scene becomes active again. |
 | Don't Allow | Callback with 1 (Determined only). No homes callback, ever. |
 | Later launches after Allow | Status 5 right after `init`; first `homeManagerDidUpdateHomes:` 0.07–0.25 s after creation. |
@@ -69,7 +69,7 @@ log). The answer is stored per bundle identifier.
 error code 2040" (the code is not in the public `HMErrorCode` enum). The
 account check comes **before** name validation: a duplicate name, a
 case-folded duplicate, an empty name and a punctuation-only name all give
-2040. No delegate callbacks follow. Ycode must return exactly this domain
+2040. No delegate callbacks follow. SwiftCode must return exactly this domain
 and code.
 
 ## 6. Discovery and setup
@@ -98,7 +98,7 @@ and code.
 
 ## 8. What the reference provides underneath (levels 2 and 4)
 
-These are what Ycode's simulator must run or emulate so that the runtime's
+These are what SwiftCode's simulator must run or emulate so that the runtime's
 own HomeKit stack behaves as above. Names come from the runtime's launchd
 plists (level 2) and bundle structure (level 4); "observed" means level 3.
 
@@ -124,7 +124,7 @@ app** (no `Home.app` in either runtime).
 
 Probe: `HMProbe` built by `build.sh`, launched with `run.sh UDID BUNDLE
 NAME OUTDIR SECONDS -mode M`. "Fresh" means a newly created device with no
-Apple Account. Ycode passes a check when its output matches the reference
+Apple Account. SwiftCode passes a check when its output matches the reference
 line for line, ignoring times, addresses and UUID values.
 
 | ID | Variant / mode | Precondition | Expected |
@@ -151,7 +151,7 @@ Checks that need the owner's account or tools are in `plan.md` §3.
 ## Evidence
 
 Level 3: §§1–7, §8 rows marked observed, §9 (`HMProbe` on
-`ycode-test-homekit-271` and `-270`, both deleted after use). Level 2:
+`swiftcode-test-homekit-271` and `-270`, both deleted after use). Level 2:
 launchd plists of both runtimes (§8). Level 4: bundle structure, framework
 version, absence of HomeKit Accessory Simulator in `/Applications` (§8).
 Level 1: mDNS service type (§8, see `accessory-protocols.md`). No level 5.

@@ -1,6 +1,6 @@
 # WeatherKit spec: implementation rounds and conformance tests
 
-Part of `specs/frameworks/weatherkit/`. This plan is Ycode's own. Each round
+Part of `specs/frameworks/weatherkit/`. This plan is SwiftCode's own. Each round
 is sized for one agent. Clean-room agents read only `specs/`, public
 documentation and permissively licensed open source; they must not open the
 reference tools (the Xcode copy, Ghidra, the IPSW), `research/dirty/`, or
@@ -12,13 +12,13 @@ Ghidra projects.
 |---|---|---|---|
 | R0 | KIT-WEATHERKIT (this) | Specification | this directory reviewed and merged |
 | R0b | **owner** + dirty room | Entitled reference run: register a bundle ID with WeatherKit (`simulator-baseline.md` §5), run `WKProbe -mode weather` and `-mode codable` with real data; create a WeatherKit key and Services ID for W-REST. Record per-query results, units, symbol names, expiry per product, cache-hit timing, Codable JSON of real values, REST responses for the same location | notes added to `research/notes/`, golden files produced; spec gaps marked "verify" resolved |
-| R1 | simulator track | **Baseline in Ycode** with Apple's own framework: guest networking incl. QUIC/UDP 443 and DNS, per-app XPC service launch, `__entitlements` honoured for launch and peer checks, GEO, writable `/Library/Weather`; locationd simulation fed from the host (`set/start/run/clear/list` with Ycode-made scenarios), tccd privacy grant/revoke/reset, location prompt tappable | W-ATTR, W-NOENT, W-ENT, W-ENT-REPEAT, W-LAUNCH-ENT, W-GEO, W-TRAP, W-CODABLE, W-ERRORS and all L-* match the reference goldens |
+| R1 | simulator track | **Baseline in SwiftCode** with Apple's own framework: guest networking incl. QUIC/UDP 443 and DNS, per-app XPC service launch, `__entitlements` honoured for launch and peer checks, GEO, writable `/Library/Weather`; locationd simulation fed from the host (`set/start/run/clear/list` with SwiftCode-made scenarios), tccd privacy grant/revoke/reset, location prompt tappable | W-ATTR, W-NOENT, W-ENT, W-ENT-REPEAT, W-LAUNCH-ENT, W-GEO, W-TRAP, W-CODABLE, W-ERRORS and all L-* match the reference goldens |
 | R2 | clean room | **Model**: every type of `api.md` with storage, `Codable` exactly as `codable.md` (including non-public keys, preserved), enums with description/accessibility/symbol/abbreviation/range tables, Linux `CoreLocation` shim | C-CODABLE, C-ENUM, C-API pass on Linux and macOS |
 | R3 | clean room | **Service engine** with the fixture backend: query planner (single request per call, parameter packs), cache with expiry and coalescing, error mapping, cancellation, attribution plumbing | C-QUERY, C-CACHE, C-ERRORS pass |
 | R4 | clean room | **Apple REST backend**: JWT ES256 signer (swift-crypto), token providers (static token, local key file, remote token URL), v1 endpoints, mapping REST → model (`rest-api.md` §6), attribution endpoint | C-JWT passes; W-REST (owner key) passes |
 | R5 | clean room | **Open backends**: Open-Meteo, MET Norway (User-Agent, `Expires`, 4-decimal rule), NWS (forecast + alerts); derivations of `design.md` §5 (astronomy, conditions, symbols, trends, changes); country/time-zone resolver; per-backend attribution and licence notices | C-OPEN, C-ASTRO, C-ATTR pass |
 | R6 | clean room | **Statistics, summaries, historical comparisons** from an open archive | C-STATS passes |
-| R7 | simulator track | Host tooling polish: Ycode's `location` and `privacy` commands documented, GPX import for routes, scenario recorder | L-* pass with imported GPX |
+| R7 | simulator track | Host tooling polish: SwiftCode's `location` and `privacy` commands documented, GPX import for routes, scenario recorder | L-* pass with imported GPX |
 | R8 | clean room + simulator track (optional) | **Guest drop-in WeatherKit** ("simulated weather"): ABI-compatible build of R2–R5 for the simulator SDK with the fixture backend selectable from the host | C-API binary test: an app built against Apple's SDK runs against the drop-in and shows fixture weather |
 
 R1 is independent of R2–R6. R4 needs R0b only for the final W-REST check.

@@ -2,25 +2,25 @@
 
 Status: **implemented** (agent SIM-VIEWER, 2026-10-19; Linux viewer, stage
 timing, H.264, sound and remote x86 viewing: REMOTE-X86, 2026-10-31).
-Ycode-original design: nothing here describes Apple software. It defines
-how `ycode-simd` serves a device's display and sound and takes input over
-one socket, and how the viewers (`ycode-sim-viewer` on macOS, §7, and on
+@@SWIFTCODE_ORIGINAL@@ design: nothing here describes Apple software. It defines
+how `swiftcode-simd` serves a device's display and sound and takes input over
+one socket, and how the viewers (`swiftcode-sim-viewer` on macOS, §7, and on
 Linux, §13) use it. How input then enters the guest is `hid-input.md`; how
 a viewer reaches a simulator host without ssh is `sim-link.md`.
 
-Code: `Sources/YcodeDisplayStream` (protocol and sockets, shared),
-`Sources/CYcodeCodec` (JPEG, zlib, downscale), `Sources/ycode-simd/
+Code: `Sources/SwiftCodeDisplayStream` (protocol and sockets, shared),
+`Sources/CSwiftCodeCodec` (JPEG, zlib, downscale), `Sources/swiftcode-simd/
 DisplayServer.swift`, `DisplayTiles.swift`, `InputBridge.swift`,
-`Sources/ycode-sim-viewer`, `scripts/ycode-sim-serve`, `scripts/ycode-sim-try`;
-timing instruments in §10. Since REMOTE-X86: `Sources/YcodeRemoteViewer`
+`Sources/swiftcode-sim-viewer`, `scripts/swiftcode-sim-serve`, `scripts/swiftcode-sim-try`;
+timing instruments in §10. Since REMOTE-X86: `Sources/SwiftCodeRemoteViewer`
 (the portable viewer: stream client, canvas, touches, layout, clock, sound,
-scripts), `Sources/YcodeRemoteViewerSDL` (the Linux window),
-`Sources/CYcodeVideo` (NVENC/NVDEC), `Sources/CYcodeCodec/audio.c` (Opus,
-PulseAudio), `Sources/ycode-simd/DisplayVideo.swift`, `DisplayAudio.swift`.
+scripts), `Sources/SwiftCodeRemoteViewerSDL` (the Linux window),
+`Sources/CSwiftCodeVideo` (NVENC/NVDEC), `Sources/CSwiftCodeCodec/audio.c` (Opus,
+PulseAudio), `Sources/swiftcode-simd/DisplayVideo.swift`, `DisplayAudio.swift`.
 
 ## 1. Transport
 
-- `ycode-simd --device … --display-server <address>` listens on a
+- `swiftcode-simd --device … --display-server <address>` listens on a
   **Unix-domain socket** (`unix:<path>`, mode 0600) or **TCP**
   (`<host>:<port>`, `<port>` = 127.0.0.1). The launcher uses a Unix socket
   on the simulator host and forwards it with `ssh -L <local port>:<socket>`:
@@ -99,17 +99,17 @@ integers are little-endian; floats are IEEE.
 
 ### 3.1 Server hello (sent first, on connect)
 
-JSON object: `protocol` = `"ycode-display/1"`, `deviceName`, `model`,
+JSON object: `protocol` = `"swiftcode-display/1"`, `deviceName`, `model`,
 `pixelWidth`, `pixelHeight`, `scale`, `pointWidth`, `pointHeight`
 (pixels / scale; the touch coordinate space), `orientation` (`"portrait"`),
 `encodings` (the frame encodings this server can produce, from
 `["jpeg", "zlib"]`), `touch`, `keyboard` (booleans: whether input is
 wired to the guest), `buttons` (names from §5.3), `rotation` (false today:
 rotation is not implemented, the viewer disables it). Optional since
-HUB-UI (2026-10-28): `deviceType` (Ycode's device type id, `ycode-simd
+HUB-UI (2026-10-28): `deviceType` (SwiftCode's device type id, `swiftcode-simd
 --device-type`, e.g. `iphone-duo`) and `osVersion` (the runtime,
 "iOS 27.1"): the viewer draws the device's frame from the type and titles
-its window with the OS (`device-hub.md` "Ycode implementation"); a viewer
+its window with the OS (`device-hub.md` "SwiftCode implementation"); a viewer
 without them falls back to the model identifier and the pixel size.
 Optional since REMOTE-X86: `encodings` may include `"h264"` (§14), and
 `audio` lists the sound codecs the server sends (`["opus", "pcm"]`, §15;
@@ -139,7 +139,7 @@ n frames unacknowledged, §4.2.1).
 
 JSON: `phase` — `"booting"` (no frame presented yet), `"live"`, or
 `"stopping"` (the device is shutting down; the connection closes next) —
-`uptimeMilliseconds` (since `ycode-simd` started), `guestFrames` (the
+`uptimeMilliseconds` (since `swiftcode-simd` started), `guestFrames` (the
 framebuffer library's frame counter), optional `message`. Sent on every
 phase change, every second while booting, every 5 s while live.
 
@@ -148,8 +148,8 @@ phase change, every second while booting, every 5 s while live.
 ### 4.1 Source
 
 The headless framebuffer library rewrites its 96-byte frame record
-(`ycode-framebuffer.state` in the device's memory directory, guest path
-`DEV/ycode-memory`, `frame-profile.md` §8.1; `simframebuffer.md` and
+(`swiftcode-framebuffer.state` in the device's memory directory, guest path
+`DEV/swiftcode-memory`, `frame-profile.md` §8.1; `simframebuffer.md` and
 `SimGuestFrameworks/SimFramebuffer`) on every swap: the presented IOSurface
 id and a frame counter. While a viewer is connected, the server reads the
 record every 4–8 ms (one `pread`) and maps the surface through the VMM's
@@ -201,7 +201,7 @@ wakes the send loop at once. A lost frame (UDP) is covered by the next
 acknowledgement; if none comes for 300 ms, one more frame goes, so a lost message
 cannot stop the stream. In the alternate-eye mode the window also holds back the
 next eye's pose (`due`), which would otherwise be lost with the picture it is for.
-Depth, timing and sound are not counted. `ycode-xr-viewer` asks for 3
+Depth, timing and sound are not counted. `swiftcode-xr-viewer` asks for 3
 (`--frame-window`; 0: none); other viewers do not ask yet and behave as before.
 Over the link the transport's queue is also bounded now (16 MB: past that the TCP
 reader waits, so the socket pushes back).
@@ -211,13 +211,13 @@ reader waits, so the socket pushes back).
 JPEG tiles and video pictures are lossy, and a stream only sends a picture
 when the screen changes, so before this a still screen stayed blurred and
 text was never exact at 1:1. A client whose hello carries `stillLossless`
-(true in every Ycode viewer: the hello initializer's default; older clients
+(true in every SwiftCode viewer: the hello initializer's default; older clients
 and the Python probes leave it out) gets, once the screen is still, the parts
 it last received lossy again as zlib tiles at the stream's downscale:
 
 - The server keeps, per viewer, the tiles of its grid (32 × downscale device
   pixels) that it last sent lossy (`StillRefinement` in
-  `YcodeDisplayStream`). A lossy frame marks the tiles its rectangles touch
+  `SwiftCodeDisplayStream`). A lossy frame marks the tiles its rectangles touch
   (an IDR picture all of them); a zlib frame clears those it covers.
 - Due when nothing lossy went out and no new frame record arrived for
   **200 ms**, and the flow-control window is open. Then the marked tiles go
@@ -229,7 +229,7 @@ it last received lossy again as zlib tiles at the stream's downscale:
   are drawn over it (§13.1); the next video picture shows again.
 
 Checked with the UIKitFeel probe's 96 × 96 pattern of random grey levels
-(`uikit-feel-ycode.md` §8.4): through JPEG q80 and H.264 the Linux window at
+(`uikit-feel-swiftcode.md` §8.4): through JPEG q80 and H.264 the Linux window at
 Pixel Accurate and the macOS window at one device pixel per display pixel
 show it exactly.
 
@@ -299,31 +299,31 @@ closes the connection on an unknown value) (WATCH-W7, 2026-10-31).
 
 ## 6. Shutdown
 
-With `--display-server`, SIGTERM, SIGINT, and SIGHUP make `ycode-simd`
+With `--display-server`, SIGTERM, SIGINT, and SIGHUP make `swiftcode-simd`
 send status `stopping`, end the device session (launchd_sim shuts the guest
 down), and exit; a second signal, a session not yet bound, or 30 s without
 an exit end it at once. With a stop snapshot configured
-(`YCODE_SNAPSHOT_STOP_DIR`, the launchers' warm start, §9) the signals
+(`SWIFTCODE_SNAPSHOT_STOP_DIR`, the launchers' warm start, §9) the signals
 belong to the snapshot's stop trigger instead: the server sends `stopping`
 ("the device is being saved; the next run continues from it"), closes the
 viewer (its touches, keys and buttons are released in the guest), and the
 device is saved (`snapshot.md` §12.2); a device that cannot be saved yet
-shuts down as above. `scripts/ycode-sim-serve stop` sends SIGTERM to the
+shuts down as above. `scripts/swiftcode-sim-serve stop` sends SIGTERM to the
 launcher and kills its process group after 150 s.
 
-## 7. The viewer (`ycode-sim-viewer`, macOS)
+## 7. The viewer (`swiftcode-sim-viewer`, macOS)
 
-*Since HUB-UI (2026-10-28) the window is Ycode's compact device window
-(`device-hub.md` §2.2 and "Ycode implementation"): a unified toolbar with
+*Since HUB-UI (2026-10-28) the window is SwiftCode's compact device window
+(`device-hub.md` §2.2 and "SwiftCode implementation"): a unified toolbar with
 the device's name and OS and the Expand │ More Actions capsule, the device
-in Ycode's frame (clickable buttons), the glass control row (Home,
+in SwiftCode's frame (clickable buttons), the glass control row (Home,
 Screenshot, Record │ Rotate, and the iPhone Duo's poses), no button bar
 and no status line (More Actions ▸ Show Frame Rate shows it); resizing the
 window scales the device; the menus are View, Device and Controls
 (`device-hub.md` I.5: Screenshot is now ⇧⌘S, ⌘1/⌘2/⌘3 are retired).
 Expand switches the window to the hub's canvas layout (zoom segments,
 Capture Keyboard). The window, canvas, frame, controls and the connection
-below live in the `YcodeDeviceUI` module, which the IDE's Device Hub
+below live in the `SwiftCodeDeviceUI` module, which the IDE's Device Hub
 uses too. The list below describes the input and decoding, which are
 unchanged.*
 
@@ -378,8 +378,8 @@ the limit, not the stream.
 
 ## 9. Sessions keep the device (warm start)
 
-`scripts/ycode-sim-serve start` runs the IDE's launcher (`ycode-sim.sh`,
-`snapshot.md` §12) with `YCODE_WARM_BOOT=1`: closing the viewer (the
+`scripts/swiftcode-sim-serve start` runs the IDE's launcher (`swiftcode-sim.sh`,
+`snapshot.md` §12) with `SWIFTCODE_WARM_BOOT=1`: closing the viewer (the
 launcher gets SIGTERM) saves the running device, and the next session
 restores it in place. A restored device is `live` with its last frame
 within about 1 s of the restore (the frame record survives the restore),
@@ -392,7 +392,7 @@ home screen (`snapshot.md` §12.4 item 4). Measured from the viewer's start:
 a restore session is live in 11–15 s (of which 4.6–6.4 s are the restore
 and up to 9 s the wait for the previous save), the first tap changes the
 screen 0.7–1.4 s later; a cold boot reaches the home screen about 90 s
-after `ycode-simd` starts (`snapshot.md` §12.4).
+after `swiftcode-simd` starts (`snapshot.md` §12.4).
 
 ## 10. Frame timing and input latency (FPS-LATENCY, 2026-10-19)
 
@@ -400,15 +400,15 @@ after `ycode-simd` starts (`snapshot.md` §12.4).
 
 | Switch | What it records |
 |---|---|
-| `YCODE_DISPLAY_TIMING=1` (host environment of `ycode-simd`) | three files in the memory directory (`frame-profile.md` §8.1; while the device runs, links of the same names in `DEV/data/tmp` point to them, and the run's end leaves copies there): `ycode-framebuffer.timing` (the framebuffer library: one 48-byte entry per swap in a ring of 8192 — frame, SwapBegin's target time, mach time at SwapBegin, at SwapSubmit, when the completion block ran, surface id); `ycode-simhid.timing` (the HID bundle: one 32-byte entry per event in a ring of 4096 — host sequence, mach time taken from the port, after dispatch to the event system, kind); `ycode-display.trace` (the server, text: `sync <host ns> <guest ticks>` once a second, `input`, `record`, `frame` lines with host `CLOCK_MONOTONIC` times). The guest variables are set at boot, so a restored device keeps the setting of the boot that was saved |
-| `YCODE_DISPLAY_AB=1` | paired A/B of the server's latency features: the record watcher is ignored in odd seconds, banded encoding is used on even frame sequence numbers; trace lines carry the arm |
-| `YCODE_FRAMEBUFFER_COMPLETION=delay-<ms>[-ab]` | the framebuffer library calls swap completion blocks that much later (with `-ab`, only in odd seconds of mach time); a diagnostic for §10.3. `vsync`: completions at the next point of a 60 Hz grid, with that time; `vsync-block`: `SwapSubmit` also waits for it (B3-UIKITFEEL: neither moves the display link's timestamps, `uikit-feel-ycode.md` §7.2) |
-| `scripts/ycode-display-probe` | a headless display-stream client (Python standard library; run with `python3 -I` on the simulator host or through a forward): scripted swipes, taps, keys, Home; per phase it prints received and guest frame rates, input → first frame, the swap cadence from the framebuffer log (`--timing`), and with `--trace <DEV/data/tmp>` the input → photon breakdown below |
+| `SWIFTCODE_DISPLAY_TIMING=1` (host environment of `swiftcode-simd`) | three files in the memory directory (`frame-profile.md` §8.1; while the device runs, links of the same names in `DEV/data/tmp` point to them, and the run's end leaves copies there): `swiftcode-framebuffer.timing` (the framebuffer library: one 48-byte entry per swap in a ring of 8192 — frame, SwapBegin's target time, mach time at SwapBegin, at SwapSubmit, when the completion block ran, surface id); `swiftcode-simhid.timing` (the HID bundle: one 32-byte entry per event in a ring of 4096 — host sequence, mach time taken from the port, after dispatch to the event system, kind); `swiftcode-display.trace` (the server, text: `sync <host ns> <guest ticks>` once a second, `input`, `record`, `frame` lines with host `CLOCK_MONOTONIC` times). The guest variables are set at boot, so a restored device keeps the setting of the boot that was saved |
+| `SWIFTCODE_DISPLAY_AB=1` | paired A/B of the server's latency features: the record watcher is ignored in odd seconds, banded encoding is used on even frame sequence numbers; trace lines carry the arm |
+| `SWIFTCODE_FRAMEBUFFER_COMPLETION=delay-<ms>[-ab]` | the framebuffer library calls swap completion blocks that much later (with `-ab`, only in odd seconds of mach time); a diagnostic for §10.3. `vsync`: completions at the next point of a 60 Hz grid, with that time; `vsync-block`: `SwapSubmit` also waits for it (B3-UIKITFEEL: neither moves the display link's timestamps, `uikit-feel-swiftcode.md` §7.2) |
+| `scripts/swiftcode-display-probe` | a headless display-stream client (Python standard library; run with `python3 -I` on the simulator host or through a forward): scripted swipes, taps, keys, Home; per phase it prints received and guest frame rates, input → first frame, the swap cadence from the framebuffer log (`--timing`), and with `--trace <DEV/data/tmp>` the input → photon breakdown below |
 | `SimShim/guest-tests/stageperf/p_frameclock` | a guest probe: can a guest thread keep a 60 Hz cadence with `mach_wait_until`, `nanosleep`, dispatch timers (leeway 0 and default), an `EVFILT_TIMER` kevent, and `mach_msg` receive timeouts; also the mach-time rate against `CLOCK_MONOTONIC` |
 
 ### 10.2 The guest frame clock
 
-- **Timers keep 60 Hz.** `p_frameclock` under `ycode-simd --exec` on the
+- **Timers keep 60 Hz.** `p_frameclock` under `swiftcode-simd --exec` on the
   Thor (load average 44): every primitive delivered 180 wakeups in 3.000 s
   (60.0 Hz); lateness p50 0.1–0.6 ms, p99 2–6 ms, no gap longer than 1.5
   periods; `nanosleep` overshoot p50 0.13 ms. The timebase is 125/3
@@ -426,7 +426,7 @@ after `ycode-simd` starts (`snapshot.md` §12.4).
 - **Swap completions do not gate frames.** Completion blocks normally run
   0.1–2 ms after the submit (p90 7–17 ms on a loaded host). With every
   completion in alternate seconds delayed by 30 ms
-  (`YCODE_FRAMEBUFFER_COMPLETION=delay-30-ab`), 96 of 110 frames began
+  (`SWIFTCODE_FRAMEBUFFER_COMPLETION=delay-30-ab`), 96 of 110 frames began
   before the previous frame's completion and the cadence did not drop, so
   completion latency is not a frame-rate lever (depth beyond one frame not
   tested).
@@ -467,7 +467,7 @@ to about 5 ms (§10.4). Through the viewer on the Mac, add the forward
 | Change | Measurement | Before | After |
 |---|---|---|---|
 | Pacing: settling scans no longer hold back a new frame (§4.2) | record seen → frame sent, median (`ab1` vs `ab2`) | 16.4 ms | 2.05 ms |
-| Record watcher (inotify) instead of the 4–8 ms poll alone | submit → record seen, paired by second (`YCODE_DISPLAY_AB`), `ab1` / `ab2` | poll p50 2.96 / 3.54 ms | watch p50 0.79 / 1.57 ms |
+| Record watcher (inotify) instead of the 4–8 ms poll alone | submit → record seen, paired by second (`SWIFTCODE_DISPLAY_AB`), `ab1` / `ab2` | poll p50 2.96 / 3.54 ms | watch p50 0.79 / 1.57 ms |
 | Banded, parallel JPEG encoding (§4.3) | scan + encode of frames over 60 KB, paired by frame, load ≈ 33 | p50 10.1, p90 13.8, max 41.9 ms | p50 4.6, p90 6.2, max 7.7 ms |
 | Same, frames of 10–60 KB | | p50 5.7, p90 9.7 ms | p50 3.2, p90 4.7 ms |
 | Viewer: parallel decode straight into the canvas (§7) | one full 1398 × 2034 frame, JPEG q80, on the Mac (load 75–900 from other jobs; interleaved, 3 rounds of 10) | one tile, ImageIO + CG draw: 10–18 ms | 8 bands, new path: 4.3–4.4 ms (pixels identical) |
@@ -492,12 +492,12 @@ are not used as evidence.
 
 1. When a frame takes longer than one period, when does the reference's
    render server start the next one: at the next 16.67 ms grid point, or a
-   fixed time after `SwapSubmit` (as under Ycode, §10.2)? Observable with a
+   fixed time after `SwapSubmit` (as under SwiftCode, §10.2)? Observable with a
    logging framebuffer library on the Mac: the target times given to
    `SwapBegin` and the `SwapBegin`/`SwapSubmit` times of a busy animation.
 2. Does the reference framebuffer server report a completion time `B`
    aligned to a 60 Hz vsync grid, and does the render server phase-lock to
-   it? (Under Ycode, `B` is the completion's own time and frames do not
+   it? (Under SwiftCode, `B` is the completion's own time and frames do not
    wait for it.)
 3. How does Simulator.app pace mouse-drag touches into the guest (every
    host event, or coalesced per display frame)?
@@ -566,16 +566,16 @@ drew after it (§4.3): the viewer reports input → first frame received and
 time (half the round trip: 0.15–0.35 ms on this LAN) plus the server's
 delivery into `backboardd` (0.2 ms, §10.3).
 
-## 13. The Linux viewer (`ycode-sim-viewer` on Linux)
+## 13. The Linux viewer (`swiftcode-sim-viewer` on Linux)
 
-An SDL 3 window (`YcodeRemoteViewerSDL`; libSDL3 opened at run time,
-`$YCODE_SDL3_LIBRARY`, `$OV_SDL3_LIBRARY`, the loader's path,
+An SDL 3 window (`SwiftCodeRemoteViewerSDL`; libSDL3 opened at run time,
+`$SWIFTCODE_SDL3_LIBRARY`, `$OV_SDL3_LIBRARY`, the loader's path,
 `~/.local/lib`; no SDL at build time) on the portable viewer
-(`YcodeRemoteViewer`), the same code the IDE embeds (`sim-link.md` §11).
+(`SwiftCodeRemoteViewer`), the same code the IDE embeds (`sim-link.md` §11).
 
 ### 13.1 Features
 
-- The device in Ycode's frame (`DeviceFrameGeometry`: body, rounded screen,
+- The device in SwiftCode's frame (`DeviceFrameGeometry`: body, rounded screen,
   buttons), the stream image as a textured rounded polygon, turned for a
   foldable's turned panel; a control row (Home, Lock, Vol+, Vol−, Rotate,
   Shot, Mute, the scale mode) and a status line (Ctrl+F: phase, fps, KB/s,
@@ -590,12 +590,12 @@ An SDL 3 window (`YcodeRemoteViewerSDL`; libSDL3 opened at run time,
   HID usages), the Super key as the device's Command; Ctrl shortcuts stay
   with the window: Ctrl+Shift+H Home, Ctrl+L Lock, Ctrl+Up/Down volume,
   Ctrl+Left/Right rotate, Ctrl+Shift+S screenshot (the server's PNG, in
-  `$YCODE_DEVICE_CAPTURE_DIR` or ~/Pictures), Ctrl+1/2/3 scale, Ctrl+B
+  `$SWIFTCODE_DEVICE_CAPTURE_DIR` or ~/Pictures), Ctrl+1/2/3 scale, Ctrl+B
   bezels, Ctrl+R refresh, Ctrl+M mute, Ctrl+= / Ctrl+− the viewer's volume,
   Ctrl+Q quit. Losing focus lifts fingers and keys. Alt shows the second
   finger's dot.
 - Decoding on the connection thread: JPEG tiles with the system's libjpeg
-  (`CYcodeCodec`, opened at run time; the header at build time) straight into
+  (`CSwiftCodeCodec`, opened at run time; the header at build time) straight into
   the canvas, tiles of a frame in parallel; zlib tiles inflated; H.264 by
   NVDEC (§14). Only the changed rectangle is uploaded (`SDL_UpdateTexture`),
   video pictures as NV12 textures. The renderer presents without vsync as
@@ -617,7 +617,7 @@ An SDL 3 window (`YcodeRemoteViewerSDL`; libSDL3 opened at run time,
 The iPhone 18 Pro (iOS 27.0) streamed from the Thor: the home screen; a tap
 on Settings opens it; a tap on Search, then typing, enters text; the Home
 button returns home (screenshots `remote-x86-*.png` in the worktree folder).
-The software renderer (`YCODE_SDL_RENDERER=software`) costs 16 ms per
+The software renderer (`SWIFTCODE_SDL_RENDERER=software`) costs 16 ms per
 presented frame against 2.6 ms for `opengles2`; it is not used.
 
 ## 14. Video (H.264 REMOTE-X86; HEVC, choice and measurements XR-QUALITY, 2026-11-02)
@@ -630,7 +630,7 @@ presented frame against 2.6 ms for `opengles2`; it is not used.
 - **Encoder**: NVIDIA NVENC on the simulator host (the Jetson Thor's, through
   the driver's `libnvidia-encode.so.1` and `libcuda.so.1`, opened at run
   time; interfaces from the vendored MIT headers of FFmpeg's
-  nv-codec-headers n12.2.72.0, `Sources/CYcodeVideo/nvheaders`). P1
+  nv-codec-headers n12.2.72.0, `Sources/CSwiftCodeVideo/nvheaders`). P1
   preset, ultra-low-latency tuning, no B-frames, one reference frame, an
   infinite GOP (IDR only on a keyframe request, the first frame, or a lost
   frame), parameter sets repeated with every IDR, input as BGRA (the encoder
@@ -638,18 +638,18 @@ presented frame against 2.6 ms for `opengles2`; it is not used.
   to replace. The damage the mirror found (§4.2) is copied into
   the encoder's input picture, which keeps the rest of the previous frame.
   NVENC's minimum size is above 64 × 64: the availability check opens a
-  256 × 256 session. `YCODE_DISPLAY_VIDEO=0` keeps video out of the hello.
+  256 × 256 session. `SWIFTCODE_DISPLAY_VIDEO=0` keeps video out of the hello.
 - **Rate control**, from the client hello: `videoQP` (> 0): constant QP;
   else `videoBitrate` with `videoFPS`: CBR, a VBV of one picture at that
   nominal rate; else VBR at `videoBitrate` (default 20 Mbit/s;
-  `YCODE_DISPLAY_VIDEO_KBPS`), peak twice that, a VBV of one picture of the
+  `SWIFTCODE_DISPLAY_VIDEO_KBPS`), peak twice that, a VBV of one picture of the
   peak at `maxFPS` (what older clients get). The stream sends a picture only
   when it changes, so nothing later would refine a picture a rate limit had
   starved: a client on a LAN wants constant QP (the headset viewer's default,
   QP 20, §14.2). At 120 fps VBR's budget was about 42 KB a picture.
 - **The colours are BT.709, limited range.** Measured on flat patches through
   every codec on the Thor: red → Y 63, U 102, V 240; green → 173, 42, 26; blue
-  → 32, 240, 118; white → 235, 128, 128. Every conversion in Ycode assumed
+  → 32, 240, 118; white → 235, 128, 128. Every conversion in SwiftCode assumed
   BT.601 until 2026-11-02, so saturated colours were wrong by up to 30 levels
   (PSNR on a synthetic UI, G channel: 27.7 dB before, 35.1 dB after). The
   encoder's VUI now says BT.709 (primaries, matrix) with the sRGB transfer.
@@ -846,7 +846,7 @@ an app (AVSync) → its white frame presented: p50 88 ms.
 
 ### 16.3 What changed, in order of effect
 
-1. **Pacing from the capture** (`DisplayServer`, `YCODE_DISPLAY_PACE=send`
+1. **Pacing from the capture** (`DisplayServer`, `SWIFTCODE_DISPLAY_PACE=send`
    restores the old rule): the interval of `maxFPS` was measured from the
    end of the previous send, so scan + encode + send (3–6 ms) were added to
    every interval and a 60 fps guest got at most about 45 fps with frames
@@ -868,7 +868,7 @@ an app (AVSync) → its white frame presented: p50 88 ms.
    JPEG tiles are the lower-latency choice; H.264 is the choice on slower
    links (Wi-Fi, VPN). The viewer's `--encoding auto` picks H.264 where it
    decodes it.
-5. JPEG bands on up to 8 threads instead of 4 (`YCODE_DISPLAY_JPEG_THREADS`;
+5. JPEG bands on up to 8 threads instead of 4 (`SWIFTCODE_DISPLAY_JPEG_THREADS`;
    not measured on its own). Tried and dropped: SDL's software renderer
    (16 ms per present).
 
@@ -905,7 +905,7 @@ guest itself presents 30–60 fps.
   (small changes such as a blinking cursor) on the H.264 path.
 - Sub-frame pipelining of JPEG: send each band as it is encoded.
 
-## 17. visionOS input (VISIONOS-R9, 2026-10-31; `visionos.md` §5.5 and "Ycode implementation")
+## 17. visionOS input (VISIONOS-R9, 2026-10-31; `visionos.md` §5.5 and "SwiftCode implementation")
 
 - **Negotiated.** A server for a Vision Pro says `spatial: true` (and
   `rooms`) in its hello. A viewer sends pose (0x8A), selection (0x8B) and
@@ -913,7 +913,7 @@ guest itself presents 30–60 fps.
   unknown types, but a viewer must not rely on that for its own state).
 - **Frame.** All values are in the stage frame of `visionos.md` §5.5.1
   (metres, y up, −Z forward, origin at the default eye point). The viewer
-  makes them with `SpatialInteraction` (YcodeDisplayStream): the camera
+  makes them with `SpatialInteraction` (SwiftCodeDisplayStream): the camera
   pose it keeps, the gaze ray through the pointer by the 90° horizontal
   projection, turned and placed by the camera, the hands at fixed
   camera-space rest points (±0.15, −0.35, −0.4) turned and placed the same
@@ -922,7 +922,7 @@ guest itself presents 30–60 fps.
   and to vhmdd's `set_pose` (the same matrix); a selection to kind 11,
   coalesced to one per 16 ms while its pinch state does not change (pinch
   changes are never dropped); a dial to kind 8. The control socket's
-  `vision …` commands (`visionos.md` "Ycode implementation") use the same
+  `vision …` commands (`visionos.md` "SwiftCode implementation") use the same
   `SpatialInteraction` and the same paths; a pose from a viewer becomes
   the camera the commands continue from.
 - **Release.** When the viewer goes away, an open pinch is released (the
@@ -987,27 +987,27 @@ guest itself presents 30–60 fps.
 
 | Claim | Level | Source |
 |---|---|---|
-| The frame record (surface id, frame counter) and when it is written (§4.1) | — | Ycode source `SimGuestFrameworks/SimFramebuffer/simframebuffer.c`; `simframebuffer.md` §5.1 item 7 (frames are submitted only when content changes) |
-| Surface memory reachable from the host (§4.1) | — | Ycode source `IOSurfaceService.swift` (`iosurface-remote.md`) |
+| The frame record (surface id, frame counter) and when it is written (§4.1) | — | SwiftCode source `SimGuestFrameworks/SimFramebuffer/simframebuffer.c`; `simframebuffer.md` §5.1 item 7 (frames are submitted only when content changes) |
+| Surface memory reachable from the host (§4.1) | — | SwiftCode source `IOSurfaceService.swift` (`iosurface-remote.md`) |
 | JPEG and zlib formats (§4.3, §4.4) | 1 | ITU T.81 / libjpeg-turbo API documentation; RFC 1950/1951; PNG specification (RFC 2083) |
 | USB HID usages (§5.2, §5.3) | 1 | USB HID Usage Tables |
 | Input path into the guest | — | `hid-input.md` (normative there) |
-| Everything else (framing, message set, damage scheme, pacing, viewer) | — | Ycode design decisions |
-| Foldable messages and the panel's turn (§11) | — | Ycode design decisions from `foldable.md` §2, §8 |
-| Warm sessions and their timings (§6, §9) | — / 3 | Ycode design; viewer `--script` sessions on the Thor, 2026-10-19 (`snapshot.md` §12.4) |
-| Pacing, record watcher, bands, viewer decode path (§4.2, §4.3, §7, §10.4) | — | Ycode design decisions; Linux inotify(7) and ImageIO/vImage public documentation (level 1) |
-| Timer cadence, mach-time rate (§10.2) | 3 | `p_frameclock` under `ycode-simd --exec` on the Thor |
-| Target time = SwapBegin time, 60 Hz cadence, next frame ≈ 12 ms after a long frame's submit, completions not waited for (§10.2) | 3 | Ycode boots on the Thor with `YCODE_DISPLAY_TIMING=1` (and `YCODE_FRAMEBUFFER_COMPLETION=delay-30-ab`): the swap log of our own framebuffer library, i.e. the calls the runtime's render server made into it |
+| Everything else (framing, message set, damage scheme, pacing, viewer) | — | SwiftCode design decisions |
+| Foldable messages and the panel's turn (§11) | — | SwiftCode design decisions from `foldable.md` §2, §8 |
+| Warm sessions and their timings (§6, §9) | — / 3 | SwiftCode design; viewer `--script` sessions on the Thor, 2026-10-19 (`snapshot.md` §12.4) |
+| Pacing, record watcher, bands, viewer decode path (§4.2, §4.3, §7, §10.4) | — | SwiftCode design decisions; Linux inotify(7) and ImageIO/vImage public documentation (level 1) |
+| Timer cadence, mach-time rate (§10.2) | 3 | `p_frameclock` under `swiftcode-simd --exec` on the Thor |
+| Target time = SwapBegin time, 60 Hz cadence, next frame ≈ 12 ms after a long frame's submit, completions not waited for (§10.2) | 3 | SwiftCode boots on the Thor with `SWIFTCODE_DISPLAY_TIMING=1` (and `SWIFTCODE_FRAMEBUFFER_COMPLETION=delay-30-ab`): the swap log of our own framebuffer library, i.e. the calls the runtime's render server made into it |
 | Input → photon stages and the paired before/after numbers (§10.3, §10.4) | 3 | probe sessions on the Thor (server trace, swap log, HID event log); the viewer benchmark on the Mac |
-| Stage timing, clock offset, Linux viewer, video, sound and the remote x86 measurements (§12–§16) | — / 3 | Ycode design; REMOTE-X86 runs, Thor → x86 PC, 2026-10-31 |
+| Stage timing, clock offset, Linux viewer, video, sound and the remote x86 measurements (§12–§16) | — / 3 | SwiftCode design; REMOTE-X86 runs, Thor → x86 PC, 2026-10-31 |
 | SDL 3 API and event layouts (§13) | 1 | SDL 3.4 public headers (zlib), as vendored by OpenViews |
-| Flow control (§4.2.1) | — / 3 | Ycode design; XR-GAZE's offscreen runs, Thor → x86, 2026-11-02 (`xr-viewer.md` §13.2) |
-| Depth and environment messages (§19) | — | Ycode design decisions (`xr-depth.md`; its evidence there) |
+| Flow control (§4.2.1) | — / 3 | SwiftCode design; XR-GAZE's offscreen runs, Thor → x86, 2026-11-02 (`xr-viewer.md` §13.2) |
+| Depth and environment messages (§19) | — | SwiftCode design decisions (`xr-depth.md`; its evidence there) |
 | H.264 and HEVC encode/decode interfaces, capability queries (§14) | 1 | NVIDIA Video Codec SDK headers via FFmpeg's nv-codec-headers (MIT); ITU-T H.264 and H.265 Annex B |
-| NVENC's colour conversion, capabilities on the Thor and the x86, latencies and PSNR (§14) | 3 | XR-QUALITY's probes and runs on Ycode's own stream, Thor → x86, 2026-11-02 |
+| NVENC's colour conversion, capabilities on the Thor and the x86, latencies and PSNR (§14) | 3 | XR-QUALITY's probes and runs on SwiftCode's own stream, Thor → x86, 2026-11-02 |
 | Opus and PulseAudio interfaces (§15) | 1 | libopus 1.5.2 public `opus_defines.h` (BSD-3-Clause); PulseAudio simple API documentation |
-| visionOS messages and their negotiation (§17) | — / 3 | Ycode design from `visionos.md` §5.5; VISIONOS-R9 runs on the Thor (`visionos.md` §10.25) |
-| The headset mode, its messages and its measurements (§18) | — / 3 | Ycode design (`xr-viewer.md`); XR-VIEWER runs on the Thor and the x86 PC, 2026-11-01 |
+| visionOS messages and their negotiation (§17) | — / 3 | SwiftCode design from `visionos.md` §5.5; VISIONOS-R9 runs on the Thor (`visionos.md` §10.25) |
+| The headset mode, its messages and its measurements (§18) | — / 3 | SwiftCode design (`xr-viewer.md`); XR-VIEWER runs on the Thor and the x86 PC, 2026-11-01 |
 
 No Apple binary, Apple source, or `research/` material was used for this
 spec (level 5 not used; levels 2–4 not needed).

@@ -1,11 +1,11 @@
 name: Feature request
-description: Suggest something Ycode should do.
+description: Suggest something SwiftCode should do.
 labels: [enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        Check the [feature table](https://github.com/MarcoDotIO/Ycode#what-works-today) and [docs/PARITY.md](https://github.com/MarcoDotIO/Ycode/blob/main/docs/PARITY.md) first: the feature may already be planned.
+        Check the [feature table](https://github.com/dylans2010/SwiftCode-Mac#what-works-today) and [docs/PARITY.md](https://github.com/dylans2010/SwiftCode-Mac/blob/main/docs/PARITY.md) first: the feature may already be planned.
 
         **Clean-room note:** describe what you want to happen, in your own words. Please don't paste Apple code, decompiler output, or text from Xcode's resources.
   - type: textarea

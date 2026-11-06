@@ -1,4 +1,4 @@
-# Releasing Ycode
+# Releasing SwiftCode
 
 The checklist for cutting a release, written for 1.0.0-beta.2 and meant to be reused. Each step names the
 script or workflow that does it; a step marked **by hand** has no automation yet. The release workflow is
@@ -10,8 +10,8 @@ Below, `<version>` is the new version (`1.0.0-beta.2`) and `<date>` the day it i
 ## 1. Before the release branch
 
 - [ ] **The milestone is done.** Every issue in the `<version>` milestone is closed or moved to the next one
-  (**by hand**: `gh issue list -R MarcoDotIO/Ycode --milestone <version> --state open` must list nothing).
-- [ ] **CI is green on `main`** for macOS arm64, Linux x86-64 and Linux arm64: the `ycode` and `frameworks and
+  (**by hand**: `gh issue list -R MarcoDotIO/SwiftCode --milestone <version> --state open` must list nothing).
+- [ ] **CI is green on `main`** for macOS arm64, Linux x86-64 and Linux arm64: the `swiftcode` and `frameworks and
   composer` jobs, SwiftLint, and the public scan ([`ci.yml`](../.github/workflows/ci.yml); the `CI passed` job
   sums them up). A known-flaky test passes only when rerun alone (`.github/scripts/run-tests.py` does that).
 - [ ] **The Flatpak runtime is current.** `runtime-version` in
@@ -22,11 +22,11 @@ Below, `<version>` is the new version (`1.0.0-beta.2`) and `<date>` the day it i
 
 ## 2. The version commit
 
-One commit on `main` that states the new version everywhere it is stated. `YcodeReleaseTests`
-(`swift test --filter YcodeReleaseTests` in `ycode/`) fails until the first three agree.
+One commit on `main` that states the new version everywhere it is stated. `SwiftCodeReleaseTests`
+(`swift test --filter SwiftCodeReleaseTests` in `swiftcode/`) fails until the first three agree.
 
-- [ ] `ycode/VERSION`: `<version>`.
-- [ ] `YcodeRelease.version` in `ycode/Sources/YcodeRelease/YcodeRelease.swift`: `<version>`.
+- [ ] `swiftcode/VERSION`: `<version>`.
+- [ ] `SwiftCodeRelease.version` in `swiftcode/Sources/SwiftCodeRelease/SwiftCodeRelease.swift`: `<version>`.
 - [ ] **The metainfo:** a new first `<release version="<version>" date="<date>" type="development">` in
   [`io.github.MarcoDotIO.Ycode.metainfo.xml`](../packaging/flatpak/io.github.MarcoDotIO.Ycode.metainfo.xml), with a
   one-paragraph description. Add it only now, when the release is cut, never ahead of time. Check it with
@@ -34,8 +34,8 @@ One commit on `main` that states the new version everywhere it is stated. `Ycode
 - [ ] **CHANGELOG.md:** rename `## [Unreleased]` to `## [<version>] - <date>` and start a new empty
   `## [Unreleased]` above it. The section becomes the release notes, so it must not be empty. Narrow or drop
   the known limitations that the release fixed.
-- [ ] **The README:** the beta banner and the file names in Install (`Ycode-<version>.dmg`,
-  `Ycode-<version>-x86_64.flatpak`).
+- [ ] **The README:** the beta banner and the file names in Install (`SwiftCode-<version>.dmg`,
+  `SwiftCode-<version>-x86_64.flatpak`).
 - [ ] **The issue templates:** the version placeholder in `.github/ISSUE_TEMPLATE/bug_report.yml` and
   `simulator_report.yml`.
 - [ ] Check the metadata the release workflow will check:
@@ -48,22 +48,22 @@ One commit on `main` that states the new version everywhere it is stated. `Ycode
 - [ ] **Run the release workflow by hand on `main`** (Actions ▸ Release ▸ Run workflow). A manual run builds every
   package and keeps them as workflow artifacts, without publishing. The `check` job fails on a missing or
   undated CHANGELOG section, a metainfo that disagrees with it, or the public scan.
-- [ ] **macOS** (`macos` job, `ycode/scripts/make-dmg.sh`): the universal disk image, signed inside out with the
+- [ ] **macOS** (`macos` job, `swiftcode/scripts/make-dmg.sh`): the universal disk image, signed inside out with the
   hardened runtime, notarized and stapled when the `MACOS_CERTIFICATE_*` and `NOTARY_KEY_*` secrets are set.
   `packaging/macos/verify-dmg.sh` checks it as part of the build, and with the notary secrets
-  `YCODE_VERIFY_REQUIRE_GATEKEEPER=1` makes a Gatekeeper rejection fail the job. Open the image once **by hand**
+  `SWIFTCODE_VERIFY_REQUIRE_GATEKEEPER=1` makes a Gatekeeper rejection fail the job. Open the image once **by hand**
   to check the window layout, which the script does not look at.
 - [ ] **Linux** (`flatpak` job, `packaging/flatpak/build-flatpak.sh`, x86-64 and aarch64): two `.flatpak`
   bundles and two `.tar.xz` tarballs. Install each bundle **by hand** on its architecture and run it:
 
   ```sh
-  flatpak install --user --bundle Ycode-<version>-<arch>.flatpak
-  flatpak run --user --command=ycode io.github.MarcoDotIO.Ycode --version
-  flatpak run --user io.github.MarcoDotIO.Ycode    # the window opens; YCODE_IDE_WALK walks it
+  flatpak install --user --bundle SwiftCode-<version>-<arch>.flatpak
+  flatpak run --user --command=swiftcode io.github.MarcoDotIO.Ycode --version
+  flatpak run --user io.github.MarcoDotIO.Ycode    # the window opens; SWIFTCODE_IDE_WALK walks it
   ```
 
-  On a machine that already has a Ycode install you want to keep, check the command-line tools without
-  installing (`flatpak-builder --run <build-dir> <manifest> ycode --version`). The window needs a real install:
+  On a machine that already has a SwiftCode install you want to keep, check the command-line tools without
+  installing (`flatpak-builder --run <build-dir> <manifest> swiftcode --version`). The window needs a real install:
   under `flatpak-builder --run` on 26.08 it aborts in GTK's icon loader (used for the window decorations),
   which needs the Flatpak portal that a real install has. Install it under another branch instead
   (`flatpak build-commit-from --src-ref=app/io.github.MarcoDotIO.Ycode/<arch>/master <repo>
@@ -76,7 +76,7 @@ One commit on `main` that states the new version everywhere it is stated. `Ycode
 
 - [ ] **Tag the version commit** `v<version>` and push the tag (**by hand**: `git tag v<version>`,
   `git push origin v<version>`). The tag starts the release workflow. Its `check` job fails when the tag does
-  not match `ycode/VERSION`.
+  not match `swiftcode/VERSION`.
 - [ ] **The workflow publishes** (`publish` job, `.github/scripts/prepare-release.sh`, then `gh release create`):
   - collects the disk image, both Flatpak bundles and both tarballs, and fails if one is missing;
   - writes `SHA256SUMS.txt` over the five files;
@@ -91,7 +91,7 @@ One commit on `main` that states the new version everywhere it is stated. `Ycode
 
 ## 5. After the release
 
-- [ ] **FlatPark** (**by hand**; no script in this repository yet): update Ycode's listing to the new version's
+- [ ] **FlatPark** (**by hand**; no script in this repository yet): update SwiftCode's listing to the new version's
   bundles and manifest. The listing builds on the same freedesktop runtime as the manifest here.
 - [ ] **The milestone:** close the `<version>` milestone and open the next one (**by hand**, on GitHub).
 - [ ] **Sync the public repository** if the work happened elsewhere, so the tag's commit is on the public

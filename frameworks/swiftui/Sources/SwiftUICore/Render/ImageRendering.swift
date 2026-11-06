@@ -2,16 +2,16 @@ import Foundation
 import OVRender
 import Synchronization
 
-// Images (round R5): symbols drawn from Ycode's own set (OVRender
+// Images (round R5): symbols drawn from SwiftCode's own set (OVRender
 // SymbolArtwork), raster images (PNG, JPEG) from bundles and asset catalogs,
 // and images given as pixels. Sizes follow 07 §3 and 04 §2.
 
 // MARK: - Symbol provider
 
-/// Ycode's symbol provider: metrics derived from each symbol's body-size box
+/// SwiftCode's symbol provider: metrics derived from each symbol's body-size box
 /// (SymbolArtwork), scaled with the font size and weight; `imageScale` is
 /// applied by the image leaf. Names outside the set get a visible
-/// placeholder of the default size (Ycode's choice, so missing artwork is
+/// placeholder of the default size (SwiftCode's choice, so missing artwork is
 /// noticed); with `missingSymbolsLayOutEmpty` they lay out 0 × 0 and draw
 /// nothing, as the reference does for unknown names (07 §3).
 package struct OpenSymbolProvider: SymbolProvider {

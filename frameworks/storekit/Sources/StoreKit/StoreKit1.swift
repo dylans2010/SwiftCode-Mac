@@ -1,6 +1,6 @@
 // StoreKit 1 over the same store (simulator-baseline.md §7; errors.md §4;
 // formats.md §3): product requests, the payment queue, restore, the receipt.
-// Callbacks arrive on `YcodeStoreKit.shared.callbackQueue` (the main queue by default).
+// Callbacks arrive on `SwiftCodeStoreKit.shared.callbackQueue` (the main queue by default).
 import Foundation
 import StoreKitConfiguration
 import StoreKitEngine
@@ -71,7 +71,7 @@ open class SKProductsRequest: SKRequest, @unchecked Sendable {
     public init(productIdentifiers: Set<String>) { identifiers = productIdentifiers }
 
     open override func start() {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         rt.callbackQueue.async { [self] in
             guard !isCancelled else { return }
             do {
@@ -97,7 +97,7 @@ open class SKReceiptRefreshRequest: SKRequest, @unchecked Sendable {
     public init(receiptProperties: [String: Any]? = nil) { self.receiptProperties = receiptProperties }
 
     open override func start() {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         rt.callbackQueue.async { [self] in
             guard !isCancelled else { return }
             do {
@@ -321,8 +321,8 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 
     public static func `default`() -> SKPaymentQueue { sharedLock.withLock { shared } }
 
-    /// Ycode extension: a fresh default queue (for tests that replace the runtime).
-    public static func ycodeReset() {
+    /// SwiftCode extension: a fresh default queue (for tests that replace the runtime).
+    public static func swiftcodeReset() {
         sharedLock.withLock { shared = SKPaymentQueue() }
     }
 
@@ -330,7 +330,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 
     /// The storefront in force.
     open var storefront: SKStorefront? {
-        let s = YcodeStoreKit.shared.store.settings.storefront
+        let s = SwiftCodeStoreKit.shared.store.settings.storefront
         return SKStorefront(countryCode: s.countryCode, identifier: s.id)
     }
 
@@ -339,7 +339,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
     open var transactionObservers: [any SKPaymentTransactionObserver] { lock.withLock { observers.compactMap(\.value) } }
 
     open func add(_ observer: any SKPaymentTransactionObserver) {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         lock.withLock {
             observers.removeAll { $0.value == nil || $0.value === observer }
             observers.append(WeakObserver(observer))
@@ -370,7 +370,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
     private func storeEvent(_ event: StoreEvent) {
         // Restores and interrupted purchases are reported by the call that made them.
         guard case .transaction(let r) = event, !r.isRevoked, r.state != .restored, !r.hasPurchaseIssue else { return }
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         rt.callbackQueue.async { [self] in
             let state: SKPaymentTransactionState = r.state == .failed ? .failed : .purchased
             let t = SKPaymentTransaction(record: r, state: state)
@@ -381,7 +381,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 
     /// Adds a payment: `purchasing`, then `purchased`, `deferred` or `failed` (simulator-baseline.md §7).
     open func add(_ payment: SKPayment) {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         let p = payment.copyPayment()
         rt.callbackQueue.async { [self] in
             let t = SKPaymentTransaction(payment: p, state: .purchasing)
@@ -417,7 +417,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
     }
 
     open func finishTransaction(_ transaction: SKPaymentTransaction) {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         if let r = transaction.record, transaction.transactionState != .deferred { rt.store.finish(transactionID: r.id) }
         let removed = lock.withLock { () -> Bool in
             let before = pending.count
@@ -431,7 +431,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
 
     /// New transactions in state `restored` for each non-consumable and active subscription.
     open func restoreCompletedTransactions(withApplicationUsername username: String?) {
-        let rt = YcodeStoreKit.shared
+        let rt = SwiftCodeStoreKit.shared
         rt.callbackQueue.async { [self] in
             let restored = rt.store.restoreCompletedTransactions()
             let all = rt.store.allTransactions()
@@ -446,7 +446,7 @@ open class SKPaymentQueue: NSObject, @unchecked Sendable {
     }
 }
 
-extension YcodeStoreKit {
+extension SwiftCodeStoreKit {
     /// `Bundle.appStoreReceiptURL` equivalent: where the StoreKit 1 receipt lives.
     public var appStoreReceiptURL: URL? { receiptURL }
 }

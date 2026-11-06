@@ -1,8 +1,8 @@
-# RealityKit 8: what Apple's iOS simulator does with RealityKit (baseline for Ycode)
+# RealityKit 8: what Apple's iOS simulator does with RealityKit (baseline for SwiftCode)
 
 Status: reference, round 0 (agent KIT-REALITYKIT, 2026-10-19). This is the
-behaviour the Ycode simulator must reproduce first: a guest app that uses
-RealityKit must get the same results under Ycode as under Apple's
+behaviour the SwiftCode simulator must reproduce first: a guest app that uses
+RealityKit must get the same results under SwiftCode as under Apple's
 simulator. Every fact here is level 3 (our own app, run on Apple's
 simulator), except the Metal tallies (§6), which use the project's own
 Metal recorder on our own app (level 3).
@@ -15,7 +15,7 @@ Metal recorder on our own app (level 3).
   prints `RKP key=value` lines. Logs: `research/experiments/realitykit/
   results/`. Screenshots (`simctl io screenshot`) stayed in the agent's
   scratch directory.
-- Device: throwaway `ycode-test-realitykit-1`, device type iPhone Duo,
+- Device: throwaway `swiftcode-test-realitykit-1`, device type iPhone Duo,
   iOS 27.1 runtime (24A94401), 466 × 678 points, scale 3; deleted after
   the runs.
 - Host: this Mac (Apple M3 Max) while other agents ran up to nine other
@@ -55,8 +55,8 @@ Metal recorder on our own app (level 3).
 Conclusion: Apple's iOS simulator supports **all non-AR RealityKit**
 features we tried, including custom Metal materials, and supports **no AR
 tracking**: AR views degrade silently to non-AR with a black camera
-background. Ycode's first target is exactly this. AR support (camera
-feed, tracking, plane detection) is a later, Ycode-specific extension
+background. SwiftCode's first target is exactly this. AR support (camera
+feed, tracking, plane detection) is a later, SwiftCode-specific extension
 (`docs/FUTURE.md`; see KIT-ARKIT's `specs/frameworks/arkit/`).
 
 ## 3. Detailed observations
@@ -149,7 +149,7 @@ winding (115), pipeline (116), stencil reference (119), fill mode (124),
 `metal-sim-protocol.md`; they occur in every frame.
 
 Compared with what a boot to the home screen needs (`metal-sim-protocol.md`
-§10), a RealityKit app additionally requires from Ycode's Metal host:
+§10), a RealityKit app additionally requires from SwiftCode's Metal host:
 texture views with type/level/slice ranges and swizzle, fences (per
 frame), heaps, argument encoders (tier 0 emulation), events, 3D and cube
 textures, multisample render targets with resolve, vertex-stage texture

@@ -5,11 +5,11 @@ local, made-up App Store catalog for one app: its in-app products,
 subscription groups and offers, and the settings of the local test store
 (storefront, locale, time rate, simulated failures). Xcode edits it, a scheme
 names it, `SKTestSession` loads it, and the simulator's store daemon serves
-products and transactions from it. Ycode's IDE must read and write it
-byte-compatibly enough that Xcode opens Ycode's files and the other way
-round; Ycode's simulator must accept it as its catalog.
+products and transactions from it. SwiftCode's IDE must read and write it
+byte-compatibly enough that Xcode opens SwiftCode's files and the other way
+round; SwiftCode's simulator must accept it as its catalog.
 
-Our probe configuration (`research/experiments/storekit/StoreProbe/YcodeProbe.storekit`,
+Our probe configuration (`research/experiments/storekit/StoreProbe/SwiftCodeProbe.storekit`,
 our own data) exercises every entity listed here and loads in the reference
 simulator. Statements are level 2 (the file as a format, the copy the daemon
 writes back) and level 3 (what the daemon does with each key) unless marked.
@@ -27,7 +27,7 @@ writes back) and level 3 (what the daemon does with each key) unless marked.
 | In the target | Usually a member of the app target's resources. A file inside a folder-synchronized group is copied into the built `.app` like any resource (observed with `xcodebuild`); the app's own `SKTestSession(configurationFileNamed:)` needs it in the main bundle, the scheme path does not |
 
 Key order is irrelevant to readers: the daemon re-serializes the file with a
-different order and both forms load. Ycode writes the sorted form so that
+different order and both forms load. SwiftCode writes the sorted form so that
 files diff cleanly against Xcode's.
 
 ## 2. Top level
@@ -46,7 +46,7 @@ files diff cleanly against Xcode's.
 Keys of a file synchronized with App Store Connect (level 4, names only, not
 yet observed in a file): `_applicationInternalID`, `_developerTeamID`,
 `_lastSynchronizedDate`. A synchronized configuration is read-only in the
-editor and is refreshed from the developer's App Store Connect account; Ycode
+editor and is refreshed from the developer's App Store Connect account; SwiftCode
 does not support synchronization (it needs an Apple account) but must
 preserve these keys when it edits such a file.
 
@@ -68,7 +68,7 @@ preserve these keys when it edits such a file.
 |---|---|---|
 | `id` | string of digits | the subscription group identifier (`Product.SubscriptionInfo.subscriptionGroupID`, JWS `subscriptionGroupIdentifier`) |
 | `name` | string | developer name; used as the group display name when the group has no localization for the session locale (observed: group "Extra" without localizations → "Extra"; group "Plus" with only an `en_US` localization → "Plus" under locale `de`) |
-| `localizations` | array of `{ "locale", "displayName", "description" }` | group display name per locale (`groupDisplayName` "Ycode Plus") |
+| `localizations` | array of `{ "locale", "displayName", "description" }` | group display name per locale (`groupDisplayName` "SwiftCode Plus") |
 | `subscriptions` | array of subscription objects (§5) | the group's products |
 
 ## 5. Auto-renewable subscription object
@@ -199,7 +199,7 @@ exact mechanism).
 - §2–§7 keys and value forms: level 2 (our configuration file that loads in
   the reference, and the daemon's copy); mappings to API values: level 3
   (StoreProbe `products`, `sub`, `offers` phases, and `products` with our
-  `YcodeProbeSettings.storekit`). Synchronized-file keys and
+  `SwiftCodeProbeSettings.storekit`). Synchronized-file keys and
   §6 "unconfirmed" names: level 4 (binary metadata, names only). Purpose of
   `appPolicies`: level 1.
 - §8: level 2 (file locations) and level 3 (probe launches with and without a

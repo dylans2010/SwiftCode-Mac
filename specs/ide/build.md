@@ -1,6 +1,6 @@
 # Build: requests, engines and diagnostics
 
-Ycode module: `YcodeBuild`. CLI: `ycode build`.
+SwiftCode module: `SwiftCodeBuild`. CLI: `swiftcode build`.
 
 ## Requests
 
@@ -34,15 +34,15 @@ stream plus a cancel action. Events are:
 
 Engine 1 (`XcodebuildEngine`) runs `xcrun xcodebuild <args>` with
 stdout and stderr merged, stdin closed. Exit status 0 means success. Cancel
-sends SIGINT (xcodebuild then stops its build and reports failure; Ycode
+sends SIGINT (xcodebuild then stops its build and reports failure; SwiftCode
 reports `cancelled`).
 
-Engine 2 (`SwiftBuildEngine`) builds with swift-build from a PIF that Ycode
+Engine 2 (`SwiftBuildEngine`) builds with swift-build from a PIF that SwiftCode
 generates (`build-pif.md`), by running swift-build's `swbuild`
 command-line client. It emits the same events, so the UI does not depend
 on which engine runs.
 
-Status (2026-10-28): both engines are implemented in `YcodeBuild`. The
+Status (2026-10-28): both engines are implemented in `SwiftCodeBuild`. The
 IDE's default is swift-build (Settings ▸ Locations ▸ Build System,
 `settings.md`): it is wrapped in `FallbackEngine`, which uses xcodebuild
 for any request swift-build cannot describe, and the IDE uses xcodebuild
@@ -50,17 +50,17 @@ outright when `swbuild` cannot be found.
 
 ### The command line
 
-`ycode build [<container>] [--engine xcodebuild|swift-build|swiftpm]`
+`swiftcode build [<container>] [--engine xcodebuild|swift-build|swiftpm]`
 (`CommandLineBuild`). The container is the path given, else the current
 folder. Without `--engine`:
 
 | Host | Package folder (a `Package.swift`, no `.xcodeproj` or `.xcworkspace`) | Project, workspace, other folder |
 |---|---|---|
 | macOS | xcodebuild (`xcrun xcodebuild`) | xcodebuild |
-| Linux, host build or Flatpak | `swiftpm` | xcodebuild, which on Linux is ycodebuild |
+| Linux, host build or Flatpak | `swiftpm` | xcodebuild, which on Linux is swiftcodebuild |
 
 This is the Linux IDE's choice (`ShellBuildSetup`), with the same switch:
-`YCODE_IDE_ENGINE=ycodebuild` sends packages to ycodebuild too. The
+`SWIFTCODE_IDE_ENGINE=swiftcodebuild` sends packages to swiftcodebuild too. The
 `swiftpm` engine (`PackageBuildEngine`) runs the toolchain's SwiftPM:
 `swift build --package-path <dir>` (`-c release` for `-configuration
 Release`), `swift test` for `--test`, `swift build --build-tests` for
@@ -73,16 +73,16 @@ Missing tools are errors, exit 1:
 
 | Situation | Message |
 |---|---|
-| no `swift` on `PATH` (host build) | the build's one issue: `Ycode could not find a Swift toolchain. Install Swift 6 or later (swift.org/install), make sure \`swift\` is on your PATH, then build again.` |
-| no Swift on the host (Flatpak) | the wrapper's `Ycode: no Swift toolchain was found on this computer (swift is missing).` and how to install one, exit 127 from the wrapper |
+| no `swift` on `PATH` (host build) | the build's one issue: `SwiftCode could not find a Swift toolchain. Install Swift 6 or later (swift.org/install), make sure \`swift\` is on your PATH, then build again.` |
+| no Swift on the host (Flatpak) | the wrapper's `SwiftCode: no Swift toolchain was found on this computer (swift is missing).` and how to install one, exit 127 from the wrapper |
 | the Flatpak cannot reach the host | the wrapper's message naming the `--talk-name=org.freedesktop.Flatpak` permission |
 
 When SwiftPM's driver exits 127 without an error of its own (it did not
 run: the shell's "command not found", or the wrapper's two cases above),
 its output lines, joined, are the build's one error issue, so the IDE's
-issue navigator and `ycode build --quiet` show the reason too.
-| ycodebuild not found (Linux) | `ycode: Ycode could not find its build tool, ycodebuild. …` |
-| `--engine swift-build` without `swbuild` | `ycode: swbuild not found (set YCODE_SWBUILD). Swift packages build with --engine swiftpm` (`, the default here.` on Linux) |
+issue navigator and `swiftcode build --quiet` show the reason too.
+| swiftcodebuild not found (Linux) | `swiftcode: SwiftCode could not find its build tool, swiftcodebuild. …` |
+| `--engine swift-build` without `swbuild` | `swiftcode: swbuild not found (set SWIFTCODE_SWBUILD). Swift packages build with --engine swiftpm` (`, the default here.` on Linux) |
 
 Activity text: a log line that starts with a known step verb maps to a
 label plus the last path component on the line — `CompileSwift`,
@@ -116,12 +116,12 @@ fixit    := 'fix-it:"' file '":{' l1 ':' c1 '-' l2 ':' c2 '}:"' text '"'
   dropped: compilers repeat issues when a file is built for several
   architectures.
 
-`ycode build --quiet` prints errors and warnings in the same line form plus
+`swiftcode build --quiet` prints errors and warnings in the same line form plus
 a status line on stderr; exit status 0 on success, 1 otherwise.
 
 ## IDE tool actions (IDE-QUICKWINS, 2026-10-30)
 
-Product menu items that run one of ycodebuild's actions inside the IDE
+Product menu items that run one of swiftcodebuild's actions inside the IDE
 (`Xcodebuild.run` with a captured console, as Organizer ▸ Archive does),
 off the main thread. The activity view shows "<title>" while it runs and
 "<title> Succeeded" / "<title> Failed" after; the output becomes a report
@@ -132,13 +132,13 @@ of the output in a sheet; a success reveals what it made in Finder.
 |---|---|---|
 | Export Localizations… | `-exportLocalizations -localizationPath <folder> -project <P> -exportLanguage <l>…` | A save panel names the folder ("<project> Localizations"). Languages: the development region, then the other known regions without `Base`. |
 | Import Localizations… | `-importLocalizations -localizationPath <xcloc or xliff> -project <P>` | An open panel picks the `.xcloc` (or `.xliff`). |
-| Build Documentation ⌃⇧⌘D | `[-project P \| -workspace W] -scheme <S> -derivedDataPath <dir>/.ycode-build/Documentation docbuild` | Packages run in the package folder. The archives are `<dd>/Build/Products/<configuration>/*.doccarchive`. Ycode has no documentation viewer: they are revealed in Finder. |
+| Build Documentation ⌃⇧⌘D | `[-project P \| -workspace W] -scheme <S> -derivedDataPath <dir>/.swiftcode-build/Documentation docbuild` | Packages run in the package folder. The archives are `<dd>/Build/Products/<configuration>/*.doccarchive`. SwiftCode has no documentation viewer: they are revealed in Finder. |
 | Delete Derived Data… | – | Asks first, then deletes the workspace's derived data folder: the build folder (the product path before `/Products/`) for swift-build's layout, its parent for xcodebuild's `<…>/Build`. |
 
 Export and Import act on the project, or a workspace's first project
 (by path); they are disabled in a package workspace (`reference-ui-5.md`
-§2.9 item 17) and while a build runs. Code: `YcodeIDECore`
-`IDEToolActions`, `WorkspaceSession+Tools.swift`; `YcodeUI`
+§2.9 item 17) and while a build runs. Code: `SwiftCodeIDECore`
+`IDEToolActions`, `WorkspaceSession+Tools.swift`; `SwiftCodeUI`
 `WorkspaceWindowController+ToolActions.swift`. Tests:
 `IDEQuickWinsTests`, `IDEQuickWinsUITests`.
 
@@ -156,14 +156,14 @@ Export and Import act on the project, or a workspace's first project
 - OPEN QUESTION: whether build-system `note:` lines without a location appear in the issue
   navigator. Needs a GUI observation pass.
 - OPEN QUESTION: exact cancel behavior of the IDE's Stop during a build.
-- `ycode build`'s engine choice and its messages are Ycode decisions that
+- `swiftcode build`'s engine choice and its messages are SwiftCode decisions that
   follow the Linux IDE's (`ShellBuildSetup`); SwiftPM's commands and flags
-  are open source (level 1); checked with Ycode's host builds on macOS and
-  Linux and in its Flatpak (level 3, Ycode only).
+  are open source (level 1); checked with SwiftCode's host builds on macOS and
+  Linux and in its Flatpak (level 3, SwiftCode only).
 - IDE tool actions: the menu items and shortcuts from `reference-ui-5.md`
   §2.9; the commands from `specs/xcodebuild/localization.md` and
   `build-actions.md` §5. The panels, report titles, the documentation
-  derived-data folder and revealing in Finder are Ycode decisions.
+  derived-data folder and revealing in Finder are SwiftCode decisions.
 - OPEN QUESTION: the reference's Export Localizations sheet (language
   choice, screenshots option), its Import review sheet, and what it shows
   after Build Documentation (its documentation window) were not observed.

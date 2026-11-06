@@ -1,36 +1,36 @@
-# Spec: the simulator link (Ycode's own connection to a simulator host)
+# Spec: the simulator link (SwiftCode's own connection to a simulator host)
 
-Status: **implemented** (agent REMOTE-X86, 2026-10-31). Ycode-original
+Status: **implemented** (agent REMOTE-X86, 2026-10-31). @@SWIFTCODE_ORIGINAL@@
 design: nothing here describes Apple software. It defines how a client (the
-Linux or macOS IDE, the viewer, `ycode sim remote`) reaches a simulator host
-(an arm64 Linux machine running `ycode-simd`) without ssh: device list,
+Linux or macOS IDE, the viewer, `swiftcode sim remote`) reaches a simulator host
+(an arm64 Linux machine running `swiftcode-simd`) without ssh: device list,
 boot, install, launch, shutdown, the display stream (`display-stream.md`)
 with input, and the device's sound, over one authenticated and encrypted
 TCP connection per purpose plus an encrypted UDP media channel.
 
-Code: `ycode/Sources/YcodeSimLink` (portable: Noise, identities, pairing,
+Code: `swiftcode/Sources/SwiftCodeSimLink` (portable: Noise, identities, pairing,
 channels, the media channel, the host service and the client),
-`ycode/Sources/ycode-simhost` (the host's service), `ycode sim remote …`
-(`SimRemoteCLI.swift`, dispatched by `ycode/Sources/ycode/main.swift`),
-`ycode-sim-viewer --link` (`YcodeRemoteViewerSDL/ViewerMain.swift`), the
-Linux IDE's run destinations (`YcodeIDEShell/ShellRemoteRun.swift`).
-Tests: `Tests/YcodeSimLinkTests`, `Tests/YcodeIDEShellTests/ShellRemoteRunTests.swift`.
+`swiftcode/Sources/swiftcode-simhost` (the host's service), `swiftcode sim remote …`
+(`SimRemoteCLI.swift`, dispatched by `swiftcode/Sources/swiftcode/main.swift`),
+`swiftcode-sim-viewer --link` (`SwiftCodeRemoteViewerSDL/ViewerMain.swift`), the
+Linux IDE's run destinations (`SwiftCodeIDEShell/ShellRemoteRun.swift`).
+Tests: `Tests/SwiftCodeSimLinkTests`, `Tests/SwiftCodeIDEShellTests/ShellRemoteRunTests.swift`.
 
 ## 1. Pieces and where they run
 
 | Piece | Runs on | Does |
 |---|---|---|
-| `ycode-simhost serve` | the simulator host, as the user, no root | listens on TCP (control and display connections) and UDP (media); runs the host-side launcher (`scripts/ycode-sim.sh`, the IDE's `ycode-sim`) per device with a display socket; relays display streams |
-| `ycode-simhost pair` / `identity` / `trust` / `peers` / `untrust` | the host | pairing window, the host's pairing file, trusted clients |
-| `ycode sim remote …` | a client | pair, devices, create, boot, shutdown, log, install (upload), run, view |
-| `ycode-sim-viewer --link <device> [--host N]` | a client | the device window over the link |
-| Linux IDE (`ycode-ide`) | a client | each paired host's devices are run destinations; Run builds here and runs there (§10) |
+| `swiftcode-simhost serve` | the simulator host, as the user, no root | listens on TCP (control and display connections) and UDP (media); runs the host-side launcher (`scripts/swiftcode-sim.sh`, the IDE's `swiftcode-sim`) per device with a display socket; relays display streams |
+| `swiftcode-simhost pair` / `identity` / `trust` / `peers` / `untrust` | the host | pairing window, the host's pairing file, trusted clients |
+| `swiftcode sim remote …` | a client | pair, devices, create, boot, shutdown, log, install (upload), run, view |
+| `swiftcode-sim-viewer --link <device> [--host N]` | a client | the device window over the link |
+| Linux IDE (`swiftcode-ide`) | a client | each paired host's devices are run destinations; Run builds here and runs there (§10) |
 
 ## 2. Identities and trust
 
 - Each machine has one **Ed25519 identity** (`identity.key`, 32 bytes, mode
-  0600, made on first use) in its link directory: `$YCODE_SIM_LINK_HOME`,
-  else `~/.config/ycode/sim-link` (mode 0700). A key file readable by others
+  0600, made on first use) in its link directory: `$SWIFTCODE_SIM_LINK_HOME`,
+  else `~/.config/swiftcode/sim-link` (mode 0700). A key file readable by others
   is refused.
 - **Trusted peers** (`trusted-peers.json`, 0600): name, Base64 public key,
   role (`host` or `client`), for hosts the address `<host>:<control port>`
@@ -47,7 +47,7 @@ Every connection, from the first byte:
 1. **Preamble** (5 bytes): `YSL1`, then `X` (normal) or `P` (pairing).
 2. **Handshake**: Noise Protocol Framework revision 34,
    `Noise_XX_25519_ChaChaPoly_SHA256` (pairing: `Noise_XXpsk3_25519_ChaChaPoly_SHA256`),
-   prologue `ycode-sim-link/1`, fresh X25519 static keys per connection.
+   prologue `swiftcode-sim-link/1`, fresh X25519 static keys per connection.
    Each handshake message is length-prefixed (u16 big-endian), at most 2 048
    bytes.
    - message 1 (client): `e`; empty payload.
@@ -86,11 +86,11 @@ Handshakes are limited to 10 a minute per source address and 5 s each.
 
 ### 4.1 One-time code
 
-`ycode-simhost pair` opens a pairing window for 5 minutes and prints a code
+`swiftcode-simhost pair` opens a pairing window for 5 minutes and prints a code
 of 12 characters from a 32-letter alphabet without look-alikes (60 bits),
-shown as `XXXX-XXXX-XXXX`; the client runs `ycode sim remote pair
+shown as `XXXX-XXXX-XXXX`; the client runs `swiftcode sim remote pair
 <host>[:port] <code> [--name N] [--media-port P]`. The connection runs
-XXpsk3 with psk = SHA-256(`"ycode-sim-link pairing code "` ‖ the code,
+XXpsk3 with psk = SHA-256(`"swiftcode-sim-link pairing code "` ‖ the code,
 upper case, dashes and spaces removed, O→0, I and L→1). **Any attempt, right
 or wrong, closes the window** (the window's key is taken when a `P`
 preamble arrives). A wrong code fails at message 3 (the host cannot decrypt
@@ -101,11 +101,11 @@ address it used).
 
 ### 4.2 Pairing file
 
-Without a code: `ycode-simhost identity [--name N] [--address host:port]`
+Without a code: `swiftcode-simhost identity [--name N] [--address host:port]`
 prints the host's pairing file (JSON: name, Base64 key, role, address,
-media port); the owner copies it to the client and runs `ycode sim remote
-trust <file>`. The other way, `ycode sim remote identity` prints the
-client's, and `ycode-simhost trust <file>` trusts it. Pairing files hold
+media port); the owner copies it to the client and runs `swiftcode sim remote
+trust <file>`. The other way, `swiftcode sim remote identity` prints the
+client's, and `swiftcode-simhost trust <file>` trusts it. Pairing files hold
 only public keys; copying them needs no secrecy, only integrity (compare
 the fingerprints both sides print).
 
@@ -117,7 +117,7 @@ go by UDP when the client asks for media: a frame view has to travel with its fr
 
 A display connection that asked for media gets a session id (random u32)
 and the host's UDP port. Keys: HKDF-SHA256 over the handshake's two split
-keys, salt = the handshake hash, info `ycode-sim-link media i2r` / `r2i`
+keys, salt = the handshake hash, info `swiftcode-sim-link media i2r` / `r2i`
 (they never travel). Packets:
 
 | Bytes | Field |
@@ -134,7 +134,7 @@ the newest authenticated client hello of that session, so it never sends to
 an address that has not shown it holds the key. Receivers drop packets that
 fail authentication, come from another session or direction, or repeat a
 counter (4 096-packet sliding window); epochs advance every 2^24 packets,
-each epoch's key = HKDF-SHA256(previous, info `ycode-sim-link media rekey`),
+each epoch's key = HKDF-SHA256(previous, info `swiftcode-sim-link media rekey`),
 and one epoch either side of the newest is accepted.
 
 The host sends **frame (0x03), frame timing (0x08) and audio (0x09)**
@@ -146,7 +146,7 @@ reported lost, and the client sends a keyframe request over TCP at once
 carry their own play times (`display-stream.md` §15) and are concealed or
 recovered by the decoder.
 
-`ycode-sim-viewer --media tcp` keeps everything on TCP.
+`swiftcode-sim-viewer --media tcp` keeps everything on TCP.
 
 ## 6. Control protocol
 
@@ -156,7 +156,7 @@ line (`ok`, `error`, `message`, and per request `devices`, `deviceTypes`,
 
 | op | Fields | Does |
 |---|---|---|
-| `info` | | host name, device types (`ycode-simd --list-device-types`), runtimes |
+| `info` | | host name, device types (`swiftcode-simd --list-device-types`), runtimes |
 | `devices` | | each device: name, type, runtime, state (`shutdown`, `booting`, `running`, `stopping`), app |
 | `create` | `device`, `deviceType` | copies the host's pristine device of that type |
 | `boot` | `device`, `cold` | starts the launcher with the device's display socket (warm boot: a saved device restores) |
@@ -184,15 +184,15 @@ extracts into a fresh hidden directory and renames it into place.
 display socket `<home>/run/<name>.sock` (mode 0600, the display server's);
 the launcher's log `<home>/run/<name>.log`. The launcher is started in its
 own session (`POSIX_SPAWN_SETSID`) with no blocked or ignored signals, and
-with the environment `scripts/ycode-sim-serve` gives it (tree, data
+with the environment `scripts/swiftcode-sim-serve` gives it (tree, data
 directory, slots, locks, GPU cache, warm boot).
 
 ## 7. Ports, addresses and firewall
 
 | Port | Protocol | Default | Setting (`simhost.env`) | Direction |
 |---|---|---|---|---|
-| control and display | TCP | 47800 | `YCODE_SIMHOST_LISTEN` (`<address>:<port>`, default `0.0.0.0:47800`) | client → host |
-| media | UDP | 47801 | `YCODE_SIMHOST_MEDIA_PORT` | client → host (hellos); host → client (replies to the client's source port, so the client needs no open port behind a stateful firewall) |
+| control and display | TCP | 47800 | `SWIFTCODE_SIMHOST_LISTEN` (`<address>:<port>`, default `0.0.0.0:47800`) | client → host |
+| media | UDP | 47801 | `SWIFTCODE_SIMHOST_MEDIA_PORT` | client → host (hellos); host → client (replies to the client's source port, so the client needs no open port behind a stateful firewall) |
 
 The client's UDP socket uses an ephemeral port. The owner's ufw rules on the
 host: allow 47800/tcp and 47801/udp from the client's address only
@@ -231,38 +231,38 @@ the host's firewall from the x86 address.
 
 ## 9. Host configuration
 
-`ycode-simhost serve --config <file>` (else `$YCODE_SIMHOST_CONFIG`, else
-`~/.config/ycode/simhost.env`): `KEY=value` lines, the keys of
-`scripts/ycode-sim-serve`'s `sim-serve.env` (`YCODE_SIM_HOME`,
-`YCODE_SIM_TREE`, `YCODE_SIM_RUNTIME`, `YCODE_SIM_RUNTIME_<TYPE>`,
-`YCODE_SIM_PRISTINE_<TYPE>`, `YCODE_SIM_LOCKS`, `YCODE_SIM_SLOTS`,
-`YCODE_SIM_GPU_CACHE`, `YCODE_SIM_GUEST_TOOLS`, `YCODE_SIM_HOURS`) plus
-`YCODE_SIM_LAUNCHER` (default `<home>/bin/ycode-sim`), `YCODE_SIMHOST_LISTEN`,
-`YCODE_SIMHOST_MEDIA_PORT`, `YCODE_SIMHOST_NAME`. SIGTERM or SIGINT stops
+`swiftcode-simhost serve --config <file>` (else `$SWIFTCODE_SIMHOST_CONFIG`, else
+`~/.config/swiftcode/simhost.env`): `KEY=value` lines, the keys of
+`scripts/swiftcode-sim-serve`'s `sim-serve.env` (`SWIFTCODE_SIM_HOME`,
+`SWIFTCODE_SIM_TREE`, `SWIFTCODE_SIM_RUNTIME`, `SWIFTCODE_SIM_RUNTIME_<TYPE>`,
+`SWIFTCODE_SIM_PRISTINE_<TYPE>`, `SWIFTCODE_SIM_LOCKS`, `SWIFTCODE_SIM_SLOTS`,
+`SWIFTCODE_SIM_GPU_CACHE`, `SWIFTCODE_SIM_GUEST_TOOLS`, `SWIFTCODE_SIM_HOURS`) plus
+`SWIFTCODE_SIM_LAUNCHER` (default `<home>/bin/swiftcode-sim`), `SWIFTCODE_SIMHOST_LISTEN`,
+`SWIFTCODE_SIMHOST_MEDIA_PORT`, `SWIFTCODE_SIMHOST_NAME`. SIGTERM or SIGINT stops
 every device (saved) and exits. Machine paths and addresses stay in these
 files, never in the repository.
 
-## 10. Remote run from Linux (`ycode sim remote run`, the IDE)
+## 10. Remote run from Linux (`swiftcode sim remote run`, the IDE)
 
-`ycode sim remote run <device> <App.app>` uploads the app (§6.2), asks the
-host to `run` it, then opens the viewer. In the Linux IDE (`ycode-ide`), each
+`swiftcode sim remote run <device> <App.app>` uploads the app (§6.2), asks the
+host to `run` it, then opens the viewer. In the Linux IDE (`swiftcode-ide`), each
 device of each paired host that answers within the connection's timeout is
-a destination "<device> (<host>)" (`YCODE_IDE_REMOTE_DESTINATIONS=0` leaves
+a destination "<device> (<host>)" (`SWIFTCODE_IDE_REMOTE_DESTINATIONS=0` leaves
 them out); Product ▸ Run on one builds the scheme for the iOS Simulator on
-this machine with `scripts/ycode-ios-build-linux` (the user's own SDK copy,
-`YCODE_USER_SDK`; `YCODE_IOS_BUILD` names another script; derived data in
-`$XDG_CACHE_HOME/ycode/remote-run/<scheme>`, else `~/.cache/…`), uploads,
-installs, launches, and opens the device window (`ycode-sim-viewer --link`,
+this machine with `scripts/swiftcode-ios-build-linux` (the user's own SDK copy,
+`SWIFTCODE_USER_SDK`; `SWIFTCODE_IOS_BUILD` names another script; derived data in
+`$XDG_CACHE_HOME/swiftcode/remote-run/<scheme>`, else `~/.cache/…`), uploads,
+installs, launches, and opens the device window (`swiftcode-sim-viewer --link`,
 an SDL window next to the IDE's; §11); Stop closes it.
 
 ### 10.1 iOS builds on Linux
 
-`scripts/ycode-ios-build-linux <project> <scheme> <derived data>` is
+`scripts/swiftcode-ios-build-linux <project> <scheme> <derived data>` is
 RES-STRINGS' recipe (`specs/ide/string-catalog.md` §C.7) as a script: the
 user's iPhoneSimulator platform and toolchain resources in a developer folder
-(`YCODE_USER_SDK`; never committed or redistributed), Ycode's `ycode build
---engine swift-build` with `ycode-swb` (`YCODE_SWB`), an upstream `ld64.lld`
-(`YCODE_LD64`), the toolchain's real `bin` first on `PATH`, and the settings
+(`SWIFTCODE_USER_SDK`; never committed or redistributed), SwiftCode's `swiftcode build
+--engine swift-build` with `swiftcode-swb` (`SWIFTCODE_SWB`), an upstream `ld64.lld`
+(`SWIFTCODE_LD64`), the toolchain's real `bin` first on `PATH`, and the settings
 `SDKROOT=iphonesimulator ARCHS=arm64`, `OTHER_SWIFT_FLAGS=-resource-dir …`,
 `OTHER_LDFLAGS=-fuse-ld=lld --ld-path=… libclang_rt.iossim.a`,
 `DONT_RUN_SWIFT_STDLIB_TOOL=YES`, `LM_SKIP_METADATA_EXTRACTION=YES`,
@@ -274,19 +274,19 @@ so samples use UIKit; and the iOS 27 UIKit requires the scene life cycle
 
 ## 11. The device window the IDE embeds
 
-The portable pieces are `YcodeRemoteViewer.RemoteDeviceSession` (the stream,
+The portable pieces are `SwiftCodeRemoteViewer.RemoteDeviceSession` (the stream,
 touches, keys, buttons, layout, measurements, sound; no toolkit) and
-`YcodeRemoteViewerSDL.RemoteDeviceWindow` (an SDL 3 window drawing it).
-Today the IDE runs the window as its own process (`ycode-sim-viewer --link`);
+`SwiftCodeRemoteViewerSDL.RemoteDeviceWindow` (an SDL 3 window drawing it).
+Today the IDE runs the window as its own process (`swiftcode-sim-viewer --link`);
 an OpenViews view that draws `RemoteDeviceSession`'s canvas (an NV12 or BGRX
 texture) inside the workspace window is the follow-up (OpenViews has no
 external-texture view yet).
 
 ## 12. The ssh fallback
 
-Without the link, `scripts/ycode-sim-try` (unchanged; it now runs on Linux,
+Without the link, `scripts/swiftcode-sim-try` (unchanged; it now runs on Linux,
 building or using the Linux viewer) boots a device through
-`scripts/ycode-sim-serve` over ssh and forwards its display socket with
+`scripts/swiftcode-sim-serve` over ssh and forwards its display socket with
 `ssh -L`; the viewer connects to the forward. The x86 → host ssh login is a
 key the owner authorized for development; nothing in the link needs it, and
 nothing needs the host to log in to the client.
@@ -308,6 +308,6 @@ nothing needs the host to log in to the client.
 | Replay window | 1 | RFC 4303 §3.4.3 (the sliding-window scheme) |
 | posix_spawn session and signal attributes | 1 | POSIX, glibc documentation (`POSIX_SPAWN_SETSID`, glibc 2.26) |
 | Ports pass the host's firewall; pairing, control, display, media work end to end | 3 | REMOTE-X86 runs, x86 PC ↔ Thor, 2026-10-31 |
-| Everything else (preamble, payload layouts, control ops, archive, media packets, CLI) | — | Ycode design decisions |
+| Everything else (preamble, payload layouts, control ops, archive, media packets, CLI) | — | SwiftCode design decisions |
 
 No Apple binary, Apple source or `research/` material was used.

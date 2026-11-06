@@ -1,7 +1,7 @@
 # RealityKit 9: design note for an open implementation
 
-> **Ycode-original design note.** This file is not a description of
-> Apple's implementation. It proposes how Ycode builds a
+> **@@SWIFTCODE_ORIGINAL@@ design note.** This file is not a description of
+> Apple's implementation. It proposes how SwiftCode builds a
 > RealityKit-compatible library ("OpenReality" below, working name) from
 > the behaviour in files 01–08 and from permissively licensed open source.
 > Nothing here comes from Apple binaries.
@@ -10,8 +10,8 @@ Status: proposal, round 0 (KIT-REALITYKIT, 2026-10-19).
 
 ## 1. Two different consumers
 
-1. **The Ycode iOS simulator.** A guest app runs Apple's own RealityKit
-   from the iOS runtime image. Ycode does **not** reimplement RealityKit
+1. **The SwiftCode iOS simulator.** A guest app runs Apple's own RealityKit
+   from the iOS runtime image. SwiftCode does **not** reimplement RealityKit
    for this; it must provide what that RealityKit needs from the host:
    the Metal host protocol with the features listed in
    `08-simulator-baseline.md` §6 (texture views, fences, heaps, argument
@@ -47,7 +47,7 @@ Language: Swift 6 (the public API is Swift), with C/C++ libraries through
 Swift's C++ interoperability. The module is named `RealityKit` so
 unchanged app sources build; `RealityFoundation` is a re-exporting alias.
 
-### 2.1 ECS core (Ycode-original)
+### 2.1 ECS core (@@SWIFTCODE_ORIGINAL@@)
 
 - Entities are classes (identity, hierarchy) holding a small
   `ComponentSet`: a dictionary from component type identifier to an
@@ -122,15 +122,15 @@ large), Bullet (zlib; older).
   Apache-2.0 per file and must be checked per file before vendoring.
 - `CustomMaterial` (Metal functions): Linux has no Metal compiler. Accept
   a precompiled `.metallib` produced on macOS and translate its AIR with
-  Ycode's existing AIR→SPIR-V translator (`specs/simulator/
-  metal-shaders.md`, `ycode-airc`), linking the visible functions into
+  SwiftCode's existing AIR→SPIR-V translator (`specs/simulator/
+  metal-shaders.md`, `swiftcode-airc`), linking the visible functions into
   our own surface/geometry skeleton that provides the
   `realitykit::surface_parameters`/`geometry_parameters` API as SPIR-V
   functions. A Linux-native alternative (Slang source with the same API
   names) can follow.
 - Metal-shaped APIs (`LowLevelMesh.replace(using:)`, `RealityRenderer`
   textures, post-process contexts, `Scene.commandQueue`) are bridged to
-  Vulkan objects through Ycode's Metal-on-Vulkan layer where it exists,
+  Vulkan objects through SwiftCode's Metal-on-Vulkan layer where it exists,
   or offered as Vulkan-typed equivalents on Linux (documented
   difference).
 
@@ -201,7 +201,7 @@ and, where it reported no SPDX identifier, the licence file's own text.
 | **Not usable** | OpenAL Soft (LGPL-2), FreeType's GPLv2 option, any GPL code | — |
 
 Third-party code is vendored or fetched by the build with its licence
-file; Ycode's own code stays MIT (repository licence).
+file; SwiftCode's own code stays MIT (repository licence).
 
 ## 4. Risks and open design questions
 
@@ -214,4 +214,4 @@ file; Ycode's own code stays MIT (repository licence).
 4. OpenUSD's size and build time; whether tinyusdz suffices for most
    apps.
 5. SwiftUI-free `RealityView`: source compatibility with SwiftUI-based
-   apps needs Ycode's broader SwiftUI work (`docs/FUTURE.md`).
+   apps needs SwiftCode's broader SwiftUI work (`docs/FUTURE.md`).

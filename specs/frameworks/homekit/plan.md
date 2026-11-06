@@ -1,9 +1,9 @@
 # HomeKit spec: plan in rounds and conformance tests
 
 Part of `specs/frameworks/homekit/`. Rounds are sized for one agent each.
-Track S = parity of Ycode's iOS simulator (Apple's runtime HomeKit stack);
+Track S = parity of SwiftCode's iOS simulator (Apple's runtime HomeKit stack);
 Track O = the open, Linux-buildable implementation (`open-design.md`,
-Ycode-original). Implementation agents (anything writing `ycode/` or a
+@@SWIFTCODE_ORIGINAL@@). Implementation agents (anything writing `swiftcode/` or a
 future open-frameworks package) read only `specs/`, public documentation and
 Apache-2.0 sources; they must not open the reference tools, Ghidra,
 `research/dirty/` or the IPSW.
@@ -13,13 +13,13 @@ Apache-2.0 sources; they must not open the reference tools, Ghidra,
 | Round | Track | Goal | Done when |
 |---|---|---|---|
 | R0 | — | This specification. | Merged. |
-| R1 | S | HomeKit baseline in Ycode's simulator: homed/homeeventsd run (lean-boot exception or on-demand start), entitlement section honored, kTCCServiceWillow alert, fast "no account" path, HomeUIService hosting. | `HMProbe` passes HK-B01–B16 on the Thor, outputs equal to the Mac's ignoring times and UUIDs. |
+| R1 | S | HomeKit baseline in SwiftCode's simulator: homed/homeeventsd run (lean-boot exception or on-demand start), entitlement section honored, kTCCServiceWillow alert, fast "no account" path, HomeUIService hosting. | `HMProbe` passes HK-B01–B16 on the Thor, outputs equal to the Mac's ignoring times and UUIDs. |
 | R2 | S/owner | Account-enabled reference observations on the Mac (needs §4 inputs): homes, rooms, zones, groups, action sets, triggers, users UI, notifications, limits, name rules; then with HomeKit Accessory Simulator: accessories, characteristics, reads/writes/notifications, errors. Extend `HMProbe` (dirty side) and update `simulator-baseline.md`. | HK-A01–A30 recorded with expected results. |
 | R3 | O | `HomeKitOpen` model library (Swift, Linux): type catalog from `type-identifiers.md`, value validation, error codes, model objects, delegates, main-queue delivery, in-memory daemon stub. | Unit tests T-O1–T-O6 pass on Linux. |
-| R4 | O | `ycode-homed`: IPC, SQLite store, multi-client fan-out, authorization, action-set execution, timer and event triggers with a solar calculator. | T-O7–T-O12 pass; parity with R2's home-level observations. |
-| R5 | O | HAP-IP controller: DNS-SD, pair-setup/verify, sessions, `/accessories`, reads, writes, timed writes, events; HAP status → `HMErrorCode` mapping. | T-H1–T-H8 pass against `ycode-hap-sim`. |
-| R6 | O | `ycode-hap-sim` accessory simulator with presets, behaviors, control API, isolated network placement. (Can run in parallel with R5; R5 tests need it.) | T-A1–T-A6 pass; Apple's homed (R2 setup) can pair with it. |
-| R7 | O | Setup flow: setup-payload parsing (X-HM), setup-hash matching, Ycode setup sheet, `HMAccessorySetupManager`. | T-H9–T-H10 pass. |
+| R4 | O | `swiftcode-homed`: IPC, SQLite store, multi-client fan-out, authorization, action-set execution, timer and event triggers with a solar calculator. | T-O7–T-O12 pass; parity with R2's home-level observations. |
+| R5 | O | HAP-IP controller: DNS-SD, pair-setup/verify, sessions, `/accessories`, reads, writes, timed writes, events; HAP status → `HMErrorCode` mapping. | T-H1–T-H8 pass against `swiftcode-hap-sim`. |
+| R6 | O | `swiftcode-hap-sim` accessory simulator with presets, behaviors, control API, isolated network placement. (Can run in parallel with R5; R5 tests need it.) | T-A1–T-A6 pass; Apple's homed (R2 setup) can pair with it. |
+| R7 | O | Setup flow: setup-payload parsing (X-HM), setup-hash matching, SwiftCode setup sheet, `HMAccessorySetupManager`. | T-H9–T-H10 pass. |
 | R8 | O | Matter via connectedhomeip: commissioning, cluster→service mapping, `matterNodeID`/`matterEndpointID`. | T-M1–T-M3 pass with a connectedhomeip example device. |
 | R9 | O | Cameras (HAP RTP stream setup, snapshots via `/resource`), BLE transport (BlueZ). Lowest priority. | Defined in a later spec round. |
 
@@ -63,8 +63,8 @@ Expected results are to be filled in from the Mac in R2. Each is a new
 
 | Input | Why | Without it |
 |---|---|---|
-| An Apple Account (a dedicated test account is best) signed in **by the owner** on a `ycode-test-homekit*` simulator | homed refuses to create homes without iCloud (error 2040). Everything in §3 depends on it. | Only the no-account baseline exists. |
-| **Additional Tools for Xcode 27** → HomeKit Accessory Simulator, installed by the owner | Virtual HAP accessories for HK-A20–A30 and for checking `ycode-hap-sim` against Apple's own simulator. Needs an Apple developer download. | Use `ycode-hap-sim` only, with Apple's homed as the controller once an account exists. |
+| An Apple Account (a dedicated test account is best) signed in **by the owner** on a `swiftcode-test-homekit*` simulator | homed refuses to create homes without iCloud (error 2040). Everything in §3 depends on it. | Only the no-account baseline exists. |
+| **Additional Tools for Xcode 27** → HomeKit Accessory Simulator, installed by the owner | Virtual HAP accessories for HK-A20–A30 and for checking `swiftcode-hap-sim` against Apple's own simulator. Needs an Apple developer download. | Use `swiftcode-hap-sim` only, with Apple's homed as the controller once an account exists. |
 | Decision: may probes pair with a software accessory on an isolated network? | R2 and R6 need pairing, which we did not do in R0. Real accessories stay off-limits. | R2 accessory checks blocked. |
 | (Optional) HAP Non-Commercial specification | Cross-check of ADK-derived facts. Requires sign-in and license acceptance. | ADK suffices. |
 | Not needed | Development team or provisioning for simulator builds (entitlement section + ad hoc signing works). | — |
@@ -92,6 +92,6 @@ Expected results are to be filled in from the Mac in R2. Each is a new
 
 ## Evidence
 
-Planning document; Ycode-original. Facts referenced are evidenced in the
+Planning document; @@SWIFTCODE_ORIGINAL@@. Facts referenced are evidenced in the
 other files. Error-code expectations in §3 are level 1 guesses to be
 replaced by level 3 results in R2.

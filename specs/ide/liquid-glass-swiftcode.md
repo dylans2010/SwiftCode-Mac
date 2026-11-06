@@ -1,0 +1,463 @@
+# Liquid Glass in SwiftCode: what each surface uses
+
+**Status:** SwiftCode's own design record (clean room). It says which system
+material, control and layout SwiftCode uses on each IDE surface to match
+`liquid-glass.md` (the reference's per-surface glass), and why. Sources:
+`liquid-glass.md`, Apple's Human Interface Guidelines (Materials, Liquid
+Glass, Sidebars, Toolbars, Windows), the public AppKit API of the macOS
+26/27 SDK, and the existing SwiftCode specs. The per-gap status is under
+`liquid-glass.md` §0.
+
+**Principle.** SwiftCode draws no glass of its own making. It uses the
+system's materials through public API — toolbar items, `NSGlassEffectView`,
+`NSButton.BezelStyle.glass`, popovers, sheets, `NSVisualEffectView` —
+places them where the reference has them, and removes custom fills,
+borders and lines that the reference does not have. Everything else
+(dark appearance, inactive windows, full screen, Reduce Transparency,
+Increase Contrast) is the system's.
+
+## 0. The app must declare the current SDK
+
+AppKit chooses the design from the SDK version recorded in the
+executable (`LC_BUILD_VERSION`). SwiftPM records the deployment target
+(15.0) as the SDK version of `SwiftCodeApp`, so SwiftCode.app showed the earlier
+design whatever its code did. `scripts/make-app.sh` records the SDK the app
+was built with (`vtool -set-build-version macos <minimum> <SDK>`); the
+deployment target stays 15.0. A bare `swift run SwiftCodeApp` still shows the
+earlier look. The test runner's host process is linked against the
+current SDK, so tests run with the new design.
+
+## 1. Workspace window
+
+- `.fullSizeContentView`, `toolbarStyle = .unified`, title hidden,
+  `titlebarSeparatorStyle = .none` (macOS 26+). The toolbar has no
+  background; over each area it shows that area's background.
+- The navigator (`sidebarWithViewController:`) and the inspector
+  (`inspectorWithViewController:`) run the full window height, flush with
+  the window's edges: on macOS 27.2 these split items draw no floating
+  panel. Each area lays its first row out below the toolbar through its
+  safe area. No line between navigator and editor; the inspector draws a
+  1-point separator at its leading edge, full height.
+- macOS 26 draws the sidebar item as a panel floating 8 points inside the
+  window, with smaller toolbar items over it. There the navigator is a
+  plain split item over the system's sidebar material, covering its
+  divider, with SwiftCode's own tracking separator (`FlushSidebar`,
+  `metrics.md` §14.1). Device Hub keeps the system's item (a recorded
+  deviation on macOS 26).
+- The center column holds the editor / debug area split below its
+  safe-area top, so the split's heights (the debug area's 135 points, the
+  remembered height, `reference-ui-5.md` §8.2) are measured as before.
+
+## 2. Toolbar (`liquid-glass.md` §2.2)
+
+| Item | Means | Drawn |
+|---|---|---|
+| Navigators \| Coding Assistant | `NSSegmentedControl` view item, segments 31.5 | capsule 78 × 38, selected segment a recessed pill |
+| Run \| Stop, Back \| Forward | segmented controls, segments 30 | capsules 75 × 38 |
+| Activity view | view item, `isBordered = false` | no shape |
+| New Conversation | bordered image item | circle 38 × 38 |
+| — | `.space` | splits New Conversation from the scheme |
+| Scheme › Destination | stack view item, `isBordered = true`, 8-point side insets | capsule, width follows the titles |
+| Issue capsule | view item, `isBordered = true`; hidden item when empty | capsule (63 for "⊗ 1 ⚠ 2") |
+| Add Editor, Editor Options | two `NSMenuToolbarItem`s | one capsule, 81 × 38 |
+| Editor modes | segmented control, segments 35 | capsule 125 × 38 |
+| Show Inspector | bordered image item after the inspector tracking separator and a flexible space | circle at the far right |
+
+- Order: Navigators | Coding Assistant, flexible space, Run | Stop,
+  sidebar tracking separator, Back | Forward, activity, flexible space, New
+  Conversation, space, scheme, issues, flexible space, Add Editor, Editor
+  Options, editor modes, inspector tracking separator, flexible space,
+  Show Inspector. The system gives the 38-point height, the 7-point top
+  and bottom margins, the 6-point gaps and the flat inactive look.
+- A view item is bordered by default (it gets a capsule); an
+  `NSGlassEffectView` used as an item view merges with neighboring
+  bordered items, so the toolbar uses none.
+- Fitting (`reference-ui-6.md` §2.2, T1) is unchanged in kind. With the
+  full-height inspector the editor's section is the window less both
+  side areas: with long titles everything fits down to 1250 points;
+  narrower, only Back | Forward, the activity view and New Conversation
+  overflow, as §2.2 allows. A hidden issue item is not an overflow.
+- Before macOS 26 the earlier segment widths and the issue capsule's own
+  fill stay.
+- The system's gap before a view item differs between versions (4 points
+  on 27.2, 8 on 27.0). The activity view pads its leading end so its icon
+  starts 14 after Back | Forward's control, x 385, on both (`metrics.md`
+  §14). The centre group still sits 3 points further right on 27.0: the
+  flexible spaces share out the system's gaps (a recorded deviation, no
+  spec value).
+
+## 3. Floating bars (`liquid-glass.md` §2.3–§2.5)
+
+`GlassBars` makes an `NSGlassEffectView` capsule (radius 15, 30 tall) that
+sits behind the controls of a bar, as their sibling, above content that
+may scroll beneath it; `SelectionPillView` is the recessed pill under the
+selected tab (a quiet semantic fill set in `updateLayer`).
+
+- Navigator selector bar: 278 × 30 at a 290-point width, 6 from each
+  side, top one point above the toolbar's bottom; pill 30 × 24. The rule
+  under the selector is transparent; the header rows keep their places.
+- Navigator bottom bar: the "+" circle 31 × 30, 6 from the leading edge;
+  the filter capsule 5 after it, 242 wide (or 6 from the edge without
+  "+"; `metrics.md` §2), 6 from
+  the trailing edge, 7 above the window's bottom. The filter field draws
+  no bezel or background (its text keeps clear of the options menu).
+- Outline: with no header row, its scroll view runs from the window's top
+  to its bottom, under both bars, with content and scroller insets that
+  keep the first row 7 below the selector bar (`reference-ui-6.md` §5.3)
+  and the last row above the filter bar; there is no fade. With a header
+  row shown (Find, Source Control, Tests, Reports) it stays clipped below
+  the header (`liquid-glass.md` §2.7), its first row 4 below the clip.
+  Both insets are measured against where the outline draws its first row:
+  the source-list style pads that row in a plain window but not in the
+  window's sidebar, and assuming the padding put the first row under the
+  selector capsule (`metrics.md` §2).
+- Inspector tab bar: 30 tall, 5 from the divider, 6 from the right edge;
+  pill 78 × 24. No line below.
+- Coding Assistant header: capsules 150 × 30 and 118 × 30 around the
+  146 × 27 "New Conversation" combo button and the 115 × 27 "New Group"
+  button (borderless on the glass), 7 apart and 7 from the edges.
+- Before macOS 26 none of these capsules is drawn and the earlier layout
+  stays.
+
+## 4. Editor chrome (`liquid-glass.md` §2.6, §3)
+
+- Jump bar: a 32-point band (y 52–83) in the editor's background, nearly
+  opaque (96.5 %), then a 2-point separator (§12.8). The editor's text
+  scrolls beneath it.
+- Debug bar: 36 tall (35 plus its separator), laid over the editor, whose
+  view runs to the column's bottom with a 36-point bottom safe-area inset
+  (`additionalSafeAreaInsets`) so its text scrolls clear of the bar. The
+  bar's background is `NSVisualEffectView` (`.headerView`, blending
+  `.withinWindow`, state `.active`): the text beneath shows strongly
+  blurred and faint, the separator above is the hard edge. Before macOS 26
+  the bar sits below the editor, 27 tall.
+- Debug area: no separator lines above its bottom bars (macOS 26+);
+  fields stay standard (flat filled).
+
+## 5. Welcome window (`liquid-glass.md` §2.10)
+
+- Close button: `NSButton.BezelStyle.glass`, `borderShape = .circle`,
+  frame 36 × 36 at (20, 20), drawn 38 × 38.
+- Open…, Clone…, New Project: `.push` with `borderShape = .capsule` (flat
+  filled capsules), 107 / 107 / 130 wide, 36 tall.
+- Recent box: x 60–420, y 295–572 from the window's top left, a quiet
+  `quaternarySystemFill` with 12-point continuous corners, no stroke (a
+  separator-colored stroke with Increase Contrast).
+- Rows 48 tall; the selection (`RecentRowView`) a rounded rectangle inset
+  8 with 8-point corners in the system's selection colors.
+- Before macOS 26: the earlier box (20 from the sides and bottom, stroked,
+  radius 10), 44-point inset rows, flexible push buttons, drawn close
+  circle.
+
+## 6. Popovers, sheets, menus
+
+- Popovers and menus are the system's. `PanelBackgroundView` paints the
+  window background only in a titled window or offscreen, so a popover's
+  material shows (macOS 26+). The prompt popover's content is clear.
+- Sheets are the system's: centered on the parent, parent dimmed, rounded
+  corners (checked with an alert sheet).
+
+## 7. Settings, Open Quickly, coding assistant fields (not observed)
+
+`liquid-glass.md` §5 did not observe these; SwiftCode keeps system materials:
+
+- Settings: superseded by `settings.md` R3.1–R3.3 (council round 3): a
+  flush 179.5-point sidebar (no floating glass sidebar), one back / forward
+  capsule drawn with the measured near-white fill, rim and shadow, and the
+  window title not drawn over the pane's title.
+- Open Quickly: a borderless floating panel on `NSGlassEffectView` (radius
+  20) over the window's upper part, closing on Return, Escape or losing
+  key; a sheet before macOS 26.
+- Coding assistant message field: a rounded field (8-point continuous
+  corners, text background, separator hairline, heavier with Increase
+  Contrast); scrollers hide themselves.
+
+## 8. Accessibility, appearance, state
+
+Every material above is the system's, so Reduce Transparency, Increase
+Contrast, the dark appearance, inactive windows (flat glass, same sizes)
+and full screen follow the system. SwiftCode's own fills are semantic colors
+resolved under the view's appearance (`updateLayer`, drawing).
+
+## 9. Availability
+
+Deployment target macOS 15 (`Package.swift`, unchanged). Every macOS 26
+API (`NSGlassEffectView`, `.glass` bezel, `borderShape`) is behind
+`#available(macOS 26, *)` (`GlassBars.enabled`) with the earlier look as
+the fallback. `.fullSizeContentView`, safe-area layout,
+`additionalSafeAreaInsets` and `NSToolbarItem.isHidden` work on macOS 15.
+
+## 10. Open
+
+Spacing, insets and the measured metrics of every window are in
+`metrics.md` (the spacing audit of 2026-10-30), with its own open
+questions.
+
+- The Welcome rows draw no separators (the reference's start under the
+  text).
+- ~~The jump bar's height is the earlier specs'.~~ The band is now 31
+  points, y 52–83, then the separator (`metrics.md` §4).
+- ~~The inspector is 265 wide.~~ Since beta 2 it is 260, the
+  reference's width, so its tab bar is 248 wide.
+- Organizer window: hand-built sidebar, not reviewed here. The Devices
+  window is now Device Hub (`device-hub.md` "SwiftCode implementation"): a
+  split view controller with system sidebar and inspector items, a
+  unified toolbar of glass items, `NSGlassEffectView` capsules for the
+  device controls and banners.
+- The dark appearance, hover and pressed states, menus, full screen and
+  the scrolled navigator in an active window are unobserved in the
+  reference (`liquid-glass.md` §5); SwiftCode keeps the system's behavior.
+
+## 11. Headset setup and the hub's Headset controls (XR-HUB, 2026-11-02)
+
+A SwiftCode feature with no counterpart in `liquid-glass.md`, so these are SwiftCode's
+choices, all system materials through public API:
+
+- **Setup window** (`HeadsetSetupWindowController`, the runtime setup
+  window and the Linux IDE's runtime setup sheet): a **paged assistant**, one
+  centred page per step. Replaces (2026-11-05, beta 3) the step list in a
+  flush sidebar with the form at its right, which replaced a floating glass
+  panel earlier the same day.
+  - **Window**: about 760 × 600 points, at least 640 × 520, centred on
+    opening. Full-size content view, transparent title bar with no title and
+    no separator, the close button kept (a helper window). No sidebar: the
+    page sits on the window's plain background.
+  - **Progress**: a row of page dots, one per step, centred 20 points below
+    the window's top (their 20-point click targets end above the glyph).
+    Each dot shows its step's check state in system colours, each state with
+    its own shape so that colour is never the only cue: ok a filled green
+    circle, missing a filled orange diamond, unknown or not checked a grey
+    ring, not applicable a short grey bar. The current step's dot is larger
+    (10 points against 7). A dot's tooltip and accessibility label read
+    "Step N of M: Title, state"; clicking it shows that step. The row has the
+    identifier the old step list had (`headset-steps-panel`,
+    `runtime-steps-panel`) and is the only overview of the steps.
+  - **Header**, centred: the step's glyph (a system symbol at 64 points,
+    hierarchical rendering in the accent colour, 48 points below the top;
+    never a symbol that depicts an Apple product), the step title 12 points
+    under it (26 pt bold, label colour), then 6 points lower the summary
+    (13 pt, secondary label colour, centred, at most 480 wide). The glyphs
+    are SwiftCode's choice per step (`RuntimeSetupStep.glyph`,
+    `HeadsetSetupStep.glyph`).
+  - **Content**: a column at most 520 points wide (narrower windows leave
+    24-point margins), centred under the header, 20 points below the
+    summary. Forms (`NSGridView`) are centred in it with their labels
+    right-aligned on one axis. Check rows sit in a grouped inset box: corner
+    radius 10 (continuous), the quaternary system fill, hairline separators
+    between rows inset to the text; each row its mark, title, reason and
+    fix as before. The experimental notice ends the column as a centred
+    footnote. The column scrolls (the scroller at the window's edge) and
+    ends 12 points above the footer, so its last row is never under it.
+  - **Footer**, 20 points from the bottom and the sides: **Back** at the
+    leading side, hidden (not disabled) on the first step; the status line
+    and spinner after it; then **Re-check** (a secondary button) and the
+    primary **Continue** at the trailing side, the default button (Return),
+    which reads **Done** (runtimes) or **Finish** (headset) on the last step.
+    "Continue" replaces "Next" in both windows and the sheet.
+  - **Motion**: Continue pushes the next page in from the trailing edge while
+    the old one leaves to the leading edge; Back does the reverse; a dot
+    moves the same way as the direction of its step. 0.3 s ease-in-out; the
+    header and content move together, the dots and footer stay still. With
+    Reduce Motion the pages crossfade (0.2 s) instead. On macOS the old page
+    is a snapshot layer; `NSAnimationContext` groups the layer animations
+    (no timers). The step's content is already the new step's when the
+    animation starts, so input and tests never wait for it.
+  - **Linux** (`RuntimeSetupSheet`, OpenViews): the same structure in a
+    760 × 600 sheet: dots, header (SwiftCode's own symbol artwork for the
+    glyph, `09-open-design.md` §3.6), the 520-point column with the grouped
+    checks, and the footer, with Close before Re-check (a sheet has no close
+    button). The page change is a transition on the page (a push whose
+    direction both pages read when they move, or an opacity transition under
+    Reduce Motion) in one animated transaction. Open (2026-11-05): OpenViews
+    does not yet run animations inside a sheet (an offset animation there
+    does not move either), so on Linux the page changes at once until it
+    does; the code needs no change then.
+- **Buttons** (`GlassBars.style`): the `.glass` bezel, capsule; the primary
+  (Continue / Finish / Done, Install on Headset…, Connect, View in Headset) has
+  `tintProminence = .primary`. Push buttons before macOS 26.
+- **Body text** stays plain on the window's background: no glass behind the
+  checks, and no glass on glass.
+- **Headset box** (the Settings tab): the status on a `SelectionPillView`
+  (a quiet semantic fill), glass buttons, the Display pop-up with the `.glass`
+  bezel.
+- **In Headset capsule**: `GlassCapsule` over the dimmed picture; its button is
+  borderless with the accent colour, since it is already on glass (§3).
+- Before macOS 26: push buttons; the page, dots and grouped box are the same.
+
+Seen in SwiftCode's own inactive windows over a real device picture
+(`device-hub.md` §I.12.8); the active look and the tint are not yet seen.
+
+## 12. Council round 1 measurements (2026-11-04)
+
+The council compared this design with the reference in one scripted
+session. Targets are in `liquid-glass.md` §7, `editor-area.md` §C,
+`metrics.md` §12 and `navigators.md` "Council round 1"; the work list is
+`fidelity-council.md`. This section records what the session showed of
+**SwiftCode's** surfaces and what each needs.
+
+1. **The session's SwiftCode declared SDK 15.0.** The capture wrapper bundles
+   the bare `swift build` executable, not `make-app.sh`'s product, so §0
+   did not apply. The toolbar, bars and jump bar drew the pre-macOS-26
+   fallback:
+   - no capsules: bare glyphs, with a grey square under each selected
+     toggle (y 12–39);
+   - an opaque #E6E6E7 toolbar band;
+   - a #ECECEC jump bar.
+
+   Stamp the SDK in the wrapper (`vtool -set-build-version macos 15.0
+   <SDK>`, as `make-app.sh` does). Then recapture before judging §2–§4
+   again.
+2. **Toolbar (§2).** Even with the SDK fixed, two things differ from the
+   reference:
+   - Remove the up-down chevrons after the scheme and destination titles.
+     The reference's capsule has a "›" between them and no chevrons.
+   - Drop the document glyph before the title. The reference's activity
+     view shows the project's icon (a spinner while loading), the bold
+     title, and a subtitle line while a task runs. Both lines dim to
+     #BCBDBD when the window is inactive; SwiftCode's title stayed #454546.
+3. **Toolbar band and jump bar colour (§1, §4).** Over the editor the
+   reference shows the **editor's background** (white in light), not a
+   bar colour. The jump bar is the same white band, 32 tall, over a
+   **2-point** separator (#E5E5E5). SwiftCode's band was #E6E6E7 and its jump
+   bar #ECECEC over a 1-point separator. With the SDK fixed, check that
+   the toolbar band shows the area beneath it, and draw the jump bar with
+   the editor's background colour, not a grey fill.
+4. **Scroll-under (§4).** The reference's toolbar band, jump bar, sticky
+   header and bottom bar each let about 6 % of the text beneath show as a
+   shapeless veil (`liquid-glass.md` §7.3). SwiftCode's toolbar and jump bar
+   showed nothing (0–1 levels of change). Run the editor's scroll view
+   under the jump bar and the toolbar, as the outline already runs under
+   the navigator's bars. Its top content inset keeps the first line at
+   y 93 at rest. The bars' backgrounds must be nearly opaque, with no fade
+   below them. The navigator's rows must show **through the filter
+   capsule** (moderately blurred) and only faintly through the selector
+   capsule. SwiftCode's rows stopped at y 88 and at its bottom bar.
+5. **Side-area backgrounds.** The reference's navigator and inspector
+   were both #F2F2F3 (inactive). SwiftCode's were #E6E6E7 and #EBECEC: two
+   different colours, both darker. Use the same system sidebar or
+   inspector background for both areas, and check the inactive values
+   against #F2F2F3.
+6. **Selected tab glyphs (§3).** The reference's selected icon in the
+   selector bar and in the inspector tab bar sits on a grey pill (#CACACB)
+   and is drawn grey (#7C7D7E), **not accent blue**. SwiftCode tinted it blue
+   (#0070F5, #007AFF).
+7. **Scroll bars.** Follow the system's preferred scroller style
+   (`metrics.md` §12.2). SwiftCode showed overlay knobs while the system's
+   style on that Mac was the layout-taking one. In the editor, put the
+   scroll bar's lane at the editor's right edge, **after** the minimap.
+
+8. **What SwiftCode does since B2-GLASS (beta 2).** Each source editor's
+   scroll view spans the editor, with content insets for its safe area,
+   the jump bar and the find bar, so the text scrolls under the jump bar
+   and the sticky header. The editor column still starts below the
+   toolbar: running the center split under it was tried, but the system
+   band over the editor stayed opaque in an inactive window and the split
+   no longer kept the debug area at the height asked for. Those bars and the band behind the toolbar are the
+   editor's background at 96.5 % (`EditorMetrics.barVeil`): a black glyph
+   pixel beneath changes the bar by about 8 levels, and nothing fades
+   below a bar. AppKit offers a hard scroll edge only through a split
+   item's top accessory (`NSSplitViewItemAccessoryViewController`), which
+   has one bar per split item, while SwiftCode has a jump bar per editor pane,
+   so the bars are drawn fills. The minimap sits between the
+   text and the scroll bar's lane; scroll views follow
+   `NSScroller.preferredScrollerStyle`.
+
+## 13. Council round 2 measurements (2026-11-04)
+
+What the round 2 captures (foreground, key window) showed of **SwiftCode's**
+surfaces since §12. The targets are `liquid-glass.md` §8.
+
+1. **Fixed since round 1.** The captured build now draws the macOS 26+
+   design:
+   - the toolbar glass shapes match the reference's profile on the white
+     band (rim, gradient, shadow) to within 1–3 levels;
+   - the side areas are #EDEDEE in both;
+   - the jump bar is white over a 2-point #E5E5E5 separator;
+   - the divider is #D4D4D6.
+2. **Toolbar band and jump bar still do not show content.** Over red
+   bands, the reference's toolbar band reaches #FDE5E3 and its jump bar
+   #FFF2F0, a blurred glow of the band beneath. SwiftCode's stay #FFFFFF and
+   at most 2 levels off. §12.8 explains why: the editor column starts below
+   the toolbar, and the 96.5 % fill passes too little. The reference's
+   active bars pass about 8.5 % (jump bar) to 18 % (toolbar band) of the
+   content's darkness, **blurred** with an edge spread of about 15
+   points. SwiftCode's bottom bar already matches (12 %).
+3. **Accent fills on toggles.** Remove the accent fill from the Navigators
+   toggle and the selected editor mode; the reference shows only the grey
+   recessed pill. Dim unavailable buttons: the reference's Stop is #A2A2A4,
+   and Back and Forward are #AEAEAE.
+4. **Navigator clipping.** Rows draw over the toolbar band and the window
+   buttons. Clip the outline at the selector capsule's top edge, and let it
+   run only under the two capsules.
+5. **Narrow windows.** Add the "»" overflow. At 1100 points the reference
+   moves the editor-mode group and the Notices circle into it, and drops
+   the scheme capsule's titles (glyphs only) before truncating anything
+   (`liquid-glass.md` §8.2).
+6. **What SwiftCode does since B2-GLASS2 (beta 2).**
+   - *Editor under the toolbar band (rows 5, 36).* The editor / debug
+     area split still starts below the toolbar, so the debug area keeps
+     exactly the height asked for (a taller or shorter window changes the
+     editor, not the debug area). The editor area's own view reaches up to
+     the window's top above the split, and nothing between it and the
+     center column clips. AppKit gives a view that reaches outside its
+     superview no safe area there, so the editor's top
+     `additionalSafeAreaInsets` follow the column's safe area (the
+     toolbar band; none when the toolbar is hidden). The window's titlebar
+     is transparent (`titlebarAppearsTransparent`, macOS 26+): with it
+     opaque, the system drew its own band (#FFDDDE over red in an inactive
+     probe window of ours) in front of any content.
+   - *The bars' veil.* One `NSVisualEffectView` (`.headerView`,
+     `.withinWindow`, state active) runs from the window's top to the jump
+     bar's separator, so the text shows through blurred and following its
+     shape. The jump bar lays 30 % of the editor's background over it; the
+     bottom bar keeps the same material under its 1-point #D7D7D7 line.
+     Measured on SwiftCode's window over `Bands.swift` (full-block rows, light,
+     inactive), as a share of a block row's darkness: toolbar band 8.7 %,
+     jump bar 4.9 %, bottom bar 6.1 %; the bottom bar matched the
+     reference's 12 % with this material in round 2, so the band and jump
+     bar sit near 17 % and 10 % on the reference's scale. A theme with
+     its own background colour keeps the flat 96.5 % fill (the material
+     follows the system appearance, not the theme).
+   - *The first line keeps its place.* `NSTextView` scrolls its insertion
+     point into view when a live resize ends (the inspector's slide is
+     one), ignoring the scroll view's content insets; with the caret on
+     line 1 that put lines 1–2 under the jump bar. The text view now keeps
+     its scroll position through it.
+   - *Navigator (rows 35, 49).* The outline's scroll view runs from the
+     selector capsule's top to the filter capsule's bottom; its scroll bar
+     track runs 3 below the selector and 11 above the filter capsule.
+   - *Toolbar (row 37).* The toggles' selected segments use a grey bezel
+     colour (`selectedSegmentBezelColor`), not the accent; the Stop, Go
+     Back and Go Forward segments are disabled while they cannot act.
+
+## Evidence
+
+- Target geometry and materials: `liquid-glass.md` (level 3 there).
+- SwiftCode measurements: captures of SwiftCode's own windows (inactive) measured
+  per pixel; probe windows of our own with toolbar items, glass views and
+  glass buttons to see what each public API draws.
+- API names and behavior: the public AppKit API reference and SDK
+  declarations; Apple's HIG and "Adopting Liquid Glass" (level 1).
+- §12: what the council session's captures showed of SwiftCode's own windows
+  (pixel runs and `otool -l` of the captured executable); the reference
+  targets it cites are level 3 in `liquid-glass.md` §7.
+- §13: the round 2 captures of SwiftCode's own windows; the targets it cites
+  are level 3 in `liquid-glass.md` §8.
+- §11 setup window (the paged assistant, 2026-11-05): SwiftCode's own design,
+  level 1 only — Apple's Human Interface Guidelines pages Onboarding (keep
+  required setup brief, let people return to earlier steps), Layout (group
+  related items with space, containers or separators; align related items;
+  most important content at the top), Buttons (one prominent button for the
+  most likely action, which answers Return; a trailing ellipsis for a button
+  that opens another view; distinguish the preferred choice by style, not
+  size) and Motion (motion only where it helps, brief, a reverse movement
+  for the reverse action, never the only carrier of information, respect
+  the system's motion settings), read 2026-11-05; and the public AppKit
+  reference (`NSAnimationContext`, `NSImage.SymbolConfiguration`,
+  `NSWorkspace.accessibilityDisplayShouldReduceMotion`,
+  `NSColor.quaternarySystemFill`). No setup assistant of Apple's was opened
+  or watched. The Layout page's note against controls along a window's
+  bottom edge is weighed against the footer: the window opens centred and
+  small enough that its footer is on screen.
+- Apart from those cited targets, nothing here comes from observing the
+  reference directly.

@@ -3,7 +3,7 @@ import OVDBus
 
 // The AT-SPI2 exporter: exports an application's accessible objects on the
 // accessibility bus (at-spi2-core `xml/*.xml`, public interface
-// descriptions; Ycode's own implementation).
+// descriptions; SwiftCode's own implementation).
 //
 // - **Bus.** `AT_SPI_BUS_ADDRESS`, else `org.a11y.Bus.GetAddress` on the
 //   session bus (the bus launcher); no bus, no export.

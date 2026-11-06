@@ -55,7 +55,7 @@ struct FixtureBackendTests {
     @Test("Statistics products the set lacks are unsupported (→ WeatherError.unknown)")
     func missingProduct() async throws {
         let source = try FixtureWeatherBackend.bundled().directory
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-weatherkit-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-weatherkit-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for file in ["weather.json", "attribution.json"] {
@@ -80,7 +80,7 @@ struct FixtureBackendTests {
     @Test("A broken fixture directory fails to load")
     func brokenDirectory() {
         #expect(throws: (any Error).self) {
-            _ = try FixtureWeatherBackend(directory: URL(fileURLWithPath: "/nonexistent-ycode-fixtures"))
+            _ = try FixtureWeatherBackend(directory: URL(fileURLWithPath: "/nonexistent-swiftcode-fixtures"))
         }
     }
 
@@ -93,7 +93,7 @@ struct FixtureBackendTests {
         let directory = try FixtureWeatherBackend.bundled().directory
         let explicit = WeatherService.environmentBackend(["WEATHERKIT_BACKEND": "fixtures", "WEATHERKIT_FIXTURES": directory.path])
         #expect((explicit as? FixtureWeatherBackend)?.directory.standardizedFileURL == directory.standardizedFileURL)
-        let broken = WeatherService.environmentBackend(["WEATHERKIT_BACKEND": "fixtures", "WEATHERKIT_FIXTURES": "/nonexistent-ycode-fixtures"])
+        let broken = WeatherService.environmentBackend(["WEATHERKIT_BACKEND": "fixtures", "WEATHERKIT_FIXTURES": "/nonexistent-swiftcode-fixtures"])
         #expect(broken is FailingWeatherBackend)
     }
 }

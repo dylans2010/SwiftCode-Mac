@@ -367,5 +367,5 @@ public final class CNContactsUserDefaults: NSObject, @unchecked Sendable {
     /// Family name (3) as on a fresh device (interface.md §1).
     public var sortOrder: CNContactSortOrder { .familyName }
     /// The store configuration's country code ("us" by default).
-    public var countryCode: String { CNContactStore.ycodeDefaultConfiguration.countryCode }
+    public var countryCode: String { CNContactStore.swiftcodeDefaultConfiguration.countryCode }
 }

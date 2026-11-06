@@ -6,7 +6,7 @@ simulator runtime (24A94401), whose WeatherKit bundle reports version
 1454.5.
 
 Implementation status (2026-10-28): `frameworks/weatherkit/` (package
-`ycode-weatherkit`: library product `WeatherKit` (plus a `CoreLocation` shim
+`swiftcode-weatherkit`: library product `WeatherKit` (plus a `CoreLocation` shim
 product on Linux), test target `WeatherKitTests`). Rounds R2–R4 of `plan.md`
 are done (the R4 check against a live developer key has not been run); R5–R8
 are not started. The package README lists what is done, deferred and not
@@ -23,7 +23,7 @@ started.
 - The **Core Location** pieces a weather app depends on: authorization,
   simulated locations, update delivery, reverse geocoding. Core Location as a
   whole is a separate framework and gets its own spec later; `location.md`
-  covers only what weather apps need and what Ycode's simulator must
+  covers only what weather apps need and what SwiftCode's simulator must
   reproduce.
 
 Not covered: the Weather app, its widgets and poster extensions, `weatherd`'s
@@ -35,13 +35,13 @@ marine, tides, highlights — seen only as internal keys, see `codable.md`).
 
 | File | Content |
 |---|---|
-| `simulator-baseline.md` | What WeatherKit does in Apple's iOS Simulator today (black-box), the request flow, what the owner must provide to test the entitled path, what Ycode's simulator must provide, conformance checklist |
-| `location.md` | Core Location for weather apps: authorization states and prompt, `simctl location` semantics, update delivery, live updates, geocoding; Ycode simulator requirements |
+| `simulator-baseline.md` | What WeatherKit does in Apple's iOS Simulator today (black-box), the request flow, what the owner must provide to test the entitled path, what SwiftCode's simulator must provide, conformance checklist |
+| `location.md` | Core Location for weather apps: authorization states and prompt, `simctl location` semantics, update delivery, live updates, geocoding; SwiftCode simulator requirements |
 | `api.md` | Swift interface: `WeatherService`, `WeatherQuery` and the statistics/summary queries, every model type and enum, units and `Measurement` types, availability by OS version |
 | `behavior.md` | Behavior of the Swift API: request composition, location handling, caching and expiry, errors, concurrency, display strings, attribution and display requirements, region limits |
 | `codable.md` | The `Codable` archive format of the model types (the only way apps can construct values, so it matters for tests and persistence) |
 | `rest-api.md` | WeatherKit REST API: endpoints, developer-token (JWT) format, data sets, JSON objects, units, enums, status codes |
-| `design.md` | **Ycode-original design note**: an open WeatherKit for Linux and for Ycode's simulator, with pluggable backends (Apple REST, open data sources) |
+| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: an open WeatherKit for Linux and for SwiftCode's simulator, with pluggable backends (Apple REST, open data sources) |
 | `plan.md` | Implementation rounds and conformance tests |
 
 Black-box observations behind these files are in
@@ -81,7 +81,7 @@ words; licence and terms pages of open data providers (Open-Meteo, MET
 Norway, US National Weather Service). Level 2: the simulator runtime's
 launchd plists and Info.plists (service names, keys); the SQLite cache files
 the framework writes (table names only). Level 3: `WKProbe` on a simulator
-named `ycode-test-weatherkit-1` (created and deleted for this work), with the
+named `swiftcode-test-weatherkit-1` (created and deleted for this work), with the
 system log read while it ran. Level 4: public SDK metadata (module
 structure, type and member names, availability annotations, `.tbd` install
 name and version). Level 5 (disassembly/decompilation) was **not** used. The

@@ -37,7 +37,7 @@ final class CNStorePredicate: NSPredicate {
     /// object (group and container predicates need the store).
     override func evaluate(with object: Any?) -> Bool {
         guard let c = object as? CNContact else { return false }
-        return Matching.matches(kind, identifier: c.identifier, data: c.data, countryCode: CNContactStore.ycodeDefaultConfiguration.countryCode)
+        return Matching.matches(kind, identifier: c.identifier, data: c.data, countryCode: CNContactStore.swiftcodeDefaultConfiguration.countryCode)
     }
 
     override var description: String {
@@ -113,7 +113,7 @@ enum Matching {
         return d.emailAddresses.contains { String(describing: $0.value).trimmingCharacters(in: .whitespaces).lowercased() == q }
     }
 
-    /// Country calling codes by region (a small Ycode table).
+    /// Country calling codes by region (a small SwiftCode table).
     static let callingCodes: [String: String] = [
         "us": "1", "ca": "1", "gb": "44", "de": "49", "fr": "33", "jp": "81", "cn": "86", "kr": "82",
         "in": "91", "au": "61", "br": "55", "mx": "52", "es": "34", "it": "39", "nl": "31", "ch": "41",

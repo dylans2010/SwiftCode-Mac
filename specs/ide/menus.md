@@ -1,10 +1,10 @@
 # Menu bar and shortcuts
 
-Ycode module: `YcodeUI` (`CommandTable`, `MainMenu`). The menu bar is
+SwiftCode module: `SwiftCodeUI` (`CommandTable`, `MainMenu`). The menu bar is
 data (`CommandTable.menus`); each item sends an action up the responder
 chain, handled by the workspace window controller or the editor.
 
-Menus, in order: Ycode (application menu), File, Edit, View, Find,
+Menus, in order: SwiftCode (application menu), File, Edit, View, Find,
 Navigate, Editor, Product, Debug, Integrate, Window, Help.
 
 **Correction (2026-10-19).** `reference-ui-5.md` §1–§2 is now the
@@ -53,7 +53,7 @@ were wrong are corrected in place and marked †.
 | Organizer; Manage Devices… † | ⌥⇧⌘O; ⇧⌘2 | Window; Product ▸ Destination (there is no Devices and Simulators item) |
 | Archive | (none) | Product |
 | Canvas † | ⌥⌘↩ | Editor |
-| Show Quick Actions… †; Show Coding Tools… † (Ycode: code actions at the caret); Refactor ▸ Rename…; Fix All Issues | ⇧⌘A; ⌥⌘0; —; ⌃⌥⌘F | View; Editor ▸ Show Coding Tools; Editor |
+| Show Quick Actions… †; Show Coding Tools… † (SwiftCode: code actions at the caret); Refactor ▸ Rename…; Fix All Issues | ⇧⌘A; ⌥⌘0; —; ⌃⌥⌘F | View; Editor ▸ Show Coding Tools; Editor |
 | Find Selected Symbol in Workspace / Find Call Hierarchy | ⌃⇧⌘F / ⌃⇧⌘H | Find |
 | Jump to Original Source | (none) | Navigate |
 | Assistant modes † | (none) | the assistant jump bar's mode pop-up (reference-ui-4.md §16); not in the Editor menu |
@@ -71,8 +71,8 @@ their commands (`coding-assistant.md` §4); Conversation in New Tab and in
 Editor Pane stay unavailable.
 
 Item lists and order follow `specs/ide/reference-ui.md` §1 and
-`reference-ui-2.md` §7.8 and §8. Items Ycode cannot perform are listed
-with a unique unimplemented action (`ycodeUnavailable<Name>:`), so AppKit
+`reference-ui-2.md` §7.8 and §8. Items SwiftCode cannot perform are listed
+with a unique unimplemented action (`swiftcodeUnavailable<Name>:`), so AppKit
 shows them disabled; they are left out of Settings ▸ Shortcuts.
 
 ## Evidence
@@ -86,6 +86,6 @@ shows them disabled; they are left out of Settings ▸ Shortcuts.
   reference and Xcode Help (level 1); standard items from the macOS HIG
   (level 1).
 - Item lists and order, and the menu name Integrate:
-  `specs/ide/reference-ui.md` §1 (level 3). Items Ycode cannot perform are
-  listed with a unique unimplemented action (`ycodeUnavailable<Name>:`)
-  so AppKit shows them disabled; Ycode does not invent their behavior.
+  `specs/ide/reference-ui.md` §1 (level 3). Items SwiftCode cannot perform are
+  listed with a unique unimplemented action (`swiftcodeUnavailable<Name>:`)
+  so AppKit shows them disabled; SwiftCode does not invent their behavior.

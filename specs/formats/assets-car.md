@@ -2,8 +2,8 @@
 
 Status: **specification (round 0)**, 2026-10-30. Reference: files written by
 `actool` 27.1 (CoreUI 1010, storage version 17, schema 2) and read by
-`assetutil` (dump tool 1011.4) on macOS 27. Tier 1 is implemented in Ycode
-(`YcodeAssetCatalog`, §I).
+`assetutil` (dump tool 1011.4) on macOS 27. Tier 1 is implemented in SwiftCode
+(`SwiftCodeAssetCatalog`, §I).
 
 `Assets.car` is the compiled asset catalog that the runtime (CoreUI, used
 by UIKit, AppKit, SwiftUI and the icon services) reads. This spec covers the
@@ -155,7 +155,7 @@ A node block (big-endian):
 | 428 | 4 | colour space ID | 1 (sRGB) |
 | 432 | 4 | key semantics | 2 for iOS, iPadOS, watchOS, tvOS; 1 for macOS |
 
-Ycode writes its own strings in the two version fields (they are shown by
+SwiftCode writes its own strings in the two version fields (they are shown by
 `assetutil` as `MainVersion` and `AssetStorageVersion`); the runtime
 accepted that.
 
@@ -264,7 +264,7 @@ a 32-bit number. Value (52 bytes, little-endian): `u32 1; u32 0; u32 40;
 u32 9;` then nine u32 masks in KEYFORMAT order. A mask has bit *v* set when
 some rendition of that identifier uses value *v* for that attribute;
 `0xFFFFFFFF` means "any" (written for appearance, identifier, element and
-part). Files without `BITMAPKEYS` loaded fine; Ycode may omit it.
+part). Files without `BITMAPKEYS` loaded fine; SwiftCode may omit it.
 
 ## 5. Rendition record (CSI)
 
@@ -367,7 +367,7 @@ compression`; `u32 n`; data.
 |---|---|---|
 | 0 | uncompressed | `n` = byte length; then `height × rowBytes` bytes |
 | 4 | LZFSE in row chunks ("KCBC") | `n` = number of chunks; then the chunks |
-| 11 | deepmap2 (`actool`'s choice for imageset PNGs) | not needed by Ycode |
+| 11 | deepmap2 (`actool`'s choice for imageset PNGs) | not needed by SwiftCode |
 
 Other values (from the write-ups): 1 RLE, 2 zip, 3 LZVN, 5 JPEG+LZFSE,
 6 blurred, 7 ASTC, 8 palette image, 9 HEVC, 10 deepmap-LZFSE, 12 DXTC.
@@ -385,7 +385,7 @@ runtime drew it correctly; whether `actool` premultiplies is an open
 question (§11).
 
 LZFSE is Apple's open-source compressor (BSD-3-Clause, github.com/lzfse);
-on Linux Ycode can link it. Uncompressed (0) also loads, at a larger size.
+on Linux SwiftCode can link it. Uncompressed (0) also loads, at a larger size.
 
 ### 7.4 RAWD (raw data, SVG)
 
@@ -407,7 +407,7 @@ u32 height; u32 index }`. Width and height are in points; `index` is the
 named `ZZZZPackedAsset-<version>-gamut<n>` (element 9, part 181, layout
 1004). The small Icon Image renditions then have layout 1003, an empty
 payload and TLV 1010 (`INLK`: a rectangle and the key of the atlas). This
-is an optimisation: our files without an atlas load. **Ycode should not
+is an optimisation: our files without an atlas load. **SwiftCode should not
 pack.**
 
 ### 7.7 Layer records (stack and group TLVs)
@@ -469,7 +469,7 @@ a one-group, one-SVG icon with a solid fill):
 - 6 Icon Image renditions (2 idioms × appearances 0, 1, 10; dimension2 = 1;
   1024 × 1024 at scale 1; CELM v3, LZFSE).
 
-## 9. What Ycode must write
+## 9. What SwiftCode must write
 
 **Tier 1 — flattened (required; enough for an icon to show).**
 
@@ -507,7 +507,7 @@ a one-group, one-SVG icon with a solid fill):
   one input key (blend mode, opacity, shadow, translucency, lighting,
   specular, blur, refractivity, positions, fills, gradient orientation) and
   diffing the bytes, and against `assetutil --info`.
-- Our own writer (a test script in the dirty room, not Ycode code) produced
+- Our own writer (a test script in the dirty room, not SwiftCode code) produced
   the files in §9; `assetutil --info` and AppKit (`Bundle.image(forResource:)`,
   `NSColor(named:bundle:)`, `NSWorkspace.icon(forFile:)`) were the judges.
 - A clean implementation should reuse this method as its conformance test:
@@ -517,7 +517,7 @@ a one-group, one-SVG icon with a solid fill):
 ## 11. Open questions
 
 - iOS runtime acceptance (SpringBoard on device or Apple's simulator) of a
-  Ycode-written car, both tiers. Dirty-room or owner step.
+  SwiftCode-written car, both tiers. Dirty-room or owner step.
 - Multi-leaf and branch trees (large catalogs): not produced by our tests.
 - Whether `actool` stores premultiplied pixels in CELM.
 - The meaning of CELM `version` (3 vs 1 vs 0) and whether the runtime
@@ -527,19 +527,19 @@ a one-group, one-SVG icon with a solid fill):
 - Thinning metadata (`EXTENDED_METADATA` thinning arguments) for
   device-thinned builds.
 
-## I. Ycode implementation (CAR-WRITER phase 1, agent ICON-CAR, 2026-10-30)
+## I. SwiftCode implementation (CAR-WRITER phase 1, agent ICON-CAR, 2026-10-30)
 
 Clean-room implementation from this spec, public documentation and open
-formats (LZFSE, PNG, DEFLATE, ICNS). Module `YcodeAssetCatalog` (portable,
-Foundation only; macOS and Linux), command `ycode assets`.
+formats (LZFSE, PNG, DEFLATE, ICNS). Module `SwiftCodeAssetCatalog` (portable,
+Foundation only; macOS and Linux), command `swiftcode assets`.
 
 ### I.1 What is written
 
-| Part | Ycode type | Notes |
+| Part | SwiftCode type | Notes |
 |---|---|---|
 | BOM header, block table, variables, trees (§2) | `BOMWriter`, `BOMReader` | Blocks from offset 512 on 16-byte boundaries, then the variables, then the block table (≥ 256 entries, 20 zero bytes). Trees: one leaf of up to `(blockSize − 12) / 8` = 510 entries, more leaves linked forward/backward under one branch root. `RENDITIONS` has fixed 18-byte keys **with the leaf key copies** (4 zero bytes, then the keys; leaf block `blockSize + count × 18`); `FACETKEYS` and `APPEARANCEKEYS` have variable keys (`0xFFFFFFFF`). |
-| CARHEADER (§3.1) | `CARWriter.header` | CoreUI version 1010, storage version 17, schema 2, colour space 1, key semantics 2 (1 on macOS); Ycode's own version strings. |
-| EXTENDED_METADATA (§3.2) | `CARWriter.metadata` | Deployment target and platform (`ios`, `macosx`, `watch`, `atv`, `xros`), Ycode's authoring-tool string. |
+| CARHEADER (§3.1) | `CARWriter.header` | CoreUI version 1010, storage version 17, schema 2, colour space 1, key semantics 2 (1 on macOS); SwiftCode's own version strings. |
+| EXTENDED_METADATA (§3.2) | `CARWriter.metadata` | Deployment target and platform (`ios`, `macosx`, `watch`, `atv`, `xros`), SwiftCode's authoring-tool string. |
 | KEYFORMAT (§3.3) | `CARPlatform.keyFormat` | `actool` 27.1's two orders. |
 | APPEARANCEKEYS, FACETKEYS (§4.3, §4.4) | `CARWriter.data` | Every appearance used plus entry 0. Facets: element 85, part, identifier. |
 | Renditions (§5–§7) | `CARRendition`, `CSI` | Image (181/12), Icon Image (220/12), Color (217/1009, COLR), MultiSized Image (218/1010, MSIS). TLVs 1001, 1003, 1004, 1006, 1007 (bitmaps) and 1004, 1006 (others), in that order. Image-set images have flag bit 4. |
@@ -552,7 +552,7 @@ builds and machines.
 
 LZFSE: `LZFSE.encode` cuts the input into independent blocks of at most
 64 KiB (I.2 item 5), each a `bvxn` (LZVN) block or a `bvx-` raw block when
-that is smaller, then `bvx$`, with Ycode's own LZVN encoder (greedy
+that is smaller, then `bvx$`, with SwiftCode's own LZVN encoder (greedy
 hash matcher; the opcode table of the BSD-3-Clause reference decoder,
 github.com/lzfse/lzfse, read as the format definition; no code taken). The
 same input gives the same bytes on every platform. `LZFSE.decode` reads
@@ -574,7 +574,7 @@ tool was run.
    OBS check: the order in `actool`'s own `RENDITIONS` leaves.
 2. **Colours and MultiSized Images need scale 1** in their key. With scale
    0, `NSColor(named:bundle:)` returned nil and `NSWorkspace` showed the
-   generic icon for an app whose icon was only in the car. Ycode writes
+   generic icon for an app whose icon was only in the car. SwiftCode writes
    scale 1 whenever a rendition has none (§4.1 says 1 for colours; the
    MultiSized Image was not listed).
 3. LZVN (the reference decoder's format, not the car's): with one literal
@@ -587,19 +587,19 @@ tool was run.
 5. **LZFSE blocks must stay small.** With one LZVN block per KCBC chunk
    (1,396,736 decoded bytes for a 1024-px image), CoreUI decoded only the
    first 782,336 bytes (191 rows) of every chunk and left the rest black —
-   on macOS (`Bundle.image(forResource:)`) and on Ycode's iOS simulator (the
+   on macOS (`Bundle.image(forResource:)`) and on SwiftCode's iOS simulator (the
    home-screen icon showed black bands). The system's
    `compression_decode_buffer` decoded the same streams completely, so the
-   limit is in CoreUI's decoding path. Ycode writes independent blocks of
+   limit is in CoreUI's decoding path. SwiftCode writes independent blocks of
    at most 64 KiB (`LZFSE.blockSize`); every pixel of 1024-px images then
    comes back exactly. Whether `actool`'s streams use FSE blocks of a
    bounded size is an OBS question (§7.3).
 6. **CELM versions 2 and 3 mean opaque.** A translucent image written
    with version 3 drew with its alpha ignored (premultiplied colour on
-   black: transparent corners turned black in the iOS sample app on Ycode's
+   black: transparent corners turned black in the iOS sample app on SwiftCode's
    simulator; on macOS a 50 % red drew as opaque dark red); versions 0 and
    1 keep alpha. `actool`'s choice of 3 for iOS icon bitmaps fits: they are
-   opaque. Ycode writes 3 only for iOS-family app-icon bitmaps.
+   opaque. SwiftCode writes 3 only for iOS-family app-icon bitmaps.
 
 ### I.3 Results
 
@@ -618,15 +618,15 @@ tool was run.
   `NSWorkspace.icon(forFile:)` from an `.appiconset` and from an `.icon`
   (placeholder render), with and without the `.icns` (so from the car
   alone).
-- The system's LZFSE decoder reads Ycode's streams (fixed samples and 40
-  mixed random inputs); Ycode reads the system's (FSE) streams on macOS.
-- iOS (Ycode simulator): see I.5.
+- The system's LZFSE decoder reads SwiftCode's streams (fixed samples and 40
+  mixed random inputs); SwiftCode reads the system's (FSE) streams on macOS.
+- iOS (SwiftCode simulator): see I.5.
 
-### I.4 The compiler (`ycode assets compile`)
+### I.4 The compiler (`swiftcode assets compile`)
 
 Inputs: `.xcassets` folders (image sets with PNG files, colour sets,
 app icon sets; other set kinds are skipped with a warning) and `.icon`
-packages (`icon-format.md` "Ycode implementation"). Outputs per
+packages (`icon-format.md` "SwiftCode implementation"). Outputs per
 `icon-compile.md` §3: `Assets.car`; iOS `<Icon>60x60@2x.png` (120 px) and
 `<Icon>76x76@2x~ipad.png` (152 px), ordinary opaque PNGs; macOS
 `<Icon>.icns` (`ic13`, `ic11`, `ic04` ARGB, `ic07`; all ten entries with
@@ -649,7 +649,7 @@ dependency file (`--export-dependency-info`: ld's format, version, input
 - The flattened bitmaps come from `--icon-images <dir>` (PNG files named
   `<appearance>[-<platform>][-<pixels>].png`, appearance `default`, `dark`
   or `tinted`; a folder per icon name is also accepted) or, without it,
-  Ycode's **placeholder render**: the resolved background fill, then the
+  SwiftCode's **placeholder render**: the resolved background fill, then the
   visible groups' PNG layers drawn flat at their frames with opacity and
   simple blend modes; SVG layers and the glass look are not drawn
   (ICON-RENDER). macOS gets an 824-pt rounded rectangle (radius 22.5 %) at
@@ -658,40 +658,40 @@ dependency file (`--export-dependency-info`: ld's format, version, input
   1 in size order) and one Icon Image per idiom, size, scale and appearance;
   a single-size universal iOS icon becomes phone and pad.
 - actool's command line is accepted (`--compile` for `--output`, and the
-  flags of `icon-compile.md` §1); flags Ycode does not use are read and
+  flags of `icon-compile.md` §1); flags SwiftCode does not use are read and
   ignored; an unknown flag is exit 2. Output: the three sections of §1
   (human-readable text) or `--output-format xml1`. The symbol step
   (`--generate-swift-asset-symbols` and friends) writes valid empty files
   and no car (asset symbols are not generated yet). `--version
-  --output-format xml1` answers `com.apple.actool.version` with Ycode's own
+  --output-format xml1` answers `com.apple.actool.version` with SwiftCode's own
   numbers (swift-build reads the key `com.apple.<tool file name>.version`).
   `--print-asset-tag-combinations` answers an empty list.
 
-`ycode assets info <car> [--json]` dumps a car (header, metadata, key
+`swiftcode assets info <car> [--json]` dumps a car (header, metadata, key
 format, appearances, facets, every rendition with its key and decoded
 payload) and reports structure issues (missing leaf key copies, keys out of
 byte order, count mismatches; exit 1).
 
 ### I.5 Build integration and the simulator
 
-`YcodeBuild.AssetCompilerHook`: the setting `YCODE_ASSET_COMPILER` =
-`actool` | `ycode` (build setting on the command line or environment;
-default `actool` on macOS, `ycode` elsewhere). With `ycode`, the IDE's
-swift-build engine and ycodebuild add `ASSETCATALOG_EXEC` naming a wrapper
-script `actool` (in the derived-data folder or ycodebuild's work folder)
-that runs `ycode assets compile "$@"`; an explicit `ASSETCATALOG_EXEC`
-wins. ycodebuild puts it in the synthesized overrides, so
+`SwiftCodeBuild.AssetCompilerHook`: the setting `SWIFTCODE_ASSET_COMPILER` =
+`actool` | `swiftcode` (build setting on the command line or environment;
+default `actool` on macOS, `swiftcode` elsewhere). With `swiftcode`, the IDE's
+swift-build engine and swiftcodebuild add `ASSETCATALOG_EXEC` naming a wrapper
+script `actool` (in the derived-data folder or swiftcodebuild's work folder)
+that runs `swiftcode assets compile "$@"`; an explicit `ASSETCATALOG_EXEC`
+wins. swiftcodebuild puts it in the synthesized overrides, so
 `-showBuildSettings` output is unchanged.
 
-The sample `ycode/Samples/IconSamples` (an iOS app with an asset catalog
-and an `.icon`, own artwork) built with `ycode build --engine swift-build
-YCODE_ASSET_COMPILER=ycode`: swift-build ran `ycode assets compile` for
+The sample `swiftcode/Samples/IconSamples` (an iOS app with an asset catalog
+and an `.icon`, own artwork) built with `swiftcode build --engine swift-build
+SWIFTCODE_ASSET_COMPILER=swiftcode`: swift-build ran `swiftcode assets compile` for
 GenerateAssetSymbols and CompileAssetCatalogVariant, and LinkAssetCatalog
 placed `Assets.car` and the two loose PNGs in the app with the partial
-plist merged. ycodebuild did the same (`ycodebuild … YCODE_ASSET_COMPILER=ycode
+plist merged. swiftcodebuild did the same (`swiftcodebuild … SWIFTCODE_ASSET_COMPILER=swiftcode
 CODE_SIGNING_ALLOWED=NO build`).
 
-On Ycode's simulator (arm64 Linux host, iPhone 18 Pro, iOS 27.0, cold
+On SwiftCode's simulator (arm64 Linux host, iPhone 18 Pro, iOS 27.0, cold
 boots, `--install-app` and `--launch`): **the app's icon appears on the
 home screen** from the tier-1 car (the flattened Icon Images; no layered
 stack) about 30 s after the home screen, and the app prints `image
@@ -699,7 +699,7 @@ stack) about 30 s after the home screen, and the app prints `image
 `UIColor(named:)` read the car and the generated Info.plist names the icon.
 The first runs found I.2 items 5 (black bands across the icon) and 6
 (black corners around a transparent image); both are fixed. This answers
-the Ycode side of `icon-compile.md` §8's question (iOS accepts a car with
+the SwiftCode side of `icon-compile.md` §8's question (iOS accepts a car with
 only the flattened tier); Apple's simulator remains a dirty-room check.
 
 ### I.6 Open questions (for an OBS agent)
@@ -707,9 +707,9 @@ only the flattened tier); Apple's simulator remains a dirty-room check.
 - Confirm I.2 items 1 and 2 against `actool`'s output.
 - Which idiom `actool` writes for macOS icon renditions (the macOS key
   format has no idiom attribute, so it did not matter here).
-- Whether `actool` premultiplies CELM pixels (§11); Ycode does, and AppKit
+- Whether `actool` premultiplies CELM pixels (§11); SwiftCode does, and AppKit
   draws translucent pixels correctly from them.
-- Template-rendering intents other than the default (Ycode writes bit 4 and
+- Template-rendering intents other than the default (SwiftCode writes bit 4 and
   warns); high-contrast appearances (skipped).
 
 ## Evidence
@@ -720,5 +720,5 @@ only the flattened tier); Apple's simulator remains a dirty-room check.
 | Attribute numbering, part numbers, appearance numbers, layouts 1019/1020/1021, TLVs 1020/1021/1022 and the 1012 use in icons, ARGG, MSIS, key copies in fixed-key leaves, BITMAPKEYS masks | Format study of our own compiled files, one key changed at a time; `assetutil --info` as the reference decoder | 2, 3 |
 | What the runtime accepts | Our own proof files loaded by `assetutil` and AppKit on macOS 27 | 3 |
 | Not used | Disassembly or decompilation (level 5); CoreUI headers or private API calls; GPL or unlicensed code | — |
-| §I (Ycode implementation): the writer, compiler and tests | This spec; the PNG specification (W3C), RFC 1950/1951 (zlib, DEFLATE), the ICNS layout (public write-ups), the LZFSE reference implementation's format (BSD-3-Clause, read as a format definition); swift-build's `AssetCatalogCompiler` sources (Apache-2.0) for the command line, the version query and the dependency file | 1 |
+| §I (SwiftCode implementation): the writer, compiler and tests | This spec; the PNG specification (W3C), RFC 1950/1951 (zlib, DEFLATE), the ICNS layout (public write-ups), the LZFSE reference implementation's format (BSD-3-Clause, read as a format definition); swift-build's `AssetCatalogCompiler` sources (Apache-2.0) for the command line, the version query and the dependency file | 1 |
 | §I.2 findings (byte-ordered RENDITIONS, scale 1, LZVN 0x70–0x7F) | Our own cars and streams loaded through public AppKit API (`Bundle.image(forResource:)`, `NSColor(named:bundle:)`, `NSWorkspace.icon(forFile:)`) and the public Compression library on macOS 27, one change at a time | 3 (public API, own files) |

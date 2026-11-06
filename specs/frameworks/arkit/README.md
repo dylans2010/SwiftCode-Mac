@@ -33,8 +33,8 @@ Not covered here:
 | `views.md` | `ARSCNView`, `ARSKView`, `ARCoachingOverlayView`, SceneKit geometry helpers, `ARMatteGenerator`, `ARSessionProviding` |
 | `errors-and-states.md` | `ARErrorDomain` codes, tracking states and reasons, world-mapping status, geo-tracking states, exceptions |
 | `coordinates.md` | coordinate systems, units, transform conventions, intrinsics and projection math, display transforms, timing |
-| `simulator-baseline.md` | what ARKit does in Apple's iOS Simulator today (black-box), which Ycode matches first |
-| `simulated-world.md` | **Ycode-original design note**: feeding a simulated world into an ARKit implementation |
+| `simulator-baseline.md` | what ARKit does in Apple's iOS Simulator today (black-box), which SwiftCode matches first |
+| `simulated-world.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: feeding a simulated world into an ARKit implementation |
 | `plan.md` | implementation rounds (one agent each) and the conformance-test plan |
 
 Black-box observations behind `simulator-baseline.md` are in
@@ -53,13 +53,13 @@ Black-box observations behind `simulator-baseline.md` are in
   world maps, matte generator) and **ARKitUI** (`ARSCNView`, `ARSKView`,
   `ARCoachingOverlayView`, the SceneKit geometry helpers). The public headers
   are identical in content for device and simulator; the device copies merely
-  forward to the sub-framework when it is present. A Ycode implementation may
+  forward to the sub-framework when it is present. A SwiftCode implementation may
   use the same three-layer split; it is a natural dependency order
   (Foundation ← Core ← UI).
 - The simulator runtime ships `ARKit.framework` with a Metal library
   (`default.metallib`) and `SubFrameworks/ARKitCore.framework` containing only
   localized `Localizable.strings` tables (57 localizations). Error messages are
-  therefore localized; Ycode must write its own message text.
+  therefore localized; SwiftCode must write its own message text.
 - Availability: the iOS API starts at iOS 11.0; members carry their own
   introduction versions (listed per member in the files above). Several
   members were deprecated in iOS 27.0 (orientation-based camera math, legacy
@@ -70,7 +70,7 @@ Black-box observations behind `simulator-baseline.md` are in
 Level 1: public developer documentation pages for ARKit (summarized in our
 words). Level 2: device-type `capabilities.plist`, the `NSKeyedArchiver`
 output of anchors. Level 3: `ARProbe` on simulators named
-`ycode-test-arkit-*`. Level 4: public SDK metadata (header and module
+`swiftcode-test-arkit-*`. Level 4: public SDK metadata (header and module
 structure, member names, availability annotations, `.tbd` install names).
 Level 5 (disassembly/decompilation) was **not** used. The reference tools
 folder, `research/dirty/` and Ghidra were not opened.

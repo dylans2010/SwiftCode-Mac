@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/arkit/`. This is what an ARKit app sees in the
 reference simulator (Xcode 27.1, iOS 27.1 runtime 24A94401, device type
-iPhone Duo, Apple-silicon Mac). Ycode's simulator must behave the same way
+iPhone Duo, Apple-silicon Mac). SwiftCode's simulator must behave the same way
 **by default**, before the optional simulated-world feature is switched on
 (`simulated-world.md`). Every statement here is level 3 (our own probe app,
 `research/experiments/arkit/ARProbe`, observations in
@@ -92,7 +92,7 @@ Camera: `AVCaptureDevice` reports no default video device and authorization
   `createReferenceObjectWithTransform:…`,
   `getGeoLocationForPoint:completionHandler:`,
   `captureHighResolutionFrameWithCompletion:`. Apps that wait on these hang
-  in the reference simulator; Ycode reproduces that by default.
+  in the reference simulator; SwiftCode reproduces that by default.
 
 ## 5. Data objects
 
@@ -135,7 +135,7 @@ app shows the app's own white background and label only.
   capability check, if any, has nothing to match.
 - `NSCameraUsageDescription` present or absent: no difference.
 
-## 8. What Ycode must do (baseline mode)
+## 8. What SwiftCode must do (baseline mode)
 
 1. Ship an ARKit framework whose public classes exist with the full
    interface of the other files in this directory.
@@ -152,6 +152,6 @@ app shows the app's own white background and label only.
 
 | Section | Level | Source |
 |---|---|---|
-| 2–6 | 3 | `ARProbe` (`-probe all`, `-ui scn|sk|coach|coachscn`) on `ycode-test-arkit-1`, iOS 27.1, three app variants; raw logs and screenshots in `research/dirty/arkit/` |
+| 2–6 | 3 | `ARProbe` (`-probe all`, `-ui scn|sk|coach|coachscn`) on `swiftcode-test-arkit-1`, iOS 27.1, three app variants; raw logs and screenshots in `research/dirty/arkit/` |
 | 7 | 2, 3 | device type `capabilities.plist` (plutil); `simctl install` of the `UIRequiredDeviceCapabilities` variant |
-| 8 | — | Ycode decision |
+| 8 | — | SwiftCode decision |

@@ -10,7 +10,7 @@ import Testing
 #endif
 
 // R13 (BUILD-HUD): `hammer` holds up at bezel sizes (80–120 points): a claw
-// hammer with a head, a claw and a tapered handle, Ycode's own drawing.
+// hammer with a head, a claw and a tapered handle, SwiftCode's own drawing.
 // `OV_RENDER_OUT=<dir>` keeps `hammer-sheet.png`.
 
 @MainActor

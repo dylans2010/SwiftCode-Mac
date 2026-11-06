@@ -42,7 +42,7 @@ adds a contact and deletes a missing one; a bogus history token (empty
 result with full access); malformed or empty vCard data (0 contacts, nil
 error); fetching with an `NSPredicate` that is not a Contacts predicate.
 
-Messages are Apple's localized resources; Ycode writes its own English text
+Messages are Apple's localized resources; SwiftCode writes its own English text
 with the same meaning. Codes and user-info keys are the contract.
 
 ## 3. Exceptions

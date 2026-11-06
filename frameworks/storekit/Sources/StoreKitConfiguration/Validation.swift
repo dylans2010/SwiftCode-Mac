@@ -1,5 +1,5 @@
 // Validation of a configuration (plan.md R2: ids unique, group levels,
-// periods, offers). The rules and messages are Ycode's own; the spec fixes
+// periods, offers). The rules and messages are SwiftCode's own; the spec fixes
 // the value forms they check (configuration-file.md §2–§7).
 import Foundation
 

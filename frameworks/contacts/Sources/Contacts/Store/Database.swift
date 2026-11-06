@@ -1,5 +1,5 @@
-// Ycode's own SQLite schema for the contacts database (design.md §4), the
-// fresh-device seed (Ycode's made-up records; the fixed container and group
+// SwiftCode's own SQLite schema for the contacts database (design.md §4), the
+// fresh-device seed (SwiftCode's made-up records; the fixed container and group
 // identifiers of interface.md §2.3) and the change journal.
 
 import Foundation
@@ -430,7 +430,7 @@ final class ContactsDatabase {
     }
 }
 
-// MARK: - Seed (Ycode's own made-up address book)
+// MARK: - Seed (SwiftCode's own made-up address book)
 
 enum Seed {
     static let rowan = "5E2A9C14-3B7D-4F61-8A20-C1D4E7F90A11"

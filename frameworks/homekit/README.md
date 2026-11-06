@@ -1,8 +1,8 @@
-# ycode-homekit — open HomeKit (clean room)
+# swiftcode-homekit — open HomeKit (clean room)
 
 A Linux-buildable reimplementation of Apple's HomeKit model library, written
 only from `specs/frameworks/homekit/` (plus public documentation) under the
-clean-room protocol of the repository's `AGENTS.md`. Package `ycode-homekit`,
+clean-room protocol of the repository's `AGENTS.md`. Package `swiftcode-homekit`,
 library module **`HomeKit`**, so `import HomeKit` source compiles against it.
 
 ```
@@ -13,23 +13,23 @@ swift build && swift test          # macOS 14+ or Linux, Swift 6.4
 
 | Round | State | What is here |
 |---|---|---|
-| R3 model library | done | Type catalog generated from `type-identifiers.md` (184 HAP types, 33 categories, formats, units, properties, action-set types, significant events, key paths: 255 constants; 60 value enumerations); characteristic metadata and value validation (43–46 before I/O); `HMError` with every `errors.md` code, the private 2040 and the HAP status mapping; the model objects of `object-model.md` §2–§9 and §11 with delegates on the main queue; an in-memory home store behind the `YcodeHomeStore` protocol (optional JSON persistence); an accessory abstraction shaped after HAP-IP with an in-memory test accessory |
-| R4 `ycode-homed` | not started | The store protocol is the seam: Codable requests, replies and events, session-based fan-out. The scheduler (timer firing, solar events) belongs there |
-| R5–R9 | not started | HAP-IP controller, `ycode-hap-sim`, setup flow, Matter, cameras/BLE |
+| R3 model library | done | Type catalog generated from `type-identifiers.md` (184 HAP types, 33 categories, formats, units, properties, action-set types, significant events, key paths: 255 constants; 60 value enumerations); characteristic metadata and value validation (43–46 before I/O); `HMError` with every `errors.md` code, the private 2040 and the HAP status mapping; the model objects of `object-model.md` §2–§9 and §11 with delegates on the main queue; an in-memory home store behind the `SwiftCodeHomeStore` protocol (optional JSON persistence); an accessory abstraction shaped after HAP-IP with an in-memory test accessory |
+| R4 `swiftcode-homed` | not started | The store protocol is the seam: Codable requests, replies and events, session-based fan-out. The scheduler (timer firing, solar events) belongs there |
+| R5–R9 | not started | HAP-IP controller, `swiftcode-hap-sim`, setup flow, Matter, cameras/BLE |
 
 ## Architecture (`open-design.md` §2)
 
     HMHomeManager / HMHome / … (client mirrors, main-queue delivery)
-          │  YcodeHomeRequest ─►   ◄─ YcodeHomeEvent / reply   (all Codable)
+          │  SwiftCodeHomeRequest ─►   ◄─ SwiftCodeHomeEvent / reply   (all Codable)
           ▼
-    YcodeHomeStore protocol ── YcodeLocalHomeStore (in process, serial queue)
+    SwiftCodeHomeStore protocol ── SwiftCodeLocalHomeStore (in process, serial queue)
           │                         owns: homes (records), prompt answers,
           │                         sessions, notification subscriptions
           ▼
-    YcodeAccessoryEndpoint protocol (attribute database aid/iid, read, write,
+    SwiftCodeAccessoryEndpoint protocol (attribute database aid/iid, read, write,
           │                          events, identify, HAP status codes)
           ▼
-    YcodeTestAccessory (in memory)  │  R5: HAP-IP controller endpoints
+    SwiftCodeTestAccessory (in memory)  │  R5: HAP-IP controller endpoints
 
 - **Records** (`Store/Records.swift`) are the truth and the wire form; model
   objects are mirrors keyed by `uniqueIdentifier` and reconciled from the
@@ -50,20 +50,20 @@ swift build && swift test          # macOS 14+ or Linux, Swift 6.4
   attribute database (one `HMAccessory` per `aid`, bridge = `aid` 1) without a
   setup code.
 
-## Ycode extensions (not Apple API)
+## SwiftCode extensions (not Apple API)
 
 | Name | Purpose |
 |---|---|
-| `YcodeHomeStore`, `YcodeHomeRequest`, `YcodeHomeResponse`, `YcodeHomeEvent`, `YcodeHomeChange`, records | The store boundary R4 replaces |
-| `YcodeLocalHomeStore` (+ `Configuration`) | In-memory store. `.shared` backs `HMHomeManager()`; it persists to the JSON file named by `YCODE_HOMEKIT_STORE` if set. Configuration: `persistenceURL`, `simulateNoAccount` (parity mode, 2040), `hubState` (default connected: the store plays the hub), `ownerName`, `consent` (answers the permission prompt; default allow). `publish(_:)` / `unpublish(endpointID:)` make accessory servers appear and disappear; `resetAuthorization(bundleIdentifier:)`; `homeRecords`; `sync` |
-| `YcodeHomeClient` | App identity: bundle identifier, usage string, entitlement. `.processDefault` reads the main bundle's Info.plist or `YCODE_HOMEKIT_BUNDLE_IDENTIFIER` / `YCODE_HOMEKIT_USAGE_DESCRIPTION` / `YCODE_HOMEKIT_ENTITLED=0`; a process without an Info.plist is not held to the requirements |
-| `HMHomeManager(ycodeStore:client:)`, `HMAccessoryBrowser(ycodeStore:client:)` | Objects on a given store as a given client (tests, tools, multi-app simulations) |
-| `YcodeAccessoryEndpoint`, `YcodeAccessoryEndpointDelegate`, `YcodeAccessoryDatabase`, `YcodeCharacteristicAddress`, `YcodeHAPPermission`, `YcodeHAPStatus`, `YcodeAccessoryFailure` | The accessory abstraction |
-| `YcodeTestAccessory` | In-memory accessory server: presets (`lightbulb`, `outlet`, `switch`, `thermostat`, `lock`, `temperatureSensor`, `garageDoor`, `bridge(children:)`), control API (`simulateChange`, `forceStatus`, `isReachable`, `writes`, `subscribedAddresses`, `identifyCount`, `responseDelay`) |
-| `YcodeCharacteristicDefaults` | Default characteristic templates for test accessories (see Spec questions 11) |
-| `YcodeHomeCatalog` | Catalog tables, lookups, short/full UUID forms, HAP category numbers |
-| `YcodeValueValidation`, `YcodeNameRules` | The validation and name rules |
-| `HMError.ycodeNoAccountError()`, `HMError.describe(_:)` | The 2040 error; Ycode's description texts |
+| `SwiftCodeHomeStore`, `SwiftCodeHomeRequest`, `SwiftCodeHomeResponse`, `SwiftCodeHomeEvent`, `SwiftCodeHomeChange`, records | The store boundary R4 replaces |
+| `SwiftCodeLocalHomeStore` (+ `Configuration`) | In-memory store. `.shared` backs `HMHomeManager()`; it persists to the JSON file named by `SWIFTCODE_HOMEKIT_STORE` if set. Configuration: `persistenceURL`, `simulateNoAccount` (parity mode, 2040), `hubState` (default connected: the store plays the hub), `ownerName`, `consent` (answers the permission prompt; default allow). `publish(_:)` / `unpublish(endpointID:)` make accessory servers appear and disappear; `resetAuthorization(bundleIdentifier:)`; `homeRecords`; `sync` |
+| `SwiftCodeHomeClient` | App identity: bundle identifier, usage string, entitlement. `.processDefault` reads the main bundle's Info.plist or `SWIFTCODE_HOMEKIT_BUNDLE_IDENTIFIER` / `SWIFTCODE_HOMEKIT_USAGE_DESCRIPTION` / `SWIFTCODE_HOMEKIT_ENTITLED=0`; a process without an Info.plist is not held to the requirements |
+| `HMHomeManager(swiftcodeStore:client:)`, `HMAccessoryBrowser(swiftcodeStore:client:)` | Objects on a given store as a given client (tests, tools, multi-app simulations) |
+| `SwiftCodeAccessoryEndpoint`, `SwiftCodeAccessoryEndpointDelegate`, `SwiftCodeAccessoryDatabase`, `SwiftCodeCharacteristicAddress`, `SwiftCodeHAPPermission`, `SwiftCodeHAPStatus`, `SwiftCodeAccessoryFailure` | The accessory abstraction |
+| `SwiftCodeTestAccessory` | In-memory accessory server: presets (`lightbulb`, `outlet`, `switch`, `thermostat`, `lock`, `temperatureSensor`, `garageDoor`, `bridge(children:)`), control API (`simulateChange`, `forceStatus`, `isReachable`, `writes`, `subscribedAddresses`, `identifyCount`, `responseDelay`) |
+| `SwiftCodeCharacteristicDefaults` | Default characteristic templates for test accessories (see Spec questions 11) |
+| `SwiftCodeHomeCatalog` | Catalog tables, lookups, short/full UUID forms, HAP category numbers |
+| `SwiftCodeValueValidation`, `SwiftCodeNameRules` | The validation and name rules |
+| `HMError.swiftcodeNoAccountError()`, `HMError.describe(_:)` | The 2040 error; SwiftCode's description texts |
 
 ## Behavior notes and deviations
 
@@ -110,7 +110,7 @@ it checks. 62 tests, on macOS and Linux.
 | `AutomationTests.swift` | Action sets (A07, A25), timer rules (A08), triggers and enable (26), event triggers (A09/A26), T-O5 events (copy classes, identifiers, `isSupported`), number ranges, T-O6 setup payloads, setup manager (HK-B12 analogue) |
 
 `HK-A…` expectations are level 1 guesses in `plan.md` §3 until the R2
-reference observations exist; the tests check Ycode's reading of them.
+reference observations exist; the tests check SwiftCode's reading of them.
 
 ## Generator
 
@@ -168,21 +168,21 @@ default characteristic templates described in Spec questions 11.
 7. **Event triggers:** no events → 27; an event on a characteristic outside
    the home → 2.
 8. **Built-in action sets** exist from home creation, are part of
-   `actionSets`, may be renamed, and carry Ycode's own names ("Wake Up",
+   `actionSets`, may be renamed, and carry SwiftCode's own names ("Wake Up",
    "Bedtime", "Leaving Home", "Arriving Home").
 9. Enabling notifications twice succeeds (68 is never returned).
 10. Removing a room moves its accessories to the default room without
     accessory-room callbacks; removing an accessory removes its actions,
     group memberships and subscriptions.
 11. **Characteristic defaults** (open-design.md §5): the spec has no
-    per-type metadata table. `Accessory/Defaults.swift` holds Ycode's own
+    per-type metadata table. `Accessory/Defaults.swift` holds SwiftCode's own
     templates following HAP conventions (formats, permissions, ranges,
     units), written from knowledge of the HAP catalog and not re-checked
     against the ADK in this round. Please add a defaults table (from the
     ADK) to `type-identifiers.md`; validation itself always uses the
     metadata an accessory reports.
 12. **Categories:** bridged accessories take their category from their
-    primary service (Ycode table); HAP category numbers the ADK enum lacks
+    primary service (SwiftCode table); HAP category numbers the ADK enum lacks
     (television, speaker, router, doorbell, …) map to Other.
 13. **Events:** identifiers are random with version nibble 5 and the
     RFC 4122 variant (as observed); `copy()` of a mutable event gives the

@@ -1,11 +1,11 @@
 // Value records: the state a home store owns (open-design.md §2 "Store").
 // They are the storage form of the in-memory store and the wire form a future
-// `ycode-homed` (plan.md R4) sends to clients; the model objects of
+// `swiftcode-homed` (plan.md R4) sends to clients; the model objects of
 // object-model.md are client-side mirrors keyed by `id` (= uniqueIdentifier).
 
 import Foundation
 
-public struct YcodeCharacteristicRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeCharacteristicRecord: Codable, Hashable, Sendable {
     public var id: UUID
     /// HAP instance ID within the accessory.
     public var iid: Int
@@ -13,12 +13,12 @@ public struct YcodeCharacteristicRecord: Codable, Hashable, Sendable {
     public var type: String
     /// `HMCharacteristicProperty…` strings.
     public var properties: [String]
-    public var metadata: YcodeCharacteristicMetadata?
+    public var metadata: SwiftCodeCharacteristicMetadata?
     /// Last known value (nil until read or notified).
-    public var value: YcodeHomeValue?
+    public var value: SwiftCodeHomeValue?
 
     public init(id: UUID = UUID(), iid: Int, type: String, properties: [String],
-                metadata: YcodeCharacteristicMetadata?, value: YcodeHomeValue?) {
+                metadata: SwiftCodeCharacteristicMetadata?, value: SwiftCodeHomeValue?) {
         self.id = id
         self.iid = iid
         self.type = type
@@ -28,7 +28,7 @@ public struct YcodeCharacteristicRecord: Codable, Hashable, Sendable {
     }
 }
 
-public struct YcodeServiceRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeServiceRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var iid: Int
     public var type: String
@@ -37,10 +37,10 @@ public struct YcodeServiceRecord: Codable, Hashable, Sendable {
     public var isPrimary: Bool
     public var isUserInteractive: Bool
     public var linkedServiceIDs: [UUID]
-    public var characteristics: [YcodeCharacteristicRecord]
+    public var characteristics: [SwiftCodeCharacteristicRecord]
 }
 
-public struct YcodeAccessoryRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeAccessoryRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var categoryType: String
@@ -48,7 +48,7 @@ public struct YcodeAccessoryRecord: Codable, Hashable, Sendable {
     public var model: String?
     public var firmwareVersion: String?
     public var roomID: UUID
-    public var services: [YcodeServiceRecord]
+    public var services: [SwiftCodeServiceRecord]
     public var isReachable: Bool
     public var isBlocked: Bool
     public var isBridged: Bool
@@ -62,41 +62,41 @@ public struct YcodeAccessoryRecord: Codable, Hashable, Sendable {
     public var matterNodeID: UInt64?
 }
 
-public struct YcodeRoomRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeRoomRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
 }
 
-public struct YcodeZoneRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeZoneRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var roomIDs: [UUID]
 }
 
-public struct YcodeServiceGroupRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeServiceGroupRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var serviceIDs: [UUID]
 }
 
-public struct YcodeActionRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeActionRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var characteristicID: UUID
-    public var targetValue: YcodeHomeValue
+    public var targetValue: SwiftCodeHomeValue
 }
 
-public struct YcodeActionSetRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeActionSetRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     /// `HMActionSetType…` string.
     public var type: String
     /// In insertion order (execution order).
-    public var actions: [YcodeActionRecord]
+    public var actions: [SwiftCodeActionRecord]
     public var lastExecutionDate: Date?
     public var isExecuting: Bool
 }
 
-public struct YcodeRegionRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeRegionRecord: Codable, Hashable, Sendable {
     public var identifier: String
     public var latitude: Double
     public var longitude: Double
@@ -105,11 +105,11 @@ public struct YcodeRegionRecord: Codable, Hashable, Sendable {
     public var notifyOnExit: Bool
 }
 
-public struct YcodeEventRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeEventRecord: Codable, Hashable, Sendable {
     public enum Kind: Codable, Hashable, Sendable {
-        case characteristic(characteristicID: UUID, triggerValue: YcodeHomeValue?)
+        case characteristic(characteristicID: UUID, triggerValue: SwiftCodeHomeValue?)
         case thresholdRange(characteristicID: UUID, minimum: Double?, maximum: Double?)
-        case location(YcodeRegionRecord?)
+        case location(SwiftCodeRegionRecord?)
         case presence(type: Int, userType: Int)
         case calendar(DateComponents)
         case significantTime(event: String, offset: DateComponents?)
@@ -120,10 +120,10 @@ public struct YcodeEventRecord: Codable, Hashable, Sendable {
     public var kind: Kind
 }
 
-public struct YcodeTriggerRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeTriggerRecord: Codable, Hashable, Sendable {
     public enum Kind: Codable, Hashable, Sendable {
         case timer(fireDate: Date, recurrence: DateComponents?)
-        case event(events: [YcodeEventRecord], endEvents: [YcodeEventRecord],
+        case event(events: [SwiftCodeEventRecord], endEvents: [SwiftCodeEventRecord],
                    recurrences: [DateComponents]?, executeOnce: Bool)
     }
 
@@ -136,25 +136,25 @@ public struct YcodeTriggerRecord: Codable, Hashable, Sendable {
     public var activationState: Int
 }
 
-public struct YcodeUserRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeUserRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var isAdministrator: Bool
 }
 
-public struct YcodeHomeRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeHomeRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var isPrimary: Bool
     /// `roomForEntireHome` (not part of `rooms`).
-    public var defaultRoom: YcodeRoomRecord
-    public var rooms: [YcodeRoomRecord]
-    public var zones: [YcodeZoneRecord]
-    public var serviceGroups: [YcodeServiceGroupRecord]
-    public var accessories: [YcodeAccessoryRecord]
-    public var actionSets: [YcodeActionSetRecord]
-    public var triggers: [YcodeTriggerRecord]
-    public var users: [YcodeUserRecord]
+    public var defaultRoom: SwiftCodeRoomRecord
+    public var rooms: [SwiftCodeRoomRecord]
+    public var zones: [SwiftCodeZoneRecord]
+    public var serviceGroups: [SwiftCodeServiceGroupRecord]
+    public var accessories: [SwiftCodeAccessoryRecord]
+    public var actionSets: [SwiftCodeActionSetRecord]
+    public var triggers: [SwiftCodeTriggerRecord]
+    public var users: [SwiftCodeUserRecord]
     public var currentUserID: UUID
     /// `HMHomeHubState` raw value.
     public var hubState: Int
@@ -180,7 +180,7 @@ public struct YcodeHomeRecord: Codable, Hashable, Sendable {
 }
 
 /// An accessory that is published but not paired (what `HMAccessoryBrowser` lists).
-public struct YcodeDiscoveredAccessoryRecord: Codable, Hashable, Sendable {
+public struct SwiftCodeDiscoveredAccessoryRecord: Codable, Hashable, Sendable {
     public var id: UUID
     public var endpointID: String
     public var name: String

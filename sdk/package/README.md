@@ -128,7 +128,7 @@ device connect, command registration, project metadata). Every snippet's
 package (verified by `tests/snippets.test.mjs`); each snippet's
 `capabilityId` is the exact wire ID the extension manifest must request
 (`SDKCapabilityID` in
-`ycode/Sources/YcodeExtensions/Capabilities.swift`).
+`swiftcode/Sources/SwiftCodeExtensions/Capabilities.swift`).
 
 - `searchSnippets(query)` — case-insensitive search across id, title,
   description, capabilityId, tags, and code. A blank query returns every

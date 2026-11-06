@@ -1,7 +1,7 @@
 # Spec: pairing an iPhone simulator with an Apple Watch simulator
 
 Status: **draft, round 0** (agent OBS-WATCH, 2026-10-29); round W4 under
-Ycode in §8 (PAIR-HOST, 2026-10-30); round W5, the relay, in §10
+SwiftCode in §8 (PAIR-HOST, 2026-10-30); round W5, the relay, in §10
 (PAIR-RELAY, 2026-10-30); the dirty-room answers to §9 Q5, Q9, Q11 and
 Q12 in §11 (OBS-WATCH2, 2026-10-30); round W3b, P-10 … P-13, in §12
 (WATCH-W3B, 2026-10-30); round W6, the IDE (P-8, P-9), in §13 (PAIR-IDE,
@@ -10,8 +10,8 @@ Q12 in §11 (OBS-WATCH2, 2026-10-30); round W3b, P-10 … P-13, in §12
 Xcode 27.1's simulators pair an iOS 27.1 iPhone with a watchOS 27.0 Apple
 Watch — the records CoreSimulator keeps, what each guest does, the host
 endpoint and wire format that carry the traffic between the two guests,
-what WatchConnectivity apps see — and what Ycode must add so that two
-Ycode simulators pair the same way. The watch runtime itself is in
+what WatchConnectivity apps see — and what SwiftCode must add so that two
+SwiftCode simulators pair the same way. The watch runtime itself is in
 `watchos.md`. Facts come from files read as formats (level 2), black-box
 runs on the Mac (level 3: `simctl`, guest logs, `lsof`, `lsmp`, our own
 apps and our own host tool that relayed and recorded the traffic) and
@@ -57,8 +57,8 @@ The Mac was under very heavy load during these runs (load average
    reference (§11.4). `transferUserInfo` and `transferFile` never reach the
    receiving app in the reference; complication user info and application
    context do (§11.2, §11.3).
-6. **For Ycode** (two VMs instead of two processes of one kernel): pair
-   records and `ycode-sim pair` commands, a guest agent that carries out
+6. **For SwiftCode** (two VMs instead of two processes of one kernel): pair
+   records and `swiftcode-sim pair` commands, a guest agent that carries out
    the host's five pairing requests, and a **cross-VM Mach relay** for the
    `remote.<peer>` endpoints that carries MIG 1000/1100 with one OOL region
    and turns the peer's absence into a dead port (§7).
@@ -158,7 +158,7 @@ and `…SwitchActivePairedDevice` (ids_simd `addPairedDeviceWithSimulatorID:`,
 | `AppConduit/AvailableApps.plist` | phone | the phone's list of watch apps |
 | `Preferences/ids_simd.plist` | both | `SimulatedNetworkRestrictions-<service>` booleans (§4.4) |
 
-All are written by the guests' own daemons. A Ycode host never writes them;
+All are written by the guests' own daemons. A SwiftCode host never writes them;
 it only has to make the guests run the requests of §3.1.
 
 ## 4. The transport
@@ -246,8 +246,8 @@ Not Disturb). Services seen in the envelope or the logs:
   receiver ("Recipient for service … has not registered. Messages for it
   are being left in a pending state").
 
-These are behaviors of Apple's ids_simd, which runs unchanged in Ycode's
-guests: Ycode gets them for free and must not add delays of its own.
+These are behaviors of Apple's ids_simd, which runs unchanged in SwiftCode's
+guests: SwiftCode gets them for free and must not add delays of its own.
 
 ## 5. What apps see (WatchConnectivity, our WCProbe)
 
@@ -280,37 +280,37 @@ equal to the iOS app's bundle id, `UIDeviceFamily` [4],
   removing a pair from Device Hub) was not observed (GUI only).
 - Run destinations for a watch app scheme, and whether Xcode installs the
   watch app through the phone or directly: not observed (§9 Q2, Q3).
-- Ycode's IDE never pairs devices itself today (`specs/ide/devices.md`,
+- SwiftCode's IDE never pairs devices itself today (`specs/ide/devices.md`,
   `destinations.md`: list only). *Since W6 (§13) it does: Device Hub
   pairs, unpairs and switches the active watch, and runs watch apps.*
 
-## 7. What Ycode must add
+## 7. What SwiftCode must add
 
 ### 7.1 Requirements
 
 Records and commands:
 
-- **P-1** Pair records in Ycode's device set with the semantics of §2.1:
+- **P-1** Pair records in SwiftCode's device set with the semantics of §2.1:
   pair UUID, companion, gizmo, active; one active pair per phone; the
   limits of §2.3 from the runtime's `pairingRequirements` and the device
-  type's family; the refusal texts of §2.2 may be Ycode's own.
-- **P-2** CLI: `ycode-sim pair <watch> <phone>` (either order; prints the
-  pair UUID), `ycode-sim unpair <pair>`, `ycode-sim pair-activate <pair>`,
-  `ycode-sim list-pairs [--json]` with "(active|inactive,
-  connected|disconnected)"; `ycode-simd` gets the peer's identity
+  type's family; the refusal texts of §2.2 may be SwiftCode's own.
+- **P-2** CLI: `swiftcode-sim pair <watch> <phone>` (either order; prints the
+  pair UUID), `swiftcode-sim unpair <pair>`, `swiftcode-sim pair-activate <pair>`,
+  `swiftcode-sim list-pairs [--json]` with "(active|inactive,
+  connected|disconnected)"; `swiftcode-simd` gets the peer's identity
   (UDID) and the active flag.
 - **P-3** Unpair shuts the watch down if booted and **erases** it (fresh
   `DEV/data`); the phone is kept.
 
 Guest side:
 
-- **P-4** A Ycode guest agent (Ycode cannot ship CoreSimulatorBridge) that
+- **P-4** A SwiftCode guest agent (SwiftCode cannot ship CoreSimulatorBridge) that
   performs the five requests of §3.1 in the guest, in the observed order:
   on peer up → connect, then set-active; at boot → remove-unpaired with the
   host's list; on unpair → unpair then disconnect. It calls the runtime's
   own `IDSSimulatorLocalPairing*` functions and NanoRegistry's
   paired-device registry, and needs the NanoRegistry pairing entitlement
-  (`simulator-features.md` §6 for how Ycode's agents get entitlements,
+  (`simulator-features.md` §6 for how SwiftCode's agents get entitlements,
   Q8 there).
 
 Host side:
@@ -323,11 +323,11 @@ Host side:
   survivor's held send right becomes a dead name (sends fail with
   `MACH_SEND_INVALID_DEST`, §4.2).
 - **P-6** (**done in W5, §10**) The **relay** (§7.2): the port registered under `remote.<peer>`
-  is a Ycode host port; every message on it is a MIG 1000 request that
-  Ycode delivers into the peer VM to the peer's `IDSSimRPC.local` port
+  is a SwiftCode host port; every message on it is a MIG 1000 request that
+  SwiftCode delivers into the peer VM to the peer's `IDSSimRPC.local` port
   (found by look-up in the peer, 702 or the watchOS equivalent), with the
-  OOL region copied byte for byte and a send-once reply right that Ycode
-  answers with the peer's reply (1100, `RetCode`). Ycode does not parse
+  OOL region copied byte for byte and a send-once reply right that SwiftCode
+  answers with the peer's reply (1100, `RetCode`). SwiftCode does not parse
   the plist.
 - **P-7** (**done in W5, §10**) No added latency, no reordering per direction, payloads up to at
   least 1 MiB (67 KB seen; WatchConnectivity file transfers may be larger,
@@ -339,7 +339,7 @@ IDE:
 
 - **P-8** (**done in W6, §13**) Devices window / Device Hub: show pairs ("Paired with … ›" on
   the phone), create a pair (pick a watch type for a phone), unpair, make
-  active; new phones get a default watch only if the owner asks (Ycode
+  active; new phones get a default watch only if the owner asks (SwiftCode
   decision; the reference's defaults are §2.3).
 - **P-9** (**done in W6, §13**) Running a watch app: build the embedded watch app, install the
   iOS app on the phone and the watch app on the paired watch (the
@@ -355,15 +355,15 @@ Requirements P-10…P-13 (from the dirty-room answers) are in §11.5.
 ### 7.2 The relay across two VMs
 
 On the Mac the two guests share one kernel, so the host can hand a guest a
-send right to a port received in another guest. Under Ycode each guest has
-its own Mach world inside its own `ycode-simd`. The relay therefore has two
-halves, one per VM, joined by a host channel between the two `ycode-simd`
+send right to a port received in another guest. Under SwiftCode each guest has
+its own Mach world inside its own `swiftcode-simd`. The relay therefore has two
+halves, one per VM, joined by a host channel between the two `swiftcode-simd`
 processes (or one supervisor process):
 
 ```
 watch VM                            host                              phone VM
-ids_simd ──1000──▶ remote.<phone> ─▶ ycode-simd(W) ══ channel ══▶ ycode-simd(P) ─1000─▶ IDSSimRPC.local (ids_simd)
-ids_simd ◀─1100─── (send-once)    ◀─ ycode-simd(W) ◀═ channel ══  ycode-simd(P) ◀─1100── (send-once)
+ids_simd ──1000──▶ remote.<phone> ─▶ swiftcode-simd(W) ══ channel ══▶ swiftcode-simd(P) ─1000─▶ IDSSimRPC.local (ids_simd)
+ids_simd ◀─1100─── (send-once)    ◀─ swiftcode-simd(W) ◀═ channel ══  swiftcode-simd(P) ◀─1100── (send-once)
 ```
 
 Per message: the receiving half takes the request off its host port, keeps
@@ -378,64 +378,64 @@ failure.
 
 ### 7.3 Risks
 
-1. Cross-VM Mach forwarding is new to Ycode; the OOL region must be
+1. Cross-VM Mach forwarding is new to SwiftCode; the OOL region must be
    delivered as an OOL descriptor (ids_simd reads it as such).
 2. Domain differences (`system` vs `user/501`) for registration and
    look-up (`watchos.md` §2.4).
 3. The first paired boot is a first boot plus the initial paired sync
    (54 s on the reference in the lighter run, 164 s under heavy load);
-   under Ycode it will be several times that, and tests must allow it.
+   under SwiftCode it will be several times that, and tests must allow it.
 4. The guest agent's entitlement for NanoRegistry pairing.
 5. App install through the phone does not work in the reference within
    minutes (§5); P-9 should install the watch app directly, then check
    what the phone reports (§9 Q3).
 
-## 8. Round W4 under Ycode (agents PAIR-HOST and PAIR-HOST2, 2026-10-29/30)
+## 8. Round W4 under SwiftCode (agents PAIR-HOST and PAIR-HOST2, 2026-10-29/30)
 
-Clean-room implementation of P-1…P-5 and Ycode's results. Evidence is level
-3: Ycode's own simulator on the arm64 Linux host, with an iPhone 18 Pro on
+Clean-room implementation of P-1…P-5 and SwiftCode's results. Evidence is level
+3: SwiftCode's own simulator on the arm64 Linux host, with an iPhone 18 Pro on
 iOS 27.0 (24A434) and an Apple Watch Series 12 (46mm) on watchOS 27.0
 (24R362), the guests' own logs (a `log stream` one-shot in each guest) and
-`ycode-sim list-pairs`. No Apple simulator, Xcode or reference tool was
+`swiftcode-sim list-pairs`. No Apple simulator, Xcode or reference tool was
 run or opened for this round.
 
 ### 8.1 What was added
 
 | Req. | Where | Status |
 |---|---|---|
-| P-1 records | `YcodeSimFeatures/DevicePairing.swift`: `DevicePairStore`, `PairingRules` (§2.3's limits: a watch 1 pair, a phone 100; partner OS ≥ 12.0 / ≥ 3.2; phone + phone, watch + watch and other families refused) | done |
-| P-2 commands | `ycode-simd [--device-set D] --pair <a> <b> \| --unpair <pair> \| --pair-activate <pair> \| --list-pairs [--json]` (`PairingCommand.swift`); `ycode-sim pair \| unpair \| pair-activate \| list-pairs [--json]` (`scripts/ycode-sim.sh`, no boot slot) | done |
+| P-1 records | `SwiftCodeSimFeatures/DevicePairing.swift`: `DevicePairStore`, `PairingRules` (§2.3's limits: a watch 1 pair, a phone 100; partner OS ≥ 12.0 / ≥ 3.2; phone + phone, watch + watch and other families refused) | done |
+| P-2 commands | `swiftcode-simd [--device-set D] --pair <a> <b> \| --unpair <pair> \| --pair-activate <pair> \| --list-pairs [--json]` (`PairingCommand.swift`); `swiftcode-sim pair \| unpair \| pair-activate \| list-pairs [--json]` (`scripts/swiftcode-sim.sh`, no boot slot) | done |
 | P-3 unpair erase | the phone's guest unpairs and disconnects, the watch shuts down, its directory is erased; the phone is kept | done, with both devices booted and with both shut down (§8.5) |
-| P-4 guest agent | `SimGuestAgents/pairing/ycode-pairing-agent.m`, staged into every device | connect, set-active (first pairing) and disconnect make the guests pair (§8.4); remove-unpaired, the NanoRegistry side of unpair, and set-active for a peer paired before are logged but make no guest call (§9 Q9) |
-| P-5 endpoints | `ycode-simd/PairingHost.swift`: 701 of `com.apple.IDSSimRPC.remote.<peer>` with a host port when both devices run; 709 and the port destroyed when the peer stops or the pair goes | done for two devices on one host; the port's traffic goes to a stub relay (§8.3) |
+| P-4 guest agent | `SimGuestAgents/pairing/swiftcode-pairing-agent.m`, staged into every device | connect, set-active (first pairing) and disconnect make the guests pair (§8.4); remove-unpaired, the NanoRegistry side of unpair, and set-active for a peer paired before are logged but make no guest call (§9 Q9) |
+| P-5 endpoints | `swiftcode-simd/PairingHost.swift`: 701 of `com.apple.IDSSimRPC.remote.<peer>` with a host port when both devices run; 709 and the port destroyed when the peer stops or the pair goes | done for two devices on one host; the port's traffic goes to a stub relay (§8.3) |
 
-### 8.2 Ycode decisions
+### 8.2 SwiftCode decisions
 
-- **Record format.** `<device set>/ycode-device-pairs.plist`, an XML
+- **Record format.** `<device set>/swiftcode-device-pairs.plist`, an XML
   property list `{Version: 1, DevicePairs: {<pair UUID>: {active,
   companion, gizmo, companionDirectory, gizmoDirectory}}}`: the reference's
   three keys (§2.1) plus each device's directory relative to the set.
   Writes are atomic and serialized by the lock file
-  `.ycode-device-pairs.lock` next to it. The set is `--device-set`, else
-  `$YCODE_DEVICE_SET` (`ycode-simd`) or `$YCODE_SIM_DEVICE_SET`
-  (`ycode-sim`), else the directory holding the device directory; a running
+  `.swiftcode-device-pairs.lock` next to it. The set is `--device-set`, else
+  `$SWIFTCODE_DEVICE_SET` (`swiftcode-simd`) or `$SWIFTCODE_SIM_DEVICE_SET`
+  (`swiftcode-sim`), else the directory holding the device directory; a running
   device reads the records of the directory that holds it unless
-  `$YCODE_DEVICE_SET` says otherwise.
+  `$SWIFTCODE_DEVICE_SET` says otherwise.
 - **Devices.** A device is named by its directory, its directory's name in
   the set, or its UDID. It must have booted once (its type record says
-  phone or watch). Its UDID is `DEV/ycode-udid`, which every boot writes,
+  phone or watch). Its UDID is `DEV/swiftcode-udid`, which every boot writes,
   else the one derived from the directory's host path (`--udid` overrides
   it at boot, and the record keeps it).
 - **Commands.** `pair` takes the devices in either order and prints the new
   pair UUID; a phone's first pair is active, a further one inactive.
-  Refusal texts are Ycode's own. Exit status: 148 for an unknown pair, 37
+  Refusal texts are SwiftCode's own. Exit status: 148 for an unknown pair, 37
   for a pair that is already active (as §2.2), 1 for a refused pairing or a
   failed erase, 64 for bad usage. `list-pairs` prints §2.2's layout; a pair
   is "connected" when the watch's host reports its link to the phone up and
   both endpoints registered, and the phone runs.
-- **Rendezvous (two `ycode-simd` on one host).** Each running device
+- **Rendezvous (two `swiftcode-simd` on one host).** Each running device
   listens on one AF_UNIX stream socket in the host's memory directory,
-  `ycodepair-<uid>-<first 16 hex digits of the UDID>.sock`, mode 0600 (on
+  `swiftcodepair-<uid>-<first 16 hex digits of the UDID>.sock`, mode 0600 (on
   Linux under `/dev/shm`). The watch's host connects to its phone's socket
   every 2 s until it is linked: `hello {udid, role, pid, version}`, answered
   `welcome` or `refused` (the phone rereads the records first, so a pair
@@ -458,30 +458,30 @@ run or opened for this round.
   while both run: the phone's agent gets unpair, then disconnect, then the
   endpoint goes and the link closes; the watch is told `shutdown`; the
   command erases its directory once its socket is gone (it waits up to
-  180 s, `YCODE_UNPAIR_SHUTDOWN_WAIT_S`). A 701 refused with `EEXIST`
+  180 s, `SWIFTCODE_UNPAIR_SHUTDOWN_WAIT_S`). A 701 refused with `EEXIST`
   (a name left by an earlier run, e.g. after a restore) is replaced
   (709, then 701 again).
-- **Paired before.** `DEV/ycode-paired-peers` lists the peers whose
+- **Paired before.** `DEV/swiftcode-paired-peers` lists the peers whose
   set-active succeeded in this device's guest; it chooses "first pairing"
   or "paired before" for set-active, and an unpair removes the peer (for a
   stopped phone, the command edits the file).
-- **Guest agent.** A launchd daemon `dev.ycode.simulator.pairing` (RunAtLoad,
+- **Guest agent.** A launchd daemon `dev.swiftcode.simulator.pairing` (RunAtLoad,
   KeepAlive, Interactive; `user/<uid>` on iOS, `system` on watchOS) staged
   into every device, paired or not, so that a phone booted after an unpair
   gets remove-unpaired. Watch devices get the watchOS simulator build
   (`SimGuestAgents/out/watchos/`; a signed image is not retagged), with
   the entitlement key of §3.1 in `__TEXT,__entitlements`. It connects to
-  `/private/var/run/dev.ycode.pairing`, which the VMM answers itself, with
+  `/private/var/run/dev.swiftcode.pairing`, which the VMM answers itself, with
   the settings channel's frames (4-byte length, XML property list):
   requests `{id, op, peer, previouslyPaired, hostPaired}` with ops
   `removeUnpaired`, `connect`, `setActive`, `unpair`, `disconnect`
   (`ping`, `call` for diagnostics), replies `{id, ok, detail, error}`, events
   `hello` and `log`. The host waits up to 120 s for a reply
-  (`YCODE_PAIRING_AGENT_WAIT_S`).
+  (`SWIFTCODE_PAIRING_AGENT_WAIT_S`).
 - **Erase (P-3).** Everything in the device directory except its type
-  record and `ycode-udid` goes (moved aside, then removed); the next boot is
+  record and `swiftcode-udid` goes (moved aside, then removed); the next boot is
   a first boot of the same device (no bootstrap plist, so the first-boot
-  preferences are written again). `ycode-sim unpair` also drops the
+  preferences are written again). `swiftcode-sim unpair` also drops the
   watch's saved snapshot.
 
 ### 8.3 The interface left for W5
@@ -500,20 +500,20 @@ The `PairingRelayContext` gives the device's UDID, the host task (ports,
 sends, receives), `sendToPeer(_:frame:)` over the link, and
 `findInGuest(_:)` (702 in this device's guest, for the peer's
 `com.apple.IDSSimRPC.local`). This round's relay, `AcknowledgingPairingRelay`
-(`YCODE_PAIRING_RELAY=ack`, the default), answers each 1000 at once with
-1100, NDR and `RetCode` 0 and drops the payload; `YCODE_PAIRING_RELAY=none`
+(`SWIFTCODE_PAIRING_RELAY=ack`, the default), answers each 1000 at once with
+1100, NDR and `RetCode` 0 and drops the payload; `SWIFTCODE_PAIRING_RELAY=none`
 answers nothing. W5 replaces it with the two halves of §7.2: the near half
 sends the OOL bytes and keeps the guest's send-once right; the far half
 finds `IDSSimRPC.local` in its guest, sends a new 1000 with an OOL region
 and a send-once reply port of its own, and returns the `RetCode`. W6 can
-drive the records through `ycode-sim pair`/`unpair`/`pair-activate` and read
+drive the records through `swiftcode-sim pair`/`unpair`/`pair-activate` and read
 `list-pairs --json`.
 
-### 8.4 The guest calls (what Ycode's runs showed)
+### 8.4 The guest calls (what SwiftCode's runs showed)
 
 - **Transport.** `IDSSimulatorLocalPairingTransportConnect` and
   `…Disconnect` are called as (peer NSUUID, completion block, dispatch
-  queue); the runtime's own log line under Ycode for the sibling call
+  queue); the runtime's own log line under SwiftCode for the sibling call
   `IDSSimulatorLocalPairingAddPairedDevice` names that parameter list. In
   the first agent's runs (its notes; not repeated in this round) an
   NSString peer was dropped by ids_simd and a missing queue ended the agent
@@ -549,12 +549,12 @@ Commands:
 
 | Command | Result |
 |---|---|
-| `ycode-sim unpair <pair>`, both devices shut down | "erased …/watch", exit 0; the watch directory kept only `ycode-device-type` and `ycode-udid` |
+| `swiftcode-sim unpair <pair>`, both devices shut down | "erased …/watch", exit 0; the watch directory kept only `swiftcode-device-type` and `swiftcode-udid` |
 | the same pair again | "Invalid device pair: …", exit 148 |
-| `ycode-sim pair phone watch` | a pair UUID, exit 0 |
-| `ycode-sim pair watch phone` (already paired) | refused, "they are already paired (pair …)", exit 1 |
+| `swiftcode-sim pair phone watch` | a pair UUID, exit 0 |
+| `swiftcode-sim pair watch phone` (already paired) | refused, "they are already paired (pair …)", exit 1 |
 
-Paired boots (times from both `ycode-simd` starts, which were 4 ms apart;
+Paired boots (times from both `swiftcode-simd` starts, which were 4 ms apart;
 guest log times converted with the host clock):
 
 | | p1 | p2 |
@@ -584,7 +584,7 @@ disconnect (its completion after 0.0–0.5 s), link down, and 709 of
 host logged its shutdown and its own 709. The **first paired boot** reached
 the watch face in 64.9 s (the reference: 54.4 s to terminal under light
 load, §3.2); the pair was recorded 23–48 s after the start (the reference:
-within 11 s). Under Ycode both endpoints and the connect were in place by
+within 11 s). Under SwiftCode both endpoints and the connect were in place by
 the first poll (5 s; ids_simd logged the connect 6–8 s after the start in
 p1); most of the remaining wait is nanoregistryd starting during the first
 boot. A peer that stops without an unpair (link down: 709 and no agent
@@ -646,8 +646,8 @@ watch build for a watch).
 9. Which guest calls the reference's agent makes for remove-unpaired
    (reading the guest's own pair list), for NanoRegistry's side of an
    unpair, and for set-active with a peer paired before ("Switching", §3.1).
-   Ycode's agent logs these requests only (§8.4).
-   **Partly answered under Ycode (§10.5)**: with one watch, set-active for
+   SwiftCode's agent logs these requests only (§8.4).
+   **Partly answered under SwiftCode (§10.5)**: with one watch, set-active for
    a peer paired before needs no call (repeat paired boots work). The
    NanoRegistry unpair (or remove-unpaired) call **is needed**: without
    it a phone paired again with the same watch refuses the pairing
@@ -660,18 +660,18 @@ watch build for a watch).
    `NRPairedDeviceRegistry`; the pair list from `getPairedDevices` and
    each device's `NRDevicePropertyPairingID`.
 10. When NanoRegistry's pairing completion is called and with which
-    arguments: under Ycode it had not come minutes after nanoregistryd
+    arguments: under SwiftCode it had not come minutes after nanoregistryd
     recorded the pair, with the relay a stub (§8.4).
-    **Answered under Ycode (§10.5)**: with the relay it comes 23–31 s
+    **Answered under SwiftCode (§10.5)**: with the relay it comes 23–31 s
     after the call, its first word 0.
 11. Whether `transferUserInfo` reaches the receiving app in the reference
     (`session(_:didReceiveUserInfo:)`), and how the receiving side gets the
-    transfer's contents: under Ycode the sender's transfer finishes without
+    transfer's contents: under SwiftCode the sender's transfer finishes without
     error and the receiver's wcd gets the IDS message, but the receiving app
     gets nothing (§10.4). §5 records only the sender's side.
     **Answered (§11.2)**: the reference behaves the same way — never
     delivered, in any app state.
-12. Under Ycode the phone reports `isWatchAppInstalled` true and a
+12. Under SwiftCode the phone reports `isWatchAppInstalled` true and a
     `watchDirectoryURL` for a watch app installed directly on the watch
     after a clean pairing (r2, r3), and false and nil when its registry
     refused the pairing (r4); the reference reported false and nil (§5).
@@ -684,7 +684,7 @@ watch build for a watch).
     paired with before (`pair_activate`; the agent's
     `switchToSimulator:…`), does the phone's WatchConnectivity follow (the
     app's session deactivates and activates with the new watch)? Under
-    Ycode the registry switches, but the phone's wcd logs "Handling switch
+    SwiftCode the registry switches, but the phone's wcd logs "Handling switch
     with nil pairing ID" and "No matching NRDevice for active IDS device"
     and the app's session stays with the old watch. Where does wcd's
     active IDS device come from, and which of its properties must match an
@@ -695,19 +695,19 @@ watch build for a watch).
     reboot). Only a switch to a **newly paired** watch is followed, through
     NanoRegistry's device-did-pair event.
 14. *(W6, §13)* The IDE side the spec lacks: the title of a run
-    destination that is an iPhone with its paired watch (Ycode: "<phone>
+    destination that is an iPhone with its paired watch (SwiftCode: "<phone>
     with <watch>"); Device Hub's Pair Apple Watch… form (fields, which
     watches it offers, whether it creates one); and whether creating an
     iPhone in Device Hub or Xcode offers a paired watch in the same step
-    (Ycode: Add Device ▸ iPhone with Paired Watch…).
+    (SwiftCode: Add Device ▸ iPhone with Paired Watch…).
     **Partly answered (§14.2)**: on the command line the row is the phone
     itself (its name, `platform:iOS Simulator`, its UDID); the GUI title,
     the Pair form and the create flow need the GUI and were not observed.
 
-## 10. Round W5 under Ycode (agent PAIR-RELAY, 2026-10-30)
+## 10. Round W5 under SwiftCode (agent PAIR-RELAY, 2026-10-30)
 
-Clean-room implementation of P-6 and P-7 and Ycode's results. Evidence is
-level 3: Ycode's own simulator on the arm64 Linux host, the same devices as
+Clean-room implementation of P-6 and P-7 and SwiftCode's results. Evidence is
+level 3: SwiftCode's own simulator on the arm64 Linux host, the same devices as
 §8 (iPhone 18 Pro on iOS 27.0 24A434, Apple Watch Series 12 46mm on
 watchOS 27.0 24R362), the guests' own logs (`log stream` one-shots of
 nanoregistryd, ids_simd, wcd, the pairing agent and our app), the relay's
@@ -718,14 +718,14 @@ reference tool was run or opened for this round.
 
 | Req. | Where | Status |
 |---|---|---|
-| P-6 relay | `YcodeHostServices/PairingTransportRelay.swift` (both halves, portable); `ycode-simd/PairingHost.swift` (`TransportPairingRelay`, the default; `YCODE_PAIRING_RELAY=ack\|none` keep the W4 stub) | **done**: both directions, every request answered in the runs (§10.4) |
+| P-6 relay | `SwiftCodeHostServices/PairingTransportRelay.swift` (both halves, portable); `swiftcode-simd/PairingHost.swift` (`TransportPairingRelay`, the default; `SWIFTCODE_PAIRING_RELAY=ack\|none` keep the W4 stub) | **done**: both directions, every request answered in the runs (§10.4) |
 | P-7 latency, order, size | the same | **done**: relay share median 1–2 ms per request, order kept per direction, requests up to 11.8 MB carried (16 MiB allowed) |
 | Peer absence | the relay and §8's endpoint removal | **done**: in-flight requests answered `MACH_SEND_INVALID_DEST`, later sends fail in the guest with it (dead name); nothing hangs (§10.4) |
 | `mach_msg_server`, `mach_msg_server_once` | `SimHostLibs/kernel/machmsg.c` | **added**: ids_simd serves `IDSSimRPC.local` with `mach_msg_server_once`; the stub left every request queued (§10.3) |
 | Apps on the watch | the pairing agent: `installApp`, `appState`, `openApp` (diagnostics) | an app is installed and opened directly on a device; used for the watch app of our probe |
 | WCProbe | `SimGuestAgents/wcprobe`, `build-wcprobe.sh` | our own iOS app with an embedded watch app, from the public WatchConnectivity documentation |
 
-### 10.2 Ycode decisions
+### 10.2 SwiftCode decisions
 
 - **Frames.** Two link frames (binary property lists on the rendezvous
   socket of §8.2): `relay-request {seq, generation, id, body, ool, reply,
@@ -738,7 +738,7 @@ reference tool was run or opened for this round.
   monotonic clock at the near half's send (both halves run on one host),
   for the one-way time. A message that carries port rights is refused
   (`MACH_SEND_INVALID_RIGHT`): rights cannot cross VMs and none is expected
-  (§4.3). Ycode does not parse the plist.
+  (§4.3). SwiftCode does not parse the plist.
 - **Near half** (the device whose guest sent). The endpoint's thread takes
   each request off `remote.<peer>`, numbers it per peer, keeps the guest's
   send-once reply right, and sends the frame. The peer's answer is sent on
@@ -752,9 +752,9 @@ reference tool was run or opened for this round.
   and sends them back. The guest's `IDSSimRPC.local` is found by 702 once
   and cached; a dead cached right is looked up again once.
 - **Errors (no guest waits forever).** No link, a 702 that keeps failing
-  for `YCODE_PAIRING_RELAY_LOOKUP_S` (20 s), or a far send to a dead port:
+  for `SWIFTCODE_PAIRING_RELAY_LOOKUP_S` (20 s), or a far send to a dead port:
   `RetCode` `MACH_SEND_INVALID_DEST` (0x10000003, what a sender sees when
-  its peer is gone, §4.2). No answer in `YCODE_PAIRING_RELAY_TIMEOUT_S`
+  its peer is gone, §4.2). No answer in `SWIFTCODE_PAIRING_RELAY_TIMEOUT_S`
   (60 s): `MACH_SEND_TIMED_OUT`; the far reply port goes, so a late reply
   is dropped. The far guest drops the reply right: `MIG_SERVER_DIED`. Link
   down: every request of this guest still waiting is answered
@@ -766,26 +766,26 @@ reference tool was run or opened for this round.
   (out-of-line bytes plus body) is answered `MACH_SEND_TOO_LARGE`. The
   initial paired sync sent an 11.8 MB request (§10.4), far above the
   reference's 67 KB (§4.3).
-- **No delay of Ycode's own** (P-7, §4.4): the simulated link stays
+- **No delay of SwiftCode's own** (P-7, §4.4): the simulated link stays
   ids_simd's.
 - **`pairing relay`** (the control socket and the rendezvous socket's
   `command`) prints the counters: requests, bytes, the largest, replies,
   failures, timeouts per direction; the near half's round trip and the far
   half's one-way time (min, median, max).
-- **Apps on a watch.** Ycode's `ylaunch` is an iOS simulator build, so the
+- **Apps on a watch.** SwiftCode's `ylaunch` is an iOS simulator build, so the
   pairing agent got three diagnostics requests, `installApp path=<guest
   path>`, `appState bundleID=…` and `openApp bundleID=…`, from the
   interfaces of `app-install-launch.md` §4.1, §4.3, §4.4. `openApp` uses
   the workspace and, when that refuses (it did once on the watch), the
   FrontBoard open-application service; the agent's entitlements now carry
   `com.apple.frontboard.launchapplications` for it. Driven with
-  `ycode-simd --device D --control pairing agent installApp path=…`.
-- **WCProbe** (Ycode's own app). One Swift source for both sides: the
+  `swiftcode-simd --device D --control pairing agent installApp path=…`.
+- **WCProbe** (SwiftCode's own app). One Swift source for both sides: the
   default `WCSession`, its state every 5 s, an application context and a
   user-info transfer after activation, `sendMessage` with a reply every
   3 s while reachable, after five replies a burst of 20 messages and one
   64 KiB `sendMessageData`; one log line each (`NSLog` and
-  `<tmp>/wcprobe.log`). Layout of §5: `WCProbe.app` (`dev.ycode.wcprobe`)
+  `<tmp>/wcprobe.log`). Layout of §5: `WCProbe.app` (`dev.swiftcode.wcprobe`)
   with `Watch/WCProbeWatch.app` (`WKApplication`,
   `WKCompanionAppBundleIdentifier`).
 
@@ -795,7 +795,7 @@ The first runs carried the first request into the far guest and got no
 reply. The far ids_simd then logged "Error processing
 com.apple.IDSSimRPC.local message: 46" about 2 400 times a second, and
 `--trace-name ids_simd` showed why: ids_simd serves its port with
-`mach_msg_server_once`, which Ycode's `libsystem_kernel` had only as an
+`mach_msg_server_once`, which SwiftCode's `libsystem_kernel` had only as an
 unimplemented stub, so each call returned without taking the request and
 the dispatch source fired again. W4's stub relay never sent anything into
 a guest, so this did not show. `mach_msg_server_once` and `mach_msg_server`
@@ -830,7 +830,7 @@ absence.
 
 What WCProbe saw (r2; r3 the same unless noted):
 
-| Question | Ycode |
+| Question | SwiftCode |
 |---|---|
 | `isSupported`, activation | true; activated at once on both |
 | Phone `isPaired` / `isWatchAppInstalled` / `watchDirectoryURL` | true / **true** / set — with the watch app installed directly on the watch (the reference: false, nil; §9 Q12) |
@@ -845,7 +845,7 @@ What WCProbe saw (r2; r3 the same unless noted):
 | Phone stopped (absence, r2 90 s, r3 90 s) | the relay answered the one request in flight `MACH_SEND_INVALID_DEST`; the endpoint went (709); the watch's ids_simd logged "Failed to deliver request: 268435459" for every later send (as §4.2) and "Error obtaining type of remote pairing port: 15"; the watch app's `isReachable` **stayed true** (as §5); its `sendMessage` calls failed after 60 s with WCErrorDomain 7017 "Transfer timed out"; nothing hung |
 
 Against the reference (§4.4, §5: fastest one-way 0.92 s, fastest round
-trip 2.0 s, under heavy host load): Ycode's fastest round trips are 0.6–1.2 s
+trip 2.0 s, under heavy host load): SwiftCode's fastest round trips are 0.6–1.2 s
 and its medians 1.2–1.9 s, its fastest one-way 0.2–0.8 s. The relay's own
 share is about 1–2 ms a request; the rest is ids_simd's simulated link
 (its batched send queue and per-service receive delay, §4.4), which runs
@@ -896,7 +896,7 @@ still reached the phone app.
 
 ### 10.6 Tests
 
-- `PairingTransportRelayTests` (YcodeHostServicesTests; Mac, x86-64,
+- `PairingTransportRelayTests` (SwiftCodeHostServicesTests; Mac, x86-64,
   Thor): two `DarwinSystem`s as the two VMs, real host-task ports — a
   request's region arrives byte for byte with the same id, body, size 56
   and a send-once reply right, and the far guest's own `RetCode` comes
@@ -911,9 +911,9 @@ still reached the phone app.
 - `DevicePairingTests`: a 16 MiB relay request fits a frame, 17 MiB does not.
 - Results: Mac `swift build && swift test`: all pass but the known flaky
   `BSDFastPathTests.smallTrapsMatchTheLockedPath` (passes alone); x86-64
-  Linux: all pass; the Thor's debug suites: YcodeDarwinABITests (154),
-  YcodeDarwinKernelTests (429), YcodeSimdTests (90), YcodeSimFeaturesTests
-  (39), YcodeHostServicesTests (69) pass; the Thor's release build with
+  Linux: all pass; the Thor's debug suites: SwiftCodeDarwinABITests (154),
+  SwiftCodeDarwinKernelTests (429), SwiftCodeSimdTests (90), SwiftCodeSimFeaturesTests
+  (39), SwiftCodeHostServicesTests (69) pass; the Thor's release build with
   SimHostLibs' host tests: 0 failures; `scripts/lint.sh` exits 0.
   `mach_msg_server(_once)` has no host unit test (it is guest code that
   traps); runs r2–r4 exercise it in every ids_simd.
@@ -925,7 +925,7 @@ still reached the phone app.
   with several watches; Q11 (user-info delivery) and Q12
   (`isWatchAppInstalled` after a direct install) — all for the dirty room.
 - `transferFile` and complication user info were not run (§9 Q5).
-- W6 (P-8, P-9): the IDE creates and lists pairs through `ycode-sim
+- W6 (P-8, P-9): the IDE creates and lists pairs through `swiftcode-sim
   pair`/`list-pairs --json`, installs the watch app on the watch (the
   agent's `installApp`/`openApp`, or a watchOS build of a launcher), and
   shows "Paired with …".
@@ -1042,7 +1042,7 @@ Other sequences seen:
 - **Delivered**, by contrast: application context (a protobuf message;
   delivered to a running app, and at the next activation to an app that
   was not running) and **complication user info** (below).
-- Ycode's W5 result (senders finish, receivers' wcd get the message, apps
+- SwiftCode's W5 result (senders finish, receivers' wcd get the message, apps
   get nothing) is therefore the reference behaviour.
 
 ### 11.3 Q5: `transferFile` and complication user info
@@ -1096,9 +1096,9 @@ traffic **was** delayed (round 0 saw it off; §4.4).
   can skip its embedded watch app. Which install call Xcode makes for the
   watch was not observed (no GUI run).
 
-### 11.5 What Ycode must do
+### 11.5 What SwiftCode must do
 
-- **P-10** (**done in W3b, §12**; Q9; Ycode's pairing agent, `SimGuestAgents/pairing`) Carry out
+- **P-10** (**done in W3b, §12**; Q9; SwiftCode's pairing agent, `SimGuestAgents/pairing`) Carry out
   the remaining requests with the calls of §11.1:
   - set-active: read the registry's paired devices and their
     `NRDevicePropertyPairingID`; peer present and already active → no
@@ -1113,11 +1113,11 @@ traffic **was** delayed (round 0 saw it off; §4.4).
   Done when: a phone paired again with an erased watch of the same UDID
   pairs without "already paired with device" and reports the watch app
   installed (§10.4 r4 repeated), and a phone with two watches switches
-  between them (`ycode-sim pair-activate`, then boot the other watch).
+  between them (`swiftcode-sim pair-activate`, then boot the other watch).
 - **P-11** (**done in W3b, §12**; host sequencer, correction of §8) On a peer's shutdown send the
   survivor's agent **disconnect** (besides 709). A set-active for a peer
   that is not running may be sent at once, as the reference does, but
-  Ycode's `pair-activate` must not wait minutes for it (Ycode decision:
+  SwiftCode's `pair-activate` must not wait minutes for it (SwiftCode decision:
   record the activation at once, let the agent's request finish or fail
   in the background).
 - **P-12** (**done in W3b, §12**; relay, §10.2) Remove the 16 MiB request cap: a `transferFile`
@@ -1129,12 +1129,12 @@ traffic **was** delayed (round 0 saw it off; §4.4).
 - **P-13** (**kept in W3b, §12**; WatchConnectivity transfers) Nothing to add for parity: user
   info and files are not delivered to apps in the reference; complication
   user info and application context are, through the relay as it is.
-  Ycode must not deliver user info or files by a path of its own unless
-  the owner asks for it (a Ycode decision with a visible switch).
+  SwiftCode must not deliver user info or files by a path of its own unless
+  the owner asks for it (a SwiftCode decision with a visible switch).
 - **P-9 (refined)** Install the watch app **directly on the watch** (the
   agent's `installApp`); the guests then tell the phone themselves.
   Pushing the embedded watch app through the phone needs a socket in a
-  `/tmp` both guests can reach and fails in the reference anyway; Ycode
+  `/tmp` both guests can reach and fails in the reference anyway; SwiftCode
   need not support it. Run destinations for a watch scheme: each watch
   simulator, and each phone with an active paired watch.
 
@@ -1142,17 +1142,17 @@ traffic **was** delayed (round 0 saw it off; §4.4).
 
 Created with `simctl create` and deleted at the end with their pairs (the
 device set's pair records were identical before and after):
-`ycode-test-phone2-a`, `ycode-test-watch2-a`, `ycode-test-watch2-b`. Runs,
+`swiftcode-test-phone2-a`, `swiftcode-test-watch2-a`, `swiftcode-test-watch2-b`. Runs,
 in order: fresh pair and both booted (install through the phone, direct
 install, user info, files, complication info), watch A down and a second
 pair activated (the 4.5 min set-active), switch back to A, unpair with
 both booted, pair A again, unpair with both down and a phone boot alone
 (remove-unpaired).
 
-## 12. Round W3b under Ycode (agent WATCH-W3B, 2026-10-30)
+## 12. Round W3b under SwiftCode (agent WATCH-W3B, 2026-10-30)
 
-Clean-room implementation of P-10 … P-13 (§11.5) and Ycode's results.
-Evidence is level 3: Ycode's own simulator on the arm64 Linux host (an
+Clean-room implementation of P-10 … P-13 (§11.5) and SwiftCode's results.
+Evidence is level 3: SwiftCode's own simulator on the arm64 Linux host (an
 iPhone 18 Pro on iOS 27.0 24A434, two Apple Watch Series 12 46 mm on
 watchOS 27.0 24R362), the guests' own logs, the pairing agent's replies,
 the relay's counters and our WCProbe. No Apple simulator, Xcode or
@@ -1162,16 +1162,16 @@ reference tool was run or opened for this round.
 
 | Req. | Where | Status |
 |---|---|---|
-| P-10 set-active | `SimGuestAgents/pairing/ycode-pairing-agent.m` (protocol 2): reads the registry (`getPairedDevices`, each device's `NRDevicePropertyPairingID`, `getActivePairedDevice`); peer active → no call; present → `switchToSimulator:withQueue:withCompletion:`; absent → `pairWithSimulator:…` | **done** for the registry: pairing again (b1) and switching both ways (c1, e1); the phone's WatchConnectivity does **not** follow a switch to a watch it paired with before (§12.3, Q13) |
+| P-10 set-active | `SimGuestAgents/pairing/swiftcode-pairing-agent.m` (protocol 2): reads the registry (`getPairedDevices`, each device's `NRDevicePropertyPairingID`, `getActivePairedDevice`); peer active → no call; present → `switchToSimulator:withQueue:withCompletion:`; absent → `pairWithSimulator:…` | **done** for the registry: pairing again (b1) and switching both ways (c1, e1); the phone's WatchConnectivity does **not** follow a switch to a watch it paired with before (§12.3, Q13) |
 | P-10 unpair | the agent: `unpairWithSimulator:withQueue:withCompletion:`, answered at its completion (30 s at most); the host then sends disconnect (§8.2's order) | **done**: completion 2.1 s after the call (b1) |
 | P-10 remove-unpaired | the agent: the registry's pairing IDs minus the host's list, `unpairWithSimulator:…` for each | **done**: a phone booted after its second watch's pair was removed unpaired it (c1 D) |
 | P-11 disconnect | `PairingSequencer.linkDown`: 709 and the port destroyed, then **disconnect** to the survivor's agent when it had connected | **done**: the watch's agent got disconnect when the phone stopped (a1) |
-| P-11 activation | `pair-activate` records the activation and returns at once; the phone gets a switch-only set-active at once (`switchTo`, `peerRunning` false; `YCODE_PAIRING_SWITCH_ABSENT=defer`: the normal set-active when the watch runs); the outcome of the last set-active per peer is in `pairing state` | **done**: 0.03 s and 2.6 s (c1), 0.3 s and 0.02 s (e1) |
+| P-11 activation | `pair-activate` records the activation and returns at once; the phone gets a switch-only set-active at once (`switchTo`, `peerRunning` false; `SWIFTCODE_PAIRING_SWITCH_ABSENT=defer`: the normal set-active when the watch runs); the outcome of the last set-active per peer is in `pairing state` | **done**: 0.03 s and 2.6 s (c1), 0.3 s and 0.02 s (e1) |
 | P-12 size | `PairingTransportRelay`: no 16 MiB cap; out-of-line bytes above one 4 MiB piece cross as `relay-chunk` frames | **done**: the 20 MiB `transferFile` (one request of 20 975 305 bytes) crossed (a1) |
-| P-13 | nothing delivers user info or files to apps by a path of Ycode's own | **kept** (a1: the watch app got no file) |
+| P-13 | nothing delivers user info or files to apps by a path of SwiftCode's own | **kept** (a1: the watch app got no file) |
 | Complication user info | the relay as it is | **delivered** (a1, §12.3) |
 
-### 12.2 Ycode decisions
+### 12.2 SwiftCode decisions
 
 - **Reading the registry.** The agent asks the registry object of §8.4
   for `getPairedDevices` and `getActivePairedDevice` (§11.1's selector
@@ -1179,14 +1179,14 @@ reference tool was run or opened for this round.
   is not ready (a first boot) cannot hold the agent. A device's pairing ID
   is its value for the key the runtime exports as
   `NRDevicePropertyPairingID` (`dlsym`); the agent reads it with
-  `-valueForProperty:` when the device answers that selector (Ycode's
+  `-valueForProperty:` when the device answers that selector (SwiftCode's
   choice of accessor; §11.1 names the key, not the accessor), else with
   key-value coding. An NSUUID or a UUID string is accepted. When the
   registry cannot be read, set-active falls back to §8.2's record
-  (`DEV/ycode-paired-peers`: paired before → no call; else pair), and
+  (`DEV/swiftcode-paired-peers`: paired before → no call; else pair), and
   remove-unpaired removes nothing.
 - **Set-active.** As §11.5: the active device → no call and success (the
-  reference's POSIX 37 is ignored by its host, so Ycode does not produce
+  reference's POSIX 37 is ignored by its host, so SwiftCode does not produce
   it); present → switch (the request answered at the completion or after
   20 s, a later completion reported as a `log` event, as for pair, §8.4);
   absent → pair. The reply carries `switched` when a switch was made; the
@@ -1194,18 +1194,18 @@ reference tool was run or opened for this round.
 - **Activation of an absent watch (P-11).** The reference sends set-active
   to the phone at once and its `pair_activate` waits for the answer (0.18 s
   for a switch, 4 min 27 s and a failed pairing for a never-paired watch,
-  §11.1). Ycode records the activation at once and returns, and the
+  §11.1). SwiftCode records the activation at once and returns, and the
   phone's host sends `setActive {peer, peerRunning: false}` at once: the
   agent switches when the registry has the peer and **makes no call
   otherwise** (a pairing started with the peer absent fails after minutes
   and leaves a record that is deleted later, §11.1); the pairing then comes
   with the normal set-active when the watch runs. With
-  `YCODE_PAIRING_SWITCH_ABSENT=defer` nothing is sent until the watch runs
+  `SWIFTCODE_PAIRING_SWITCH_ABSENT=defer` nothing is sent until the watch runs
   (its set-active then switches while it is connected); run e1 tried that
-  default and it changed nothing for WatchConnectivity (§12.3), so Ycode
+  default and it changed nothing for WatchConnectivity (§12.3), so SwiftCode
   keeps the reference's timing. A pair's first reading at a boot sends
   nothing (the reference sends set-active only with both up, §3.2). The
-  outcome is in `ycode-simd --device <phone> --control pairing state`
+  outcome is in `swiftcode-simd --device <phone> --control pairing state`
   ("(set-active done at … s: …)"); `pair-activate` prints that the switch
   runs in the background.
 - **Disconnect on a peer's shutdown.** Link down: 709 and the port
@@ -1214,7 +1214,7 @@ reference tool was run or opened for this round.
   unpair keeps its order (unpair, disconnect, then the endpoint), and does
   not send a second disconnect when the link then closes.
 - **Pieces (P-12).** A request or reply whose out-of-line bytes are more
-  than one piece (4 MiB, `YCODE_PAIRING_RELAY_CHUNK_KB`) is sent as
+  than one piece (4 MiB, `SWIFTCODE_PAIRING_RELAY_CHUNK_KB`) is sent as
   `relay-chunk {seq, generation, part: request|reply, data}` frames, then
   its own frame with `oolSizes` (the regions' sizes) in place of `ool`; the
   far half joins the pieces and splits them by those sizes. Smaller
@@ -1224,7 +1224,7 @@ reference tool was run or opened for this round.
   requests queued for delivery into a guest are bounded (64 MiB: the link's
   reader waits until the guest has taken enough; one message larger than
   the bound goes alone). A sanity bound remains: a request of more than
-  1 GiB (`YCODE_PAIRING_RELAY_MAX_MB`) is answered `MACH_SEND_TOO_LARGE`.
+  1 GiB (`SWIFTCODE_PAIRING_RELAY_MAX_MB`) is answered `MACH_SEND_TOO_LARGE`.
   The frame limit of the rendezvous socket stays 17 MiB. The far half's
   one-way time is now measured from the message's own frame (its pieces
   before it are not counted).
@@ -1247,7 +1247,7 @@ new Series 12 46 mm devices.
 | a1 | relay until the phone stopped | phone → watch 750 requests (53.2 MB, largest 20 975 305; three in 11 pieces), watch → phone 775 (1.8 MB); **0 failed, 0 timed out** |
 | a1 | the phone stops (P-11) | the watch's host: link down, the one request in flight answered `MACH_SEND_INVALID_DEST`, 709, then **disconnect** to its agent (completion at once) |
 | b1 | repeat paired boot | both agents: "already the active device: no call" |
-| b1 | `ycode-sim unpair` with both running (P-10) | 9.9 s; the phone's agent: `unpairWithSimulator:…` completion **2.1 s** after the call (the reference: about 2 s), then disconnect; the phone's registry then empty; the watch shut down and erased |
+| b1 | `swiftcode-sim unpair` with both running (P-10) | 9.9 s; the phone's agent: `unpairWithSimulator:…` completion **2.1 s** after the call (the reference: about 2 s), then disconnect; the phone's registry then empty; the watch shut down and erased |
 | b1 | the same watch (same UDID) paired again and booted (it waited about 820 s for a boot slot) | the phone's registry did not have it: `pairWithSimulator:…` completion after 41.9 s **without error** (§10.4 r4: "already paired with device"); the watch's after 11.2 s |
 | b1 | WCProbe after pairing again | phone: activated, `isPaired` and **`isWatchAppInstalled` true**, reachable; messages answered both ways (the phone's pings 3.7 s round trip, the watch's sequence to 50 received); user info finished without error |
 | c1 | a second watch: booted alone once, paired with the running phone (inactive), made active while down (the switch-only set-active at once, the default) | `pair-activate` returned in **0.03 s**; the phone's agent: "not in the registry: no call" |
@@ -1275,10 +1275,10 @@ new Series 12 46 mm devices.
   test` on the branch merged with the main line, 1 494 tests: all pass but
   `LevelsViewTests.defaultsColumnAndProvidingLevel` (an IDE test that ran
   out of time in the parallel run and passes alone); x86-64 Linux, 1 468
-  tests, 0 failures; the Thor's debug suites (`YCODE_LOCK_ORDER_CHECK=1
-  YCODE_IPC_LOCKS_TESTS=1`): YcodeDarwinABITests (154),
-  YcodeDarwinKernelTests (430), YcodeSimdTests (95),
-  YcodeSimFeaturesTests (40), YcodeHostServicesTests (72) pass; the Thor's
+  tests, 0 failures; the Thor's debug suites (`SWIFTCODE_LOCK_ORDER_CHECK=1
+  SWIFTCODE_IPC_LOCKS_TESTS=1`): SwiftCodeDarwinABITests (154),
+  SwiftCodeDarwinKernelTests (430), SwiftCodeSimdTests (95),
+  SwiftCodeSimFeaturesTests (40), SwiftCodeHostServicesTests (72) pass; the Thor's
   release build with SimHostLibs' host tests: 0 failures;
   `scripts/lint.sh` exits 0.
 
@@ -1286,19 +1286,19 @@ new Series 12 46 mm devices.
 
 - W6 (P-8, P-9): the IDE's pair UI and running a watch app.
 - **§9 Q13** (new, dirty room): WatchConnectivity on the phone after a
-  switch. Under Ycode the registry switches (c1, e1) but the phone's wcd
+  switch. Under SwiftCode the registry switches (c1, e1) but the phone's wcd
   does not follow it (§12.3); the answer tells whether the agent must make
   a further call or the transport must carry something it does not.
 - §11.1's wait for data migration on a watch before set-active is not
-  modelled; Ycode's runs paired without it.
+  modelled; SwiftCode's runs paired without it.
 - §9 Q1 (the 145 s stall) and Q4 (default pairs) stay open.
 
-## 13. Round W6 under Ycode: the IDE (agent PAIR-IDE, 2026-10-30)
+## 13. Round W6 under SwiftCode: the IDE (agent PAIR-IDE, 2026-10-30)
 
 Clean-room implementation of P-8 and P-9 (with §11.4's refinement) in
-Ycode's IDE, from §2, §6, §8.2, §10.2, §11.4, `watchos.md` §8 and §12,
+SwiftCode's IDE, from §2, §6, §8.2, §10.2, §11.4, `watchos.md` §8 and §12,
 and `specs/ide/device-hub.md`, `destinations.md`, `run.md`. Evidence is
-level 3: Ycode's IDE on the Mac driving Ycode's own simulator on the arm64
+level 3: SwiftCode's IDE on the Mac driving SwiftCode's own simulator on the arm64
 Linux host (iPhone 18 Pro on iOS 27.0 24A434, Apple Watch Series 12 46 mm
 on watchOS 27.0 24R362). No Apple simulator, Xcode, Device Hub or
 reference tool was run, opened or observed for this round; Apple's
@@ -1311,21 +1311,21 @@ command-line `xcodebuild` built our own sample.
 | P-8 show pairs | Device Hub: "Paired with <watch> ›" on an iPhone with an active pair (§6, `device-hub.md` §4.1) and "Paired with <phone> ›" on a watch, between the device and its controls; Info rows Active Watch, Paired Watches, Pair, Pairing (`device-hub.md` §I.9) | **done** |
 | P-8 create a pair | an iPhone's Pair Watch… (an existing unpaired watch, or a new one: name, watchOS version, model); Add Device ▸ iPhone with Paired Watch… (a new iPhone and a new watch, paired); Add Device ▸ Apple Watch… | **done** |
 | P-8 unpair, make active | the row's Unpair “<watch>” (the watch is shut down and erased, P-3) and Make “<watch>” Active | **done** |
-| P-9 destinations | each Ycode watch, and each iPhone with an active paired watch ("<phone> with <watch>"), rows of watchOS schemes (`destinations.md`) | **done** |
+| P-9 destinations | each SwiftCode watch, and each iPhone with an active paired watch ("<phone> with <watch>"), rows of watchOS schemes (`destinations.md`) | **done** |
 | P-9 run | iOS scheme on a paired iPhone: the iOS app, then its embedded watch app **directly on the watch** (the agent's `installApp`); watch scheme on a phone-with-watch row: the companion iOS app built and launched, the watch app installed and opened on the active watch; watch scheme on a watch row: installed and opened there (`run.md` §Watch apps) | **done** |
 | P-9 no paired watch | §11.4's texts, "The install is directed to a paired Apple Watch, but there isn't one." / "Select an iPhone Run Destination with a paired Apple Watch." | **done** |
-| watchOS build | the companion iOS app's build builds the watch target for `watchsimulator` (the iOS app's target dependency and its "Embed Watch Content" copy phase); a watch scheme alone builds for `generic/platform=watchOS Simulator` | **done** with `xcodebuild` and Ycode's build engines (`WatchSamples`) |
+| watchOS build | the companion iOS app's build builds the watch target for `watchsimulator` (the iOS app's target dependency and its "Embed Watch Content" copy phase); a watch scheme alone builds for `generic/platform=watchOS Simulator` | **done** with `xcodebuild` and SwiftCode's build engines (`WatchSamples`) |
 | Compact watch window | the hub's Open in New Window on a running watch; the scroll wheel turns the crown (`watchos.md` §12) | **done** (§13.3) |
-| Sample | `ycode/Samples/WatchSamples/WatchSamples.xcodeproj`: `WCProbe` (iOS, `dev.ycode.wcprobe`) embedding `WCProbeWatch` (watchOS, `dev.ycode.wcprobe.watchkitapp`), sources from `SimGuestAgents/wcprobe` (§10.2) | **added** |
+| Sample | `swiftcode/Samples/WatchSamples/WatchSamples.xcodeproj`: `WCProbe` (iOS, `dev.swiftcode.wcprobe`) embedding `WCProbeWatch` (watchOS, `dev.swiftcode.wcprobe.watchkitapp`), sources from `SimGuestAgents/wcprobe` (§10.2) | **added** |
 
-### 13.2 Ycode decisions
+### 13.2 SwiftCode decisions
 
 - **One command per change.** The IDE runs the launcher's pairing
   commands of §8.2 over ssh with the device set named:
-  `exec env YCODE_SIM_DEVICE_SET='<data>/devices' '<launcher>'
+  `exec env SWIFTCODE_SIM_DEVICE_SET='<data>/devices' '<launcher>'
   pair|unpair|pair-activate|list-pairs --json …`. A device that never
-  booted gets its type record first (`ycode-device-type`, the file a boot
-  writes; `ycode-simd` refuses to pair a directory without one), so a pair
+  booted gets its type record first (`swiftcode-device-type`, the file a boot
+  writes; `swiftcode-simd` refuses to pair a directory without one), so a pair
   can be made before either device boots, as `simctl pair` allows (§2.2).
   The pair's UUID is the last output line that is a UUID.
 - **The IDE's copy of the pairs.** `list-pairs --json` (§8.2) is read when a
@@ -1333,16 +1333,16 @@ command-line `xcodebuild` built our own sample.
   each pairing command, every eighth state poll of the hub (about 16 s),
   and by a run on a phone-with-watch row before it starts. Each pair's
   devices are recognised by the directory name the listing gives in
-  brackets. The listing is kept in the defaults (`Ycode.remote.pairs`).
+  brackets. The listing is kept in the defaults (`SwiftCode.remote.pairs`).
 - **Created devices.** The hub's fixed rows are one device per runtime
   root and type (`run.md` §Runtimes and device types). Pairing needs
   watches and phones of the user's own, so devices created in the hub are
-  kept in the defaults (`Ycode.remote.createdDevices`: name, type id,
+  kept in the defaults (`SwiftCode.remote.createdDevices`: name, type id,
   runtime root, directory `<device name>-<type id>-<runtime>-<8 hex
-  digits>`); they are rows, run destinations (`ycode-remote-simulator:device:<directory>`)
-  and can be deleted (`ycode-sim --erase`), not while paired.
+  digits>`); they are rows, run destinations (`swiftcode-remote-simulator:device:<directory>`)
+  and can be deleted (`swiftcode-sim --erase`), not while paired.
 - **Phone-with-watch rows.** "<phone> with <watch>", platform watchOS, the
-  watch's runtime version, identifier `ycode-remote-simulator:paired:<phone
+  watch's runtime version, identifier `swiftcode-remote-simulator:paired:<phone
   directory>`; the watch is the phone's active one at the run's start. The
   reference's title for this row was not observed (Q14).
 - **The run** (`run.md` §Watch apps): the watch is started as Device Hub's
@@ -1362,20 +1362,20 @@ command-line `xcodebuild` built our own sample.
 ### 13.3 Runs (2026-10-30)
 
 The opt-in `PairedRunEndToEndTests` drives the IDE's own controllers on the
-Mac (a workspace window on `WatchSamples`, Device Hub with Ycode's rows
+Mac (a workspace window on `WatchSamples`, Device Hub with SwiftCode's rows
 only, forms answered by the test) against the arm64 Linux host (1-min load
 10–34 during the runs, other agents' boots in the shared slots); full boot,
 warm boot off. Fresh devices: both created by the run.
 
 | Step | Result (e1) |
 |---|---|
-| Add Device ▸ iPhone with Paired Watch… (iPhone 18 Pro, Series 12 46 mm) | both devices recorded, type records written, `ycode-sim pair` in **0.6 s**; the hub showed "Paired with Apple Watch Series 12 (46mm) ›" and the Info rows ("(active, disconnected)": neither runs) |
+| Add Device ▸ iPhone with Paired Watch… (iPhone 18 Pro, Series 12 46 mm) | both devices recorded, type records written, `swiftcode-sim pair` in **0.6 s**; the hub showed "Paired with Apple Watch Series 12 (46mm) ›" and the Info rows ("(active, disconnected)": neither runs) |
 | Run of `WCProbeWatch` on "iPhone 18 Pro with Apple Watch Series 12 (46mm)" | the companion `WCProbe` built (with `WCProbeWatch` for the watchOS simulator), uploaded; phone and watch first boots in parallel; "(active, connected)" within 2 min; both registries paired (phone's `pairWithSimulator:…` completion after 13.2 s, the watch's after 41.8 s) |
-| iOS app, then watch app | `ylaunch: launched dev.ycode.wcprobe`; then `installApp` on the watch **4.9 s**, `openApp` **0.38 s**; both apps running **209 s** after Run (build and both first boots included) |
+| iOS app, then watch app | `ylaunch: launched dev.swiftcode.wcprobe`; then `installApp` on the watch **4.9 s**, `openApp` **0.38 s**; both apps running **209 s** after Run (build and both first boots included) |
 | WatchConnectivity (WCProbe) | phone: activated, `isPaired` true; **`isWatchAppInstalled` true and a `watchDirectory`** 9.4 s after the phone app started (once the watch app was installed), reachable 1 s later; pings answered both ways: phone round trips n 22, min 0.81 s, median 2.79 s, max 12.1 s (host load 20–34); the bursts and the 64 KiB message answered (43 phone, 44 watch round-trip lines) |
 | Hub during the run | the phone's live screen ("WCProbe phone") with its capsule; the watch row with "Paired with iPhone 18 Pro ›" — its live display did not connect (the socket path, §13.2), fixed for e2 |
 | Stop | the phone's run stopped; the watch the run started was shut down |
-| Unpair from the hub | `ycode-sim unpair` with both shut down: "Unpaired; the watch was erased"; the watch's directory held only `ycode-device-type` and `ycode-udid` (P-3) |
+| Unpair from the hub | `swiftcode-sim unpair` with both shut down: "Unpaired; the watch was erased"; the watch's directory held only `swiftcode-device-type` and `swiftcode-udid` (P-3) |
 
 Run e2 (the same steps on two new devices, after the socket fix): pair
 0.5 s; both apps running **141 s** after Run; round trips answered on
@@ -1388,26 +1388,26 @@ scroll offset 1 122 points, `watchos.md` §12.3 measured 1 119.5 for its
 burst); Stop, then Unpair (the watch erased, as in e1), then Delete… of
 both devices erased them on the host.
 
-Screenshots (Ycode's own windows, `screencapture -l`, outside the
+Screenshots (SwiftCode's own windows, `screencapture -l`, outside the
 repository): `pair-ide-1-hub-paired.png`, `pair-ide-2-hub-phone-running.png`,
 `pair-ide-3-hub-watch-running.png`, `pair-ide-4-watch-compact.png`,
 `pair-ide-5-watch-compact-crown.png`, `pair-ide-6-hub-unpaired.png`.
 
 ### 13.4 Tests
 
-- `PairIDETests` (YcodeIDECoreTests; Mac and x86-64 Linux): the
+- `PairIDETests` (SwiftCodeIDECoreTests; Mac and x86-64 Linux): the
   `list-pairs --json` listing (status lines before it, a missing
   directory, active and connected), the pair UUID in `pair`'s output, the
   commands (device set, type records, the order watch then phone), the
   type record written only when missing (run by `/bin/sh`), the agent's
   `installApp`/`openApp` commands and the guest path with and without
-  `ycode-device-path` (run by `/bin/sh`), `agentIsUp`, created devices
+  `swiftcode-device-path` (run by `/bin/sh`), `agentIsUp`, created devices
   (targets, identifiers, directories, defaults, rows, a type its root does
   not run), watch and phone-with-watch destinations and their targets, the
   destination menu for watchOS and iOS schemes (deployment target), the
   sample's companion target and schemes, the embedded watch app, the
   pairs store, short display sockets.
-- `PairIDEHubTests` (YcodeUITests): the hub's capsule on phone and watch,
+- `PairIDEHubTests` (SwiftCodeUITests): the hub's capsule on phone and watch,
   Info rows, menu items, Add Device items, no pairing items without a
   watchOS runtime; Pair Watch… with an existing watch through a stand-in
   launcher (type records, `pair`, `list-pairs`), Make Active, Unpair (asked
@@ -1415,11 +1415,11 @@ repository): `pair-ide-1-hub-paired.png`, `pair-ide-2-hub-phone-running.png`,
   selected), Delete refused while paired, then erasing; Apple Watch…; the
   destination menu of `WatchSamples`' two schemes, the products' paths,
   and §11.4's failure of a run whose pair is gone.
-- `PairedRunEndToEndTests` (opt-in, `YCODE_E2E_PAIR_*`): §13.3.
+- `PairedRunEndToEndTests` (opt-in, `SWIFTCODE_E2E_PAIR_*`): §13.3.
 - Results (the branch merged with the main line): Mac `swift build &&
   swift test`, 2 193 tests, all pass (exit 0); x86-64 Linux, 1 721 tests,
   all pass but `SourceKitLSPEndToEndTests.diagnosticsCompletionDefinition`
-  (its 180 s limit, also alone; YcodeLanguage, untouched by this round);
+  (its 180 s limit, also alone; SwiftCodeLanguage, untouched by this round);
   `scripts/lint.sh` exits 0. The simulator code is unchanged, so the
   Thor's suites were not rerun; its release build of the branch built and
   ran e1 and e2.
@@ -1428,7 +1428,7 @@ repository): `pair-ide-1-hub-paired.png`, `pair-ide-2-hub-phone-running.png`,
 
 - Q13 (the phone's WatchConnectivity after a switch) still decides
   whether Make Active is useful for apps; the registry switches.
-- The watch app's debugger: no debugger attaches to Ycode's remote runs.
+- The watch app's debugger: no debugger attaches to SwiftCode's remote runs.
 - Gestures in the compact window wait for `watchos.md` Q15.
 - Q14 (new, dirty room): the reference's title of a phone-with-watch run
   destination, Device Hub's Pair Apple Watch… form, and whether Xcode
@@ -1437,8 +1437,8 @@ repository): `pair-ide-1-hub-paired.png`, `pair-ide-2-hub-phone-running.png`,
 ## 14. Dirty-room answers to §9 Q13 and Q14 (agent OBS-WATCH3, 2026-10-31)
 
 Reference: Xcode 27.1, CoreSimulator 1174.9.2; throwaway devices
-`ycode-test-phone3-a` (iPhone 18 Pro, iOS 27.0 24A434),
-`ycode-test-watch3-a` (Series 12 46 mm) and `ycode-test-watch3-b` (Ultra 4
+`swiftcode-test-phone3-a` (iPhone 18 Pro, iOS 27.0 24A434),
+`swiftcode-test-watch3-a` (Series 12 46 mm) and `swiftcode-test-watch3-b` (Ultra 4
 49 mm, both watchOS 27.0 24R362), deleted with their pairs at the end. Our
 WatchConnectivity probe (`WCProbe2`) ran in the phone's foreground
 throughout; the watch app was installed directly on each watch. Guest logs
@@ -1462,18 +1462,18 @@ NanoRegistry posts device-did-pair; even then the app's session waits for
 appconduitd to know the new device. The watch side was healthy in both
 cases (the watch app activated, `isCompanionAppInstalled` true).
 
-**What Ycode must do** (P-14):
+**What SwiftCode must do** (P-14):
 
-- Nothing for parity: Ycode's §12.3 result (registry switched, wcd
+- Nothing for parity: SwiftCode's §12.3 result (registry switched, wcd
   "Handling switch with nil pairing ID", the session left with the old
-  watch) is the reference's behavior. Ycode must not make the phone's apps
+  watch) is the reference's behavior. SwiftCode must not make the phone's apps
   switch by a path of their own.
-- IDE (Ycode decision, visible): after Make Active for a watch paired
+- IDE (SwiftCode decision, visible): after Make Active for a watch paired
   before, say that apps on the iPhone keep the previous watch until the
   iPhone restarts, and offer **Restart iPhone** (a phone reboot is the
   reference's recovery).
 - A switch to a newly paired watch delivers the inactive and deactivate
-  callbacks together, as above; Ycode's agent pairs through NanoRegistry
+  callbacks together, as above; SwiftCode's agent pairs through NanoRegistry
   (§11.1), which posts device-did-pair itself.
 
 ### 14.2 Q14: the phone-with-watch destination
@@ -1491,49 +1491,49 @@ cases (the watch app activated, `isCompanionAppInstalled` true).
 - The IDE's title of the row: **not observed** (GUI only). Level 4: the
   IDE's foundation framework has the format strings "%@ + %@", "%@ via %@"
   and "Installing on %@ via %@" with its proxied-device code; which one
-  titles a simulator row is not known. Ycode keeps "<phone> with <watch>"
+  titles a simulator row is not known. SwiftCode keeps "<phone> with <watch>"
   (§13.2) until the GUI is observed.
 - Device Hub's Pair Apple Watch… form and whether creating an iPhone offers
   a watch in the same step: **not observed** (GUI only). For reference,
   `devicectl device pairings` offers `list`, `pair --phone … --watch …`
   (the watch option repeatable), `set-active` and `unpair` (help text).
 
-What Ycode must do: nothing new. A command-line build that names the phone
+What SwiftCode must do: nothing new. A command-line build that names the phone
 for a watch scheme may be refused, as the reference refuses it.
 
-### 14.3 Ycode implementation (agent WATCH-W7, 2026-10-31)
+### 14.3 SwiftCode implementation (agent WATCH-W7, 2026-10-31)
 
 Clean-room work from §14.1 and §14.2. No Apple simulator, Xcode, Device Hub
 or reference tool was run or observed.
 
-- **Q13, the simulator: no change** (parity). Ycode's phone wcd behaves as
+- **Q13, the simulator: no change** (parity). SwiftCode's phone wcd behaves as
   the reference's after a switch to a watch paired before (§12.3); the
-  apps keep the old watch until the phone restarts. Nothing in Ycode makes
+  apps keep the old watch until the phone restarts. Nothing in SwiftCode makes
   them follow.
-- **Q13, the IDE** (P-14, **Ycode decision**): Device Hub's Make
+- **Q13, the IDE** (P-14, **SwiftCode decision**): Device Hub's Make
   “<watch>” Active on a running iPhone ends with the note "Apps on the
   iPhone keep using the previous watch until the iPhone restarts." and the
   buttons **Restart iPhone** / Later; Restart iPhone is the row's Restart
   (Shut Down, then Start). A shut-down iPhone gets no note. Details and
   texts: `specs/ide/device-hub.md` §I.10; test
   `PairIDEHubTests.makeActiveOffersToRestartARunningIPhone`.
-- **Q14, `ycodebuild -showdestinations`**: for a scheme whose platforms
+- **Q14, `swiftcodebuild -showdestinations`**: for a scheme whose platforms
   include `watchsimulator`, a phone whose active pair's watch is an
   available watchOS simulator (`xcrun simctl list -j pairs`, state
   "(active, …)") is listed among the available destinations as the phone
   itself, `{ platform:iOS Simulator, arch:<host>, id:<phone>, OS:<its OS>,
   name:<phone> }`, in the listing's usual simulator order (watches before
   phones); every watch stays listed under its own name; an iOS scheme's
-  listing is unchanged. **Ycode decisions**: §14.2 names the watchOS 27
-  watch; Ycode accepts any watchOS simulator watch (the reference's rule for
+  listing is unchanged. **SwiftCode decisions**: §14.2 names the watchOS 27
+  watch; SwiftCode accepts any watchOS simulator watch (the reference's rule for
   older watches was not observed), and the order of the phone's row among
-  the others was not recorded either. `ycodebuild build` naming the phone
-  for a watch scheme is not changed. Code: `YcodeXcodebuild`
+  the others was not recorded either. `swiftcodebuild build` naming the phone
+  for a watch scheme is not changed. Code: `SwiftCodeXcodebuild`
   `Destinations.simulatorLines`, `Simulators.phonesWithActiveWatch`; test
   `ParityTests.phoneWithActiveWatchIsAWatchSchemeDestination`.
-- **The IDE's title of the row stays Ycode's "<phone> with <watch>"**
+- **The IDE's title of the row stays SwiftCode's "<phone> with <watch>"**
   (§13.2): the reference's GUI title is not observed (§14.2), and this is
-  recorded as Ycode's choice, not parity.
+  recorded as SwiftCode's choice, not parity.
 
 ## Evidence
 
@@ -1554,27 +1554,27 @@ or reference tool was run or observed.
 | Simulated link and queues (§4.4) | 3 | ids_simd logs in both guests; `ids_simd.plist` |
 | What apps see (§5) | 3 | our WCProbe on both devices, unified log; appconduitd and ids_simd logs |
 | Device Hub capsule (§6) | 3 | earlier round (`specs/ide/device-hub.md` §4.1) |
-| Requirements, relay design, risks (§7) | — | Ycode decisions from the above |
-| Round W4 under Ycode: records, commands, rendezvous, order, agent, erase (§8.1–§8.3) | — | Ycode decisions; unit tests `DevicePairingTests`, `PairingTests` |
-| Guest calls and what nanoregistryd and ids_simd log in response (§8.4) | 3 | Ycode's own simulator on the arm64 Linux host: guest `log stream` of nanoregistryd, ids_simd and the agent; the agent's log |
-| Runs p1, p2: connected, [CREATED], watch face, unpair erase (§8.5) | 3 | `ycode-sim list-pairs` every 5 s, guest logs, Ycode's frame record, the watch directory before and after |
-| Round W5: relay frames, halves, errors, sizes, apps on a watch, WCProbe (§10.1, §10.2) | — | Ycode decisions; unit tests `PairingTransportRelayTests`, `DevicePairingTests` |
-| ids_simd serves its port with `mach_msg_server_once`; the stub's spin (§10.3) | 3 | Ycode's own simulator: ids_simd's log ("Error processing … message: 46"), `ycode-simd --trace-name ids_simd` (the unimplemented library function and its caller) |
+| Requirements, relay design, risks (§7) | — | SwiftCode decisions from the above |
+| Round W4 under SwiftCode: records, commands, rendezvous, order, agent, erase (§8.1–§8.3) | — | SwiftCode decisions; unit tests `DevicePairingTests`, `PairingTests` |
+| Guest calls and what nanoregistryd and ids_simd log in response (§8.4) | 3 | SwiftCode's own simulator on the arm64 Linux host: guest `log stream` of nanoregistryd, ids_simd and the agent; the agent's log |
+| Runs p1, p2: connected, [CREATED], watch face, unpair erase (§8.5) | 3 | `swiftcode-sim list-pairs` every 5 s, guest logs, SwiftCode's frame record, the watch directory before and after |
+| Round W5: relay frames, halves, errors, sizes, apps on a watch, WCProbe (§10.1, §10.2) | — | SwiftCode decisions; unit tests `PairingTransportRelayTests`, `DevicePairingTests` |
+| ids_simd serves its port with `mach_msg_server_once`; the stub's spin (§10.3) | 3 | SwiftCode's own simulator: ids_simd's log ("Error processing … message: 46"), `swiftcode-simd --trace-name ids_simd` (the unimplemented library function and its caller) |
 | MIG server conventions of `mach_msg_server(_once)` (§10.3) | 1 | `mach-ipc.md` §2.8, §5.1, §5.2 |
-| Runs r2, r3, r4: relay counters, WatchConnectivity results and times, peer absence, registry completion (§10.4, §10.5) | 3 | Ycode's own simulator on the arm64 Linux host: `pairing relay` every 30 s, guest `log stream` of ids_simd, nanoregistryd, wcd and the pairing agent, WCProbe's log on both devices, the run's event times |
+| Runs r2, r3, r4: relay counters, WatchConnectivity results and times, peer absence, registry completion (§10.4, §10.5) | 3 | SwiftCode's own simulator on the arm64 Linux host: `pairing relay` every 30 s, guest `log stream` of ids_simd, nanoregistryd, wcd and the pairing agent, WCProbe's log on both devices, the run's event times |
 | Reference times compared (§10.4) | 3 | §4.4 and §5 (round 0) |
 | Q9: bridge calls, nanoregistryd XPC methods, decision rules, arrays, unpair and remove-unpaired effects, survivor disconnect, the 4.5 min set-active (§11.1) | 3, 4 | guests' debug logs of the bridge, nanoregistryd and ids_simd (request lines, the daemon's transaction names, `State change` lines, the remove-unpaired arrays); `simctl pair`, `pair_activate`, `unpair`, `list pairs`; `device_set.plist`; bridge imports (`nm -u`) and selector strings |
 | Q11: user-info wire path, sender and receiver files, non-delivery in every app state (§11.2) | 3 | our WCProbe2 on both devices; wcd, ids_simd and IDS-framework debug lines in both guests; listings of both apps' data containers and both devices' `DEV/data/tmp` |
 | Q5: file sizes on the wire, delays, non-delivery; complication user info delivered (§11.3) | 3 | as Q11; ids_simd's "data is N bytes" and "before delay of N secs" lines |
 | Q12: direct install and `isWatchAppInstalled`, install through the phone (socket, free space, error 12), destinations (§11.4) | 3 | appconduitd, cache-delete and wcd logs in both guests; WCProbe2; `simctl listapps`; `xcodebuild -showdestinations` and `build` on our own hand-written project |
 | Q12: Xcode's install option and messages (§11.4) | 4 | strings of Xcode's iOS support plug-in, CoreSimulator and the bridge |
-| Requirements P-10…P-13 (§11.5) | — | Ycode decisions from the above |
-| Round W3b: the agent's registry calls and decisions, the sequencer's disconnect and switch-only set-active, relay pieces and bounds (§12.1, §12.2) | — | Ycode decisions; unit tests `PairingTransportRelayTests`, `PairingSequencerTests` |
-| Runs a1, b1, c1: pairing, unpair and pairing again, switching, remove-unpaired, survivor disconnect, the 20 MiB request, complication user info (§12.3) | 3 | Ycode's own simulator on the arm64 Linux host: the pairing agent's replies in `ycode-simd`'s log, `pairing state`/`relay` and `pairing agent pairs`, guest `log stream` of ids_simd, nanoregistryd and wcd, WCProbe's logs on both devices |
-| Round W6: the IDE's commands, copies of the pairs, created devices, destinations, runs, socket names (§13.1, §13.2) | — | Ycode decisions from §2, §8.2, §10.2, §11.4; unit tests `PairIDETests`, `PairIDEHubTests` |
-| Runs e1, e2: create, pair, run, WatchConnectivity, unpair erase from the IDE (§13.3) | 3 | `PairedRunEndToEndTests` on the Mac against Ycode's simulator on the arm64 Linux host: the IDE console, the pairing agent's log, `list-pairs`, WCProbe's logs, the watch directory after the unpair, Ycode's window captures |
+| Requirements P-10…P-13 (§11.5) | — | SwiftCode decisions from the above |
+| Round W3b: the agent's registry calls and decisions, the sequencer's disconnect and switch-only set-active, relay pieces and bounds (§12.1, §12.2) | — | SwiftCode decisions; unit tests `PairingTransportRelayTests`, `PairingSequencerTests` |
+| Runs a1, b1, c1: pairing, unpair and pairing again, switching, remove-unpaired, survivor disconnect, the 20 MiB request, complication user info (§12.3) | 3 | SwiftCode's own simulator on the arm64 Linux host: the pairing agent's replies in `swiftcode-simd`'s log, `pairing state`/`relay` and `pairing agent pairs`, guest `log stream` of ids_simd, nanoregistryd and wcd, WCProbe's logs on both devices |
+| Round W6: the IDE's commands, copies of the pairs, created devices, destinations, runs, socket names (§13.1, §13.2) | — | SwiftCode decisions from §2, §8.2, §10.2, §11.4; unit tests `PairIDETests`, `PairIDEHubTests` |
+| Runs e1, e2: create, pair, run, WatchConnectivity, unpair erase from the IDE (§13.3) | 3 | `PairedRunEndToEndTests` on the Mac against SwiftCode's simulator on the arm64 Linux host: the IDE console, the pairing agent's log, `list-pairs`, WCProbe's logs, the watch directory after the unpair, SwiftCode's window captures |
 | Q13: wcd's switch handling, the device-did-pair path, the app's callbacks and session state after both kinds of switch, recovery at wcd's start (§14.1) | 3 | WCProbe2 on the phone and both watches; the phone's wcd, nanoregistryd, bridge, ids_simd and appconduitd at debug level; `simctl pair`, `pair_activate`, phone reboots |
 | Q14: destinations on the command line, build refusal (§14.2) | 3 | `xcodebuild -showdestinations` and `build -destination` on our own hand-written project |
 | Q14: format strings near the proxied-device code; `devicectl` pairing commands (§14.2) | 4 | strings of the IDE's foundation framework; `devicectl help device pairings` |
-| P-14 (§14.1) | — | Ycode decisions from the above |
-| Round W7: Make Active's note and Restart iPhone, `ycodebuild -showdestinations` with a phone-with-watch (§14.3) | — | Ycode decisions from §14.1, §14.2; unit tests `PairIDEHubTests`, `ParityTests` |
+| P-14 (§14.1) | — | SwiftCode decisions from the above |
+| Round W7: Make Active's note and Restart iPhone, `swiftcodebuild -showdestinations` with a phone-with-watch (§14.3) | — | SwiftCode decisions from §14.1, §14.2; unit tests `PairIDEHubTests`, `ParityTests` |

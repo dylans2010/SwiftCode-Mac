@@ -22,7 +22,7 @@ import SwiftUICore
 // focuses a field, typed keys are inserted, Return runs `onSubmit` and
 // removes focus.
 //
-// Ycode choices (no reference measurements): a click places the caret, a
+// SwiftCode choices (no reference measurements): a click places the caret, a
 // double click selects a word, a triple click the paragraph (the field in a
 // single-line field); shift-click and drags extend; Tab focus selects all;
 // the caret blinks 0.53 s on, 0.53 s off and stops (shown) after 10 s
@@ -36,7 +36,7 @@ import SwiftUICore
 /// How a text field looks.
 @MainActor @preconcurrency
 public protocol TextFieldStyle {
-    /// Ycode's style identifier (the reference API has no public requirement).
+    /// SwiftCode's style identifier (the reference API has no public requirement).
     var _ovStyleKind: Int { get }
 }
 

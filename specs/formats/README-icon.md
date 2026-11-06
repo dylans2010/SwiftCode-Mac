@@ -10,8 +10,8 @@ format") and supplies the dirty-room `Assets.car` spec that gap #9
 | File | Content |
 |---|---|
 | `icon-format.md` | The `.icon` package: files, every `icon.json` key, value grammars, defaults, appearance and idiom specializations, the six renditions, the `ictool` renderer as a reference |
-| `icon-compile.md` | What `actool` does with `.icon` and `.appiconset` inputs: Xcode's invocation, inputs and naming, outputs and partial `Info.plist` per platform, the renditions written, flattened sizes and geometry, what Ycode's compile step must do |
-| `assets-car.md` | The `Assets.car` container: BOM blocks and trees, CoreUI header blocks, keys, the CSI rendition record, TLVs, payloads (colour, gradient, multisize, pixels, SVG, layer records), and the minimal set Ycode must write — with what our proof files showed the runtime accepts |
+| `icon-compile.md` | What `actool` does with `.icon` and `.appiconset` inputs: Xcode's invocation, inputs and naming, outputs and partial `Info.plist` per platform, the renditions written, flattened sizes and geometry, what SwiftCode's compile step must do |
+| `assets-car.md` | The `Assets.car` container: BOM blocks and trees, CoreUI header blocks, keys, the CSI rendition record, TLVs, payloads (colour, gradient, multisize, pixels, SVG, layer records), and the minimal set SwiftCode must write — with what our proof files showed the runtime accepts |
 
 Dirty-room notes behind these: `research/notes/obs-icon-2026-10-30.md`.
 
@@ -27,10 +27,10 @@ comparisons marked "dirty check" are done by an OBS agent or the owner.
 
 ### ICON-READER — read and write `.icon` (S)
 
-**Done 2026-10-30 (ICON-CAR):** module `YcodeIcon` (the brief's name for
-`YcodeIconFormat`); `icon-format.md` "Ycode implementation".
+**Done 2026-10-30 (ICON-CAR):** module `SwiftCodeIcon` (the brief's name for
+`SwiftCodeIconFormat`); `icon-format.md` "SwiftCode implementation".
 
-- Module: a portable `YcodeIconFormat` library (Foundation only; builds on
+- Module: a portable `SwiftCodeIconFormat` library (Foundation only; builds on
   Linux).
 - Model: Document, Group, Layer, Fill, Color, Position, BlendMode,
   Specialization<T> exactly as `icon-format.md` §3–§6; unknown keys kept and
@@ -67,12 +67,12 @@ comparisons marked "dirty check" are done by an OBS agent or the owner.
 
 ### CAR-WRITER — write `Assets.car` (M)
 
-**Phase 1 done 2026-10-30 (ICON-CAR):** module `YcodeAssetCatalog` (BOM,
-car writer and reader, LZFSE, PNG, ICNS, the compiler `ycode assets
+**Phase 1 done 2026-10-30 (ICON-CAR):** module `SwiftCodeAssetCatalog` (BOM,
+car writer and reader, LZFSE, PNG, ICNS, the compiler `swiftcode assets
 compile`, and a small build hook ahead of ACTOOL-COMPAT);
 `assets-car.md` §I. Phase 2 (the layered tier) is open.
 
-- Module: a portable `YcodeAssetCatalogCompiler` library (or `YcodeCAR` for
+- Module: a portable `SwiftCodeAssetCatalogCompiler` library (or `SwiftCodeCAR` for
   the container and a separate compiler module), Linux and macOS.
 - BOM writer (blocks, variables, trees with leaf splitting and a branch
   root), CoreUI blocks, rendition keys, CSI records, TLVs and payloads per
@@ -82,16 +82,16 @@ compile`, and a small build hook ahead of ACTOOL-COMPAT);
   images for iOS, iPadOS, macOS, watchOS keys). Phase 2: tier 2 (stack,
   groups, vectors, gradients, colours) from the ICON-READER model, per
   `icon-compile.md` §4.
-- A reader for the same container (for tests and for Ycode's own previews)
+- A reader for the same container (for tests and for SwiftCode's own previews)
   is part of this round.
 - Tests: write-then-read round trips; structure checks against the spec
-  tables. Dirty check (OBS agent): `assetutil --info` on Ycode's files
+  tables. Dirty check (OBS agent): `assetutil --info` on SwiftCode's files
   versus `actool`'s for the same inputs, and the macOS runtime loads
   (`NSImage`, `NSColor`, `NSWorkspace` icon) as in `assets-car.md` §9.
 
 ### ACTOOL-COMPAT — the build step on macOS and Linux (M)
 
-- A `ycode actool` command with `actool`'s command line (`icon-compile.md`
+- A `swiftcode actool` command with `actool`'s command line (`icon-compile.md`
   §1, §7) and its three-section output; wired into the Linux build path
   (swift-build's `CompileAssetCatalogVariant`/`LinkAssetCatalog` tasks, or
   the fallback engine) in place of Apple's `actool` when Xcode is absent.
@@ -103,7 +103,7 @@ compile`, and a small build hook ahead of ACTOOL-COMPAT);
   entry.
 - On macOS with Xcode installed, the default stays Apple's `actool`; the
   own tool is selectable for testing.
-- Acceptance: an app built on Linux shows its icon on the Ycode simulator,
+- Acceptance: an app built on Linux shows its icon on the SwiftCode simulator,
   and (dirty check / owner step) on Apple's simulator and a device.
 
 ### ICON-EDITOR — edit `.icon` in the IDE (L, later)
@@ -129,7 +129,7 @@ CAR-WRITER phase 1 does not need ICON-READER and can start at once.
 
 - **Owner step:** save a few icons from Icon Composer's GUI to confirm the
   JSON for the controls we could not exercise (`icon-format.md` §10).
-- **OBS check:** install a test app with a Ycode-written car (tier 1 only,
+- **OBS check:** install a test app with a SwiftCode-written car (tier 1 only,
   then tier 2 only) on Apple's iOS simulator and confirm the home-screen
   icon (`assets-car.md` §11).
 - **OBS check:** `ictool` and `actool` comparisons for ICON-RENDER and

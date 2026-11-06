@@ -7,7 +7,7 @@ It continues `reference-ui.md` and `reference-ui-2.md` and answers
 OPEN QUESTIONs in `project-editor.md`, `plist-editor.md`,
 `asset-catalog.md`, `destinations.md`, `templates.md`, `organizer.md`
 and `editor-area.md`. It records behavior, labels and defaults only. It
-records no colors and no assets. Ycode picks its own icons.
+records no colors and no assets. SwiftCode picks its own icons.
 
 ## 1. Project editor
 
@@ -30,7 +30,7 @@ records no colors and no assets. Ycode picks its own icons.
       - The rows follow from `SUPPORTED_PLATFORMS`,
         `TARGETED_DEVICE_FAMILY`, `SUPPORTS_MACCATALYST`,
         `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD` and
-        `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD` (this mapping is Ycode's
+        `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD` (this mapping is SwiftCode's
         reading of the settings, not observed).
    2. **Minimum Deployments** (title has an info button). One row per SDK:
       "iOS" with an editable combo box ("27.0", from
@@ -79,7 +79,7 @@ records no colors and no assets. Ycode picks its own icons.
      - a detail pane with the icon, name and description of the selection.
    - With no team, the panel footer shows "Error Loading Capabilities" / "No
      development team is set. Select a team in the Signing & Capabilities
-     editor.". Ycode may take its capability list from Apple's public
+     editor.". SwiftCode may take its capability list from Apple's public
      capability documentation (level 1).
 6. **Resource Tags:** "+", a scope "All | Prefetched", a Filter, and the
    empty text "Click the "+" button above to add a resource tag."
@@ -306,10 +306,10 @@ records no colors and no assets. Ycode picks its own icons.
   (bell) button.
 - Pages without data show an empty state: "No Overview Data" / "There is
   no overview data available for version <v>.".
-- The Insights, Reports and Metrics pages need App Store Connect data. Ycode
+- The Insights, Reports and Metrics pages need App Store Connect data. SwiftCode
   shows the sidebar and the empty states only.
 
-## 7. Differences from Ycode's specs (to implement)
+## 7. Differences from SwiftCode's specs (to implement)
 
 1. Project editor:
    - open on the first target;
@@ -344,5 +344,5 @@ records no colors and no assets. Ycode picks its own icons.
 | Claim | Level | Source |
 |---|---|---|
 | §1–§6 | 3 | Black-box observation of the reference app (Xcode 27.1, installed copy) on a throwaway project, 2026-10-17, through screenshots and its menus. No binaries were opened. Personal names, teams and the user's own apps seen on screen are not recorded. |
-| §1.4 mapping to settings, §1.5 capability list source | — | Ycode's reading or a pointer to public documentation, not observed |
-| §7 | — | Comparison with Ycode's specs at the time |
+| §1.4 mapping to settings, §1.5 capability list source | — | SwiftCode's reading or a pointer to public documentation, not observed |
+| §7 | — | Comparison with SwiftCode's specs at the time |

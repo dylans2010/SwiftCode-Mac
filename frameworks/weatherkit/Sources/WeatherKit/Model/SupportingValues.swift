@@ -244,7 +244,7 @@ public struct PrecipitationAmountByType: Codable, Equatable, Sendable {
 public struct WeatherAvailability: Codable, Equatable, Sendable {
     public internal(set) var minuteAvailability: AvailabilityKind
     public internal(set) var alertAvailability: AvailabilityKind
-    /// Non-public key (codable.md §2), preserved. Ycode default: `unknown`.
+    /// Non-public key (codable.md §2), preserved. SwiftCode default: `unknown`.
     var airQualityAvailability: AvailabilityKind
 
     package init(

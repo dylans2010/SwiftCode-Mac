@@ -1,22 +1,22 @@
 # Spec: service fidelity in the full boot
 
-Status: **partly implemented** (agent SVC, 2026-10-17): §3.2 and §4 are implemented; §7 is an observation, not implemented. Agent SVC4 (2026-10-17): §10 implemented; §11 and §12 are findings (no Ycode change: the FSEvents protocol is private; the restart loops follow from the device's state and the start order). Agent SVC-FULL (2026-10-27): §13 (the full boot of the main line, now the IDE default) and the open questions of §11 and §13; no Ycode change. Agent OBS-FSEVENTS (2026-10-27, dirty room): answers to Q11.1–Q11.3 (the protocol is now `fsevents-host.md`), Q13.1 and Q13.2, and new open questions for Ycode in §11 and §13.1. Agent FS-HOST (2026-10-28, clean room): §11 implemented (the data volume's capabilities and the host's `com.apple.FSEvents`; fileindexerd starts once) and the Ycode answer of §13.1. Agent THREAD-SUSPEND (2026-10-28): §14 (amsengagementd and assistantd no longer crash: real Mach thread suspension and a workqueue fix). The lean boot
+Status: **partly implemented** (agent SVC, 2026-10-17): §3.2 and §4 are implemented; §7 is an observation, not implemented. Agent SVC4 (2026-10-17): §10 implemented; §11 and §12 are findings (no SwiftCode change: the FSEvents protocol is private; the restart loops follow from the device's state and the start order). Agent SVC-FULL (2026-10-27): §13 (the full boot of the main line, now the IDE default) and the open questions of §11 and §13; no SwiftCode change. Agent OBS-FSEVENTS (2026-10-27, dirty room): answers to Q11.1–Q11.3 (the protocol is now `fsevents-host.md`), Q13.1 and Q13.2, and new open questions for SwiftCode in §11 and §13.1. Agent FS-HOST (2026-10-28, clean room): §11 implemented (the data volume's capabilities and the host's `com.apple.FSEvents`; fileindexerd starts once) and the SwiftCode answer of §13.1. Agent THREAD-SUSPEND (2026-10-28): §14 (amsengagementd and assistantd no longer crash: real Mach thread suspension and a workqueue fix). The lean boot
 (`lean-boot.md`) makes a boot cheaper by not starting 23 services. This spec
-is about the **full** boot (`YCODE_LEAN_BOOT` unset). It compares each
+is about the **full** boot (`SWIFTCODE_LEAN_BOOT` unset). It compares each
 service that the lean profile disables, and two more (`replicatord`,
 `intelligencetasksd`'s crash loop), with the same service in the Mac's
-simulator. When Ycode differs, it gives the cause. When the cause is a
-Ycode defect, it gives the fix. A service that crashes or restarts on the
+simulator. When SwiftCode differs, it gives the cause. When the cause is a
+SwiftCode defect, it gives the fix. A service that crashes or restarts on the
 Mac too is **kept that way**: that is parity, not a defect.
 
 Terms are as in `launchd-sim.md` and `lean-boot.md` (RR, DEV, TMP).
 
 ## 1. Method
 
-**Mac (black box, level 3).** A throwaway device `ycode-test-svc-*` of the
+**Mac (black box, level 3).** A throwaway device `swiftcode-test-svc-*` of the
 same runtime (iOS 27.1, 24A94401), same device type (iPhone19,4). The first
 boot is ended 90 s after `simctl bootstatus`. The second boot is measured,
-as the Ycode benchmark boots a device that was booted once before. Sources:
+as the SwiftCode benchmark boots a device that was booted once before. Sources:
 
 - `TMP/launchd.log`, read as a file format: spawn reasons, exits, launchd's
   throttle lines, the time from "xpcproxy_sim spawned" to the job's
@@ -27,21 +27,21 @@ as the Ycode benchmark boots a device that was booted once before. Sources:
 - Crash reports in `~/Library/Logs/DiagnosticReports` (name, time and
   device only).
 
-**Ycode (level 3).** Full boots on the Thor with the SX harness
+**SwiftCode (level 3).** Full boots on the Thor with the SX harness
 (`bench.sh`, device in RAM), the exit summary (per image: traps, how it
 ended), `TMP/launchd.log`, and trace runs (`--trace-name <process>`).
 
 ## 2. Process identity
 
 logd attributes a message to a process by the main executable's UUID.
-Ycode reported a zero UUID, so `log` showed `00000000-…[pid]` and
-`<compose failure>` for every format string in a main executable. Ycode
+SwiftCode reported a zero UUID, so `log` showed `00000000-…[pid]` and
+`<compose failure>` for every format string in a main executable. SwiftCode
 now reports the main executable's `LC_UUID` in `proc_pidinfo`
 (`PROC_PIDUNIQIDENTIFIERINFO`, `PROC_PIDT_BSDINFOWITHUNIQID`),
 `proc_pid_rusage` (`ri_uuid`) and `LOCAL_PEERUUID`; a zombie keeps it
 (`processes.md`, Evidence table).
 
-## 3. How a crash ends a process, and how Ycode reports it
+## 3. How a crash ends a process, and how SwiftCode reports it
 
 ### 3.1 The signal
 
@@ -49,11 +49,11 @@ A fatal hardware exception ends the process with the signal that the arm64
 Darwin kernel gives it (`processes.md` §2.3.1). A Swift runtime trap is a
 BRK, so it ends with SIGTRAP. On the Mac, launchd logs it as "exited due
 to SIGTRAP | sent by exc handler[pid]" (the crash reporter's exception
-handler sends it). Ycode has no exception handler process and logs
-"exited due to SIGTRAP". Before 2026-10-17, Ycode ended every such process
+handler sends it). SwiftCode has no exception handler process and logs
+"exited due to SIGTRAP". Before 2026-10-17, SwiftCode ended every such process
 with SIGSEGV.
 
-### 3.2 One report per process (Ycode)
+### 3.2 One report per process (SwiftCode)
 
 The other threads of a dying process stop at their next trap. Before
 2026-10-17, each of these threads printed a full "fatal guest condition"
@@ -73,7 +73,7 @@ The flags are from xnu `bsd/sys/stdio.h`. `renameatx_np` refuses any other
 bit and the combination EXCL|SWAP with EINVAL (xnu
 `bsd/vfs/vfs_syscalls.c`, `renameatx_np`).
 
-| Flag | Value | Effect | Ycode |
+| Flag | Value | Effect | SwiftCode |
 |---|---|---|---|
 | `RENAME_SECLUDE` | 0x01 | passed to the file system | accepted, no effect |
 | `RENAME_SWAP` | 0x02 | exchange two existing names | yes (atomic: Linux `renameat2(RENAME_EXCHANGE)`, since 2026-10-27) |
@@ -88,7 +88,7 @@ without the flag.
 **Why it matters (searchd).** searchd saves its index state with
 `renameatx_np(… tmp.spotlight.state.tmp, … tmp.spotlight.state,
 RENAME_NOFOLLOW_ANY)` in `DEV/data/Library/Spotlight/CoreSpotlight/
-index.spotlightV2`. Ycode returned EINVAL. searchd logged
+index.spotlightV2`. SwiftCode returned EINVAL. searchd logged
 "SpotlightIndex.c:2654: sync index error 3, 2, 22", wrote
 `mds64-crash-state-v2`, logged "###_SIReopenCallback: Exiting …" and called
 `exit(0)` 15–40 s after its start. launchd started it again on the next
@@ -102,7 +102,7 @@ further, and so do its clients (runs a2, tr4):
   0xbad) after logging "_MDPlistContainer.c:646: failed assertion
   'object.reference.embeddedReference >= collectionBufferOffset'". The
   last message before it is a CoreSpotlight donation (`com.apple.mobilenotes`).
-  **Settled (agent SVC4): a Ycode defect**, shared file views that did
+  **Settled (agent SVC4): a SwiftCode defect**, shared file views that did
   not follow the file's size (§10). Fixed.
 - fileindexerd (KeepAlive) now gets past its wait for searchd. It looks up
   `com.apple.FSEvents` (a per-pid lookup), which fails with "Unknown
@@ -111,16 +111,16 @@ further, and so do its clients (runs a2, tr4):
   ("Failed to init after preparing dependencies: … Code=19"), and launchd
   starts it again every ~17 s. In the Mac's simulator `com.apple.FSEvents`
   is the host's file-event service, and fileindexerd runs for the whole
-  boot. Ycode has no host FSEvents service (the protocol is not public).
+  boot. SwiftCode has no host FSEvents service (the protocol is not public).
   Before the fix fileindexerd waited for searchd for the whole boot,
-  so it did not crash. What it needs and why Ycode keeps the name absent:
+  so it did not crash. What it needs and why SwiftCode keeps the name absent:
   §11.
 
 ## 5. Crash loops and launchd's throttle (parity)
 
-launchd_sim is guest code and Ycode runs it unchanged, so its restart
+launchd_sim is guest code and SwiftCode runs it unchanged, so its restart
 policy is the Mac's. Observed on the Mac (`launchd.log`, level 3) and the
-same in Ycode:
+same in SwiftCode:
 
 - A job that ends is not started again sooner than 10 s after its last
   start ("Service only ran for N seconds. Pushing respawn out by 10 − N
@@ -135,7 +135,7 @@ Jobs that end and are started again at the 10 s rate **on the Mac too**
 (TMP/launchd.log of a Mac device that ran for 14 h: 400–550 exits per
 95-minute log file, about one every 10.3 s): `proactiveeventtrackerd`
 (exit 1), `mlhostd`, `pairedsyncd` ("pairing store path was nil"),
-`facetimemessagestored` (exit 0). Ycode: 56–62 of each in 600 s (mlhostd
+`facetimemessagestored` (exit 0). SwiftCode: 56–62 of each in 600 s (mlhostd
 28–34). This is parity.
 
 ### 5.1 intelligencetasksd
@@ -152,16 +152,16 @@ launchd starts the job again after each throttle delay.
 (when dasd ran the task). Then it crashed every 10 s, 11 times, and then at
 18 s, 40 s, … The 14-hour Mac device was at "crashed 56 times in a row",
 once every 1200 s. Two other Mac devices showed the same.
-In Ycode the dasd task of the benchmark device is already overdue, so the
+In SwiftCode the dasd task of the benchmark device is already overdue, so the
 loop starts at about +235 s: 16 crashes per 600 s, on the same schedule.
 
-Result: **kept as is (parity).** Since 2026-10-17 Ycode's signal is the
-Mac's, SIGTRAP, not SIGSEGV (§3.1). One crash costs Ycode about
+Result: **kept as is (parity).** Since 2026-10-17 SwiftCode's signal is the
+Mac's, SIGTRAP, not SIGSEGV (§3.1). One crash costs SwiftCode about
 3,300 traps and one spawn (about 53 k traps per boot, 0.2 % of all traps).
 
 ## 6. replicatord: the abort at boot
 
-**Ycode.** In every full boot, the first replicatord (RunAtLoad, KeepAlive,
+**SwiftCode.** In every full boot, the first replicatord (RunAtLoad, KeepAlive,
 `POSIXSpawnType` Adaptive) aborts once, about 40 s after its start. The
 last message it logs is "CoreAnimation: Unable to query displays from
 server (-81182718)". Before that, IDS reports "XPC has informed us that a
@@ -179,7 +179,7 @@ again ("inefficient"). The second instance runs until the end. Trace
    reply with one descriptor, which is success.
 
 So a request that waits in the queue from before backboardd's check-in is
-refused, and replicatord aborts on that refusal. Ycode's message trailer
+refused, and replicatord aborts on that refusal. SwiftCode's message trailer
 for the queued message carries the sender's identity from send time
 (`processes.md` §4.5), and the second replicatord succeeds with the same
 identity. The refusal follows from the order of events, not from what the
@@ -191,7 +191,7 @@ backboardd reaches `INIT` 0.29 s after its spawn. replicatord reaches it
 9.93 s after its spawn (§7). Its query then comes after backboardd's
 check-in.
 
-**Cause: the Mac holds Adaptive jobs at the start (§7). Ycode did not.**
+**Cause: the Mac holds Adaptive jobs at the start (§7). SwiftCode did not.**
 Result: **fixed by the start hold** (`scheduling-policy.md` §4.2, on by
 default since 2026-10-19). replicatord is held until a client's message
 boosts it (11–25 s on the Thor, 9–13 s on the Mac); its query then comes
@@ -218,7 +218,7 @@ while the whole simulator used less than 2 s of CPU per 10 s. The same is
 seen for later starts of Adaptive jobs (`mlhostd`, `intelligencetasksd`,
 `proactiveeventtrackerd`: 24–70 s in `U`).
 
-In Ycode, every one of these jobs reaches `INIT` 0.7–2.4 s after its
+In SwiftCode, every one of these jobs reaches `INIT` 0.7–2.4 s after its
 spawn, whatever its type.
 
 ### 7.2 Interpretation and status
@@ -237,7 +237,7 @@ until a client talks to it or the host's throttle lets its I/O run. On the
 Mac host the waiting `xpcproxy_sim` is the host process of that job, so the
 host kernel's background policy applies to it.
 
-Ycode records the spawn's process type (`processes.md` §1.6) and does not
+SwiftCode records the spawn's process type (`processes.md` §1.6) and does not
 apply it. All jobs run at once and at the same priority. Effects in the
 full boot: replicatord's abort (§6); parsecd, axassetsd, healthd and the
 other held jobs run from the first second and compete with the boot for
@@ -247,19 +247,19 @@ less than 2 s of CPU on the Mac).
 A faithful fix needs background policy and importance donation in the
 Mach IPC and the scheduler (stage 6 kernel lock, vCPU threads). **Done**
 in `scheduling-policy.md` (importance §4.3, the start hold §4.2, on by
-default). Measured (§7 there): the Mac and Ycode hold the same jobs and
+default). Measured (§7 there): the Mac and SwiftCode hold the same jobs and
 release them in the same order; parsecd and axassetsd are held on both
-(Mac 1.6–2.8 s with this device's data, Ycode 6–52 s, scaled with the
+(Mac 1.6–2.8 s with this device's data, SwiftCode 6–52 s, scaled with the
 boot).
 
 ## 8. Audit of the lean-disabled services (full boot)
 
 Mac: second boot of a throwaway device; CPU in the first ~2 min and over
-600 s, whether it is still running. Ycode: full boot, 600–700 s, per run:
+600 s, whether it is still running. SwiftCode: full boot, 600–700 s, per run:
 processes (images), traps, how they ended (runs b1, b2, c1; 29800d7 and
 its parent).
 
-| Service | Mac | Ycode (before) | Cause | Fixed? |
+| Service | Mac | SwiftCode (before) | Cause | Fixed? |
 |---|---|---|---|---|
 | suggestd | 1 process, ~1.0 s by 2 min, 1.4 s in 600 s, idle | 1 process, 4.1–4.4 M traps (worker loop) | workqueue (other agent) | no (recorded) |
 | parsecd | Adaptive, held 172 s; 0.2 s by 2 min, 1.7 s in 600 s | 1, 2.1–2.2 M traps from the start | workqueue loop (other agent); no Adaptive hold (§7) | no |
@@ -304,7 +304,7 @@ crashes come from the 700 s runs (`BENCH_NOKILL=1 BENCH_SECS=700`).
   established.
 - searchd now runs as on the Mac until the assertion of §4. The
   crashes it uncovers (fileindexerd, searchd's own) are listed in §4 and
-  §8. They are Ycode gaps that were hidden before, not new defects of
+  §8. They are SwiftCode gaps that were hidden before, not new defects of
   the change.
 - `guest_fatal` (harness): before 38–49 report lines (one per thread);
   after 31–33 (one per crashed process, §3.2), although more processes
@@ -324,12 +324,12 @@ faults again, and its bytes are gone. A `MAP_SHARED`, `PROT_READ` mapping
 of a descriptor open read-only is a view too: it sees later writes made
 through any other descriptor or mapping of the file.
 
-**Ycode before (`home-screen.md`, coherent mappings).** A view covered the
+**SwiftCode before (`home-screen.md`, coherent mappings).** A view covered the
 host file's pages that lay inside the file *when the mapping was made*;
 the rest were private zero pages for good. A mapping of a read-only
 descriptor, or one starting at or past the end, was a private copy.
 
-**What it broke (level 3: Ycode trace `SVC3/tr4`, runs `base1`, `fx1`).**
+**What it broke (level 3: SwiftCode trace `SVC3/tr4`, runs `base1`, `fx1`).**
 SpotlightIndex (searchd) creates index files small and maps them large:
 `ftruncate(fd, 0x4000)`, then `mmap(1 MiB, PROT_READ|PROT_WRITE,
 MAP_SHARED|MAP_FIXED, fd)`, and grows the files later. It maps others
@@ -344,15 +344,15 @@ crashed (SIGSEGV), 4–10 times per 700 s run; each new searchd read the
 broken files again and crashed 8–16 s after its start.
 
 **Data or defect: a defect.** On the Mac, a throwaway device given the
-Ycode benchmark device's data (§12.1) ran 4 searchd processes in 700 s,
+SwiftCode benchmark device's data (§12.1) ran 4 searchd processes in 700 s,
 3 ending with `exit(0)` (idle) and none crashing. With the change below a
-Ycode full boot runs **one searchd for the whole boot** (run `sv2`: it
+SwiftCode full boot runs **one searchd for the whole boot** (run `sv2`: it
 ends at the harness's shutdown after 682 s; no assertion, no "out of
 bounds").
 
-**Ycode now.** A shared file view keeps its own host descriptor of the
+**SwiftCode now.** A shared file view keeps its own host descriptor of the
 file and is registered by the file's (device, inode). After every change
-of a file's size made through Ycode (a write that may end past the end,
+of a file's size made through SwiftCode (a write that may end past the end,
 `ftruncate`, `truncate`, an open with `O_TRUNC` of an existing file),
 every view of that file follows: pages the file now covers become views
 of the file (host `mmap` `MAP_SHARED|MAP_FIXED` over the zero pages; the
@@ -372,11 +372,11 @@ Tests: `SharedFileViewTests.viewsFollowTheFileWhenItGrows`,
 
 ## 11. fileindexerd and the host's `com.apple.FSEvents`
 
-**What fileindexerd uses (level 3: Ycode trace `SVC3/tr4`, guest log).**
+**What fileindexerd uses (level 3: SwiftCode trace `SVC3/tr4`, guest log).**
 At its start it calls the public FSEvents API of CoreServices (FSEvents.h,
 level 1): `FSEventsCopyUUIDForDevice` and `FSEventsGetCurrentEventId`.
 Each first connects to the file-event service, a per-pid lookup of
-`com.apple.FSEvents` through launchd_sim, which Ycode answers "Unknown
+`com.apple.FSEvents` through launchd_sim, which SwiftCode answers "Unknown
 service name (1102)" (guest log: "FSEventsCopyUUIDForDevice: ERROR:
 FSEvents_connect() => Unknown service name (1102)"). No system call of
 fileindexerd fails after that. It logs "failed to subscribe to events in
@@ -396,7 +396,7 @@ fseventsd (the guest's paths are host paths there). On the Mac, with the
 same device data (§12.1), fileindexerd started once and ran for the
 whole 700 s.
 
-**Why Ycode does not provide it.** The messages between the FSEvents
+**Why SwiftCode does not provide it.** The messages between the FSEvents
 client library and fseventsd are a private MIG protocol. No Apple open
 source or public document describes them (xnu publishes only
 `/dev/fsevents`, the kernel side that fseventsd reads; searched
@@ -407,7 +407,7 @@ specification. **Fallback (kept): the name stays absent.** That is what
 the Mac's simulator itself does for a host name with no host service:
 the host registration looks each name up in the host's bootstrap and
 skips those it lacks (`launchd-sim.md` §6.3), so the guest's lookup fails
-with 1102, as on Ycode. It is safe: one crash costs about 5 k traps and
+with 1102, as on SwiftCode. It is safe: one crash costs about 5 k traps and
 one spawn, the throttle bounds the loop, and no other job changes.
 Revisit when the protocol is public or documented by permitted open
 source. **Superseded (2026-10-27):** the protocol is now specified from
@@ -423,7 +423,7 @@ same failed lookup (`launchd.log`: "failed lookup: name =
 com.apple.FSEvents, flags = 0x9, requestor = fileindexerd[…], error = 3: No
 such process"); 9 times in the first 345 s of a boot. On the Mac with the
 same device data it starts once and runs for the whole window. It is the
-only one of the full boot's restart loops that is Ycode's own. The fix
+only one of the full boot's restart loops that is SwiftCode's own. The fix
 needs reference facts that the clean room cannot produce; the questions
 for the dirty room:
 
@@ -482,9 +482,9 @@ details in `fsevents-host.md` §9 and
   more in a quiet boot.
 
   **Nothing from FSEvents is needed to keep fileindexerd alive.** On the Mac,
-  with the look-up answered 1102 inside fileindexerd (as in Ycode; our
+  with the look-up answered 1102 inside fileindexerd (as in SwiftCode; our
   recorder, `fsevents-host.md` §9.3), fileindexerd does not crash:
-  device `ycode-test-fsevents-1` (fourth boot, state written earlier with
+  device `swiftcode-test-fsevents-1` (fourth boot, state written earlier with
   the real service) and a new device (second boot, the fresh path, with
   `com.apple.FileProvider.sim2host` denied too) both logged "failed to get
   stream UUID for device 16777230", got `false` from
@@ -495,10 +495,10 @@ details in `fsevents-host.md` §9 and
   ids from 1000, HistoryDone, never a change event) fileindexerd runs as
   with the Mac's service (stream started, state file written with the
   stand-in's UUID). So a host `com.apple.FSEvents` is worth having (file
-  events for seven guest clients), but **Ycode's crash has another cause
+  events for seven guest clients), but **SwiftCode's crash has another cause
   on the subscription path**.
 
-  **Where to look (level 3, the Mac's answers; the Ycode values read
+  **Where to look (level 3, the Mac's answers; the SwiftCode values read
   from its sources).** Before it subscribes, fileindexerd's FileProvider
   change monitor asks the kernel about the watched volume, and the
   FSEvents client asks about the paths. On the Mac, in order:
@@ -511,16 +511,16 @@ details in `fsevents-host.md` §9 and
   `getattrlist` of each watched path with `ATTR_CMN_RETURNED_ATTRS` and
   `ATTR_CMNEXT_NOFIRMLINKPATH`; then `FSEventStreamCreate` with flags
   0x1F1, which ask for document ids (`kFSEventStreamCreateWithDocID`).
-  Ycode answers the capability request with format 0x00024F47 and
+  SwiftCode answers the capability request with format 0x00024F47 and
   interfaces 0x00004302 (`AttributeList.swift`): among other bits it
   lacks `VOL_CAP_FMT_DOCUMENT_ID` (0x80000), which a stream that asks for
   document ids may require.
 
   **The cause, reproduced on the Mac (level 3).** In a Mac boot with the
   look-up still answered 1102 inside fileindexerd, our recorder replaced
-  only the two capability words of that `getattrlist` reply with Ycode's
+  only the two capability words of that `getattrlist` reply with SwiftCode's
   (format 0x00024F47, interfaces 0x00004302). fileindexerd then logged,
-  exactly as in Ycode, "failed to subscribe to events in
+  exactly as in SwiftCode, "failed to subscribe to events in
   <GroupContainers>/…/F{19}e with NSError: POSIX 19 "… Operation not
   supported by device"" (twice: "Failed to subscribe to root …,
   registering it for removal", then again after re-adding the root) and
@@ -528,8 +528,8 @@ details in `fsevents-host.md` §9 and
   after preparing dependencies: Error Domain=NSPOSIXErrorDomain Code=19"
   (SIGTRAP; launchd: "service has crashed 1 times in a row"). The same
   set-up without the replacement (two runs, a fresh and a loaded state)
-  ran normally. **So Ycode's fileindexerd loop comes from the volume
-  capabilities Ycode reports for the data volume, not from the missing
+  ran normally. **So SwiftCode's fileindexerd loop comes from the volume
+  capabilities SwiftCode reports for the data volume, not from the missing
   FSEvents service.**
 
   **The four capabilities it needs (level 3; names: public `sys/attr.h`,
@@ -550,15 +550,15 @@ details in `fsevents-host.md` §9 and
   | interfaces | 0x00010000 | `VOL_CAP_INT_CLONE` |
   | interfaces | 0x00080000 | `VOL_CAP_INT_RENAME_EXCL` |
 
-  Ycode's words with these four added (format 0x001A4F47, interfaces
+  SwiftCode's words with these four added (format 0x001A4F47, interfaces
   0x00094302) → up. Each is necessary: the Mac's words without
-  WRITE_GENERATION_COUNT, or without CLONE → crash; Ycode's words plus
+  WRITE_GENERATION_COUNT, or without CLONE → crash; SwiftCode's words plus
   the other three but not DOCUMENT_ID → crash; with the Mac's format
-  word, Ycode's interfaces plus CLONE (and the Mac's low interface bits)
+  word, SwiftCode's interfaces plus CLONE (and the Mac's low interface bits)
   crash, and adding RENAME_EXCL, not SNAPSHOT or RENAME_SWAP, makes them
   pass. The other differences do not matter for fileindexerd (journal,
   zero runs, hidden files, compression, shared space, volume groups,
-  snapshot, rename swap, the three highest interface bits, Ycode's extra
+  snapshot, rename swap, the three highest interface bits, SwiftCode's extra
   `VOL_CAP_FMT_CASE_SENSITIVE`). Every test list:
   `research/notes/obs-fsevents-2026-10-27.md`.
 
@@ -577,16 +577,16 @@ details in `fsevents-host.md` §9 and
   (`DEV/data/Containers/Data/InternalDaemon/<its container>/indexingState`),
   read back at the next start ("successfully loaded state from disk with
   state: IndexingState(streamUUID: …)"), after which it asks the
-  service for the UUID again. For Ycode: a fixed UUID per device, kept across boots,
+  service for the UUID again. For SwiftCode: a fixed UUID per device, kept across boots,
   and ids that never go back (`fsevents-host.md` §7).
 
-**Ycode implementation (agent FS-HOST, clean room, 2026-10-27/28).** Both
-of Ycode's volumes now report format 0x001A4F47 and interfaces 0x000D4302:
+**SwiftCode implementation (agent FS-HOST, clean room, 2026-10-27/28).** Both
+of SwiftCode's volumes now report format 0x001A4F47 and interfaces 0x000D4302:
 the four bits above plus `VOL_CAP_INT_RENAME_SWAP`, each backed by the
 calls it promises (`file-system-features.md`: document IDs and file flags,
 write generation counts, `clonefileat`/`fclonefileat`, atomic
 `RENAME_EXCL`/`RENAME_SWAP`). The host's `com.apple.FSEvents` is served
-too, with change events from Ycode's VFS (`fsevents-host.md` §10).
+too, with change events from SwiftCode's VFS (`fsevents-host.md` §10).
 
 Result, 700 s behaviour runs (`parity-ladder.md` §4.8 method: a fresh copy
 of the golden device, home screen + 670 s, `launchd.log` counted over the
@@ -598,14 +598,14 @@ agents' boots:
 | base | main line (e3982c6) | 16 starts, 16 × SIGTRAP | — |
 | A | capabilities + FSEvents service with events | **1 start, alive at the end** | none |
 | A′ | A merged with the main line (fc308f0) | **1 start, alive** | none |
-| B | A with `YCODE_DEBUG_NO_FSEVENTS=1` (no service) | **1 start, alive** | none |
-| C | A with `YCODE_FSEVENTS_NO_CHANGES=1` (minimal service) | **1 start, alive** | none |
+| B | A with `SWIFTCODE_DEBUG_NO_FSEVENTS=1` (no service) | **1 start, alive** | none |
+| C | A with `SWIFTCODE_FSEVENTS_NO_CHANGES=1` (minimal service) | **1 start, alive** | none |
 
 The Mac with the same device data: one start, alive for the whole window
 (above). In run A fileindexerd looked up `com.apple.FSEvents`, got the
 device UUID and started its stream; its only failed look-ups were
 `com.apple.spaceattributiond` and `com.apple.FileProvider.sim2host`
-(host endpoints Ycode lacks, `launchd-sim.md` §6.4). B and C confirm the dirty room's
+(host endpoints SwiftCode lacks, `launchd-sim.md` §6.4). B and C confirm the dirty room's
 finding: the capability bits alone stop the loop. No new guest crash in
 any run: intelligencetasksd (§13.1) in all five, assistantd (one SIGTRAP in
 libdispatch) in base and B, amsengagementd (one or two SIGSEGV in
@@ -625,21 +625,21 @@ line fc308f0 against this work merged on it, in both orders: base 75 s and
 
 ## 12. The four restart loops of the parity ladder (`parity-ladder.md` §3.3)
 
-### 12.1 Method: the Mac with the Ycode device's data
+### 12.1 Method: the Mac with the SwiftCode device's data
 
-The ladder compared Ycode's benchmark device with **new** Mac devices,
-booted twice within minutes of their creation. Ycode's device is a copy
+The ladder compared SwiftCode's benchmark device with **new** Mac devices,
+booted twice within minutes of their creation. SwiftCode's device is a copy
 of a golden device first booted on 2026-10-13, four days before. To
-compare like with like, a throwaway Mac device (`ycode-test-svc4-aged-1`,
+compare like with like, a throwaway Mac device (`swiftcode-test-svc4-aged-1`,
 iPhone Duo, iOS 27.1, deleted afterwards) got, before its first boot,
-the `DEV/data` directory of Ycode run `base1` (the golden device after
-one more Ycode boot), was booted for 700 s, and its `TMP/launchd.log`,
+the `DEV/data` directory of SwiftCode run `base1` (the golden device after
+one more SwiftCode boot), was booted for 700 s, and its `TMP/launchd.log`,
 crash reports and `log show` output were read (level 3). Its log store
-also holds the Ycode run's own guest messages (the guest's logd wrote
-them into `DEV/data`), which `log show` on the Mac prints; the Ycode-side
+also holds the SwiftCode run's own guest messages (the guest's logd wrote
+them into `DEV/data`), which `log show` on the Mac prints; the SwiftCode-side
 messages below were read that way.
 
-| Starts in 700 s | Mac, new device (`parity-ladder.md` §3.3) | **Mac, Ycode's device data** | Ycode `base1` (before §10) | Ycode `sv2` (after §10) |
+| Starts in 700 s | Mac, new device (`parity-ladder.md` §3.3) | **Mac, SwiftCode's device data** | SwiftCode `base1` (before §10) | SwiftCode `sv2` (after §10) |
 |---|---|---|---|---|
 | proactiveeventtrackerd (exit 1) | 0, 0 | **42** | 61 | 60 |
 | facetimemessagestored (exit 0) | 0, 0 | **41** | 64 | 62 |
@@ -658,18 +658,18 @@ proactiveeventtrackerd for two `com.apple.xpc.activity` jobs (`Interval`
 activity. On a new device none is due within 700 s. On a device whose
 last run of them is older than their interval they are due at once; the
 process ends without doing them, and launchd starts it again after the
-throttle. With Ycode's device data the Mac loops too (42 and 41 starts,
+throttle. With SwiftCode's device data the Mac loops too (42 and 41 starts,
 from 13 s after boot). proactiveeventtrackerd ends the same way on both
 (guest log: passwd entry not found, "Failed to initialize the tracker",
 "Failed to initialize PET service. Exiting..." → `exit(1)`).
-**Not a Ycode defect.** The Mac restarted them every ~14 s, Ycode every
+**Not a SwiftCode defect.** The Mac restarted them every ~14 s, SwiftCode every
 ~10–11 s. Remeasured on 2026-10-19 (`scheduling-policy.md` §7.2, macOS
 27.2, same runtime, a less loaded Mac): the Mac restarts both, and
 mlhostd, every 10.2–10.8 s, not held (each restart is boosted by its XPC
-event), 68–69 starts in 700 s; Ycode with the hold 56–66. The 42 and 41
+event), 68–69 starts in 700 s; SwiftCode with the hold 56–66. The 42 and 41
 above were the loaded Mac's rate, not a hold. Detail: the passwd message differs ("User passwd
 entry or home directory is not found" on the Mac, "Failed to get user
-passwd entry: [2] No such file or directory" on Ycode: Ycode's
+passwd entry: [2] No such file or directory" on SwiftCode: SwiftCode's
 `getpwuid` failure leaves errno ENOENT); recorded, not examined.
 
 ### 12.3 pairedsyncd: the order of two starts (Adaptive hold)
@@ -678,13 +678,13 @@ pairedsyncd ends by itself on both platforms ("Fatal error: pairing store
 path was nil for PSDFileManager." → `exit(0)`). Whether it starts again
 depends on a message waiting on its Mach service port:
 
-- **Mac** (Ycode's data): locationd looks up
+- **Mac** (SwiftCode's data): locationd looks up
   `com.apple.pairedsyncd.syncstate` 6 s after boot, while the job is
   still disabled ("failed lookup … error = 3: No such process" in
   `launchd.log`), so no message is sent. nanoregistrylaunchd starts at
   +80 s ("ipc (mach)") and enables pairedsyncd at +146 s; pairedsyncd
   starts once (speculative), exits, and nothing waits for it.
-- **Ycode**: nanoregistrylaunchd starts at +20 s and enables pairedsyncd
+- **SwiftCode**: nanoregistrylaunchd starts at +20 s and enables pairedsyncd
   at +22 s; locationd's lookup comes at +43 s and succeeds, and its XPC
   connection sends a message to the port. pairedsyncd exits before it
   receives anything, the message stays queued, and launchd starts the job
@@ -693,14 +693,14 @@ depends on a message waiting on its Mach service port:
 
 The guest code behaves the same; the order of two events differs. The
 Mac starts nanoregistrylaunchd late (for a lookup by a job that is still
-held) and runs locationd's start quickly; Ycode starts every job at once
-and runs locationd's start 7 × slower (§7). Ycode's Mach semantics are
+held) and runs locationd's start quickly; SwiftCode starts every job at once
+and runs locationd's start 7 × slower (§7). SwiftCode's Mach semantics are
 right: a message nobody receives stays queued and keeps the demand on the
 port. **The remedy is the Adaptive hold of §7**, part of the scheduling
 work (agent PRIO); no change here.
 
 **Result (2026-10-19):** with the start hold (`scheduling-policy.md` §4.2,
-on by default) pairedsyncd starts **once** in every Ycode hold run (8
+on by default) pairedsyncd starts **once** in every SwiftCode hold run (8
 runs of 2026-10-19; held 24–69 s, released by the quiet test together
 with the companion group that nanoregistrylaunchd enables), as on the Mac
 (1 start, not held), against 65–66 without the hold. No client's message
@@ -709,13 +709,13 @@ did not start it again after its exit.
 
 ### 12.4 searchd
 
-A Ycode defect, fixed (§10).
+A SwiftCode defect, fixed (§10).
 
 ## 13. The full boot on the 2026-10-27 main line (agent SVC-FULL)
 
 IDE runs boot every service since 2026-10-27 (`lean-boot.md` §9). Full
 boots of the main line (5f74ef9) were checked for crashes and loops that
-are Ycode's own: three 700 s behaviour runs on copies of the golden device
+are SwiftCode's own: three 700 s behaviour runs on copies of the golden device
 (`parity-ladder.md` §4.8), a 345 s boot, twelve timed boots and the app
 and warm-boot checks of §4.8 there. The guest's fatal conditions were
 fileindexerd (§11) and intelligencetasksd (§5.1) in every boot, and
@@ -741,14 +741,14 @@ comparable with a Mac reference measured on another day; the behaviour
 (the crash, the exit kind, the throttle) matches. **Open question
 (Q13.1, Mac, black box):** the Mac's intelligencetasksd starts in 700 s
 with a copy of the same golden device's data booted on the same day as a
-Ycode run, and which of the five tasks each start runs (the guest log of
+SwiftCode run, and which of the five tasks each start runs (the guest log of
 the task scheduler names the task it launches), to tell whether the
 scheduler's conditions (network, external power: what the simulator
 reports for both) differ between the platforms.
 
 **Answer (agent OBS-FSEVENTS, 2026-10-27, Mac, level 3).** No copy of a
-Ycode run's `DEV/data` was available on the Mac, so new devices were
-used (`ycode-test-fsevents-1` … `-4`, called `-1` … `-4` below; iPhone
+SwiftCode run's `DEV/data` was available on the Mac, so new devices were
+used (`swiftcode-test-fsevents-1` … `-4`, called `-1` … `-4` below; iPhone
 Duo, iOS 27.1, macOS 27.2; the Mac was heavily loaded by other agents, load 90–1000, swap nearly full, so times stretch). dasd's
 log and `launchd.log`:
 
@@ -782,19 +782,19 @@ log and `launchd.log`:
   process was spawned only at +803 s), 5 (device `-1`, third boot, cut by
   the shutdown), and 15–16 in the Mac references of §5.1 and §12.1 (first crash at +457 s).
 
-**Reading.** The exit kind and the throttle match Ycode. The count does
-not: Ycode's three 700 s runs (3, 4, 5 crashes) stopped getting launch
+**Reading.** The exit kind and the throttle match SwiftCode. The count does
+not: SwiftCode's three 700 s runs (3, 4, 5 crashes) stopped getting launch
 events after a few crashes ("after the 3rd crash launchd simply gets no new
 launch event", above), while the Mac's launchd keeps the event and
 relaunches at the 10 s rate for minutes after dasd's cancel. Whether
-Ycode's runs fired the task late (shortly before 700 s) or the event is
-dropped in Ycode is not visible from the counts. **Open question (Ycode,
-for the clean room):** in a Ycode `launchd.log`, the time of the first
+SwiftCode's runs fired the task late (shortly before 700 s) or the event is
+dropped in SwiftCode is not visible from the counts. **Open question (SwiftCode,
+for the clean room):** in a SwiftCode `launchd.log`, the time of the first
 "launching: xpc event" of `com.apple.intelligencetasksd` and whether
 "launching: xpc event" lines continue after dasd's "did not acknowledge
 launch within 61s" (guest log); on the Mac they do, every 10 s.
 
-**Ycode answer (agent FS-HOST, 2026-10-28, run A of §11's table; the base
+**SwiftCode answer (agent FS-HOST, 2026-10-28, run A of §11's table; the base
 run is the same).** The first "launching: xpc event" of
 `com.apple.intelligencetasksd` came 48 s after `launchd.log`'s first line;
 the job crashed (SIGTRAP, as above) and launchd relaunched it for the same
@@ -803,7 +803,7 @@ with longer gaps (73 s, 81 s, 210 s) after the starts that exited in a
 dirty state ("service exceeded successive crash limit. launch will be
 throttled"). "launching: xpc event" lines continued through the whole
 window: 13 starts in 700 s (12–14 in the other runs of the day),
-against 15–16 on the Mac. So Ycode does not drop the event: the
+against 15–16 on the Mac. So SwiftCode does not drop the event: the
 relaunches go on as on the Mac, and the 3–5 crashes of 2026-10-27 came
 from when the task was fired, not from a lost event. dasd's "did not
 acknowledge launch within 61s" is in the guest's unified log, which these
@@ -811,7 +811,7 @@ runs did not capture.
 
 ### 13.2 PosterBoard: "Invalid condition not satisfying: versionsURL"
 
-**Observation (level 3).** In 3 of 479 Ycode boot logs on the Thor
+**Observation (level 3).** In 3 of 479 SwiftCode boot logs on the Thor
 (2026-10-19 to 2026-10-27, iPhone and iPad devices, full boots), and in
 the boot reported in `visionos.md` §10.14.5, PosterBoard ends with SIGTRAP from a
 PosterFoundation assertion: "Invalid condition not satisfying:
@@ -834,7 +834,7 @@ leaf, in that order. On other threads it removes whole descriptor trees
 `rmdir`). So the crashing sequence is the normal creation with the
 parent gone between its `mkdirat` of the leaf and its `chmod` of the
 parent: the tree was removed in between, which a concurrent removal by
-PosterBoard itself explains. No Ycode call in the sequence returned a
+PosterBoard itself explains. No SwiftCode call in the sequence returned a
 wrong answer in the traced run (`mkdirat`, `chmod`, `unlink` and `rmdir`
 results match Darwin's documented semantics).
 
@@ -845,8 +845,8 @@ recorded. **Open question (Q13.2, Mac, black box):** the exception
 message (`crash annotation` / `abort cause` field) of the Mac's
 PosterBoard `.ips` reports of a simulator device, and whether any of them
 is "Invalid condition not satisfying: versionsURL". If it is, this is
-parity; if the Mac never shows it in many boots, look for a Ycode
-difference in the order of PosterBoard's work (Ycode starts the poster
+parity; if the Mac never shows it in many boots, look for a SwiftCode
+difference in the order of PosterBoard's work (SwiftCode starts the poster
 extensions' work in a different order and at a different speed than the
 Mac, `scheduling-policy.md`).
 
@@ -869,7 +869,7 @@ reload of an extension's descriptors
 (`-[PBFPosterExtensionDataStore _stateLock_ingestReloadedDescriptorsForExtensionBundleIdentifier:…]`).
 The simulator's reports carry no assertion text (no application-specific
 information), so the message itself cannot be read from them; the
-faulting routine is the one whose versions-URL argument the Ycode message
+faulting routine is the one whose versions-URL argument the SwiftCode message
 names, on the same path (new version → its directories). No other thread
 of the five reports was inside a file removal at the moment of the crash,
 so the Mac reports neither confirm nor rule out the concurrent-removal
@@ -884,7 +884,7 @@ reports, level 4; `research/notes/obs-fsevents-2026-10-27.md`.)
 full boot of the day, in JavaScriptCore (a data abort at a bad address
 almost every time), and assistantd ended once in most boots with
 "BUG IN LIBDISPATCH: Invalid wlh state". Neither crashes on the Mac
-(`app-launch.md` §3.6; assistantd's SIGTRAP was listed as a Ycode
+(`app-launch.md` §3.6; assistantd's SIGTRAP was listed as a SwiftCode
 difference in §11). Causes: JavaScriptCore's collector could not suspend
 the threads whose stacks it scans (`thread_suspend` was a stub), and a
 returning workqueue worker lost the changes after a failed one
@@ -924,14 +924,14 @@ not comparable.
 
 ## 15. The program-count gap: 498–540 against 631 (agent B3-GPU, 2026-11-05)
 
-`parity-ladder.md` §4.8 counts 498–506 programs started in 700 s in Ycode
+`parity-ladder.md` §4.8 counts 498–506 programs started in 700 s in SwiftCode
 full boots against 631 on the Mac with the same device data, and left
-the difference unexplained. This section breaks Ycode's count down and
+the difference unexplained. This section breaks SwiftCode's count down and
 says which part the Mac's published numbers explain. It changes no
-Ycode code. The Mac's per-program counts for that run were not recorded,
+SwiftCode code. The Mac's per-program counts for that run were not recorded,
 so the rest is a question for a reference observation (Q15.1).
 
-**Method (Ycode, level 3).** `scripts/ycode-launchd-spawns` counts every
+**Method (SwiftCode, level 3).** `scripts/swiftcode-launchd-spawns` counts every
 "Successfully spawned" line of the guest's `launchd.log` from its first
 line for 700 s, in every launchd domain, as §4.8 did. 79–92 of the
 starts are in the per-process domains (`pid/<n>/…`: XPC services and app
@@ -957,13 +957,13 @@ shared, load 40–60 at home, home 129 s).
 
 **What explains part of it.**
 
-1. *The restart loops* the Mac has too start 11–20 % less often on Ycode
+1. *The restart loops* the Mac has too start 11–20 % less often on SwiftCode
    in total: 197–204 against 221 (−17 to −24). intelligencetasksd alone
    is −7 to −13 (fewer launch events from the guest's task scheduler,
    §13.1); the three throttle loops are −2 to −8 each, the throttle
    period being the same (§12, `scheduling-policy.md` §7.2) and the
-   first start later on Ycode's slower boot.
-2. *The device's state, not Ycode, starts loops.* managedappdistributiond
+   first start later on SwiftCode's slower boot.
+2. *The device's state, not SwiftCode, starts loops.* managedappdistributiond
    ran a throttle loop in `f700` (62 starts: launched by an XPC event,
    exits 0 after 2–8 s, relaunched by the same event) and not in the
    three earlier runs. Like proactiveeventtrackerd and
@@ -981,10 +981,10 @@ shared, load 40–60 at home, home 129 s).
    other daemons first started after 120 s were 6 in `f700q` (home 57 s)
    and 14–23 in the loaded runs (home 116–209 s).
 
-**What is left.** With the loops counted as the Mac's, Ycode's first-boot
+**What is left.** With the loops counted as the Mac's, SwiftCode's first-boot
 runs would start about 520–530 programs against 631: about 100 starts,
 all among the other daemons, the per-process domains and the apps, whose
-Mac counts were not recorded. `launchd.log` shows no start that Ycode
+Mac counts were not recorded. `launchd.log` shows no start that SwiftCode
 refuses: its errors are the same for every boot and come from the
 runtime's contents (frameworks' `XPCServices` bundles with no executable,
 "The specified path is not a bundle" 803 times; framework binaries that
@@ -994,7 +994,7 @@ services, "Invalid XPCService dictionary" 128; a macOS-style
 `IOKit.framework/Versions/A` path, 122). Whether the Mac logs the same
 lines is part of Q15.1.
 
-**Cheap items found:** none in Ycode. The fileindexerd loop is already
+**Cheap items found:** none in SwiftCode. The fileindexerd loop is already
 fixed (§11); intelligencetasksd's launch events are §13.1's open item.
 
 **Q15.1 (for a reference observation, dirty room).** For a new device
@@ -1010,43 +1010,43 @@ With those, each label's difference can be put on one side or the other.
 | Mac service CPU, process counts, still running (§8) | 3 (`ps` samples of throwaway devices, 2026-10-17) |
 | Mac restart and throttle lines, crash counts, spawn-to-INIT delays, `U` state (§5, §7.1) | 3 (`TMP/launchd.log` read as a format; `ps -o stat`) |
 | intelligencetasksd launch events and dasd tasks (§5.1) | 2 (RR job plist read as data); 3 (Mac `log show` of dasd, launchd.log) |
-| intelligencetasksd crash annotation (§5.1) | 3 (Ycode fault report: the libraries' crash annotation strings) |
-| replicatord message sequence (§6) | 3 (Ycode trace runs tr1, tr2: message ids, sizes, seqnos, ports) |
+| intelligencetasksd crash annotation (§5.1) | 3 (SwiftCode fault report: the libraries' crash annotation strings) |
+| replicatord message sequence (§6) | 3 (SwiftCode trace runs tr1, tr2: message ids, sizes, seqnos, ports) |
 | replicatord on the Mac (§6) | 3 (`log show`, launchd.log) |
 | renameatx_np flags and checks, NOFOLLOW_ANY → ELOOP (§4) | 1 (xnu `main` fetched 2026-10-17: `bsd/sys/stdio.h`, `bsd/vfs/vfs_syscalls.c` `renameatx_np`/`renameat_internal`, `bsd/vfs/vfs_lookup.c` `ni_loopcnt = MAXSYMLINKS` for `NAMEI_NOFOLLOW_ANY`) |
-| searchd's rename call and exit (§4) | 3 (Ycode trace run tr3) |
+| searchd's rename call and exit (§4) | 3 (SwiftCode trace run tr3) |
 | Adaptive daemons are background until boosted (§7.2) | 1 (xnu `osfmk/kern/task_policy.c`, `osfmk/ipc/ipc_importance.c`) |
-| replicatord, pairedsyncd and the restart loops with the start hold; the Mac remeasured (§6, §7.2, §12.2, §12.3) | 3 (`scheduling-policy.md` §7: Thor runs, Mac devices `ycode-test-prio-aged-1`, `-2`) |
+| replicatord, pairedsyncd and the restart loops with the start hold; the Mac remeasured (§6, §7.2, §12.2, §12.3) | 3 (`scheduling-policy.md` §7: Thor runs, Mac devices `swiftcode-test-prio-aged-1`, `-2`) |
 | launchd process types of the jobs (§7.1) | 2 (RR job plists read as data) |
-| One report per process (§3.2), `guest_fatal` meaning | 3 (Ycode logs); Ycode design |
-| fileindexerd's FSEvents lookup and fatal error; searchd's assertion (§4) | 3 (Ycode trace run tr4, run a2: log message strings, crash annotations) |
-| Boot times, traps, crash counts (§9) | 3 (Ycode boots on the Thor, exit summaries, launchd.log) |
+| One report per process (§3.2), `guest_fatal` meaning | 3 (SwiftCode logs); SwiftCode design |
+| fileindexerd's FSEvents lookup and fatal error; searchd's assertion (§4) | 3 (SwiftCode trace run tr4, run a2: log message strings, crash annotations) |
+| Boot times, traps, crash counts (§9) | 3 (SwiftCode boots on the Thor, exit summaries, launchd.log) |
 | Darwin shared-mapping semantics past the end and for read-only descriptors (§10) | 1 (mmap(2), ftruncate(2); xnu `bsd/kern/kern_mman.c`) |
-| searchd's mapping pattern and failure messages (§10) | 3 (Ycode trace `SVC3/tr4`; guest log read with `log show`) |
-| searchd on the Mac with Ycode's device data; Ycode after the change (§10, §12.1) | 3 (Mac device `ycode-test-svc4-aged-1`, its `launchd.log`; Ycode runs `base1`, `fx1`, `sv1`, `sv2`) |
-| fileindexerd's FSEvents calls and failure (§11) | 3 (Ycode trace, guest log); 1 (public FSEvents.h API) |
+| searchd's mapping pattern and failure messages (§10) | 3 (SwiftCode trace `SVC3/tr4`; guest log read with `log show`) |
+| searchd on the Mac with SwiftCode's device data; SwiftCode after the change (§10, §12.1) | 3 (Mac device `swiftcode-test-svc4-aged-1`, its `launchd.log`; SwiftCode runs `base1`, `fx1`, `sv1`, `sv2`) |
+| fileindexerd's FSEvents calls and failure (§11) | 3 (SwiftCode trace, guest log); 1 (public FSEvents.h API) |
 | The FSEvents client protocol is not public (§11) | 1 (Apple open source and documentation searched, 2026-10-17) |
 | Restart counts with the same device data on both platforms (§12) | 3 (`launchd.log` on both); 2 (job plists read as data) |
 | locationd / nanoregistrylaunchd order (§12.3) | 3 (`launchd.log` and guest log on both platforms) |
 | fileindexerd still crashes in full boots of 2026-10-27 (§11) | 3 (Thor runs `svcfull/f700a`, `f700b`, `f700q`, `warm1`: `launchd.log`, fatal reports) |
 | FSEvents API names (§11 questions) | 1 (public FSEvents.h documentation) |
 | intelligencetasksd's starts and launch events (§13.1) | 3 (`launchd.log` of runs `f700a`, `f700b`, `f700q`, PRIO `h5`, other 2026-10-27 runs); 2 (the job plist's `LaunchEvents`, read as data) |
-| PosterBoard's assertion, trap rings, and its normal file operations (§13.2) | 3 (Ycode boot logs on the Thor; trace run `svcfull/f700t`) |
+| PosterBoard's assertion, trap rings, and its normal file operations (§13.2) | 3 (SwiftCode boot logs on the Thor; trace run `svcfull/f700t`) |
 | unlink of a directory → EPERM (§13.2) | 1 (unlink(2) on Darwin) |
-| FSEvents protocol, UUID semantics, fileindexerd's calls (§11 answers) | 3 (recorder and probe of ours on Mac throwaway devices `ycode-test-fsevents-*`, 2026-10-27; `fsevents-host.md`) |
+| FSEvents protocol, UUID semantics, fileindexerd's calls (§11 answers) | 3 (recorder and probe of ours on Mac throwaway devices `swiftcode-test-fsevents-*`, 2026-10-27; `fsevents-host.md`) |
 | fileindexerd survives without `com.apple.FSEvents` on the Mac; runs with the minimal stand-in (§11 Q11.2) | 3 (look-up answered 1102 or by our in-process stand-in, two device states; guest log, `launchd.log`, state file read as data) |
-| fileindexerd's `fstatfs`/`getattrlist` requests and the Mac's answers before subscribing (§11) | 3 (recorder); the capability bit names 1 (public `sys/attr.h` of the macOS SDK); Ycode's values read from its sources |
-| Ycode's capability words reproduce Ycode's fileindexerd crash on the Mac; the four required bits (§11 Q11.2) | 3 (fault injection by our recorder into fileindexerd's `getattrlist` replies, 36 starts in three boots, guest log and `launchd.log`) |
+| fileindexerd's `fstatfs`/`getattrlist` requests and the Mac's answers before subscribing (§11) | 3 (recorder); the capability bit names 1 (public `sys/attr.h` of the macOS SDK); SwiftCode's values read from its sources |
+| SwiftCode's capability words reproduce SwiftCode's fileindexerd crash on the Mac; the four required bits (§11 Q11.2) | 3 (fault injection by our recorder into fileindexerd's `getattrlist` replies, 36 starts in three boots, guest log and `launchd.log`) |
 | intelligencetasksd: dasd's tasks, windows, the 61 s cancel, launchd's relaunches (§13.1) | 3 (dasd and launchd logs of four Mac devices, crash reports; 2026-10-27) |
 | PosterBoard's Mac crash reports (§13.2) | 3 (`.ips` reports: queue, signal, times, shared-cache identity); 4 (the symbol names in their frames) |
-| Ycode's fileindexerd with the new capability words: one start, alive; no new crash (§11, Ycode implementation) | 3 (Thor runs `fsh/f700a`, `f700b`, `f700c`, `f700n`, `f700m` of 2026-10-28; other agents' boot logs of 2026-10-27/28 for amsengagementd: `launchd.log`, fatal reports, the service's log); the implementation is Ycode design (`file-system-features.md`) |
-| Boot time unchanged (§11, Ycode implementation) | 3 (Thor `timed.sh` runs `FSHBASE/t1-base`, `t2-base`, `FSH/t1-fsh`, `t2-fsh`) |
-| intelligencetasksd's relaunches in Ycode continue through the window (§13.1, Ycode answer) | 3 (`launchd.log` of the same five runs) |
+| SwiftCode's fileindexerd with the new capability words: one start, alive; no new crash (§11, SwiftCode implementation) | 3 (Thor runs `fsh/f700a`, `f700b`, `f700c`, `f700n`, `f700m` of 2026-10-28; other agents' boot logs of 2026-10-27/28 for amsengagementd: `launchd.log`, fatal reports, the service's log); the implementation is SwiftCode design (`file-system-features.md`) |
+| Boot time unchanged (§11, SwiftCode implementation) | 3 (Thor `timed.sh` runs `FSHBASE/t1-base`, `t2-base`, `FSH/t1-fsh`, `t2-fsh`) |
+| intelligencetasksd's relaunches in SwiftCode continue through the window (§13.1, SwiftCode answer) | 3 (`launchd.log` of the same five runs) |
 
 | amsengagementd and assistantd before and after real thread suspension and the workqueue fix; programs started; restart loops (§14) | 3 (Thor runs `ide-remote/tsus/runs/A-*`, `B-*`: `launchd.log`, `beh.txt`, fatal reports with trap rings and crash annotations; visionOS runs `tsus/vruns/v1`, `v2`) |
 | Boot time unchanged (§14) | 3 (Thor `timed.sh` runs `TSUSB/t1-base`, `t2-base`, `TSUS2/t1-tsus`, `t2-tsus`) |
 
-| Program counts by kind and label, boot kind, host load, `launchd.log` errors (§15) | 3 (Thor runs `svcfull/f700a`, `f700b`, `f700q` of 2026-10-27 and B3-GPU's `f700` of 2026-11-05: guest `launchd.log`, `scripts/ycode-launchd-spawns`); the Mac's counts are those of §4.7–§4.8 of `parity-ladder.md` (level 3, recorded then) |
+| Program counts by kind and label, boot kind, host load, `launchd.log` errors (§15) | 3 (Thor runs `svcfull/f700a`, `f700b`, `f700q` of 2026-10-27 and B3-GPU's `f700` of 2026-11-05: guest `launchd.log`, `scripts/swiftcode-launchd-spawns`); the Mac's counts are those of §4.7–§4.8 of `parity-ladder.md` (level 3, recorded then) |
 | `XPCService` is false in the two MediaConversionService bundles (§15) | 2 (their `Info.plist` read as a property list) |
 
 No disassembly or decompilation was used (level 5 not used).

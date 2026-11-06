@@ -1,11 +1,11 @@
-# Assist approval model — how YcodeMCP gates writes
+# Assist approval model — how SwiftCodeMCP gates writes
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools).
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the approval model for every tool that writes files. It
 extends the mechanism Wave 1 already built — `MCPServer.run()` plus the
-`commit()` / `call.approve()` path in `YcodeTools+Content.swift` and
-`YcodeTools+Artifacts.swift` — into the documented model. It does **not**
+`commit()` / `call.approve()` path in `SwiftCodeTools+Content.swift` and
+`SwiftCodeTools+Artifacts.swift` — into the documented model. It does **not**
 invent a second gate: there is exactly one gate, the write policy, and
 every write tool goes through it. The companion specs are
 `assist-tool-catalogue.md` (which tool writes, its risk, and its gate)
@@ -15,7 +15,7 @@ gate has let it through).
 Scope: the approval decision itself — the three `MCPWritePolicy`
 modes, what each does to a write tool, what counts as approval, what
 happens on refusal, which gate each Wave 2 tool uses, the rejected
-Legacy Autopilot bypass, and the Legacy path rules that Ycode keeps or
+Legacy Autopilot bypass, and the Legacy path rules that SwiftCode keeps or
 replaces. The user-facing review UI (how the IDE shows a proposal) is
 out of scope; this spec only defines the `MCPChange` a tool must
 present and the rule that nothing is written before approval returns
@@ -30,7 +30,7 @@ true.
   registration; it never depends on the call's arguments.
 - **Write policy**: the server's `MCPWritePolicy` — `readOnly`,
   `allow`, or `review`. One policy per server, set at startup
-  (`ycode mcp --allow-writes` selects `allow`; the IDE's agent mode
+  (`swiftcode mcp --allow-writes` selects `allow`; the IDE's agent mode
   selects `review`; anything else is `readOnly`).
 - **`MCPChange`**: one proposed change — `tool`, absolute `path`,
   workspace-relative `relativePath`, `original` (file text before,
@@ -52,9 +52,9 @@ the tool handler:
 2. If `tool.writes` is true, the policy decides:
    - `readOnly` → the call fails immediately with
      `MCPServer.readOnlyMessage(tool.name)`:
-     `<tool> changes files, and this Ycode MCP server is read-only.
-     Start it with `ycode mcp --allow-writes`, or use agent mode in
-     the Ycode IDE, where each change is reviewed as a proposal.`
+     `<tool> changes files, and this SwiftCode MCP server is read-only.
+     Start it with `swiftcode mcp --allow-writes`, or use agent mode in
+     the SwiftCode IDE, where each change is reviewed as a proposal.`
      The handler never runs. Nothing is written, read, or listed as
      a side effect of the refused call.
    - `allow` → `call.approve` is replaced with a closure that always
@@ -90,9 +90,9 @@ No other component may gate writes. In particular:
 
 | Mode | Selected by | Effect on a write tool | Effect on a read-only tool |
 |---|---|---|---|
-| `readOnly` | Default; `ycode mcp` without `--allow-writes` | Refused in `run()` before the handler, with `readOnlyMessage`. Nothing written. | Runs normally. |
-| `allow` | `ycode mcp --allow-writes` | Handler runs with `approve` pre-granted (`true`). Every `commit()` / `approve()` call still happens and still returns `true`. | Runs normally (`approve` is `false`, unused). |
-| `review(ask)` | Agent mode in the Ycode IDE | Handler runs; every change is presented as an `MCPChange` and written only if the reviewer accepts it. A rejected change returns `MCPServer.rejectedMessage` (see §4). | Runs normally (`approve` is `false`, unused). |
+| `readOnly` | Default; `swiftcode mcp` without `--allow-writes` | Refused in `run()` before the handler, with `readOnlyMessage`. Nothing written. | Runs normally. |
+| `allow` | `swiftcode mcp --allow-writes` | Handler runs with `approve` pre-granted (`true`). Every `commit()` / `approve()` call still happens and still returns `true`. | Runs normally (`approve` is `false`, unused). |
+| `review(ask)` | Agent mode in the SwiftCode IDE | Handler runs; every change is presented as an `MCPChange` and written only if the reviewer accepts it. A rejected change returns `MCPServer.rejectedMessage` (see §4). | Runs normally (`approve` is `false`, unused). |
 
 `allowsWrites` is true for `allow` and `review`, false for
 `readOnly`. There is no fourth mode, no per-tool override, and no
@@ -112,7 +112,7 @@ When `approve(change)` returns `false`, the tool must:
    approved before the refusal stay written; files after it are not
    attempted — see §6.3.)
 2. Return the exact message `MCPServer.rejectedMessage`:
-   `The change was rejected in Ycode's review; nothing was written.`
+   `The change was rejected in SwiftCode's review; nothing was written.`
    as an error result (`isError: true`). It must not substitute its
    own wording, and must not report partial success.
 3. Leave no reviewer-visible side effect behind: no diff-stream
@@ -196,7 +196,7 @@ Why it is rejected, not adapted:
    for a reviewer to accept or reject, and no record of what was
    approved. Porting it would mean porting a second gate that
    answers "yes" before the first gate is asked.
-4. The Ycode host has no session loop, no phase gate, and no
+4. The SwiftCode host has no session loop, no phase gate, and no
    `AssistPermissionsManager` equivalent to attach it to; the only
    gate is `MCPWritePolicy`, and it has no Autopilot case and must
    never gain one.
@@ -220,7 +220,7 @@ Legacy gives these two tools **no `confirm` parameter**. Their
 schemas contain only `path`, and their `execute()` implementations
 check nothing beyond existence (and, for `dir_delete`, the
 workspace-root refusal). The safeguard in Legacy is the router /
-permissions layer — which Autopilot bypasses (§5.2). The Ycode
+permissions layer — which Autopilot bypasses (§5.2). The SwiftCode
 safeguard is therefore the gate in §2–§4, not a parameter:
 
 - Both tools are `writes: true`, `potentiallyDestructive`,
@@ -244,14 +244,14 @@ safeguard is therefore the gate in §2–§4, not a parameter:
     (`Security Error: Refusing to delete the workspace root
     itself: <path>`).
   - Deletion is permanent: no trash, no backup, no undo. Legacy
-    creates no backup on delete, and the Ycode port must not
+    creates no backup on delete, and the SwiftCode port must not
     silently create one either — a backup the caller did not ask
     for is a second write the reviewer never approved. (The
     caller can use `file_backup` first; that is a separate,
     separately approved call.)
   - `file_delete` on a directory deletes the whole tree (see
     `assist-file-writing-tools.md` §5.2): Legacy's filesystem
-    layer removes whatever is at the path, and the Ycode port
+    layer removes whatever is at the path, and the SwiftCode port
     preserves that behaviour (coordinator decision, Wave 2);
     `dir_delete` remains the tool intended for directories.
 
@@ -295,7 +295,7 @@ after, not a summary of it.
 contains exactly `proposed` — but only **after** `approve()` has
 returned true. Approval is never skipped because the change would
 be a no-op. (Legacy's `code_format` skips unchanged files without
-asking; the Ycode port preserves that by not building a change for
+asking; the SwiftCode port preserves that by not building a change for
 an unchanged file at all — no `MCPChange` exists, so there is
 nothing to approve. That is different from building a change and
 not asking about it.)
@@ -361,7 +361,7 @@ change and must not be presented as one:
 - On the first refusal, stop: do not attempt the remaining files,
   and return `rejectedMessage` as an error. Files approved and
   written before the refusal stay written — Legacy's
-  `code_multi_edit` is explicitly not atomic, and the Ycode port
+  `code_multi_edit` is explicitly not atomic, and the SwiftCode port
   preserves that (see `assist-file-writing-tools.md` §4.3). The
   error message says nothing was written **for the refused change**;
   it does not claim the whole call wrote nothing when earlier files
@@ -402,7 +402,7 @@ any other read tool. Its presence in this wave corrects the
 subsystem map's family assignment, not its behaviour — see
 `assist-file-writing-tools.md` §3.4.
 
-## 7. Paths: what Legacy allowed, what Ycode keeps, what confinement replaces
+## 7. Paths: what Legacy allowed, what SwiftCode keeps, what confinement replaces
 
 Wave 1 already confines all tool paths to the workspace. This
 section records the Legacy rules against that confinement, so the
@@ -444,15 +444,15 @@ boundary; see `assist-file-writing-tools.md` §2.4). The
 `AssistPermissionsManager` also always allows that directory and
 creates it in `init`.
 
-Ycode does **not** keep this carve-out:
+SwiftCode does **not** keep this carve-out:
 
-- There is no isolated scripts directory in Ycode, and no Wave 2
+- There is no isolated scripts directory in SwiftCode, and no Wave 2
   tool has a reason to write outside the workspace. A path under
   `/tmp/swiftcode/scripts` is outside the workspace and is refused
   like any other outside path.
-- `file_write` / `code_replace` in Ycode therefore do not need
+- `file_write` / `code_replace` in SwiftCode therefore do not need
   their inline `/tmp` special case at all: the session-aware
-  resolver (which Ycode's `resolveFileReadingPath` implements)
+  resolver (which SwiftCode's `resolveFileReadingPath` implements)
   refuses outside paths, and the tools' own `..` check is the only
   inline check that survives.
 - This is a deliberate deviation, recorded here so it is not
@@ -468,7 +468,7 @@ Legacy's `AssistPermissionsManager` keeps a blocked-path list —
 `/private`, `/dev`, `/tmp` — plus an allow-list, consulted by
 `isPathAllowed()` (except in Autopilot, where it is bypassed, §5.2).
 
-Ycode does not port the list, because workspace confinement makes
+SwiftCode does not port the list, because workspace confinement makes
 it redundant: a tool path must resolve inside the workspace root,
 and the workspace root is a project folder, not a system directory.
 A path under `/etc` or `/System` cannot be inside a workspace
@@ -490,24 +490,24 @@ none of them is ported:
 - `LiveDiffStreamer` begin / stream / complete / reconcile calls
   in `file_write`, `file_create`, `code_replace`, and
   `code_insert`: they broadcast in-flight mutation state to the
-  IDE. Ycode has no such streamer; the `MCPChange` proposal is the
+  IDE. SwiftCode has no such streamer; the `MCPChange` proposal is the
   only pre-write broadcast.
 - `XcodeProjWriter.shared.addFileReference` calls in `file_write`,
   `file_create`, `code_generate`, and `file_copy`: Legacy
-  auto-registers a new file in the `.pbxproj`. Ycode projects are
-  SwiftPM or Xcode projects opened through Ycode's own model; a
+  auto-registers a new file in the `.pbxproj`. SwiftCode projects are
+  SwiftPM or Xcode projects opened through SwiftCode's own model; a
   new file's project membership is the IDE's business, not a tool
   side effect, and it must not happen as an unreviewed write
-  alongside an approved one. (Whether Ycode auto-registers new
+  alongside an approved one. (Whether SwiftCode auto-registers new
   files at all is a project-model decision for a later spec.)
 - `ProjectSessionStore.shared.recordAssistFileMutation` calls:
-  Legacy's session mutation log. Ycode's equivalent is the
+  Legacy's session mutation log. SwiftCode's equivalent is the
   session notification in `commit()` /
   `noteFileEdited` / `mcpHostDidWrite` (§6.2).
 - The `suggestedNextActions: ["project_build"]` (duplicated for
   `.swift` files — see `assist-file-writing-tools.md` §8.4) and
   `duration` / `beforeContent` / `afterContent` envelope fields:
-  Ycode's `MCPToolResult` has no such fields, so they are dropped,
+  SwiftCode's `MCPToolResult` has no such fields, so they are dropped,
   not reimplemented. The unified diff survives as `data["diff"]`
   (see the catalogue).
 
@@ -516,7 +516,7 @@ none of them is ported:
 An ID the server does not recognise is treated as
 `potentiallyDestructive`, mutating, and requiring verification —
 exactly as Legacy's `AssistToolRouter.metadata(for:)` does for its
-default case, and as Wave 1's catalogue §1.2 specifies. In Ycode
+default case, and as Wave 1's catalogue §1.2 specifies. In SwiftCode
 terms: `tools/call` for an unknown name throws
 `JSONRPCError.invalidParams("Unknown tool: <name>")` before `run()`
 is reached, so an unknown tool never executes and never writes.
@@ -545,9 +545,9 @@ true` and its gate.
 
 | Claim | Level | Source |
 |---|---|---|
-| `MCPWritePolicy` modes, `run()` refusal / pre-grant / review wiring, `readOnlyMessage`, `rejectedMessage`, non-write tools get `approve = { _ in false }`, unknown tool throws `invalidParams` | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run()`, `readOnlyMessage`, `rejectedMessage`, `dispatch` `tools/call`), read directly |
-| `commit()` asks `approve()` then writes atomically with parent creation, skips the write when disk already matches (after approval), notifies session/delegate; explicit `MCPChange` + `guard await call.approve(change)` for byte-copy/delete in Wave 1 | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`commit`, `writeFile`, `editFile`, `setString`); `YcodeTools+Artifacts.swift` (`createArtifact`, `deleteArtifact`, `backupFile`), read directly |
-| `--allow-writes` selects `allow`, otherwise `readOnly`; IDE agent mode is review | 1 | Ycode `ycode/Sources/YcodeMCP/MCPCommand.swift` (`--allow-writes`, `server.writePolicy = options.allowWrites ? .allow : .readOnly`), read directly |
+| `MCPWritePolicy` modes, `run()` refusal / pre-grant / review wiring, `readOnlyMessage`, `rejectedMessage`, non-write tools get `approve = { _ in false }`, unknown tool throws `invalidParams` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run()`, `readOnlyMessage`, `rejectedMessage`, `dispatch` `tools/call`), read directly |
+| `commit()` asks `approve()` then writes atomically with parent creation, skips the write when disk already matches (after approval), notifies session/delegate; explicit `MCPChange` + `guard await call.approve(change)` for byte-copy/delete in Wave 1 | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Content.swift` (`commit`, `writeFile`, `editFile`, `setString`); `SwiftCodeTools+Artifacts.swift` (`createArtifact`, `deleteArtifact`, `backupFile`), read directly |
+| `--allow-writes` selects `allow`, otherwise `readOnly`; IDE agent mode is review | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPCommand.swift` (`--allow-writes`, `server.writePolicy = options.allowWrites ? .allow : .readOnly`), read directly |
 | Autopilot defaults on when the UserDefaults key is absent; `isPathAllowed` bypass; `authorizeOperation` bypass; `requiresApproval = false`, `isApproved = true`; blocked paths; isolated-scripts directory always allowed and created in `init` | 1 | Legacy `SwiftCode/Backend/Assist/AssistPermissionsManager.swift`, read directly |
 | Capability / risk / permission derivation, `isReadOnly` / `isMutating` / `isDestructive` defaults, fail-closed unknown-tool metadata | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTool.swift` (protocol extension defaults); `AssistToolRouter.swift` (`metadata(for:)`, default case), read directly |
 | `/tmp/swiftcode/scripts` carve-out with `/` boundary in the session-aware resolver; fail-closed on `/` workspace root; symlink resolution in longest existing ancestor | 1 | Legacy `SwiftCode/Backend/Assist/AssistFileSystem.swift` (`resolve`), read directly |

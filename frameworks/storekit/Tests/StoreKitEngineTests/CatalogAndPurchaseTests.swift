@@ -21,7 +21,7 @@ struct NoConfigurationTests {
     func isolation() throws {
         let (_, device, store) = makeStore()
         #expect(try store.products(for: ID.all).count == 7)
-        #expect(try device.store(for: "dev.ycode.skprobe.b").products(for: ID.all).isEmpty)
+        #expect(try device.store(for: "dev.swiftcode.skprobe.b").products(for: ID.all).isEmpty)
     }
 }
 
@@ -54,14 +54,14 @@ struct CatalogTests {
         #expect(weekly.groupID == "200000002" && weekly.period.iso8601 == "P1W")
         #expect(weekly.introductoryOffer?.paymentMode == .payUpFront && weekly.introductoryOffer?.totalDuration.iso8601 == "P1M")
         let catalog = store.catalog!
-        #expect(catalog.group(ID.plus)?.displayName(locale: "en_US") == "Ycode Plus")
+        #expect(catalog.group(ID.plus)?.displayName(locale: "en_US") == "SwiftCode Plus")
         #expect(catalog.group(ID.extra)?.displayName(locale: "en_US") == "Extra")
     }
 
     @Test("P1: unknown ids are left out; an empty request is empty; intro eligibility true for both groups and an unknown one")
     func requests() throws {
         let (_, _, store) = makeStore()
-        #expect(try store.products(for: ["dev.ycode.skprobe.bogus"]).isEmpty)
+        #expect(try store.products(for: ["dev.swiftcode.skprobe.bogus"]).isEmpty)
         #expect(try store.products(for: []).isEmpty)
         #expect(try store.products(for: [ID.pro, "nope", ID.coins, ID.pro]).map(\.id) == [ID.pro, ID.coins])
         #expect(store.isEligibleForIntroOffer(groupID: ID.plus))
@@ -159,7 +159,7 @@ struct PurchaseTests {
         store.clearTransactions()
         #expect(store.allTransactions().isEmpty)
         #expect(try store.purchase(productID: ID.coins).record.id == 3)
-        let other = device.store(for: "dev.ycode.other")
+        let other = device.store(for: "dev.swiftcode.other")
         other.installConfiguration(probeConfiguration())
         #expect(try other.purchase(productID: ID.coins).record.id == 0)
     }
@@ -187,7 +187,7 @@ struct PurchaseTests {
 
     @Test("U4: a relaunch (a new device object on the same directory) keeps products and entitlements")
     func persistence() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-storekit-tests-\(UUID().uuidString)")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-storekit-tests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let clock = ManualClock(referenceStart)
         do {

@@ -27,10 +27,10 @@ struct FreshDeviceTests {
         #expect(cals.count == 2)
         #expect(calendar.type == .local && calendar.allowsContentModifications && !calendar.isImmutable)
         #expect(calendar.source.sourceIdentifier == sources[0].sourceIdentifier)
-        #expect(calendar.ycodeColor == YcodeRGBColor(red: 0.0, green: 0.5333, blue: 1.0))
+        #expect(calendar.swiftcodeColor == SwiftCodeRGBColor(red: 0.0, green: 0.5333, blue: 1.0))
         #expect(birthdays.type == .birthday && !birthdays.allowsContentModifications && birthdays.isImmutable)
         #expect(birthdays.source.title == "Other")
-        #expect(birthdays.ycodeColor == YcodeRGBColor(red: 0.5098, green: 0.5843, blue: 0.6863))
+        #expect(birthdays.swiftcodeColor == SwiftCodeRGBColor(red: 0.5098, green: 0.5843, blue: 0.6863))
         #expect(calendar.supportedEventAvailabilities == [])
         #expect(!calendar.isSubscribed)
         #expect(calendar.allowedEntityTypes == .event)
@@ -39,7 +39,7 @@ struct FreshDeviceTests {
         #expect(lists.map(\.title) == ["Reminders"])
         #expect(lists[0].calendarIdentifier == "3C8C2A71-84BF-4C87-8EFD-BB4827650D15")
         #expect(lists[0].source.title == "Default")
-        #expect(lists[0].ycodeColor == YcodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0))
+        #expect(lists[0].swiftcodeColor == SwiftCodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0))
         #expect(lists[0].allowedEntityTypes == .reminder)
 
         #expect(s.defaultCalendarForNewEvents?.title == "Calendar")
@@ -76,14 +76,14 @@ struct FreshDeviceTests {
         let s = t.store
         let cal = EKCalendar(for: .event, eventStore: s)
         #expect(cal.type == .local && cal.source == nil && cal.allowsContentModifications)
-        #expect(cal.ycodeColor == nil)
+        #expect(cal.swiftcodeColor == nil)
         #expect(cal.allowedEntityTypes == .event)
         #expect(!cal.calendarIdentifier.isEmpty)
         cal.title = "Probe"
         expectCode(.calendarHasNoSource) { try s.saveCalendar(cal, commit: true) }
         cal.source = s.defaultCalendarForNewEvents!.source
         try s.saveCalendar(cal, commit: true)
-        #expect(cal.ycodeColor == YcodeRGBColor(red: 0.7961, green: 0.1882, blue: 0.8784))
+        #expect(cal.swiftcodeColor == SwiftCodeRGBColor(red: 0.7961, green: 0.1882, blue: 0.8784))
         cal.title = "Probe 2"
         try s.saveCalendar(cal, commit: true)
         #expect(t.another().calendar(withIdentifier: cal.calendarIdentifier)?.title == "Probe 2")
@@ -110,7 +110,7 @@ struct FreshDeviceTests {
         list.title = "Groceries"
         list.source = t.store.defaultCalendarForNewReminders()!.source
         try t.store.saveCalendar(list, commit: true)
-        #expect(list.ycodeColor == YcodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0))
+        #expect(list.swiftcodeColor == SwiftCodeRGBColor(red: 0.0, green: 0.4784, blue: 1.0))
         #expect(t.store.calendars(for: .reminder).count == 2)
     }
 }
@@ -429,7 +429,7 @@ struct NotificationTests {
         let counter = NotificationCounter(t.store)
         let path = t.url.path
         await #expect(processExitsWith: .success) { [path = path as String] in
-            let s = EKEventStore(ycodeConfiguration: YcodeEventStoreConfiguration(
+            let s = EKEventStore(swiftcodeConfiguration: SwiftCodeEventStoreConfiguration(
                 databaseURL: URL(fileURLWithPath: path), timeZone: TimeZone(identifier: "UTC")))
             let e = EKEvent(eventStore: s)
             e.title = "from child"
@@ -478,7 +478,7 @@ struct AccessLevelTests {
         let cal = try #require(s.defaultCalendarForNewEvents)
         #expect(cal.title == "Calendar" && cal.calendarIdentifier == "VIRTUAL_APP_CALENDAR_UUID")
         #expect(cal.type == .calDAV && cal.isImmutable && cal.allowsContentModifications)
-        #expect(cal.ycodeColor == YcodeRGBColor(red: 1.0, green: 0.2196, blue: 0.2353))
+        #expect(cal.swiftcodeColor == SwiftCodeRGBColor(red: 1.0, green: 0.2196, blue: 0.2353))
         #expect(cal.allowedEntityTypes == .event)
         #expect(s.calendars(for: .event).map(\.calendarIdentifier) == ["VIRTUAL_APP_CALENDAR_UUID"])
 

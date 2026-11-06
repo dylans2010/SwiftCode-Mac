@@ -218,7 +218,7 @@ public struct Path: Equatable, Sendable, CustomStringConvertible {
     }
 
     /// Corners clockwise from the top left. `.continuous` corners use a
-    /// smoother curve that starts further from the corner (Ycode's own
+    /// smoother curve that starts further from the corner (SwiftCode's own
     /// approximation of a curvature-continuous corner: the radius is
     /// stretched by 1.28 along each edge and the handles shortened, so the
     /// curvature ramps up instead of jumping).

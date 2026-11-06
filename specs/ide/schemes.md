@@ -1,6 +1,6 @@
 # Schemes: the scheme editor and Manage Schemes
 
-Ycode modules: `YcodeWorkspace` (`Scheme` editing extension), `YcodeUI`
+SwiftCode modules: `SwiftCodeWorkspace` (`Scheme` editing extension), `SwiftCodeUI`
 (`SchemeEditorController`, `ManageSchemesController`). File format:
 `specs/formats/xcode-xml.md` §Scheme.
 
@@ -22,7 +22,7 @@ the right; at the bottom "Duplicate Scheme" (disabled), "Manage
 Schemes…", a "Shared" checkbox (moves the file as in Manage Schemes) and
 "Close". The sheet reopens on the window's last action and tab.
 
-| Action | Element | Pane in Ycode |
+| Action | Element | Pane in SwiftCode |
 |---|---|---|
 | Build | `BuildAction` | Build Order, Build Options ▸ Find Implicit Dependencies (`buildImplicitDependencies`), Override Architectures, Build Debugging; Targets table Targets / Analyze / Test / Run / Profile / Archive (`buildFor<Action>` on each `BuildActionEntry`) |
 | Run | `LaunchAction` | tabs Info, Arguments, Options, Diagnostics |
@@ -32,7 +32,7 @@ Schemes…", a "Shared" checkbox (moves the file as in Manage Schemes) and
 | Archive | `ArchiveAction` | Build Configuration, Archive Name, Reveal Archive in Organizer, Allow Archiving for Simulator |
 
 Rows and defaults follow reference-ui-2.md §7. Rows whose scheme
-attributes are not in Ycode's specs (Build Order, Override
+attributes are not in SwiftCode's specs (Build Order, Override
 Architectures, Build Debugging, Debug executable, Debug Process As, LLDB
 Init File, Launch, Expand Variables Based On, the Options rows other than
 the working directory, the Diagnostics rows other than the sanitizers
@@ -85,11 +85,11 @@ the action element, `"YES"` when on and removed when off:
   sanitizer runtime into the product. Packages (no scheme file) get none.
 - Still disabled: Main Thread Checker, Thread Performance Checker, the
   memory-management, Metal and Core AI rows. They need runtime checkers
-  Ycode does not have.
+  SwiftCode does not have.
 
-Code: `YcodeWorkspace` `SchemeDiagnostics`, `YcodeIDECore`
+Code: `SwiftCodeWorkspace` `SchemeDiagnostics`, `SwiftCodeIDECore`
 `SchemeDiagnosticsBuild.swift`, `WorkspaceModel.buildRequest`,
-`WorkspaceSession.launchOptions`; `YcodeUI` `SchemeEditorController`.
+`WorkspaceSession.launchOptions`; `SwiftCodeUI` `SchemeEditorController`.
 Tests: `IDEQuickWinsTests`, `IDEQuickWinsUITests.schemeDiagnosticsReachTheBuild`.
 
 ## Writing
@@ -142,4 +142,4 @@ current user's directory. The file's bytes are unchanged by a move.
   (level 1).
 - OPEN QUESTION: whether Xcode's Test action uses its own Diagnostics or
   the Run action's when "Use the Run action's arguments and environment"
-  is on; Ycode uses the test action's own attributes.
+  is on; SwiftCode uses the test action's own attributes.

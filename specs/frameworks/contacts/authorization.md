@@ -39,7 +39,7 @@ termination namespace `TCC`, code 0, and a detail text saying that the app
 attempted to access privacy-sensitive data without a usage description and
 that its Info.plist must contain an `NSContactsUsageDescription` key. No
 prompt appears. `authorizationStatusForEntityType:` alone does not
-terminate. Ycode reproduces the termination with a message naming the key.
+terminate. SwiftCode reproduces the termination with a message naming the key.
 
 ## 4. The prompt (iOS 18+, observed)
 
@@ -83,7 +83,7 @@ interaction, status 4; the app then lists exactly those 2 contacts (plus
 groups Friends and Work and the local container). The monogram order in
 step 2 differed between two runs (not sorted).
 
-Ycode draws its own alert and sheet with its own words and artwork, with the
+SwiftCode draws its own alert and sheet with its own words and artwork, with the
 same two steps and the same three outcomes.
 
 ## 5. Limited access
@@ -123,7 +123,7 @@ C-CN-Q1). Their names are level 4 facts from the SDK's Swift interface.
 
 Granted contacts are recorded per bundle identifier in the `LimitedAccess`
 table of `AddressBook.sqlitedb` (`simulator-baseline.md` §5): after the run
-above, two rows (bundle `dev.ycode.cnprobe.lim`, the contact guid, sequence
+above, two rows (bundle `dev.swiftcode.cnprobe.lim`, the contact guid, sequence
 numbers 2 and 3, active 1). Rows disappear when the contact is deleted
 (trigger), which is why an earlier device that had deleted its granted
 contact showed an empty table. TCC records the
@@ -141,7 +141,7 @@ level: `kTCCServiceAddressBook` with `auth_value` 3 for limited, 2 for full,
 | `reset contacts` | 0 | row removed |
 
 So `simctl` cannot produce iOS 18 limited access; only the prompt can.
-Ycode's `simctl` equivalent should keep these results for compatibility and
+SwiftCode's `simctl` equivalent should keep these results for compatibility and
 may add a separate, clearly named verb for limited access with a contact
 list.
 

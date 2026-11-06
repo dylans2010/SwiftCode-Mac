@@ -10,7 +10,7 @@ set -euo pipefail
 # - The 200 MB size gate in step 3 is report-only for the same reason: it
 #   was only passable via filler. Real SDK content is far smaller.
 # - The binary/tool checks in step 1 still require the Swift SDK migration
-#   (ledger: ycode/Package.swift NOT STARTED, other wave).
+#   (ledger: swiftcode/Package.swift NOT STARTED, other wave).
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$SDK_ROOT/Distribution"
 DEST="$DIST_DIR/SwiftCodeSDK"

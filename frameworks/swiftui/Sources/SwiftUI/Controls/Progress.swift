@@ -211,7 +211,7 @@ struct LinearProgressBody: View {
                     if let f = configuration.fractionCompleted {
                         Capsule().fill(.tint).frame(width: w * CGFloat(f))
                     } else {
-                        // Indeterminate: a segment sweeping across (Ycode).
+                        // Indeterminate: a segment sweeping across (SwiftCode).
                         Capsule().fill(.tint).frame(width: w * 0.3)
                             .offset(x: sweep ? w * 0.7 : 0)
                     }
@@ -436,7 +436,7 @@ public struct AccessoryLinearCapacityGaugeStyle: GaugeStyle {
     }
 }
 
-/// A ring with the current value inside (44 × 44, Ycode).
+/// A ring with the current value inside (44 × 44, SwiftCode).
 public struct AccessoryCircularCapacityGaugeStyle: GaugeStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {

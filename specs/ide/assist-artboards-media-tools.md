@@ -12,7 +12,7 @@ bodies, decompiler text, or Apple code are reproduced in it (this repo's `AGENTS
 
 ## Assist artboards / simulator tools — behaviour (Wave 5)
 
-Behaviour for the 12 Legacy Assist tools ported in Wave 5 onto Ycode's MCP
+Behaviour for the 12 Legacy Assist tools ported in Wave 5 onto SwiftCode's MCP
 host: 8 Artboards tools and 4 Simulator / device tools. See
 `assist-tool-catalogue.md` for each tool's ID, schema, capability / risk /
 permission, and gate. Legacy source (Dylan's own code, ported under MIT):
@@ -21,14 +21,14 @@ permission, and gate. Legacy source (Dylan's own code, ported under MIT):
 
 Catalogue count for this wave: **12 IDs served with 10 new registrations +
 2 alignments.** `simulator_boot` and `simulator_list` are NOT re-registered:
-Ycode already registers them in `YcodeTools+Run.swift` (`runTools`) for the
-Ycode Simulator, and duplicate IDs would break the catalogue's uniqueness
+SwiftCode already registers them in `SwiftCodeTools+Run.swift` (`runTools`) for the
+SwiftCode Simulator, and duplicate IDs would break the catalogue's uniqueness
 invariant and `MCPServerTests`. They are aligned in place instead (§3).
 New registrations: `artboardTools` (8) in
-`ycode/Sources/YcodeMCP/YcodeTools+Artboards.swift` and `simulatorTools` (2:
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Artboards.swift` and `simulatorTools` (2:
 `device_list`, `simulator_controller`) in
-`ycode/Sources/YcodeMCP/YcodeTools+Simulator.swift`. The coordinator wires
-both arrays into `installTools()` in `YcodeTools.swift`
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Simulator.swift`. The coordinator wires
+both arrays into `installTools()` in `SwiftCodeTools.swift`
 (`server.tools = … + artboardTools + simulatorTools`).
 
 ### 1. Conventions shared by this wave
@@ -37,7 +37,7 @@ both arrays into `installTools()` in `YcodeTools.swift`
   the `workspace` parameter Wave 1 adds to every tool (optional; opens the
   workspace when it is not the open one). Descriptions below are Legacy's
   verbatim. Structured data keeps Legacy's keys, with typed JSON values
-  (integers and booleans) the way Ycode's other tools do — Legacy's
+  (integers and booleans) the way SwiftCode's other tools do — Legacy's
   string-only data map is not reproduced. Tools whose Legacy result
   carries no data return a plain text result instead.
 - **Risk → annotations** (catalogue §1.3, extended the way Wave 3 extended
@@ -59,15 +59,15 @@ both arrays into `installTools()` in `YcodeTools.swift`
   `xctrace` 60 s; `simctl boot`/`shutdown` 120 s; `simulator_controller`
   300 s). No command string is ever assembled. A timeout is reported,
   never retried silently.
-- **Artboards are in-memory, host-scoped.** Ycode has no Artboards system
+- **Artboards are in-memory, host-scoped.** SwiftCode has no Artboards system
   (the destination audit verified `Artboard` occurs 0 times in destination
   source) and no artboard file format, so the record lives in-memory on
-  the host (`YcodeMCPHost.artboards`, `activeArtboardID`), exactly as
+  the host (`SwiftCodeMCPHost.artboards`, `activeArtboardID`), exactly as
   Legacy's lived in-memory in `DocumentCoordinator`'s
   `VisualUIDocument`. Artboards are not persisted to disk, do not survive
   a server restart, and are not scoped per workspace. A fresh server
   starts with no artboards. Legacy's fresh `VisualUIDocument` likewise
-  started empty apart from its `Default` canvas root, which Ycode does
+  started empty apart from its `Default` canvas root, which SwiftCode does
   **not** seed — but the `Default` deletion guard is kept: an artboard
   named `Default` cannot be deleted.
 - **Lookup is Legacy's.** An identifier that parses as a UUID matches by
@@ -77,7 +77,7 @@ both arrays into `installTools()` in `YcodeTools.swift`
 
 ### 2. Seams
 
-- **Artboards → `YcodePreviews`, not a parallel preview system.**
+- **Artboards → `SwiftCodePreviews`, not a parallel preview system.**
   Compiling an artboard renders its custom SwiftUI source through
   `PreviewRenderRunner` (the `preview_render` engine: writes the source
   to a temporary `<name>.swift`, renders the first `#Preview` — or the
@@ -93,26 +93,26 @@ both arrays into `installTools()` in `YcodeTools.swift`
   custom source the caller supplies.
 - **`artboard_run_app` → the existing `run` tool.** It delegates to
   `run(call)`: build the scheme and run it on this computer, or on the
-  Ycode Simulator when the destination is one. Legacy ran the full app
-  on an Apple simulator via `FullAppRunManager`; Ycode has no
+  SwiftCode Simulator when the destination is one. Legacy ran the full app
+  on an Apple simulator via `FullAppRunManager`; SwiftCode has no
   Apple-simulator run destination.
-- **Simulator tools → `xcrun` as a subprocess, not `YcodeSimFeatures`.**
-  `YcodeSimFeatures` is the Ycode Simulator's guest-feature channels
+- **Simulator tools → `xcrun` as a subprocess, not `SwiftCodeSimFeatures`.**
+  `SwiftCodeSimFeatures` is the SwiftCode Simulator's guest-feature channels
   (health, audio, location, settings) — not an Apple `simctl` wrapper —
   and nothing in it is used here. **No new `Package.swift` dependency is
-  needed for this wave:** `YcodeMCP` must NOT gain a `YcodeSimFeatures`
+  needed for this wave:** `SwiftCodeMCP` must NOT gain a `SwiftCodeSimFeatures`
   dependency. The simulator tools call `/usr/bin/xcrun` (`simctl`,
   `devicectl`, `xctrace`) as a subprocess; where `xcrun` is absent they
-  fail with Legacy's exact message instead of pretending the Ycode
+  fail with Legacy's exact message instead of pretending the SwiftCode
   Simulator is a substitute.
 
 ### 3. The `simulator_boot` / `simulator_list` collision — alignment
 
-Ycode already registers `simulator_boot` and `simulator_list` in
-`ycode/Sources/YcodeMCP/YcodeTools+Run.swift` (`runTools`): they drive the
-Ycode Simulator on its remote Linux host (`simulator_boot` takes a
+SwiftCode already registers `simulator_boot` and `simulator_list` in
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Run.swift` (`runTools`): they drive the
+SwiftCode Simulator on its remote Linux host (`simulator_boot` takes a
 `simulator` name/id, default the first, and starts a device without an
-app; `simulator_list` lists Ycode Simulator devices and whether each is
+app; `simulator_list` lists SwiftCode Simulator devices and whether each is
 running, empty when no host is set up). Legacy's tools with the same IDs
 target Apple Simulator via `simctl` — same IDs, different backend.
 Following the Wave 1 `file_read` / Wave 2 `file_write` alignment
@@ -120,63 +120,63 @@ precedent, the existing registrations are aligned in place to cover the
 Legacy behaviour where the two can honestly share one tool. The shared
 `simctl` helpers (`appleSimulators()`, `parseSimctlDevices(_:)`,
 `simctlBootOrShutdown(udid:action:call:)`, `requireXcrun()`,
-`runXcrun(_:timeout:)`) live in `YcodeTools+Simulator.swift`.
+`runXcrun(_:timeout:)`) live in `SwiftCodeTools+Simulator.swift`.
 
 #### 3.1 `simulator_list` — aligned
 
-| Aspect | Ycode (before) | Aligned (now) |
+| Aspect | SwiftCode (before) | Aligned (now) |
 |---|---|---|
-| `simulators` | Ycode Simulator devices on the remote host | Unchanged |
-| `configured` | Whether a Ycode Simulator host is set up | Unchanged — still refers to the Ycode host only |
+| `simulators` | SwiftCode Simulator devices on the remote host | Unchanged |
+| `configured` | Whether a SwiftCode Simulator host is set up | Unchanged — still refers to the SwiftCode host only |
 | `appleSimulators` | — (did not exist) | **New, always present.** Legacy's `simctl list devices -j` listing: each entry `{name, udid, state, runtime, available}`, runtimes sorted, devices sorted by name within a runtime (Legacy's order). Empty when `xcrun` is absent or the listing fails — never an error. |
-| Text | Ycode devices, or `No Ycode Simulator host is set up.` | Both sections: the Ycode lines (or the no-host line), then an Apple section (`Apple simulators (N, M booted): …`, `Apple simulators: none installed.`, or `Apple simulators: unavailable (xcrun not found; install Xcode command line tools).`) |
+| Text | SwiftCode devices, or `No SwiftCode Simulator host is set up.` | Both sections: the SwiftCode lines (or the no-host line), then an Apple section (`Apple simulators (N, M booted): …`, `Apple simulators: none installed.`, or `Apple simulators: unavailable (xcrun not found; install Xcode command line tools).`) |
 | Input | None | None (Legacy's `simulator_list` also takes no parameters) |
 
 What cannot be represented: Legacy's result carried only Apple counts
 (`device_count`, `runtime_count`, `available_count`, `booted_count`) as
-its data; the aligned tool keeps Ycode's `simulators`/`configured` as the
+its data; the aligned tool keeps SwiftCode's `simulators`/`configured` as the
 primary keys and carries the Apple listing as an array instead — the
 counts are the array's length and the `Booted` entries in it. Legacy's
 failure modes do not transfer: Legacy failed when `xcrun` was missing or
 `simctl list` errored or no simulators existed; the aligned tool reports
-an empty Apple section instead, because the Ycode half of the tool must
+an empty Apple section instead, because the SwiftCode half of the tool must
 still answer when Apple tooling is absent (e.g. on Linux, where the
-existing `YcodeToolsTests` asserts `configured == false`).
+existing `SwiftCodeToolsTests` asserts `configured == false`).
 
 #### 3.2 `simulator_boot` — aligned
 
-| Aspect | Ycode (before) | Aligned (now) |
+| Aspect | SwiftCode (before) | Aligned (now) |
 |---|---|---|
-| No-arg / `simulator` | Boots the Ycode Simulator device (default the first) | Unchanged |
-| `udid` | — (did not exist) | **New, optional.** An Apple simulator's UDID (UUID) routes to `simctl` instead of the Ycode Simulator. Takes precedence when both `simulator` and `udid` are given. |
+| No-arg / `simulator` | Boots the SwiftCode Simulator device (default the first) | Unchanged |
+| `udid` | — (did not exist) | **New, optional.** An Apple simulator's UDID (UUID) routes to `simctl` instead of the SwiftCode Simulator. Takes precedence when both `simulator` and `udid` are given. |
 | `action` | — (did not exist) | **New, optional, Apple path only.** `boot` or `shutdown`, default `boot`. Without a `udid` it is an error: `Invalid action: '<action>'. Pass a udid to boot or shut down an Apple simulator with simctl.` |
 | Apple-path validation | — | Legacy's, verbatim: a non-UUID `udid` fails with `Invalid udid: '<udid>' is not a valid UUID.`; an action other than `boot`/`shutdown` fails with `Invalid action: '<action>'. Expected boot or shutdown.` |
-| Apple-path execution | — | Legacy's `AssistSimulatorBootTool`: `xcrun simctl <action> <udid>` (60 s… 120 s timeout), then verify by re-listing regardless of the first command's exit code (booting an already-booted device reports an error yet leaves it in the desired state). Success: `Simulator <udid> is now <state> (action: <action>).` with structured `{simulator, state}` (Ycode's output keys, not Legacy's `{udid, action, state}`). Wrong state: `Simulator <udid> is <state>, expected <desired>. Detail: <detail>`. UDID absent from the listing: `Simulator with UDID <udid> was not found in simctl list.` Verification itself failing: `Ran simctl <action> (exit <code>) but verification failed: <stderr>`. |
-| Apple-path approval | — | The mutation goes through `approveChangeWithoutFile` (the real call, so the server's policy applies) before `simctl` runs. The Ycode path keeps its existing behaviour (`writes: true` policy gate only). |
+| Apple-path execution | — | Legacy's `AssistSimulatorBootTool`: `xcrun simctl <action> <udid>` (60 s… 120 s timeout), then verify by re-listing regardless of the first command's exit code (booting an already-booted device reports an error yet leaves it in the desired state). Success: `Simulator <udid> is now <state> (action: <action>).` with structured `{simulator, state}` (SwiftCode's output keys, not Legacy's `{udid, action, state}`). Wrong state: `Simulator <udid> is <state>, expected <desired>. Detail: <detail>`. UDID absent from the listing: `Simulator with UDID <udid> was not found in simctl list.` Verification itself failing: `Ran simctl <action> (exit <code>) but verification failed: <stderr>`. |
+| Apple-path approval | — | The mutation goes through `approveChangeWithoutFile` (the real call, so the server's policy applies) before `simctl` runs. The SwiftCode path keeps its existing behaviour (`writes: true` policy gate only). |
 | `xcrun` absent | — | `xcrun not found at /usr/bin/xcrun. Install Xcode command line tools first.` (Legacy's message) |
 
 What cannot be represented: Legacy's `simulator_boot` required `udid`
-and had no Ycode half; the aligned tool keeps `udid` optional so the
-existing no-arg Ycode call (used by `MCPThorTests`) still boots the
+and had no SwiftCode half; the aligned tool keeps `udid` optional so the
+existing no-arg SwiftCode call (used by `MCPThorTests`) still boots the
 remote device. Legacy's structured data keys (`udid`, `action`,
-`state`) are not reproduced — the aligned tool emits Ycode's
+`state`) are not reproduced — the aligned tool emits SwiftCode's
 `{simulator, state}` on both paths.
 
 #### 3.3 Overlapping behaviour (not duplication)
 
 - `simulator_controller`'s `boot`/`shutdown` actions overlap the aligned
-  `simulator_boot` (UDID → Apple `simctl`, name → Ycode remote) and
-  Ycode's `simulator_shutdown` (Ycode remote only). The controller is the
+  `simulator_boot` (UDID → Apple `simctl`, name → SwiftCode remote) and
+  SwiftCode's `simulator_shutdown` (SwiftCode remote only). The controller is the
   `simctl`-native multi-action entry point (boot, shutdown, install,
   launch, openurl) on any device selector `simctl` accepts (`booted`, a
-  name, or a UDID); `openurl` and `install` have no Ycode equivalent.
-- `simulator_controller`'s `launch` overlaps Ycode's
+  name, or a UDID); `openurl` and `install` have no SwiftCode equivalent.
+- `simulator_controller`'s `launch` overlaps SwiftCode's
   `simulator_launch_app` only in outcome (an app launched on a
-  simulator): the Ycode tool installs + launches on the remote Ycode
+  simulator): the SwiftCode tool installs + launches on the remote SwiftCode
   Simulator, this one launches an already-installed bundle id on an
   Apple simulator.
 - `device_list` (physical devices via `devicectl`, falling back to
-  `xctrace`) has no Ycode equivalent: the Device Hub lists physical
+  `xctrace`) has no SwiftCode equivalent: the Device Hub lists physical
   devices in the UI, but no MCP tool does.
 
 ### 4. Artboard tools
@@ -192,7 +192,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
   View or #Preview target to compile."). Required: none.
 - **Legacy capability / risk:** compilation / safeMutation.
 - **Port behaviour:** resolves the artboard (§1 lookup). With custom
-  source, renders it through `YcodePreviews` (§2) and returns the PNG as
+  source, renders it through `SwiftCodePreviews` (§2) and returns the PNG as
   an image block plus the summary `Artboard compiled successfully.\nHosted
   View: Ready`, structured `{status: "success", preview_target}`. On
   render failure it records the log as the artboard's
@@ -253,7 +253,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
   in workspace.` No match → `No artboard found matching '<identifier>'.`
   An artboard named `Default` cannot be deleted: `The 'Default' artboard
   cannot be deleted as it is the workspace canvas root.` (Legacy's guard;
-  Ycode seeds no `Default` artboard, so this only bites when one was
+  SwiftCode seeds no `Default` artboard, so this only bites when one was
   created by that name.) Otherwise approval is requested, the artboard is
   removed, the active pointer moves to the first remaining artboard, and
   the tool returns `Artboard '<name>' (ID: <uuid>) deleted successfully.`,
@@ -275,7 +275,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
   unset), orientation, dynamic type size (`Medium` when unset), scale
   (`1.0` when unset), safe areas (`Visible` when unset) — then the last
   compile error when one was recorded by `artboard_compile` (Legacy read
-  `DocumentCoordinator.compiledArtboardErrors`; Ycode keeps only the last
+  `DocumentCoordinator.compiledArtboardErrors`; SwiftCode keeps only the last
   compile failure per artboard), then either the custom SwiftUI source
   (under `Custom SwiftUI Source Code:`) or the component hierarchy
   (under `Component Hierarchy:`, the single root line `- [vStack] <root
@@ -314,7 +314,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
   the target simulator." No properties. Required: none.
 - **Legacy capability / risk:** compilation / safeMutation.
 - **Port behaviour:** delegates to the existing `run` tool (§2): builds
-  the scheme and runs it on this computer or on the Ycode Simulator
+  the scheme and runs it on this computer or on the SwiftCode Simulator
   destination, returning the `run` tool's result (`{runId, state,
   output}`). Legacy refused when a run was already in progress (`An
   application execution run is already in progress.`); the `run` tool's
@@ -322,7 +322,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
   run failed.\nStep: <step>\nLogs:\n…`, `Full application compiled and
   launched successfully.\nDuration: …`) is not reproduced — the `run`
   tool's result is returned as-is. An Apple-simulator run is not
-  available (Ycode has no Apple-simulator run destination).
+  available (SwiftCode has no Apple-simulator run destination).
 - **Output schema:** `{runId, state, output}`.
 
 #### 4.7 `artboard_update`
@@ -365,15 +365,15 @@ remote device. Legacy's structured data keys (`udid`, `action`,
 - **Port behaviour — four passes, Legacy's order:**
   1. **Simulator & destination audit (audit-only).** Counts Apple
      simulators (via `simctl list`) and booted ones, and notes whether a
-     Ycode Simulator host is configured. Legacy realigned
+     SwiftCode Simulator host is configured. Legacy realigned
      `XcodeBuildManager`'s destination to a booted simulator and booted
-     one when none was booted; Ycode has no `XcodeBuildManager`
+     one when none was booted; SwiftCode has no `XcodeBuildManager`
      destination to realign and this tool does not boot a simulator on
      its own — use `simulator_boot` for that.
   2. **Clean DerivedData / stale build state (reported, not performed).**
      When `errorContext` contains `already in progress`, `exit code 70`,
      `exit code 65`, or `corrupted` (Legacy's triggers), the action list
-     records that no DerivedData clean applies in Ycode (use the `clean`
+     records that no DerivedData clean applies in SwiftCode (use the `clean`
      tool for the workspace build). Nothing is cleaned.
   3. **Active artboard source repair (real).** On the active artboard's
      custom source: injects a missing `import SwiftUI` header, and
@@ -384,7 +384,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
      macro for '<name>'`). A repaired source clears the recorded compile
      error.
   4. **Verification compile pass (real, artboard only).** Re-renders the
-     active artboard through `YcodePreviews` when it has custom source
+     active artboard through `SwiftCodePreviews` when it has custom source
      (Legacy recompiled the active document; the MCP host has no active
      document). Success records `Recompiled artboard '<name>' live preview
      session`; failure records the same line with `(still failing — see
@@ -448,13 +448,13 @@ remote device. Legacy's structured data keys (`udid`, `action`,
   (required)."), `action` (string, "boot or shutdown. Default is boot.").
   Required: `udid`.
 - **Legacy capability / risk:** systemExecution / execution.
-- **Port behaviour:** §3.2. The Ycode half keeps its title, description
+- **Port behaviour:** §3.2. The SwiftCode half keeps its title, description
   stem, `simulator` parameter, annotations (`readOnly: false`) and
   `writes: true`; the Legacy parameters `udid` and `action` are added as
   optional. The aligned input schema is therefore the union of the two
-  tools' schemas (Legacy's `udid` required-ness is dropped — the Ycode
+  tools' schemas (Legacy's `udid` required-ness is dropped — the SwiftCode
   path needs no UDID).
-- **Output schema:** `{simulator, state}` (Ycode's keys, on both paths).
+- **Output schema:** `{simulator, state}` (SwiftCode's keys, on both paths).
 
 #### 5.3 `simulator_controller`
 
@@ -497,7 +497,7 @@ remote device. Legacy's structured data keys (`udid`, `action`,
 - **Legacy schema (verbatim):** object, "Lists available simulators. No
   parameters." No properties. Required: none.
 - **Legacy capability / risk:** diagnostics / safeRead.
-- **Port behaviour:** §3.1. The Ycode half keeps its title, `simulators`
+- **Port behaviour:** §3.1. The SwiftCode half keeps its title, `simulators`
   / `configured` keys and read-only annotations; Legacy's listing is
   carried as the `appleSimulators` array. Legacy's summary line
   (`Simulators: <total> device(s) across <runtimes> runtime(s),
@@ -513,33 +513,33 @@ real implementation or a real alignment. The following Legacy behaviours
 are **not ported** (recorded here, not silently dropped):
 
 - **`artboard_compile`'s live preview session.** Legacy started a live
-  `PreviewManager` session (hosted view, streaming build logs). Ycode
+  `PreviewManager` session (hosted view, streaming build logs). SwiftCode
   renders a single PNG headlessly instead (§4.1). Blocker: no live preview
   host exists in the MCP server.
 - **`artboard_compile`'s active-document fallback.** Legacy compiled the
   active document when no artboard matched. The MCP host has no active
-  document. Blocker: no open-file tracking in `YcodeMCPHost` (the
+  document. Blocker: no open-file tracking in `SwiftCodeMCPHost` (the
   delegate exposes an open file's text by path only).
 - **The Visual UI Builder itself.** Drag-and-drop canvas, component
   insertion/editing, and code generation from a component tree do not
-  exist in Ycode. The artboard tools carry only the record (name, device
+  exist in SwiftCode. The artboard tools carry only the record (name, device
   frame, appearance, orientation, custom source) and the single root
   node. Blocker: no Visual UI Builder subsystem (a UI + model port, not
   an MCP-tool port).
 - **`artboard_run_app` on an Apple simulator.** Legacy ran on an Apple
   simulator via `FullAppRunManager`. The port runs via the `run` tool
-  (host or Ycode Simulator destination). Blocker: Ycode has no
+  (host or SwiftCode Simulator destination). Blocker: SwiftCode has no
   Apple-simulator run destination.
 - **`fix_artboards` pass 1 (destination realignment + booting) and pass 2
   (DerivedData clean).** Pass 1 is audit-only; pass 2 is reported, not
   performed (§4.8). Blockers: no `XcodeBuildManager` destination model,
-  no DerivedData cache in Ycode.
+  no DerivedData cache in SwiftCode.
 - **`simulator_boot` / `simulator_list` as separate Apple-only tools.**
-  They share their IDs with Ycode's remote-simulator tools and are
+  They share their IDs with SwiftCode's remote-simulator tools and are
   aligned into them (§3) rather than registered twice.
 - **Legacy's string-only data map.** Every tool's structured data uses
   typed JSON values (integers, booleans) instead of Legacy's all-string
-  dictionary. The keys are kept; the value types are Ycode's convention
+  dictionary. The keys are kept; the value types are SwiftCode's convention
   (Waves 1–4).
 
 ### 7. Safety rules
@@ -568,19 +568,19 @@ are **not ported** (recorded here, not silently dropped):
 - **`xcrun` absence is a clear failure, not a fallback.** On a machine
   without Xcode command line tools, the Apple-simulator tools fail with
   Legacy's `xcrun not found…` message; the aligned `simulator_list`
-  reports an empty Apple section alongside the Ycode listing.
+  reports an empty Apple section alongside the SwiftCode listing.
 
 ### Evidence
 
 | Claim | Level | Source |
 |---|---|---|
 | All 12 IDs, titles, descriptions, capabilities, risk levels, and input schemas | 1 | Legacy source, read directly: `SwiftCode/Backend/Assist/Tools/AssistArtboardCompileTool.swift`, `AssistArtboardCreateTool.swift`, `AssistArtboardDeleteTool.swift`, `AssistArtboardGetTool.swift`, `AssistArtboardListTool.swift`, `AssistArtboardRunAppTool.swift`, `AssistArtboardUpdateTool.swift`, `AssistFixArtboardsTool.swift`, `AssistDeviceListTool.swift`, `AssistSimulatorBootTool.swift`, `AssistSimulatorControllerTool.swift`, `AssistSimulatorListTool.swift` (`dylans2010/SwiftCode-Legacy` @ `d51a8f0d`) |
-| Ycode already registers `simulator_boot` / `simulator_list` for the remote Ycode Simulator; no `Artboard` symbol exists in destination source | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Run.swift` (`runTools`, `simulatorList()`, `simulatorBoot(_:)`); destination audit `~/SwiftCode-Migration-Workspace/audit/destination-architecture.md` §5 (`Artboard` 0 hits) |
-| Artboard tools map onto `YcodePreviews`; compile renders via `PreviewRenderRunner` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`preview_list`, `preview_render`, `renderPreview(_:)`); `ycode/Sources/YcodePreviews/PreviewRenderRunner.swift` (`render(file:name:output:starts:progress:)`), `PreviewDiscovery.swift` (unnamed `#Preview` → `Preview`, `Preview 2`, …) |
-| `YcodeSimFeatures` is guest-feature channels, not a `simctl` wrapper; no new `Package.swift` dependency needed | 1 | Ycode `ycode/Sources/YcodeSimFeatures/` (14 files: health/audio/location/settings channels); `ycode/Package.swift` (`YcodeMCP` target dependencies — `YcodeSimFeatures` absent) |
-| Approval gate shape for non-file mutations; write-policy gate | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift` (`terminalApproveChange`); `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPServer.run`, `MCPToolAnnotations`, `MCPChange`) |
-| `run` tool delegation for `artboard_run_app` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Run.swift` (`run(_:)`, `launchOnSimulator(app:destination:session:wait:remote:)`) |
-| Existing tests pin `simulator_list`'s `configured` key and `simulator_boot`'s no-arg Ycode behaviour | 1 | Ycode `ycode/Tests/YcodeMCPTests/YcodeToolsTests.swift` (`simulatorToolsUseTheRemoteHost`); `ycode/Tests/YcodeMCPTests/MCPThorTests.swift` (`bootAndScreenshotOnTheRemoteSimulator`, opt-in) |
+| SwiftCode already registers `simulator_boot` / `simulator_list` for the remote SwiftCode Simulator; no `Artboard` symbol exists in destination source | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Run.swift` (`runTools`, `simulatorList()`, `simulatorBoot(_:)`); destination audit `~/SwiftCode-Migration-Workspace/audit/destination-architecture.md` §5 (`Artboard` 0 hits) |
+| Artboard tools map onto `SwiftCodePreviews`; compile renders via `PreviewRenderRunner` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Content.swift` (`preview_list`, `preview_render`, `renderPreview(_:)`); `swiftcode/Sources/SwiftCodePreviews/PreviewRenderRunner.swift` (`render(file:name:output:starts:progress:)`), `PreviewDiscovery.swift` (unnamed `#Preview` → `Preview`, `Preview 2`, …) |
+| `SwiftCodeSimFeatures` is guest-feature channels, not a `simctl` wrapper; no new `Package.swift` dependency needed | 1 | SwiftCode `swiftcode/Sources/SwiftCodeSimFeatures/` (14 files: health/audio/location/settings channels); `swiftcode/Package.swift` (`SwiftCodeMCP` target dependencies — `SwiftCodeSimFeatures` absent) |
+| Approval gate shape for non-file mutations; write-policy gate | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift` (`terminalApproveChange`); `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPServer.run`, `MCPToolAnnotations`, `MCPChange`) |
+| `run` tool delegation for `artboard_run_app` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Run.swift` (`run(_:)`, `launchOnSimulator(app:destination:session:wait:remote:)`) |
+| Existing tests pin `simulator_list`'s `configured` key and `simulator_boot`'s no-arg SwiftCode behaviour | 1 | SwiftCode `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeToolsTests.swift` (`simulatorToolsUseTheRemoteHost`); `swiftcode/Tests/SwiftCodeMCPTests/MCPThorTests.swift` (`bootAndScreenshotOnTheRemoteSimulator`, opt-in) |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 
@@ -588,7 +588,7 @@ are **not ported** (recorded here, not silently dropped):
 
 ## Assist image / archive / data tools — behaviour (Wave 5)
 
-Behaviour for the 18 Legacy Assist tools ported in Wave 5 onto Ycode's MCP
+Behaviour for the 18 Legacy Assist tools ported in Wave 5 onto SwiftCode's MCP
 host: 7 image tools, 6 archive / compression tools, 5 data / structured-file
 tools. See `assist-tool-catalogue.md` for each tool's ID, schema, capability /
 risk / permission, and gate. Legacy source (Dylan's own code, ported under
@@ -600,23 +600,23 @@ MIT): `SwiftCode/Backend/Assist/Tools/AssistImageInspectionTools.swift`,
 Registry order below is Legacy's `registerAllTools()` order (alphabetical
 within each family).
 
-Implementation: `ycode/Sources/YcodeMCP/YcodeTools+Media.swift`
+Implementation: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Media.swift`
 (`mediaTools`, 7 image tools) and
-`ycode/Sources/YcodeMCP/YcodeTools+ArchiveData.swift` (`archiveTools`,
+`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ArchiveData.swift` (`archiveTools`,
 6 archive tools; `dataTools`, 5 data tools). The coordinator wires
 `mediaTools`, `archiveTools` and `dataTools` into `installTools()` in
-`YcodeTools.swift` (this slice must not edit that file).
+`SwiftCodeTools.swift` (this slice must not edit that file).
 
 ### 1. Conventions shared by all 18 tools
 
 - **Schemas are Legacy's `parametersSchema` verbatim, plus `workspace`.**
   Legacy's parameter-name aliases (`filePath`, `base64`, `data`,
   `destinationPath`, `dest`, `source`, `sourcePath`, `archive`,
-  `archivePath`) are NOT supported: Ycode's argument validation rejects
+  `archivePath`) are NOT supported: SwiftCode's argument validation rejects
   unknown arguments before the handler runs (same as Waves 1–2).
 - **Structured data keeps Legacy's keys with typed values.** Legacy's
   tool results carry string-only data maps (`"size": "123"`); the port
-  returns integers and booleans (`"size": 123`) the way Ycode's other
+  returns integers and booleans (`"size": 123`) the way SwiftCode's other
   tools do. Tools whose Legacy result carries no data return a plain
   text result instead.
 - **Workspace-confined paths.** The read tools use the session-aware
@@ -647,7 +647,7 @@ Implementation: `ycode/Sources/YcodeMCP/YcodeTools+Media.swift`
 - **No new dependency.** Image reading uses a small pure-Foundation
   header parser (§2); plist conversion uses `PropertyListSerialization`
   (§5); YAML uses Legacy's own heuristic, ported verbatim (§5).
-  Ycode still has no ZIPFoundation, no YAML library, no image
+  SwiftCode still has no ZIPFoundation, no YAML library, no image
   decoder/encoder and no SVG rasterizer.
 
 ### 2. Image tools — `mediaTools`
@@ -1091,7 +1091,7 @@ verbatim from Legacy.
 #### 4.5 YAML: what is NOT a parser
 
 Neither YAML tool parses YAML into values. `yaml_parser_tool` lists
-keys; `yaml_validate` checks heuristics and re-indents. Ycode has no
+keys; `yaml_validate` checks heuristics and re-indents. SwiftCode has no
 YAML library and none is added by this slice. A caller needing real
 YAML values (nested maps, anchors, multi-document streams, typed
 scalars) does not get them from these tools, and the tools say so in
@@ -1190,7 +1190,7 @@ require `fileSystem`, read tools require none):
   read-only server refuses even a validate-only call. The write
   itself is additionally approval-gated.
 - **`json_validate` / `yaml_validate`'s `write` is string-typed in
-  the schema (verbatim from Legacy), and Ycode's argument
+  the schema (verbatim from Legacy), and SwiftCode's argument
   validation rejects a JSON boolean for it before the handler runs**
   (`the argument "write" must be of type string`). Legacy's
   `boolValue` accepts booleans too, and the port's handler still
@@ -1226,10 +1226,10 @@ require `fileSystem`, read tools require none):
   source files listed in §5, read directly (Dylan's own code; direct
   porting authorised under MIT). Evidence level: Legacy source (the
   migration's authorised input), not Apple behaviour.
-- Ycode host conventions (approval gate, `writes` flag, path
+- SwiftCode host conventions (approval gate, `writes` flag, path
   resolvers, `.structured(_:summary:)` two-block results, `zip` /
   `unzip` / `tar` / `gzip` availability in this environment):
-  `ycode/Sources/YcodeMCP/` (Waves 1–4) and the tools present in the
+  `swiftcode/Sources/SwiftCodeMCP/` (Waves 1–4) and the tools present in the
   Linux VM (`/usr/bin/tar`, `/usr/bin/gzip`, `/usr/bin/zip`,
   `/usr/bin/unzip` present; `/usr/bin/ditto`, `/usr/bin/plutil`
   absent).
@@ -1244,7 +1244,7 @@ require `fileSystem`, read tools require none):
 
 ## Assist engines / web / reverse tools — behaviour (Wave 5)
 
-Behaviour for the 6 Legacy Assist tools ported in Wave 5 onto Ycode's MCP
+Behaviour for the 6 Legacy Assist tools ported in Wave 5 onto SwiftCode's MCP
 host: 4 engines, 1 web / documentation tool, 1 reverse / binary-analysis
 tool. See `assist-tool-catalogue.md` for each tool's ID, schema,
 capability / risk / permission, and gate. Legacy source (Dylan's own code,
@@ -1273,7 +1273,7 @@ Legacy's `registerAllTools()` order within each family.
   its `targetPath` must be absolute, and it is validated by its own
   scope rule (§7).
 - **Approval, no Autopilot.** The two file-mutating engines write
-  through `commit()`, so they go through Ycode's approval gate like
+  through `commit()`, so they go through SwiftCode's approval gate like
   every other write tool; `dependency_resolution_engine` gates its
   `xcodebuild` run through `terminalApproveChange` before executing.
   Legacy's `AssistPermissionsManager` Autopilot mode — under which
@@ -1292,7 +1292,7 @@ Legacy's `registerAllTools()` order within each family.
   4). Tools registered `writes: true` are refused in `readOnly`
   server mode by `MCPServer.run` before the handler runs.
 - **Honestly-failing tools.** A tool whose prerequisite does not exist
-  in Ycode is still registered (same ID, same schema) and validates
+  in SwiftCode is still registered (same ID, same schema) and validates
   its inputs first with Legacy-exact messages, then fails naming the
   exact prerequisite — never a fake success. This wave:
   `reverse_analyze` (fully — see §7).
@@ -1303,7 +1303,7 @@ Legacy's `registerAllTools()` order within each family.
   screenrecord require `screenRecording`, `use_app` requires
   `accessibility`, everything else requires `none`. So in this wave
   only `code_mutation_engine` and `patch_application_engine`
-  require `fileSystem`; the other four require `none`. A Ycode
+  require `fileSystem`; the other four require `none`. A SwiftCode
   permission requirement is documentation here: the MCP host has no
   permission store, and macOS TCC prompts are the OS's, surfaced as
   errors when denied — never silently bypassed.
@@ -1315,7 +1315,7 @@ Legacy's `registerAllTools()` order within each family.
 - **Structured data keeps Legacy's keys, with typed JSON values.**
   Legacy's tool results carry a string-only `[String: String]` data
   map; the port returns the same keys with typed values (integers for
-  counts / codes / exit codes, booleans for flags), the way Ycode's
+  counts / codes / exit codes, booleans for flags), the way SwiftCode's
   other tools do.
 
 ### 2. `code_mutation_engine` — Controlled Mutation Engine
@@ -1436,7 +1436,7 @@ Legacy's `registerAllTools()` order within each family.
   - HTTPS only, with a host. `http://`, `file://`, and every other
     scheme are rejected — `file://` would read local files (SSRF /
     local-file read) behind what used to be a safeRead label.
-  - One GET, 30 s timeout, via `YcodeAssistant.HTTP.send` (the
+  - One GET, 30 s timeout, via `SwiftCodeAssistant.HTTP.send` (the
     codebase's proven one-shot request helper; Legacy used
     `URLSession.shared.data(for:)`, which nothing in this codebase
     uses).
@@ -1480,8 +1480,8 @@ Legacy's `registerAllTools()` order within each family.
     like Legacy — not just the first).
   - Builds Legacy's naive line-by-line diff (`--- a/<file>`,
     `+++ b/<file>`, then `-old` / `+new` pairs for lines that differ
-    at the same index). This is NOT a Myers diff: Ycode has no Myers
-    engine yet (see the Wave 2 note in `YcodeTools+FileWriting.swift`),
+    at the same index). This is NOT a Myers diff: SwiftCode has no Myers
+    engine yet (see the Wave 2 note in `SwiftCodeTools+FileWriting.swift`),
     and Legacy's own diff here is the same naive algorithm.
   - Writes the whole file back through `commit()`. Unlike
     `code_mutation_engine`, an `original` identical to `updated` still
@@ -1638,10 +1638,10 @@ Legacy's `registerAllTools()` order within each family.
   - `AssistJSON` / `AssistSecureHTTPClient` /
     `AssistRemoteResponseCache` are replaced by `JSONSerialization`
     walks and the `EnginesHTTP` fetch in
-    `YcodeTools+EnginesSupport.swift` (same per-hop redirect
+    `SwiftCodeTools+EnginesSupport.swift` (same per-hop redirect
     allow-list, enforced by a `URLSessionTaskDelegate`); response-size
     caps are enforced after download instead of during transfer;
-    Legacy's `AssistContext.logger` calls have no Ycode equivalent
+    Legacy's `AssistContext.logger` calls have no SwiftCode equivalent
     and are dropped. Content-type checking is by parse success (a
     non-DocC payload falls through to the HTML fallback), not by
     header.
@@ -1721,7 +1721,7 @@ Legacy's `registerAllTools()` order within each family.
      carries Legacy's message plus its remediation (e.g. `Target
      '<path>' is outside the Reverse scope (open project, ~/Downloads,
      ~/Desktop, ~/Documents).` / `Remediation: Move the artifact into
-     one of those locations, or open the containing project in Ycode.`
+     one of those locations, or open the containing project in SwiftCode.`
      — the one wording change in this wave: Legacy says "in
      SwiftCode").
   4. `inspect_with_objdump` requires `objdumpOperation` to be one of
@@ -1733,22 +1733,22 @@ Legacy's `registerAllTools()` order within each family.
   6. `timeoutSeconds` is clamped to 10...1800 (default 300).
 - Honest failure (the port, after validation passes): `reverse_analyze
   needs the native Reverse subsystem (Node.js 22, 24, or 26 + the
-  pinned rea-agents@6.5.0 package + ReverseBridge.mjs), which Ycode's
+  pinned rea-agents@6.5.0 package + ReverseBridge.mjs), which SwiftCode's
   MCP host does not have yet; no binary was analyzed.`
-- Why it cannot run in Ycode yet: the REA subsystem is a Node.js
+- Why it cannot run in SwiftCode yet: the REA subsystem is a Node.js
   bridge process plus a pinned npm package (`rea-agents@6.5.0`) that
   Legacy locates via a settings override, the
   `SWIFTCODE_REVERSE_REA_DIR` environment variable, `node_modules`
   next to the bridge script, or an Application Support copy — none of
-  which exists in Ycode, and the runtime requirements are explicitly
+  which exists in SwiftCode, and the runtime requirements are explicitly
   never auto-installed (Legacy's README: "Runtime requirements (never
   auto-installed)"). Node.js itself is resolved like the SDK node
   launcher's order (`SWIFTCODE_NODE_PATH`, well-known paths, `PATH`)
   and is likewise absent here.
-- Future seam (not implemented): Ycode already has a Mach-O parser
-  (`YcodeMachO`: `ByteReader`, `MachOImage`, `SymbolTable`). A later
+- Future seam (not implemented): SwiftCode already has a Mach-O parser
+  (`SwiftCodeMachO`: `ByteReader`, `MachOImage`, `SymbolTable`). A later
   wave could implement the read-only, host-local operations
-  (`list_architectures`, `inspect_macho`) directly on `YcodeMachO`
+  (`list_architectures`, `inspect_macho`) directly on `SwiftCodeMachO`
   without the REA bridge — but that would be a different tool
   contract (no REA Evidence envelope, no `provider`/`confidence`
   fields), so it is recorded here as a possibility, not ported as a
@@ -1811,7 +1811,7 @@ messages first, then fails naming the prerequisite above.
 | `reverse_analyze` | refused task | `Reverse cannot help with that request: …` (+ remediation) |
 | `reverse_analyze` | invalid target | Legacy validator message (+ remediation) |
 | `reverse_analyze` | bad objdump op | `Invalid objdumpOperation '<raw>'. Fixed choices: …` |
-| `reverse_analyze` | missing engine | `reverse_analyze needs the native Reverse subsystem (Node.js 22, 24, or 26 + the pinned rea-agents@6.5.0 package + ReverseBridge.mjs), which Ycode's MCP host does not have yet; no binary was analyzed.` |
+| `reverse_analyze` | missing engine | `reverse_analyze needs the native Reverse subsystem (Node.js 22, 24, or 26 + the pinned rea-agents@6.5.0 package + ReverseBridge.mjs), which SwiftCode's MCP host does not have yet; no binary was analyzed.` |
 
 ### 10. Safety rules (non-negotiable)
 
@@ -1858,14 +1858,14 @@ messages first, then fails naming the prerequisite above.
   + Node / REA resolution), `Reverse/README.md` (runtime
   requirements, verification status). Evidence level 1 (the owner's
   own source, not Apple code) for all behaviour claims above.
-- Destination patterns read: `ycode/Sources/YcodeMCP/
-  YcodeTools+Terminal.swift` (tool registration, approval gate,
+- Destination patterns read: `swiftcode/Sources/SwiftCodeMCP/
+  SwiftCodeTools+Terminal.swift` (tool registration, approval gate,
   `terminalRunFixed`, honestly-failing shape),
-  `YcodeTools+FileWriting.swift` (`code_refactor` honest failure,
+  `SwiftCodeTools+FileWriting.swift` (`code_refactor` honest failure,
   `resolveFileWritingPath`, `commit()`),
-  `YcodeTools+Git.swift` (`github_repo` honest failure),
-  `YcodeTools.swift` (`Schema`, `tool()` helper, `installTools()`),
-  `YcodeAssistant/HTTP.swift` (one-shot request shape,
+  `SwiftCodeTools+Git.swift` (`github_repo` honest failure),
+  `SwiftCodeTools.swift` (`Schema`, `tool()` helper, `installTools()`),
+  `SwiftCodeAssistant/HTTP.swift` (one-shot request shape,
   `URLSessionTaskDelegate` redirect handling precedent).
 - Not opened, read, or run: the reference Xcode copy, Ghidra, the
   simulator IPSW, `research/dirty/`, or any Ghidra project. Apple's

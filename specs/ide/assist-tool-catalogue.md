@@ -1,10 +1,10 @@
 # Assist tool catalogue — Wave 1 file tools
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools; the Wave 1 port
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools; the Wave 1 port
 registers the tools below there).
 
 This spec is the catalogue for the 24 file tools ported from SwiftCode
-Legacy Assist into Ycode in Wave 1. It is the single source of truth for
+Legacy Assist into SwiftCode in Wave 1. It is the single source of truth for
 each tool's ID, title, description, input schema, output shape,
 capability, risk level, permission, and read/write classification. The
 companion spec `assist-file-tools.md` covers the behaviour shared by
@@ -62,7 +62,7 @@ Every tool returns a result with these fields:
   is `missingArgument`, `invalidInput`, `notFound`, `permissionDenied`,
   `executionFailed`, `timeout`, `cancelled`, `resourceExhausted`,
   `unsupportedOperation`, `unknown`. Many Legacy tools return a failure
-  message with **no** code; the Ycode port must preserve that (absent
+  message with **no** code; the SwiftCode port must preserve that (absent
   code), not invent one.
 - `filesChanged` (list of workspace-relative paths): non-empty only for
   the tools that write files (`file_backup`, `create_artifact`).
@@ -92,12 +92,12 @@ derives everything else from those declarations:
 - `canChainResult` is true for all 24 tools.
 - Unknown tool IDs fail closed in the Legacy router: they are treated
   as `potentiallyDestructive`, mutating, and requiring verification.
-  The Ycode port must do the same for any ID it does not recognise —
+  The SwiftCode port must do the same for any ID it does not recognise —
   never default an unknown tool to safe/read-only.
 
-### 1.3 Legacy risk level → Ycode MCP annotations
+### 1.3 Legacy risk level → SwiftCode MCP annotations
 
-| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+| Legacy `riskLevel` | SwiftCode `MCPToolAnnotations` | `writes` |
 |---|---|---|
 | `safeRead` | `readOnly: true, idempotent: true` | `false` |
 | `safeMutation` | `readOnly: false, idempotent: true` | `true` |
@@ -111,7 +111,7 @@ derives everything else from those declarations:
 `reveal_in_finder` declare Legacy `riskLevel: safeRead` and
 `isReadOnly: true`, so the table above would give them
 `readOnly: true, idempotent: true`. But their behaviour is an external
-side effect: they open macOS Finder (see §25/§26). The Ycode port
+side effect: they open macOS Finder (see §25/§26). The SwiftCode port
 must additionally set `openWorld: true` for both, must not present
 them as pure reads, and must return a failure (not a silent no-op) on
 non-macOS platforms, where there is no Finder. See
@@ -130,7 +130,7 @@ non-macOS platforms, where there is no Finder. See
 ### 1.5 Aliases — accepted, but never canonical
 
 The Legacy registry resolves these aliases to the canonical IDs. The
-Ycode port must accept the `read_file` alias for `file_read` (the
+SwiftCode port must accept the `read_file` alias for `file_read` (the
 implementer note below), and should accept the others where cheap; the
 canonical ID is what is registered, listed, and returned in metadata:
 
@@ -141,32 +141,32 @@ canonical ID is what is registered, listed, and returned in metadata:
 
 **`file_read` alias note for the implementer:** Legacy accepts
 `read_file` as an alias for `file_read` (registry alias table and
-router metadata both map it). Keep this alias in the Ycode port:
+router metadata both map it). Keep this alias in the SwiftCode port:
 a call for `read_file` must behave exactly as `file_read`, including
 its schema and output. Do not register `read_file` as a separate tool.
 
-### 1.6 Collisions with Ycode's existing tools — no merging
+### 1.6 Collisions with SwiftCode's existing tools — no merging
 
-Ycode's MCP server already has tools named `file_list` and `file_read`
-(`YcodeTools+Workspace`). The Wave 1 tools are **different tools with
+SwiftCode's MCP server already has tools named `file_list` and `file_read`
+(`SwiftCodeTools+Workspace`). The Wave 1 tools are **different tools with
 different IDs/schemas** and must not be merged with them:
 
-- Ycode `file_list` takes `workspace`, an optional fnmatch `glob`,
+- SwiftCode `file_list` takes `workspace`, an optional fnmatch `glob`,
   and `limit` (default 500) and returns `files` + `truncated`. Legacy
   `dir_read` takes a required `path` and returns sorted entries with
   `/` directory markers; Legacy `tree_view` takes `path` + `maxDepth`
   and returns a rendered tree string. Keep all three as separate
   tools.
-- Ycode `file_read` takes `workspace`, `path`, `startLine` (default 1),
+- SwiftCode `file_read` takes `workspace`, `path`, `startLine` (default 1),
   `lineCount` (default to end, at most 2000), refuses files over 8 MB,
   and returns `path` / `startLine` / `endLine` / `lineCount` / `text`.
   Legacy `file_read` takes `path` + an optional nested `lines`
   `{start, end}` object, has no size cap, numbers every returned line
   as `<n>: <line>`, and returns `content` / `path` / `start` / `end` /
   `totalLines` / `fullyAvailable`. The Wave 1 port registers the Legacy
-  behaviour under the Legacy schema; it must not silently adopt Ycode's
+  behaviour under the Legacy schema; it must not silently adopt SwiftCode's
   `startLine`/`lineCount`/8 MB behaviour, and must not change the
-  existing Ycode `file_read`. If the two cannot coexist under one name
+  existing SwiftCode `file_read`. If the two cannot coexist under one name
   in one server, the Wave 1 registration keeps the Legacy ID and the
   conflict is escalated — it is not resolved by merging schemas.
 
@@ -364,7 +364,7 @@ no-op; `..` moves to the parent. The target must exist, be a
 directory, and stay inside the workspace root. `..` past the workspace
 root is an error, not a silent clamp. On failure the working directory
 is left unchanged. The change persists for the rest of the session
-(Legacy persists it per session ID; the Ycode port must scope it to
+(Legacy persists it per session ID; the SwiftCode port must scope it to
 the session, never share it across sessions, and never persist it to
 disk). See `assist-file-tools.md` §4.
 
@@ -575,7 +575,7 @@ followed by a `+ <new>` line, trailing lines of the longer file as
 real diff algorithm: there is no longest-common-subsequence matching
 and no hunks — a single inserted line shifts every following line
 into a `-`/`+` pair, and the header is always one hunk spanning both
-whole files. The Ycode port must reproduce this exact behaviour, not
+whole files. The SwiftCode port must reproduce this exact behaviour, not
 substitute a smarter diff. Both files must decode as UTF-8. See
 `assist-file-tools.md` §5.
 
@@ -624,7 +624,7 @@ deliberately.**
 - Despite the name and description, this tool **never verifies**
   anything: it takes no expected hash and compares against nothing.
   It only computes and reports a digest. Verification is
-  `file_hash_verify` (§11). The Ycode port must not claim verification
+  `file_hash_verify` (§11). The SwiftCode port must not claim verification
   for this tool; if the description is kept, the behaviour stays
   compute-only.
 - `algorithm` is lowercased; an unrecognised value **silently falls
@@ -691,7 +691,7 @@ Structured data keys (all strings):
 40, MD5 = 32 characters, all hex digits; anything else is an error
 (see `assist-file-tools.md` §5). Legacy computes the hash by running
 `/usr/bin/shasum` (`-a 256` / `-a 1`) or `/usr/bin/md5` (`-q`) — those
-are macOS-only paths, so the Ycode port must hash in-process (e.g.
+are macOS-only paths, so the SwiftCode port must hash in-process (e.g.
 CryptoKit / swift-crypto) while keeping the observable behaviour
 identical, including the failure message when hashing fails
 (`Failed to compute <algorithm> for <path>.`). The target must be an
@@ -1307,7 +1307,7 @@ application: a directory opens in a Finder window; a file opens in
 its default application. If the Finder open reports failure, Legacy
 falls back to running `/usr/bin/open <path>` and succeeds only if
 that exits 0. **macOS-only**: on a platform without Finder /
-`NSWorkspace` / `/usr/bin/open` the Ycode port must fail with a clear
+`NSWorkspace` / `/usr/bin/open` the SwiftCode port must fail with a clear
 error, never silently succeed. No workspace-containment check is
 applied: an absolute path is used as-is and a relative path is
 appended to the workspace root. The target must exist. See
@@ -1351,7 +1351,7 @@ strings):
 Finder is brought forward with the item highlighted). Unlike
 `open_in_finder` there is no `/usr/bin/open` fallback: the reveal is
 attempted once and success is reported unconditionally after the call
-returns. **macOS-only**: on a platform without Finder the Ycode port
+returns. **macOS-only**: on a platform without Finder the SwiftCode port
 must fail with a clear error, never silently succeed. No
 workspace-containment check is applied: an absolute path is used
 as-is and a relative path is appended to the workspace root. The
@@ -1387,13 +1387,13 @@ target must exist. See `assist-file-tools.md` §8.
 | `reveal_in_finder` | systemExecution | safeRead | none | yes* | false |
 
 \* Declared read-only in Legacy, but an external side effect in
-fact: both open Finder windows. Ycode must add `openWorld: true` and
+fact: both open Finder windows. SwiftCode must add `openWorld: true` and
 fail on non-macOS. See §1.3 and §24–§25.
 
 ## Wave 2 — file-writing tools
 
 This part of the catalogue covers the 24 Wave 2 tools: the
-file-writing family ported from SwiftCode Legacy Assist into Ycode
+file-writing family ported from SwiftCode Legacy Assist into SwiftCode
 in Wave 2. The Wave 1 conventions in §1 apply, extended by §27
 below. The companion spec `assist-file-writing-tools.md` covers
 the behaviour shared by these tools, and
@@ -1402,7 +1402,7 @@ the behaviour shared by these tools, and
 Scope: exactly these 24 tools, verified live from the Legacy
 registry. No other tool is in scope for Wave 2, and no tool may be
 invented, renamed, or merged with another — except `file_write`,
-which already exists in Ycode and is aligned, not duplicated (see
+which already exists in SwiftCode and is aligned, not duplicated (see
 §28).
 
 | ID | Title |
@@ -1466,14 +1466,14 @@ file-reading / diagnostics tool, not a file-writing tool. See
   `code_replace` set it (and also copy the diff into
   `data["diff"]`). No other Wave 2 tool sets it. Legacy-only
   envelope fields (`duration`, `suggestedNextActions`,
-  `beforeContent`, `afterContent`) have no Ycode equivalent and
+  `beforeContent`, `afterContent`) have no SwiftCode equivalent and
   are dropped; see `assist-file-writing-tools.md` §8.4.
 
 ### 27.2 Risk → annotations for Wave 2
 
 §1.3 applies unchanged:
 
-| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+| Legacy `riskLevel` | SwiftCode `MCPToolAnnotations` | `writes` |
 |---|---|---|
 | `safeRead` | `readOnly: true, idempotent: true` | `false` |
 | `safeMutation` | `readOnly: false, idempotent: true` | `true` |
@@ -1512,7 +1512,7 @@ move it with the read tools without changing its specification.
 ### 27.5 Aliases — accepted, but never canonical
 
 The Legacy registry resolves these aliases to the canonical IDs
-in this wave. The Ycode port must accept them at `tools/call`
+in this wave. The SwiftCode port must accept them at `tools/call`
 time (through `MCPServer.toolAliases`, as Wave 1 did for
 `read_file`); the canonical ID is what is registered, listed,
 and returned in metadata:
@@ -1547,18 +1547,18 @@ schema — as in §1.7.
 
 ### 27.6 `file_write` collision — align, do not duplicate
 
-Ycode already has a `file_write` in `YcodeTools+Content.swift`
+SwiftCode already has a `file_write` in `SwiftCodeTools+Content.swift`
 (`workspace` / `path` / `content`; returns `path` / `created` /
 `lineCount`; writes through `commit()`). The Wave 1 precedent
 for the `file_read` collision was to **align** the existing
-Ycode tool with Legacy behaviour (the Ycode `file_read` gained
+SwiftCode tool with Legacy behaviour (the SwiftCode `file_read` gained
 Legacy's `lines` object while keeping its own `startLine` /
 `lineCount` / 8 MB behaviour), not to register a duplicate. The
 same applies here: there is exactly one `file_write`
 registration, the existing one, aligned as specified in §28. No
 second `file_write` is specified or registered.
 
-## 28. `file_write` — Write File (aligned with Ycode's existing tool)
+## 28. `file_write` — Write File (aligned with SwiftCode's existing tool)
 
 - **Description (verbatim):** "Writes or overwrites a file with
   the specified content, generating unified diffs."
@@ -1606,46 +1606,46 @@ or `file_path`; `content` may also be given as `fileContent`,
 `file_content`, or `code`. The canonical alias `write_file`
 resolves to this tool; see §27.5.
 
-**Alignment note (Ycode's existing `file_write` vs Legacy).**
-The single registration is Ycode's, in
-`YcodeTools+Content.swift`; align it to Legacy as follows, and
+**Alignment note (SwiftCode's existing `file_write` vs Legacy).**
+The single registration is SwiftCode's, in
+`SwiftCodeTools+Content.swift`; align it to Legacy as follows, and
 register nothing else under this ID:
 
-- Input: keep Ycode's `workspace` parameter (Ycode convention;
-  every Ycode tool takes it) and its required `[path,
-  content]`. Add Legacy's parameter aliases above, which Ycode
+- Input: keep SwiftCode's `workspace` parameter (SwiftCode convention;
+  every SwiftCode tool takes it) and its required `[path,
+  content]`. Add Legacy's parameter aliases above, which SwiftCode
   does not currently accept.
-- Description: adopt Legacy's verbatim description above; Ycode's
+- Description: adopt Legacy's verbatim description above; SwiftCode's
   current description ("Creates a file or replaces its whole
   contents…") is replaced, not kept alongside.
-- Annotations: Ycode currently registers this tool with
+- Annotations: SwiftCode currently registers this tool with
   `readOnly: false, destructive: true`. Legacy declares
   `safeMutation`, which maps (§27.2) to `readOnly: false,
   idempotent: true` — **not** destructive. Change the
   annotations to match; a whole-file overwrite is a safe
   mutation in Legacy's classification, and only
   `potentiallyDestructive` tools get `destructive: true`.
-- Output: adopt Legacy's message forms above (Ycode currently
-  returns `Created <rel>.` / `Wrote <rel>.`). Keep Ycode's data
+- Output: adopt Legacy's message forms above (SwiftCode currently
+  returns `Created <rel>.` / `Wrote <rel>.`). Keep SwiftCode's data
   keys `created` (boolean, same meaning as Legacy's `is_new`)
   and `lineCount`, and add Legacy's `diff` and `is_new` keys.
-  The line counts agree: Ycode's
+  The line counts agree: SwiftCode's
   `content.split(separator: "\n", omittingEmptySubsequences:
   false).count` and Legacy's
   `content.components(separatedBy: .newlines).count` give the
   same number for the same content. Keep `filesChanged`
-  behaviour (Ycode's `commit()` already notifies the session).
+  behaviour (SwiftCode's `commit()` already notifies the session).
 - Behaviour deltas that are **not** aligned (deliberate
   deviations, see `assist-approval-model.md` §7.4): Legacy
   auto-registers a new file in the `.pbxproj`
   (`XcodeProjWriter.addFileReference`) and streams the edit
-  through `LiveDiffStreamer`; Ycode does neither. Legacy's
+  through `LiveDiffStreamer`; SwiftCode does neither. Legacy's
   `suggestedNextActions: ["project_build"]` (duplicated for
-  `.swift` files) has no Ycode equivalent and is dropped.
+  `.swift` files) has no SwiftCode equivalent and is dropped.
 - Path handling: Legacy's inline `..` check (§2.4 of
   `assist-file-writing-tools.md`) and the session-aware resolver
-  already match what Ycode's `resolve` + `commit()` do, except
-  the `/tmp/swiftcode/scripts` carve-out, which Ycode does not
+  already match what SwiftCode's `resolve` + `commit()` do, except
+  the `/tmp/swiftcode/scripts` carve-out, which SwiftCode does not
   keep (see `assist-approval-model.md` §7.2).
 
 ## 29. `file_create` — Create File
@@ -1784,7 +1784,7 @@ alias `delete_file` resolves to this tool; see §27.5.
 one (see `assist-approval-model.md` §5.3). A missing file is a
 failure (`No file at <path> — nothing to delete.`, code
 `notFound`), not a silent success. Deletion is permanent: no
-trash, no backup, no undo. The Ycode port must refuse a
+trash, no backup, no undo. The SwiftCode port must refuse a
 directory passed to this tool (Legacy's filesystem layer would
 recursively remove it); see `assist-file-writing-tools.md`
 §5.2. Gate: explicit approval per deletion, in every mode that
@@ -2254,7 +2254,7 @@ Legacy sends the whole file plus the natural-language action to
 an LLM (hardcoded OpenAI provider, stored API key), strips
 Markdown fences from the response, and writes the result back
 as the file's new content. There is no AST and no verification
-that the result parses. The Ycode port must route the LLM call
+that the result parses. The SwiftCode port must route the LLM call
 through the host assistant or register the tool as unavailable
 with a clear error — it must not substitute a regex/template
 "refactor", and must not hardcode an OpenAI key path. See
@@ -2848,7 +2848,7 @@ parameter. It runs in `readOnly` server mode. See §27.4 and
 
 This part of the catalogue covers the 16 Wave 3 Search tools: the
 search / code-navigation family ported from SwiftCode Legacy Assist
-into Ycode in Wave 3. The Wave 1 conventions in §1 apply, extended
+into SwiftCode in Wave 3. The Wave 1 conventions in §1 apply, extended
 by §53 below. The companion spec
 `assist-search-git-tools.md` covers the behaviour shared by these
 tools (scan rules, path resolvers, search semantics, error cases),
@@ -2891,27 +2891,27 @@ collisions handled in §53.5, which are documented, not merged.
 
 §1.1 applies unchanged, with three Wave 3 notes:
 
-- `filesChanged` (list of workspace-relative paths) has no Ycode
+- `filesChanged` (list of workspace-relative paths) has no SwiftCode
   equivalent — `MCPToolResult` carries none — so the port reports
   changed paths through `commit()`'s session notification
   instead, as Wave 2 does. Two tools carry their changed paths
   in their structured data as a string, exactly as Legacy does:
   `symbol_rename_project` returns `filesChanged` as a
   newline-joined string in `data` (see §68).
-- `diff` (optional string): no Wave 3 tool sets it. Ycode has no
+- `diff` (optional string): no Wave 3 tool sets it. SwiftCode has no
   Myers diff engine (see Wave 2's `file_create` / `code_replace`
   note), and neither mutating tool in this wave produces a diff
   in Legacy.
 - Legacy-only envelope fields (`duration`,
   `suggestedNextActions`, `beforeContent`, `afterContent`) have no
-  Ycode equivalent and are dropped; see
+  SwiftCode equivalent and are dropped; see
   `assist-file-writing-tools.md` §8.4.
 
 ### 53.2 Risk → annotations for Wave 3
 
 §1.3 applies unchanged:
 
-| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+| Legacy `riskLevel` | SwiftCode `MCPToolAnnotations` | `writes` |
 |---|---|---|
 | `safeRead` | `readOnly: true, idempotent: true` | `false` |
 | `safeMutation` | `readOnly: false, idempotent: true` | `true` |
@@ -2946,15 +2946,15 @@ listing only the keys every branch returns (`import_graph` and
 tool's output schema lists exactly the keys its (single) result
 shape returns, as `Schema.output` does.
 
-### 53.5 Collisions with Ycode's existing tools — no merging
+### 53.5 Collisions with SwiftCode's existing tools — no merging
 
-Ycode already has `search` (workspace text search,
-`YcodeTools+Workspace`) and `symbol_search` (symbol
+SwiftCode already has `search` (workspace text search,
+`SwiftCodeTools+Workspace`) and `symbol_search` (symbol
 documentation). Legacy's `search_text` and `search_symbol` are
 **different tools with different IDs/schemas** and must not be
 merged with them:
 
-- Ycode `search` takes `query` plus `regex` / `ignoreCase` /
+- SwiftCode `search` takes `query` plus `regex` / `ignoreCase` /
   `wholeWord` / `limit` (default 200, case-insensitive by
   default) and returns `matches` (path / line / column / text)
   with a 200-match cap. Legacy `search_text` takes a single
@@ -2962,7 +2962,7 @@ merged with them:
   skips files over 1 MB and binary-extension files, and returns
   one `results` string grouped per file. Keep both as separate
   tools.
-- Ycode `symbol_search` takes `query` / `limit` and returns
+- SwiftCode `symbol_search` takes `query` / `limit` and returns
   declarations whose name *contains* the query, with
   documentation comments (from `SymbolDocs`). Legacy
   `search_symbol` takes a single `symbol` and runs four
@@ -2970,16 +2970,16 @@ merged with them:
   `path:line: text` lines. Keep both as separate tools.
 
 This mirrors the Wave 1 `file_read` / Wave 2 `file_write`
-precedent in the other direction: there the Ycode tool was
+precedent in the other direction: there the SwiftCode tool was
 aligned in place; here the Legacy tools are registered as their
 own tools because their schemas and behaviour do not align with
-Ycode's, and no second registration under an existing ID is
+SwiftCode's, and no second registration under an existing ID is
 created.
 
 ### 53.6 Aliases — accepted, but never canonical
 
 The Legacy registry resolves these aliases to the canonical IDs
-in this wave. The Ycode port accepts them at `tools/call`
+in this wave. The SwiftCode port accepts them at `tools/call`
 time (through `MCPServer.toolAliases`, as Wave 1 did for
 `read_file`); the canonical ID is what is registered, listed,
 and returned in metadata:
@@ -2988,7 +2988,7 @@ and returned in metadata:
 - `symbol_graph` → `symbol_reference_graph`
 
 The registry alias `search` → `search_text` is deliberately
-NOT carried over: Ycode already has a `search` tool (§53.5),
+NOT carried over: SwiftCode already has a `search` tool (§53.5),
 and the alias would collide with it. No registry alias exists
 for `call_hierarchy`, `code_summary`, `dependency_graph`,
 `extract_code_symbols`, `import_graph`,
@@ -3001,7 +3001,7 @@ Per-tool parameter-name aliases (e.g. `symbol_rename_project`
 accepting `old_name`) are documented per tool under "Accepted
 aliases" where they exist. They are leniency in parsing, not
 part of the schema — and, as in §1.7 and §27.5, they are NOT
-supported in the Ycode port: Ycode's argument validation
+supported in the SwiftCode port: SwiftCode's argument validation
 rejects unknown arguments before the handler runs.
 
 ## 54. `call_hierarchy` — Call Hierarchy
@@ -3179,7 +3179,7 @@ strings):
 | `symbolCount` | Number of declarations found. |
 
 **Accepted aliases:** `path` may also be given as `filePath`
-(Legacy handler leniency; not supported in the Ycode port — see
+(Legacy handler leniency; not supported in the SwiftCode port — see
 §53.6).
 
 **Notes.** Per line, skipping lines whose trimmed form starts
@@ -3370,18 +3370,18 @@ skill's path), and a closing guidance line. No structured data.
 **Notes — the description is adapted, not verbatim.** Legacy's
 description names "SwiftCode's authoritative local skills
 library" and its schema says "Search indexed skills in the
-local SwiftCode skills repository." Ycode has no such library:
+local SwiftCode skills repository." SwiftCode has no such library:
 Legacy's `SkillIndex` indexed
 `~/Library/Application Support/SwiftCode/Skills/` plus imported
 Claude/Codex/VSCode/Antigravity libraries, with enable/disable
 toggles and a disk cache. The port searches the skill surface
-Ycode actually has — the workspace's own `SKILL.md` /
+SwiftCode actually has — the workspace's own `SKILL.md` /
 `SKILLS.md` / `*.SKILL.md` files (including hidden directories
-such as `.claude/skills/`, where Ycode's own skill lives) — with
+such as `.claude/skills/`, where SwiftCode's own skill lives) — with
 Legacy's metadata parsing and scoring. The description and
 schema description above are the adapted wording; everything
 else (scoring, output format, `limit` clamp 1…20) is Legacy's.
-The guidance lines point at `file_read` (Ycode's canonical
+The guidance lines point at `file_read` (SwiftCode's canonical
 name) rather than Legacy's `read_file` alias. Do not invent a
 skills database to make the verbatim description true. See
 `assist-search-git-tools.md` §15.
@@ -3425,7 +3425,7 @@ and `case` (see `assist-search-git-tools.md` §4). This is a
 text-pattern search, not an index lookup: it finds
 declaration-shaped lines and can miss declarations whose shape
 the four patterns do not cover. It is a different tool from
-Ycode's existing `symbol_search` (§53.5). See
+SwiftCode's existing `symbol_search` (§53.5). See
 `assist-search-git-tools.md` §4.
 
 ## 63. `search_text` — Search Text
@@ -3462,8 +3462,8 @@ strings):
 **Accepted aliases:** none at the parameter level. The canonical
 aliases `search`, `search_dir`, `search_directory`, and
 `find_file` resolve to this tool; see §53.6 — except `search`,
-which is NOT carried over in Ycode (it would collide with
-Ycode's existing `search`).
+which is NOT carried over in SwiftCode (it would collide with
+SwiftCode's existing `search`).
 
 **Notes.** Literal, case-insensitive substring search; the
 pattern is never treated as a regex, even when it contains
@@ -3472,7 +3472,7 @@ returned a dictionary; the port is deterministic instead). An
 empty `pattern` matches every line (Legacy behaviour,
 preserved). Files over 1 MB, binary-extension files, hidden
 files, and files that do not decode as UTF-8 are skipped. It
-is a different tool from Ycode's existing `search` (§53.5).
+is a different tool from SwiftCode's existing `search` (§53.5).
 See `assist-search-git-tools.md` §2.
 
 ## 64. `semantic_query_engine` — Semantic Source Query Engine
@@ -3623,7 +3623,7 @@ Structured data keys (all strings):
 **Accepted aliases:** `symbol` may also be given as
 `symbolName`; `sourcePath` may also be given as `source_path`;
 `destinationPath` may also be given as `destination_path`
-(Legacy handler leniency; not supported in the Ycode port — see
+(Legacy handler leniency; not supported in the SwiftCode port — see
 §53.6).
 
 **Notes.** Validation runs in Legacy's order (identifier,
@@ -3739,7 +3739,7 @@ followed by `- <rel>` lines. Structured data keys (all strings):
 
 **Accepted aliases:** `oldName` may also be given as
 `old_name`; `newName` may also be given as `new_name` (Legacy
-handler leniency; not supported in the Ycode port — see §53.6).
+handler leniency; not supported in the SwiftCode port — see §53.6).
 
 **Notes — textual rename, not semantic rename.** This tool has
 no Swift symbol index: it renames every whole-word occurrence
@@ -3828,7 +3828,7 @@ write. No tool in this wave is `potentiallyDestructive`.
 
 ## Wave 3 — Git tools
 
-This part of the catalogue covers the 13 Wave 3 Git tools: the Git / source-control family ported from SwiftCode Legacy Assist into Ycode in Wave 3. Scope: exactly these 13 tools, verified live from the Legacy registry. No other tool is in scope for Wave 3, and no tool may be invented, renamed, or merged with another.
+This part of the catalogue covers the 13 Wave 3 Git tools: the Git / source-control family ported from SwiftCode Legacy Assist into SwiftCode in Wave 3. Scope: exactly these 13 tools, verified live from the Legacy registry. No other tool is in scope for Wave 3, and no tool may be invented, renamed, or merged with another.
 
 | ID | Title |
 |---|---|
@@ -3846,7 +3846,7 @@ This part of the catalogue covers the 13 Wave 3 Git tools: the Git / source-cont
 | `recent_changes` | Recent Changes |
 | `version_control_operator` | Version Control Operator |
 
-**The read-only correction.** `git_pr_summary` is catalogued with the Git tools and is sometimes assumed to need the GitHub API. It does not: Legacy's description says it uses "only local git history. No network, no GitHub API", and its implementation is four local git commands. It is specified as a read-only local tool (`writes: false`). Only `github_repo` needs the GitHub API, and Ycode had no GitHub client yet — see §71.4 (Wave 10 adds it; `github-service.md`).
+**The read-only correction.** `git_pr_summary` is catalogued with the Git tools and is sometimes assumed to need the GitHub API. It does not: Legacy's description says it uses "only local git history. No network, no GitHub API", and its implementation is four local git commands. It is specified as a read-only local tool (`writes: false`). Only `github_repo` needs the GitHub API, and SwiftCode had no GitHub client yet — see §71.4 (Wave 10 adds it; `github-service.md`).
 
 ## 71. Wave 3 conventions (extending §1 and §27)
 
@@ -3854,14 +3854,14 @@ This part of the catalogue covers the 13 Wave 3 Git tools: the Git / source-cont
 
 §1.1 applies unchanged, with two Wave 3 notes:
 
-- `filesChanged` is never set by any Git tool in Legacy, and the port preserves that — including for the tools that change files (`git_branch_manager`, `git_cherry_pick`, `git_conflict_resolver`, `git_stash_operator`, `git_bisect`, `version_control_operator`). The Ycode port has no `filesChanged` field on `MCPToolResult` in any case; `git_conflict_resolver`'s text write is reported through the normal session edit note, as Wave 2 text writes are.
-- `diff` is never set by any Git tool. Legacy-only envelope fields (`duration`, `suggestedNextActions`, `beforeContent`, `afterContent`) have no Ycode equivalent and are dropped, as in Wave 2.
+- `filesChanged` is never set by any Git tool in Legacy, and the port preserves that — including for the tools that change files (`git_branch_manager`, `git_cherry_pick`, `git_conflict_resolver`, `git_stash_operator`, `git_bisect`, `version_control_operator`). The SwiftCode port has no `filesChanged` field on `MCPToolResult` in any case; `git_conflict_resolver`'s text write is reported through the normal session edit note, as Wave 2 text writes are.
+- `diff` is never set by any Git tool. Legacy-only envelope fields (`duration`, `suggestedNextActions`, `beforeContent`, `afterContent`) have no SwiftCode equivalent and are dropped, as in Wave 2.
 
 ### 71.2 Risk → annotations for Wave 3
 
 §1.3 applies unchanged, extended by one row for the risk level Wave 1/2 never met:
 
-| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+| Legacy `riskLevel` | SwiftCode `MCPToolAnnotations` | `writes` |
 |---|---|---|
 | `safeRead` | `readOnly: true, idempotent: true` | `false` |
 | `safeMutation` | `readOnly: false, idempotent: true` | `true` |
@@ -3880,13 +3880,13 @@ Every `writes: true` tool is gated by `MCPServer.run()` and its handler-side sha
 
 ### 71.4 The `github_repo` honest failure
 
-`github_repo` is registered with its Legacy ID, title, description, and schema, but its handler always fails: Ycode's MCP host has no GitHub API client and no GitHub credential store, and this wave must not touch remotes or GitHub. The failure names the missing GitHub client/auth prerequisite; no GitHub data is fetched and none is faked. Remote/GitHub access is a later wave (the audit records that the GitHub remote layer needs a new target; `YcodeIDECore/SourceControl` is local-git only). This is the Wave 2 `code_refactor` precedent (registered but honestly failing).
+`github_repo` is registered with its Legacy ID, title, description, and schema, but its handler always fails: SwiftCode's MCP host has no GitHub API client and no GitHub credential store, and this wave must not touch remotes or GitHub. The failure names the missing GitHub client/auth prerequisite; no GitHub data is fetched and none is faked. Remote/GitHub access is a later wave (the audit records that the GitHub remote layer needs a new target; `SwiftCodeIDECore/SourceControl` is local-git only). This is the Wave 2 `code_refactor` precedent (registered but honestly failing).
 
-**Wave 10 note.** The prerequisite is now met: Wave 10 adds the `YcodeGitHub` target (api.github.com client, `SecretAccount.githubToken`, Settings ▸ Coding Assistant ▸ GitHub) and wires `github_repo` to it — all seven operations now read live repositories; see `specs/ide/github-service.md`. The honest-failure text above records the Wave 3 state and is kept for history.
+**Wave 10 note.** The prerequisite is now met: Wave 10 adds the `SwiftCodeGitHub` target (api.github.com client, `SecretAccount.githubToken`, Settings ▸ Coding Assistant ▸ GitHub) and wires `github_repo` to it — all seven operations now read live repositories; see `specs/ide/github-service.md`. The honest-failure text above records the Wave 3 state and is kept for history.
 
 ### 71.5 Aliases — accepted, but never canonical
 
-The Legacy registry resolves these aliases to the canonical IDs in this wave. The Ycode port must accept them at `tools/call` time (through `MCPServer.toolAliases`, as Waves 1–2 did); the canonical ID is what is registered, listed, and returned in metadata:
+The Legacy registry resolves these aliases to the canonical IDs in this wave. The SwiftCode port must accept them at `tools/call` time (through `MCPServer.toolAliases`, as Waves 1–2 did); the canonical ID is what is registered, listed, and returned in metadata:
 
 - `git`, `git_status`, `git_diff`, `git_commit`, `git_branch`, `git_rollback`, `git_tool`, `version_control` → `version_control_operator`
 - `git_stash` → `git_stash_operator`
@@ -3899,7 +3899,7 @@ No registry aliases exist for `conflict_marker_scan`, `git_bisect`, `git_branch_
 
 ### 71.6 The git runner
 
-All git operations run the `git` CLI as an argument vector — never a shell — with the workspace folder as the working directory, exactly as Legacy's `runGit` helpers do (`/usr/bin/git` there; the Flatpak-aware `HostTool` path here). The environment mirrors `GitRepository.environment`: inherited, minus the variables that could point git at another repository, plus the never-wait-for-a-person settings (`GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, `GIT_ASKPASS=true`, `GIT_OPTIONAL_LOCKS=0`). Nothing here touches a remote: there is no push/pull/fetch/clone and no GitHub API call. **Wave 10 note.** That was the Wave 3 state: Wave 10 adds real `git pull`/`push`/`clone` (Agentic tools) and `push`/`pull`/`fetch`/`clone` sub-ops on `version_control_operator`, plus the `YcodeGitHub` client — see `specs/ide/github-service.md`. A workspace that is not a git repository fails with git's own "not a git repository" message — never invented log/blame/status output. See `assist-search-git-tools.md` for the full safety rules.
+All git operations run the `git` CLI as an argument vector — never a shell — with the workspace folder as the working directory, exactly as Legacy's `runGit` helpers do (`/usr/bin/git` there; the Flatpak-aware `HostTool` path here). The environment mirrors `GitRepository.environment`: inherited, minus the variables that could point git at another repository, plus the never-wait-for-a-person settings (`GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, `GIT_ASKPASS=true`, `GIT_OPTIONAL_LOCKS=0`). Nothing here touches a remote: there is no push/pull/fetch/clone and no GitHub API call. **Wave 10 note.** That was the Wave 3 state: Wave 10 adds real `git pull`/`push`/`clone` (Agentic tools) and `push`/`pull`/`fetch`/`clone` sub-ops on `version_control_operator`, plus the `SwiftCodeGitHub` client — see `specs/ide/github-service.md`. A workspace that is not a git repository fails with git's own "not a git repository" message — never invented log/blame/status output. See `assist-search-git-tools.md` for the full safety rules.
 
 ## 72. `conflict_marker_scan` — Conflict Marker Scan
 
@@ -3989,7 +3989,7 @@ All git operations run the `git` CLI as an argument vector — never a shell —
 
 **Output (success).** Message: `Git blame for \`<path>\`:\n\n` followed by the readable blame lines (at most 50). **No structured data is returned.**
 
-**Notes.** The tool runs `git blame --porcelain` first (its failure is the tool's failure: `git blame failed: <git output>`), then `git blame -s` for the readable snippet. The output is therefore the `-s` rendering — short hash, line number, line text — with **no author name** (`-s` suppresses it). The `-L` range rules differ between the two runs, preserved here: the porcelain run takes a full range (`start,end`) or a lone start line (`start,start+30`); the readable run takes only a full range. A lone start line with no end line therefore blames 31 lines in the porcelain check but the whole file in the displayed snippet's range handling. The path resolves inside the workspace like every other Ycode tool. Ycode's `GitBlame.parse` seam is not used for this output: it drops the line text the `-s` rendering shows. See `assist-search-git-tools.md` ("Git tools").
+**Notes.** The tool runs `git blame --porcelain` first (its failure is the tool's failure: `git blame failed: <git output>`), then `git blame -s` for the readable snippet. The output is therefore the `-s` rendering — short hash, line number, line text — with **no author name** (`-s` suppresses it). The `-L` range rules differ between the two runs, preserved here: the porcelain run takes a full range (`start,end`) or a lone start line (`start,start+30`); the readable run takes only a full range. A lone start line with no end line therefore blames 31 lines in the porcelain check but the whole file in the displayed snippet's range handling. The path resolves inside the workspace like every other SwiftCode tool. SwiftCode's `GitBlame.parse` seam is not used for this output: it drops the line text the `-s` rendering shows. See `assist-search-git-tools.md` ("Git tools").
 
 ## 75. `git_branch_compare` — Compare Branches
 
@@ -4126,7 +4126,7 @@ Structured data keys (all strings):
 
 **Accepted aliases:** `git_conflict` resolves to this tool; see §71.5.
 
-**Notes.** `resolution` defaults to `inspect` and is lowercased. A file is "conflicted" only when its content contains all three of `<<<<<<<`, `=======`, `>>>>>>>`; that check happens before the resolution is validated, so an unknown resolution on a marker-free file reports no markers rather than an error. `inspect` reads only, but the tool is registered `writes: true`, so a `readOnly` server refuses even `inspect` (see §71.3). `take_ours` / `take_theirs` drop the marker lines and keep only the chosen side's lines (Legacy's state machine), and write the result through `commit()` — the full before/after goes to review. An unknown resolution fails with `Unknown resolution '<resolution>'. Use 'inspect', 'take_ours', or 'take_theirs'.` Missing file: `File not found at path: <path>`; unreadable as UTF-8: `Unable to read content of file at <path>`. Legacy's absolute-path carve-out (a leading-`/` path used as a raw filesystem path, which could resolve conflicts outside the workspace) is **not** reproduced: paths resolve inside the workspace like every other Ycode tool. Ycode's `GitRepository.resolveConflict` seam is not used: it also stages the file (`git add`), while Legacy only writes the resolved text. See `assist-search-git-tools.md` ("Git tools").
+**Notes.** `resolution` defaults to `inspect` and is lowercased. A file is "conflicted" only when its content contains all three of `<<<<<<<`, `=======`, `>>>>>>>`; that check happens before the resolution is validated, so an unknown resolution on a marker-free file reports no markers rather than an error. `inspect` reads only, but the tool is registered `writes: true`, so a `readOnly` server refuses even `inspect` (see §71.3). `take_ours` / `take_theirs` drop the marker lines and keep only the chosen side's lines (Legacy's state machine), and write the result through `commit()` — the full before/after goes to review. An unknown resolution fails with `Unknown resolution '<resolution>'. Use 'inspect', 'take_ours', or 'take_theirs'.` Missing file: `File not found at path: <path>`; unreadable as UTF-8: `Unable to read content of file at <path>`. Legacy's absolute-path carve-out (a leading-`/` path used as a raw filesystem path, which could resolve conflicts outside the workspace) is **not** reproduced: paths resolve inside the workspace like every other SwiftCode tool. SwiftCode's `GitRepository.resolveConflict` seam is not used: it also stages the file (`git add`), while Legacy only writes the resolved text. See `assist-search-git-tools.md` ("Git tools").
 
 ## 79. `git_log_viewer` — Git Log Viewer
 
@@ -4256,7 +4256,7 @@ Structured data keys (all strings):
 
 **Accepted aliases:** `git_stash` resolves to this tool; see §71.5.
 
-**Notes.** Actions (case-insensitive): `save` / `push` → `git stash push` (plus `-m <message>` when a non-empty message is given); `pop` → `git stash pop <stash>`; `list` → `git stash list`; `show` → `git stash show -p <stash>`; `drop` → `git stash drop <stash>`. `stashIndex` defaults to `stash@{0}` and must be `stash@{N}` or a plain number, else `Invalid stash identifier: <stashIndex>` — a tightening over Legacy, which passed it to argv unvalidated. Gate: save/pop/drop require approval before git runs; list/show do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. A failing git run fails as `Git stash <action> failed (exit <code>):\n<stderr>\n<stdout>`. An unknown action fails with `Unsupported action '<action>'. Valid: save, pop, list, show, drop`. Ycode's `GitRepository` stash seam (`stashPatch` / `exportStash`) covers only exporting a stash as a patch and is not used here. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+**Notes.** Actions (case-insensitive): `save` / `push` → `git stash push` (plus `-m <message>` when a non-empty message is given); `pop` → `git stash pop <stash>`; `list` → `git stash list`; `show` → `git stash show -p <stash>`; `drop` → `git stash drop <stash>`. `stashIndex` defaults to `stash@{0}` and must be `stash@{N}` or a plain number, else `Invalid stash identifier: <stashIndex>` — a tightening over Legacy, which passed it to argv unvalidated. Gate: save/pop/drop require approval before git runs; list/show do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. A failing git run fails as `Git stash <action> failed (exit <code>):\n<stderr>\n<stdout>`. An unknown action fails with `Unsupported action '<action>'. Valid: save, pop, list, show, drop`. SwiftCode's `GitRepository` stash seam (`stashPatch` / `exportStash`) covers only exporting a stash as a patch and is not used here. See §71.3 and `assist-search-git-tools.md` ("Git tools").
 
 ## 82. `github_repo` — GitHub Repository Inspector
 
@@ -4317,11 +4317,11 @@ Structured data keys (all strings):
 }
 ```
 
-**Output (Wave 10).** The handler now runs all seven operations against the live GitHub API via `YcodeGitHub` — see `specs/ide/github-service.md` §2.8 for the per-operation outputs. (Wave 3 state, kept for history: the handler always failed with an error naming the missing GitHub API client/auth prerequisite; no GitHub data was fetched and none was faked.)
+**Output (Wave 10).** The handler now runs all seven operations against the live GitHub API via `SwiftCodeGitHub` — see `specs/ide/github-service.md` §2.8 for the per-operation outputs. (Wave 3 state, kept for history: the handler always failed with an error naming the missing GitHub API client/auth prerequisite; no GitHub data was fetched and none was faked.)
 
-**Notes.** Legacy's tool reads live repositories over the GitHub API (public repos unauthenticated, private repos with the user's saved credential), with operations `repository_info`, `list_files`, `get_file`, `get_directory`, `get_tree`, `search_code`, `fetch_repository`; code search is client-side over fetched files, recursive trees are capped by the API, binary files are classified never decoded, and unauthenticated rate limits (60 requests/hour) are reported, never retried. None of that can be reproduced without a GitHub client, so the Ycode port keeps the ID, title, description, and schema (so callers and the catalogue stay aligned) and fails honestly. Remote/GitHub access is a later wave. See §71.4 and `assist-search-git-tools.md` ("Git tools").
+**Notes.** Legacy's tool reads live repositories over the GitHub API (public repos unauthenticated, private repos with the user's saved credential), with operations `repository_info`, `list_files`, `get_file`, `get_directory`, `get_tree`, `search_code`, `fetch_repository`; code search is client-side over fetched files, recursive trees are capped by the API, binary files are classified never decoded, and unauthenticated rate limits (60 requests/hour) are reported, never retried. None of that can be reproduced without a GitHub client, so the SwiftCode port keeps the ID, title, description, and schema (so callers and the catalogue stay aligned) and fails honestly. Remote/GitHub access is a later wave. See §71.4 and `assist-search-git-tools.md` ("Git tools").
 
-**Wave 10 note.** The client now exists (`YcodeGitHub`); the tool is wired to it with the deviations recorded in `github-service.md` §2.9 (server-side code search, `maxBytes` file cap, tree-truncation flag not surfaced, `repository_info` drops open-issues/license/size lines, sequential `fetch_repository`).
+**Wave 10 note.** The client now exists (`SwiftCodeGitHub`); the tool is wired to it with the deviations recorded in `github-service.md` §2.9 (server-side code search, `maxBytes` file cap, tree-truncation flag not surfaced, `repository_info` drops open-issues/license/size lines, sequential `fetch_repository`).
 
 ## 83. `recent_changes` — Recent Changes
 
@@ -4394,7 +4394,7 @@ Structured data keys (all strings):
 
 **Accepted aliases:** `git`, `git_status`, `git_diff`, `git_commit`, `git_branch`, `git_rollback`, `git_tool`, `version_control` resolve to this tool; see §71.5. (These aliases select the *tool*, not the action — the action still comes from the `action` argument.)
 
-**Notes.** Actions (case-insensitive; missing `action` defaults to `status` in Legacy, though the schema requires it): `status` → `git status --short`; `diff` → `git diff -- .`; `commit` → `git add -A` then `git commit -m <message>` (message defaults to `Assist automated commit`); `branch` → `git checkout -b <name>` (name defaults to `assist/automation`); `rollback` → `git reset --hard <ref>` (ref defaults to `HEAD~1`). Branch names and rollback refs must pass the strict allow-list validator (see `assist-search-git-tools.md` ("Git tools")). Gate: commit/branch/rollback require approval before git runs; status/diff do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. Failures: `Git commit failed: <output>`, `Git branch checkout failed: <output>`, `Git rollback failed: <output>`, `Git status failed: <output>` / `Git diff failed: <output>`. Remote actions (`push`, `pull`, `fetch`, `clone`) are **not** implemented in Legacy and are rejected here with an explicit error naming the later-wave prerequisite, instead of the generic unknown-action error. **Wave 10 note.** Wave 10 implements them: `push`/`pull`/`fetch`/`clone` now run real git (approval-gated), with optional `remote` (fetch), `url`/`destination` (clone) parameters — a Ycode addition, not a Legacy port (Legacy implements no remote sub-ops); see `specs/ide/github-service.md` §3.2. Any other unknown action fails with `Unknown git action '<action>': expected status, commit, branch, rollback, diff, push, pull, fetch, or clone.` (Wave 10 extends the list with the four remote actions.) Legacy's `#if os(macOS)` gate ("Version control operations require macOS runtime") is dropped: the git CLI exists on Linux too. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+**Notes.** Actions (case-insensitive; missing `action` defaults to `status` in Legacy, though the schema requires it): `status` → `git status --short`; `diff` → `git diff -- .`; `commit` → `git add -A` then `git commit -m <message>` (message defaults to `Assist automated commit`); `branch` → `git checkout -b <name>` (name defaults to `assist/automation`); `rollback` → `git reset --hard <ref>` (ref defaults to `HEAD~1`). Branch names and rollback refs must pass the strict allow-list validator (see `assist-search-git-tools.md` ("Git tools")). Gate: commit/branch/rollback require approval before git runs; status/diff do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. Failures: `Git commit failed: <output>`, `Git branch checkout failed: <output>`, `Git rollback failed: <output>`, `Git status failed: <output>` / `Git diff failed: <output>`. Remote actions (`push`, `pull`, `fetch`, `clone`) are **not** implemented in Legacy and are rejected here with an explicit error naming the later-wave prerequisite, instead of the generic unknown-action error. **Wave 10 note.** Wave 10 implements them: `push`/`pull`/`fetch`/`clone` now run real git (approval-gated), with optional `remote` (fetch), `url`/`destination` (clone) parameters — a SwiftCode addition, not a Legacy port (Legacy implements no remote sub-ops); see `specs/ide/github-service.md` §3.2. Any other unknown action fails with `Unknown git action '<action>': expected status, commit, branch, rollback, diff, push, pull, fetch, or clone.` (Wave 10 extends the list with the four remote actions.) Legacy's `#if os(macOS)` gate ("Version control operations require macOS runtime") is dropped: the git CLI exists on Linux too. See §71.3 and `assist-search-git-tools.md` ("Git tools").
 
 ## 85. Summary: capability / risk / permission / writes (Wave 3)
 
@@ -4426,7 +4426,7 @@ Structured data keys (all strings):
   `/bin/zsh -c`; the port never runs a shell. Every other local command
   in this wave runs a fixed binary with fixed argv (`terminalRunFixed`).
 - **Approval on every `use_terminal` run.** There is no allow-list, no
-  Full Access, and no Autopilot bypass in Ycode, although the
+  Full Access, and no Autopilot bypass in SwiftCode, although the
   `use_terminal` description (kept verbatim) still mentions them.
   `use_system`'s single mutation needs both Legacy's `confirm: true`
   and the approval gate. All other writes go through `commit()` exactly
@@ -4439,7 +4439,7 @@ Structured data keys (all strings):
   naming the exact prerequisite: `env_capture_logs`, `use_extension`,
   `use_composio`, `use_workers`, `take_screenrecord` (fully),
   `use_mcp` and `use_app` (partially). (Wave 11: `use_extension` is
-  now wired to the `YcodeExtensions` host — see §92.)
+  now wired to the `SwiftCodeExtensions` host — see §92.)
 - **Annotations** follow §1.3, extended: `safeRead` → `readOnly: true,
   idempotent: true`, `writes: false`; `safeMutation` → `readOnly:
   false, idempotent: true`, `writes: true`; `execution` →
@@ -4588,10 +4588,10 @@ failing (see Notes). No structured data.
 
 **Notes.** The tool needs the Assist snapshot history
 (`AssistSnapshotFunctions`) and the Assist memory store, neither of
-which exists in Ycode's MCP host. It always fails with
+which exists in SwiftCode's MCP host. It always fails with
 `env_capture_logs needs the Assist snapshot history
 (AssistSnapshotFunctions) and the Assist memory store, neither of which
-exists in Ycode's MCP host; no logs were captured.` The `memoryKey`
+exists in SwiftCode's MCP host; no logs were captured.` The `memoryKey`
 argument is read and ignored. See
 `assist-terminal-memory-planning-tools.md`
 ("`env_capture_logs`").
@@ -4626,7 +4626,7 @@ argument is read and ignored. See
 | `physical_memory_bytes` | Physical memory in bytes. |
 | `workspace_root` | The workspace root's absolute path. |
 
-**Notes.** This schema is declared in Ycode; Legacy declares no
+**Notes.** This schema is declared in SwiftCode; Legacy declares no
 `parametersSchema` for this tool. See
 `assist-terminal-memory-planning-tools.md` ("`env_info`").
 
@@ -4661,12 +4661,12 @@ argument is read and ignored. See
 }
 ```
 
-**Output (success).** The list branch only: `No MCP servers are currently configured in Ycode.` (plain text, no structured data).
+**Output (success).** The list branch only: `No MCP servers are currently configured in SwiftCode.` (plain text, no structured data).
 
 **Notes.** Partial: `serverName` `"list"` (case-insensitive) or
 `toolName` `"list_servers"` is answered honestly with the empty list.
 Any other call fails naming the missing external MCP client
-prerequisite; no external tool is called. Ycode itself is the MCP
+prerequisite; no external tool is called. SwiftCode itself is the MCP
 server here; its own tools are listed by `tools/list`. See
 `assist-terminal-memory-planning-tools.md` ("`use_mcp`").
 
@@ -4742,7 +4742,7 @@ server here; its own tools are listed by `tools/list`. See
 failing (see Notes). No structured data.
 
 **Notes.** The tool needs the Extensions v2 platform (`ExtV2Manager`
-+ extension host with Node.js), which Ycode's MCP host does not have
++ extension host with Node.js), which SwiftCode's MCP host does not have
 yet. An unknown or missing `action` fails first with `Unknown or
 missing action. Use one of: list, details, list_commands,
 list_xcode_commands, activate, deactivate, execute, run_xcode_command,
@@ -4753,7 +4753,7 @@ executed. See `assist-terminal-memory-planning-tools.md`
 
 **Wave 11 note (this tool is now WIRED — the Wave 4 text above is
 history).** `use_extension` is implemented against the new
-`YcodeExtensions` target (`specs/ide/extensions-platform.md` §7.2,
+`SwiftCodeExtensions` target (`specs/ide/extensions-platform.md` §7.2,
 §10): all 11 actions work — list, details, list_commands,
 list_xcode_commands, activate, deactivate, execute,
 run_xcode_command, enable, disable, diagnostics. Mutating actions
@@ -4762,7 +4762,7 @@ gate; VS Code execution runs through the real out-of-process Node
 host (Node absent → honest failure naming the prerequisite); Xcode
 commands run registered source-editor command logic only (no XcodeKit
 binaries). The Extensions panel lives on the editor toolbar beside
-Assist (`YcodeUI/Extensions/ExtensionsPanelViewController.swift`).
+Assist (`SwiftCodeUI/Extensions/ExtensionsPanelViewController.swift`).
 
 ## 93. `use_composio` — Execute Composio Tool
 
@@ -4795,7 +4795,7 @@ Assist (`YcodeUI/Extensions/ExtensionsPanelViewController.swift`).
 failing (see Notes). No structured data.
 
 **Notes.** The tool needs the Composio service (`ComposioService`
-with a Composio API key and connected integrations), which Ycode's MCP
+with a Composio API key and connected integrations), which SwiftCode's MCP
 host does not have yet. It always fails naming that prerequisite and
 the requested `toolSlug`; no external tool is executed. See
 `assist-terminal-memory-planning-tools.md` ("`use_composio`").
@@ -4835,7 +4835,7 @@ fails: each worker needs a non-empty `task` (also read from
 dependencies must name workers in the same batch; at least one worker
 assignment is required. No worker is created or run — the tool needs
 the Assist worker runtime (`WorkerScheduler` +
-`WorkerPersistenceStore` + subagent execution), which Ycode's MCP host
+`WorkerPersistenceStore` + subagent execution), which SwiftCode's MCP host
 does not have yet. See `assist-terminal-memory-planning-tools.md`
 ("`use_workers`").
 
@@ -5018,7 +5018,7 @@ workspace fails with the workspace-containment error. See
     },
     "title": {
       "type": "string",
-      "description": "Notification title. Defaults to \"Ycode Assist\"."
+      "description": "Notification title. Defaults to \"SwiftCode Assist\"."
     },
     "subtitle": {
       "type": "string",
@@ -5051,11 +5051,11 @@ text.
 
 **Notes.** Posts a genuine macOS notification
 (`UNUserNotificationCenter` with an `osascript` fallback). The default
-title is `"Ycode Assist"` where Legacy's is `"SwiftCode Assist"` (the
+title is `"SwiftCode Assist"` where Legacy's is `"SwiftCode Assist"` (the
 product posting the notification). `critical` requests the critical
 sound; without the critical-alerts entitlement the notification still
 posts, silently without the critical sound. This schema is declared in
-Ycode; Legacy declares no `parametersSchema` for this tool. See
+SwiftCode; Legacy declares no `parametersSchema` for this tool. See
 `assist-terminal-memory-planning-tools.md`
 ("`system_notification_tool`").
 
@@ -5285,7 +5285,7 @@ this wave (§86). See `assist-terminal-memory-planning-tools.md`
 failing (see Notes). No structured data.
 
 **Notes.** The tool needs a ScreenCaptureKit stream-recording engine
-(`SCStream` + video writer), which Ycode's MCP host does not have yet.
+(`SCStream` + video writer), which SwiftCode's MCP host does not have yet.
 A missing `app_identifier` and an out-of-range duration (1–60 s) fail
 first with Legacy-exact messages; otherwise the failure names the
 missing engine and the Screen Recording permission requirement. No
@@ -5456,7 +5456,7 @@ no application is operated. See
 ## 105. Wave 4 memory conventions (extending §1 and §27)
 
 - **Four stores, all per-workspace.** (A) The session memory graph:
-  an in-memory `NSLock` dictionary (`YcodeMemoryGraphStore`), one graph
+  an in-memory `NSLock` dictionary (`SwiftCodeMemoryGraphStore`), one graph
   per workspace root path, process-lifetime, never persisted — exactly
   like Legacy's `AssistMemoryGraph`. "Long-term" in the Legacy
   descriptions means this graph, not disk. (B) Durable user memory:
@@ -5600,7 +5600,7 @@ unknown key fails with `Key not found in memory: <key>`. See
 | Key | Value |
 |---|---|
 | `cleared` | Boolean, always true. |
-| `entriesCleared` | How many entries the workspace's graph held (a Ycode addition; Legacy returns no data). |
+| `entriesCleared` | How many entries the workspace's graph held (a SwiftCode addition; Legacy returns no data). |
 
 **Notes.** Clears only the calling workspace's session graph (store
 A). Other workspaces' graphs are untouched. No confirmation parameter:
@@ -5639,7 +5639,7 @@ protection, as in Legacy (which takes no `confirm` either). See
 `session=<session-uuid>`, `workspace=<workspace-root-path>`,
 `latest_snapshot=none`. The session UUID is minted once per workspace
 per process. `latest_snapshot` is always `"none"`: Legacy reads it
-from `AssistSnapshotFunctions.listSnapshots()`, and Ycode has no
+from `AssistSnapshotFunctions.listSnapshots()`, and SwiftCode has no
 snapshot store, so there is never a latest snapshot to name. The
 stored marker is a real graph entry, retrievable with `mem_retrieve`;
 nothing is faked. Open files are not captured: the MCP host has no
@@ -5747,7 +5747,7 @@ created (header only, no seed) when it does not exist yet. The success
 message names the real workspace file instead of Legacy's app-global
 path — the one deliberate wording change in this family. Legacy's
 failure branch ("Memory recording is currently disabled in Assist
-Settings, or storage failed.") has no Ycode equivalent: there is no
+Settings, or storage failed.") has no SwiftCode equivalent: there is no
 enable/disable setting. See
 `assist-terminal-memory-planning-tools.md` ("`save_to_memory`").
 
@@ -5936,7 +5936,7 @@ none honestly failing, none BLOCKED.
   `intel_breakdown_task` store plans in a process-wide in-memory store
   (`PlanningPlanStore`, keys `plan:<uuid>` /
   `plan_breakdown:<uuid>`). Legacy stores them in the session's
-  `AssistContext.memory`; Ycode's MCP host has no session memory store.
+  `AssistContext.memory`; SwiftCode's MCP host has no session memory store.
   Plan IDs are UUIDs, so plans from different workspaces cannot
   collide; plans do not survive a server restart.
 - **Path resolution** uses the session-aware `resolveFileReadingPath`
@@ -5950,7 +5950,7 @@ none honestly failing, none BLOCKED.
   which writes `agent_notes.md`, and `intel_generate_tests`, which
   writes the generated test file) gate **before** touching disk,
   through `commit()` — exactly like the Wave 2 file-writing tools.
-- **Legacy parameter-name aliases are NOT supported.** Ycode's argument
+- **Legacy parameter-name aliases are NOT supported.** SwiftCode's argument
   validation rejects unknown arguments before the handler runs. Legacy
   registry aliases (`plan_askuser` / `plan_ask_user` / `ask_user` →
   `plan-AskUser`, `task_complete` / `task_completion` →
@@ -6021,7 +6021,7 @@ capitalised `"Plan"` / `"Autopilot"`, so a literal `"plan"` silently
 became Autopilot; the port honours the documented values. The mode
 only labels the plan document. There is no "Plan Generation
 Instructions" section: Legacy renders it only when the instruction
-text is non-empty, and Ycode has no `WriteExecutionPlan.md` bundle
+text is non-empty, and SwiftCode has no `WriteExecutionPlan.md` bundle
 resource to load it from. Worker assignments appear only when more
 than 8 relevant files are found. A refused write fails instead of
 writing: Legacy writes the file directly and still returns success
@@ -6132,11 +6132,11 @@ stored under `plan_breakdown:<planId>`. An unknown `planId` fails with
 failing (see Notes). No output schema, no structured data.
 
 **Notes.** Legacy runs `lint_project` and then asks an OpenAI LLM
-(stored API key) to rewrite the file, and Ycode's MCP host has neither
+(stored API key) to rewrite the file, and SwiftCode's MCP host has neither
 a lint engine nor an LLM provider wired for this tool. The handler
 always fails with `intel_autofix needs an LLM provider and lint
 diagnostics: Legacy runs lint_project and then asks an OpenAI LLM
-(stored API key) to rewrite the file, and Ycode's MCP host has neither
+(stored API key) to rewrite the file, and SwiftCode's MCP host has neither
 a lint engine nor an LLM provider wired for this tool. No file was
 changed; use the build tool's issues and file_edit to fix errors.` No
 file is touched. (Wave 2 `code_refactor` / Wave 3 `github_repo`
@@ -6174,7 +6174,7 @@ precedent.) See `assist-terminal-memory-planning-tools.md`
 
 **Notes.** Honest static analysis, not an LLM call. Legacy tries an
 OpenAI LLM first and falls back to a one-line static summary when the
-LLM fails; Ycode's MCP host has no LLM provider wired for this tool,
+LLM fails; SwiftCode's MCP host has no LLM provider wired for this tool,
 so the port always takes the static path — and says so in the result.
 The explanation is grounded in the file itself (line count, imports,
 declared types, functions); nothing is invented and no LLM output is
@@ -6301,7 +6301,7 @@ ID outside `^[a-z_]+$`. The tool returns the question as a structured
 handoff payload and returns immediately — it never blocks. Legacy
 presents a native macOS question UI and suspends execution for up to
 300 seconds waiting for the user's answer, and is available only in
-Plan mode. Ycode's MCP host is non-interactive and has no Plan /
+Plan mode. SwiftCode's MCP host is non-interactive and has no Plan /
 Autopilot execution mode, so the Legacy Plan-mode-only gate is
 unenforceable here and is not a failure case. The caller must present
 the question to the user and feed the answer back. The description is
@@ -6364,11 +6364,11 @@ Files:**` section when files are listed and not already mentioned, and
 a `**Verification:**` section when verification text is given and not
 already mentioned. There is no `AssistManager` to broadcast to —
 Legacy posts the rendered report as the assistant's last message; in
-Ycode the tool result text **is** the report. There is no side effect.
+SwiftCode the tool result text **is** the report. There is no side effect.
 The handler also reads `message` / `report` / `text` as fallbacks for
 `summary` (not in the schema). A missing `summary` defaults to `Task
 execution completed.` in the handler, but the schema still requires
-it, so Ycode's argument validation rejects a missing `summary` first.
+it, so SwiftCode's argument validation rejects a missing `summary` first.
 See `assist-terminal-memory-planning-tools.md`
 ("`report_to_user`").
 
@@ -6396,23 +6396,23 @@ Wave 5 ports the remaining small Assist families: Artboards (8),
 Simulator & devices (4), Image (7), Archive (6), Data (5), Engines (4),
 Web (1) and Reverse (1) — 36 tools, taking the MCP catalogue from 138
 to 172 registrations. Two of the four simulator tools already existed
-as Ycode registrations and are aligned in place rather than
+as SwiftCode registrations and are aligned in place rather than
 re-registered (§3 of the behaviour spec). The behaviour spec is
 `specs/ide/assist-artboards-media-tools.md` (Part A artboards/simulator,
 Part B image/archive/data, Part C engines/web/reverse).
 
 ## 126. Wave 5 artboards / simulator conventions
 
-- Artboards live in an in-memory store on the host (`YcodeMCPHost.artboards`
+- Artboards live in an in-memory store on the host (`SwiftCodeMCPHost.artboards`
   / `activeArtboardID`); there is no artboard file format yet, so they live
   and die with the server, like Legacy's `DocumentCoordinator.visualUIDocument`.
-- Artboard compilation renders through `YcodePreviews` (`PreviewRenderRunner`);
+- Artboard compilation renders through `SwiftCodePreviews` (`PreviewRenderRunner`);
   `artboard_run_app` delegates to the existing `run` tool. The Visual UI Builder
   itself, the live preview session and Apple-simulator runs are not ported.
 - Simulator/device tools run `xcrun devicectl` / `simctl` as fixed-argv
   subprocesses via Wave 4's `terminalRunFixed`; mutating actions go through the
   Wave 2 approval gate. `simulator_boot` and `simulator_list` are aligned in
-  place in `YcodeTools+Run.swift` (§3 of the behaviour spec) — Ycode's Ycode
+  place in `SwiftCodeTools+Run.swift` (§3 of the behaviour spec) — SwiftCode's SwiftCode
   Simulator behaviour is unchanged, and the Legacy `simctl` behaviour is added.
 
 ## 127. Wave 5 image / archive / data conventions
@@ -6439,7 +6439,7 @@ Part B image/archive/data, Part C engines/web/reverse).
   24 h in-memory cache, 20,000-char cap). `reverse_analyze` is honestly failing:
   it runs Legacy's validation chain, then fails naming the missing Node REA bridge.
 - The patch engine reports Legacy's naive line diff, not a Myers unified diff —
-  Ycode has no Myers engine yet (same gap as Wave 2's `code_replace`).
+  SwiftCode has no Myers engine yet (same gap as Wave 2's `code_replace`).
 
 ## 129. `artboard_compile` — Compile Artboard Preview
 
@@ -6471,7 +6471,7 @@ Part B image/archive/data, Part C engines/web/reverse).
 **Output (success).** Structured data keys: `status`, `preview_target`.
 Message: `Artboard compiled successfully.\nHosted View: Ready`.
 
-**Notes.** Renders through `YcodePreviews` (`PreviewRenderRunner`) and returns the PNG as an image block. An artboard with no custom source fails: the MCP host has no active document for Legacy's fallback. Approval is requested before compiling. See `assist-artboards-media-tools.md` (Part A, "`artboard_compile`").
+**Notes.** Renders through `SwiftCodePreviews` (`PreviewRenderRunner`) and returns the PNG as an image block. An artboard with no custom source fails: the MCP host has no active document for Legacy's fallback. Approval is requested before compiling. See `assist-artboards-media-tools.md` (Part A, "`artboard_compile`").
 
 ## 130. `artboard_create` — Create Artboard
 
@@ -6729,21 +6729,21 @@ Message: `Connected devices: <devices.count>\n`; `Connected devices (via xctrace
 
 ## 138. `simulator_boot` — Boot simulator
 
-- **Description (verbatim):** "Starts a Ycode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead."
+- **Description (verbatim):** "Starts a SwiftCode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead."
 - **Capability:** `systemExecution`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
 
 ```json
 {
   "type": "object",
-  "description": "Starts a Ycode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead.",
+  "description": "Starts a SwiftCode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead.",
   "properties": {
     "simulator": {
       "type": "string",
-      "description": "The Ycode Simulator destination's name or id (default: the first; see simulator_list)."
+      "description": "The SwiftCode Simulator destination's name or id (default: the first; see simulator_list)."
     },
     "udid": {
       "type": "string",
-      "description": "An Apple simulator's UDID (UUID) to boot or shut down with simctl instead of the Ycode Simulator."
+      "description": "An Apple simulator's UDID (UUID) to boot or shut down with simctl instead of the SwiftCode Simulator."
     },
     "action": {
       "type": "string",
@@ -6761,7 +6761,7 @@ Message: `Connected devices: <devices.count>\n`; `Connected devices (via xctrace
 **Output (success).** Structured data keys: `simulator`, `state`.
 Message: `<name> is running already.`; `<name> is starting (a warm restore takes seconds, a cold boot a minute or more); take a screenshot to see it.`.
 
-**Notes.** ALIGNED in place (see Part A §3.2): Ycode's registration, extended with Legacy's `udid` + `action` (boot/shutdown) routing to `simctl` with Legacy's verification pass. Without a `udid` it boots the Ycode Simulator as before. See `assist-artboards-media-tools.md` (Part A, "`simulator_boot`").
+**Notes.** ALIGNED in place (see Part A §3.2): SwiftCode's registration, extended with Legacy's `udid` + `action` (boot/shutdown) routing to `simctl` with Legacy's verification pass. Without a `udid` it boots the SwiftCode Simulator as before. See `assist-artboards-media-tools.md` (Part A, "`simulator_boot`").
 
 ## 139. `simulator_controller` — Simulator Controller
 
@@ -6811,22 +6811,22 @@ Message: `Simulator operation '<action>' succeeded on device '<device>'. <out>`.
 
 ## 140. `simulator_list` — List simulators
 
-- **Description (verbatim):** "The simulators available to this IDE: the Ycode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent)."
+- **Description (verbatim):** "The simulators available to this IDE: the SwiftCode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent)."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
 ```json
 {
   "type": "object",
-  "description": "The simulators available to this IDE: the Ycode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent).",
+  "description": "The simulators available to this IDE: the SwiftCode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent).",
   "properties": {},
   "required": []
 }
 ```
 
 **Output (success).** Structured data keys: `simulators`, `configured`, `appleSimulators`.
-Message: `No Ycode Simulator host is set up.\n`.
+Message: `No SwiftCode Simulator host is set up.\n`.
 
-**Notes.** ALIGNED in place (see Part A §3.1): Ycode's registration, unchanged Ycode keys, plus an `appleSimulators` array from Legacy's `simctl list devices -j` (empty when `xcrun` is absent, never an error). See `assist-artboards-media-tools.md` (Part A, "`simulator_list`").
+**Notes.** ALIGNED in place (see Part A §3.1): SwiftCode's registration, unchanged SwiftCode keys, plus an `appleSimulators` array from Legacy's `simctl list devices -j` (empty when `xcrun` is absent, never an error). See `assist-artboards-media-tools.md` (Part A, "`simulator_list`").
 
 ## 141. `image_convert_format` — Convert Image Format
 
@@ -6869,7 +6869,7 @@ Message: `No Ycode Simulator host is set up.\n`.
 **Output (success).** Structured data keys: `destination`, `size`, `format`.
 Message: `Successfully converted `<sourceRaw>` to \(formatRaw.uppercased()) at `<destRaw>` (<outputData.count> bytes).`.
 
-**Notes.** macOS-only: needs AppKit/ImageIO. On Linux the handler fails honestly with the exact macOS-only message (Wave 4 pattern); Ycode has no image decoder/encoder to substitute. See `assist-artboards-media-tools.md` (Part B, "`image_convert_format`").
+**Notes.** macOS-only: needs AppKit/ImageIO. On Linux the handler fails honestly with the exact macOS-only message (Wave 4 pattern); SwiftCode has no image decoder/encoder to substitute. See `assist-artboards-media-tools.md` (Part B, "`image_convert_format`").
 
 ## 142. `image_decode_base64` — Decode Base64 to Image
 
@@ -7082,7 +7082,7 @@ Message: `\n        Image Specifications for <raw>:\n        - Dimensions: <info
 **Output (success).** Structured data keys: `destination`, `width`, `height`, `size`.
 Message: `Successfully rendered SVG `<sourceRaw>` to PNG `<destRaw>` (\(Int(targetSize.width))x\(Int(targetSize.height)), <pngData.count> bytes).`.
 
-**Notes.** macOS-only: needs AppKit SVG rasterisation. On Linux the handler fails honestly with the exact macOS-only message; Ycode has no SVG rasterizer to substitute. See `assist-artboards-media-tools.md` (Part B, "`svg_to_png`").
+**Notes.** macOS-only: needs AppKit SVG rasterisation. On Linux the handler fails honestly with the exact macOS-only message; SwiftCode has no SVG rasterizer to substitute. See `assist-artboards-media-tools.md` (Part B, "`svg_to_png`").
 
 ## 148. `gzip_compress_file` — Gzip Compress File
 
@@ -7570,7 +7570,7 @@ Message: `Resolved dependencies for <packageURL>`.
 **Output (success).** Structured data keys: `status_code`, `json`.
 Message: `Fetched external resource.`.
 
-**Notes.** HTTPS-only fetch, 30 s timeout, non-2xx fails, body must be JSON, returned pretty-printed with sorted keys, via `YcodeAssistant.HTTP.send`. No credential is sent. See `assist-artboards-media-tools.md` (Part C, "`external_resource_gateway`").
+**Notes.** HTTPS-only fetch, 30 s timeout, non-2xx fails, body must be JSON, returned pretty-printed with sorted keys, via `SwiftCodeAssistant.HTTP.send`. No credential is sent. See `assist-artboards-media-tools.md` (Part C, "`external_resource_gateway`").
 
 ## 162. `patch_application_engine` — Patch Application Engine
 
@@ -7610,7 +7610,7 @@ Message: `Fetched external resource.`.
 **Output (success).** Structured data keys: `diff`.
 Message: `Patch applied to <path>`.
 
-**Notes.** Verbatim-block integrity check, then replace-all. The diff it reports is Legacy's naive line diff, not a Myers unified diff — Ycode has no Myers engine yet (same gap as Wave 2's `code_replace`). See `assist-artboards-media-tools.md` (Part C, "`patch_application_engine`").
+**Notes.** Verbatim-block integrity check, then replace-all. The diff it reports is Legacy's naive line diff, not a Myers unified diff — SwiftCode has no Myers engine yet (same gap as Wave 2's `code_replace`). See `assist-artboards-media-tools.md` (Part C, "`patch_application_engine`").
 
 ## 163. `fetch_documentation` — Fetch Apple Documentation
 
@@ -7711,7 +7711,7 @@ Message: `Retrieved <pages.count> Apple documentation page(s) via <retrieval> in
 
 **Output (success).** None — the handler always fails (see Notes).
 
-**Notes.** HONESTLY FAILING: registered with the full Legacy schema and Legacy's complete validation chain (operation allow-list, REA-disclaimer task screen, target/scope validation, objdump sub-op, timeout clamp 10–1800 s), then fails naming the exact prerequisite — Node.js 22/24/26 + pinned `rea-agents@6.5.0` + `ReverseBridge.mjs`, none of which exist in Ycode. No Evidence envelope is faked. A future seam is `YcodeMachO` for host-local `list_architectures`/`inspect_macho`, but that would change the tool's output contract, so it belongs to a later wave's decision. See `assist-artboards-media-tools.md` (Part C, "`reverse_analyze`").
+**Notes.** HONESTLY FAILING: registered with the full Legacy schema and Legacy's complete validation chain (operation allow-list, REA-disclaimer task screen, target/scope validation, objdump sub-op, timeout clamp 10–1800 s), then fails naming the exact prerequisite — Node.js 22/24/26 + pinned `rea-agents@6.5.0` + `ReverseBridge.mjs`, none of which exist in SwiftCode. No Evidence envelope is faked. A future seam is `SwiftCodeMachO` for host-local `list_architectures`/`inspect_macho`, but that would change the tool's output contract, so it belongs to a later wave's decision. See `assist-artboards-media-tools.md` (Part C, "`reverse_analyze`").
 
 ## 165. Summary: capability / risk / permission / writes (Wave 5)
 
@@ -7759,7 +7759,7 @@ Wave 6 ports the Legacy Assist Testing/QA family: test running &
 coverage (16), static analysis (22), security/privacy/platform audits
 (18), and docs/review/repo tooling (23) — 79 tools, taking the MCP
 catalogue from 172 to 251 registrations. No tool in this wave was
-already a Ycode registration, so none is aligned in place. The
+already a SwiftCode registration, so none is aligned in place. The
 behaviour spec is `specs/ide/assist-testing-tools.md` (Part A test
 running, Part B static analysis, Part C audits, Part D docs/review).
 
@@ -7779,8 +7779,8 @@ running, Part B static analysis, Part C audits, Part D docs/review).
 
 - All tools are Legacy-faithful regex/line heuristics, blind spots included
   (string/comment mentions count, substring matching where Legacy does it,
-  textual brace counting). `YcodeSyntax` is a tokenizer/block-structure
-  library, not a Swift declaration parser, and `YcodeMCP` does not depend
+  textual brace counting). `SwiftCodeSyntax` is a tokenizer/block-structure
+  library, not a Swift declaration parser, and `SwiftCodeMCP` does not depend
   on it, so no AST parser is used; `swift_ast_inspector` implements only
   Legacy's regex structural fallback.
 - `import_cleanup` is the only writer in this slice (one approval per changed
@@ -7789,7 +7789,7 @@ running, Part B static analysis, Part C audits, Part D docs/review).
 
 ## 168. Wave 6 audit conventions
 
-- `mach_o_binary_analyzer` reuses Ycode's `YcodeMachO` (`MachOFile` /
+- `mach_o_binary_analyzer` reuses SwiftCode's `SwiftCodeMachO` (`MachOFile` /
   `MachOImage`); it reports parsed slices/dylibs instead of Legacy's
   `/usr/bin/file` + `xcrun otool` text, and fails on non-Mach-O files and
   32-bit Mach-O binaries. `memory_leak_detector` is a static source scan,
@@ -7806,10 +7806,10 @@ running, Part B static analysis, Part C audits, Part D docs/review).
 - `code_review` and `safe_undo` are honestly failing (LLM provider and
   workspace snapshot store respectively — see their sections).
 - `automated_repair_engine` annotates deterministically and never rebuilds,
-  as in Legacy. `session_progress_report` has no phase coordinator in Ycode,
+  as in Legacy. `session_progress_report` has no phase coordinator in SwiftCode,
   so phase counts are always 0; the agent-notes line is real.
 - `tool_capability_lookup` looks up the live `server.tools`; capability and
-  estimated cost are omitted (Ycode tools carry neither).
+  estimated cost are omitted (SwiftCode tools carry neither).
 
 ## 170. `test_run_single` — Run Single Test
 
@@ -9177,7 +9177,7 @@ Message: `Successfully generated compliant PrivacyInfo.xcprivacy at workspace ro
 
 **Output (success).** No structured data keys (plain text result).
 
-**Notes.** Reuses Ycode's `YcodeMachO` (`MachOFile` / `MachOImage`) — no parallel parser. Reports parsed slices/dylibs instead of Legacy's `/usr/bin/file` + `xcrun otool` text. Fails on non-Mach-O files and 32-bit Mach-O binaries. See `assist-testing-tools.md` (Part C, "`mach_o_binary_analyzer`").
+**Notes.** Reuses SwiftCode's `SwiftCodeMachO` (`MachOFile` / `MachOImage`) — no parallel parser. Reports parsed slices/dylibs instead of Legacy's `/usr/bin/file` + `xcrun otool` text. Fails on non-Mach-O files and 32-bit Mach-O binaries. See `assist-testing-tools.md` (Part C, "`mach_o_binary_analyzer`").
 
 ## 215. `framework_linker_auditor` — Framework Linker Auditor
 
@@ -9679,7 +9679,7 @@ Message: `Autonomous review complete.`.
 
 **Output (success).** None — the handler always fails (see Notes).
 
-**Notes.** HONESTLY FAILING: registered with the full Legacy schema, then always fails naming the prerequisite — an LLM provider (Legacy sends task history, repo changes and build state to Apple Foundation Models or the configured provider and requires a JSON verdict with status `task_ready` / `task_failed`). Ycode's MCP host has no LLM wired for this tool. See `assist-testing-tools.md` (Part D, "`code_review`").
+**Notes.** HONESTLY FAILING: registered with the full Legacy schema, then always fails naming the prerequisite — an LLM provider (Legacy sends task history, repo changes and build state to Apple Foundation Models or the configured provider and requires a JSON verdict with status `task_ready` / `task_failed`). SwiftCode's MCP host has no LLM wired for this tool. See `assist-testing-tools.md` (Part D, "`code_review`").
 
 ## 233. `code_snippet_manager` — Code Snippet & Architecture Template Manager
 
@@ -10021,7 +10021,7 @@ Message: `README skeleton written to \(rawPath).`.
 
 **Output (success).** None — the handler always fails (see Notes).
 
-**Notes.** HONESTLY FAILING: registered `potentiallyDestructive` / `writes: true`, then always fails naming the prerequisite — a workspace snapshot store (Legacy restores `AssistSnapshotFunctions` snapshot[1] and needs at least 2 snapshots). Ycode keeps no snapshots; `commit()` records no previous content, so there is nothing to restore. See `assist-testing-tools.md` (Part D, "`safe_undo`").
+**Notes.** HONESTLY FAILING: registered `potentiallyDestructive` / `writes: true`, then always fails naming the prerequisite — a workspace snapshot store (Legacy restores `AssistSnapshotFunctions` snapshot[1] and needs at least 2 snapshots). SwiftCode keeps no snapshots; `commit()` records no previous content, so there is nothing to restore. See `assist-testing-tools.md` (Part D, "`safe_undo`").
 
 ## 244. `safe_validate_changes` — Validate Changes
 
@@ -10089,7 +10089,7 @@ Message: `Changes validated successfully`; `Validation completed with \(issues.c
 **Output (success).** Structured data keys: `output_path`, `output_relative`, `session_id`, `timestamp`.
 Message: `Session export written to \(outputRelative) (session \(sessionId)).`.
 
-**Notes.** String-typed `overwrite`; the session ID is a deterministic UUID derived from the workspace root path (SHA-256) since Ycode has no agent-session UUID. See `assist-testing-tools.md` (Part D, "`session_export`").
+**Notes.** String-typed `overwrite`; the session ID is a deterministic UUID derived from the workspace root path (SHA-256) since SwiftCode has no agent-session UUID. See `assist-testing-tools.md` (Part D, "`session_export`").
 
 ## 246. `session_progress_report` — Session Progress Report
 
@@ -10113,7 +10113,7 @@ Message: `Session export written to \(outputRelative) (session \(sessionId)).`.
 **Output (success).** Structured data keys: `phaseCount`, `completed`, `inProgress`, `failed`, `pending`.
 Message: `No engineering phases are registered for this session.\n\(notesLine)`.
 
-**Notes.** No phase coordinator in Ycode, so phase counts are always 0; the agent-notes line is real (mtime of workspace `agent_notes.md`). See `assist-testing-tools.md` (Part D, "`session_progress_report`").
+**Notes.** No phase coordinator in SwiftCode, so phase counts are always 0; the agent-notes line is real (mtime of workspace `agent_notes.md`). See `assist-testing-tools.md` (Part D, "`session_progress_report`").
 
 ## 247. `stale_files_report` — Stale Files Report
 
@@ -10174,7 +10174,7 @@ Message: `No source files older than \(days) days.`.
 
 **Output (success).** Structured data keys: `toolId`, `riskLevel`, `required`.
 
-**Notes.** Looks up the live `server.tools` (resolving `MCPServer.toolAliases` first); capability and estimated cost are omitted (Ycode tools carry neither). See `assist-testing-tools.md` (Part D, "`tool_capability_lookup`").
+**Notes.** Looks up the live `server.tools` (resolving `MCPServer.toolAliases` first); capability and estimated cost are omitted (SwiftCode tools carry neither). See `assist-testing-tools.md` (Part D, "`tool_capability_lookup`").
 
 ## 249. Summary: capability / risk / permission / writes (Wave 6)
 
@@ -10267,7 +10267,7 @@ family of the 291-tool Assist registry: build & run (13), project model
 & pbxproj (19), SPM / dependencies / docs (13), signing / entitlements
 / plist (11), and asset catalogs / localization (9) — 65 tools, taking
 the MCP catalogue from 251 to 316 registrations. No tool in this wave was
-already a Ycode registration, so none is aligned in place. The behaviour
+already a SwiftCode registration, so none is aligned in place. The behaviour
 spec is `specs/ide/assist-project-build-tools.md` (Part A build & run,
 Part B project model, Part C SPM/docs, Part D signing, Part E assets /
 localization).
@@ -10294,7 +10294,7 @@ localization).
 - No `xcodebuild` anywhere in this slice: scheme/target/settings reads use
   parsed pbxproj + `WorkspaceModel`; build-setting values are raw (no
   xcconfig inclusion, no `$(...)` expansion).
-- Snapshots live in `YcodeSnapshots` (not Legacy's `AssistSnapshots`), and
+- Snapshots live in `SwiftCodeSnapshots` (not Legacy's `AssistSnapshots`), and
   `project_snapshot` is a write (`writes: true`, Legacy `safeRead`).
   `project_restore` is `potentiallyDestructive` and restores a whole-tree
   copy only after an explicit `MCPChange` approval.
@@ -10310,8 +10310,8 @@ localization).
 - `swift_package_manager`, `package_dependency_update` and
   `package_manifest_validate` run the real `swift` subprocess (fixed argv,
   300 s bound) and fail honestly when swift is absent; `Package.swift` is
-  edited as text exactly as Legacy does it. Ycode's
-  `YcodeProject.PackageDependencies` models package references in a
+  edited as text exactly as Legacy does it. SwiftCode's
+  `SwiftCodeProject.PackageDependencies` models package references in a
   `.pbxproj`, not `Package.swift` text, so it does not apply here and no
   parallel package model was built.
 - `docc_build` runs the real `xcodebuild docbuild` (600 s bound) and
@@ -10326,19 +10326,19 @@ localization).
   material is never reported (`provisioning_profile_reader` never reports
   `DeveloperCertificates`; `signing_certificate_inspector` reports names +
   SHA-1 hashes only).
-- `YcodeSigning` exists but `YcodeMCP` has no target dependency on it, so
+- `SwiftCodeSigning` exists but `SwiftCodeMCP` has no target dependency on it, so
   nothing here imports it and no parallel signing model was built; moving
   the provisioning tools onto its pure-Swift CMS decode is a later-wave
   option (it would also make them work on Linux).
-- `project_signing` resolves settings from the `.xcodeproj` via Ycode's own
+- `project_signing` resolves settings from the `.xcodeproj` via SwiftCode's own
   `ProjectSettingsBuilder` instead of spawning `xcodebuild`, so it works on
   Linux and honours xcconfigs.
 
 ## 254. Wave 7 assets / localization conventions
 
-- `.xcstrings` goes through Ycode's own `StringCatalog` seam (`YcodeStrings`,
-  re-exported by `YcodeIDECore`); `.strings` keeps Legacy's line-based
-  scan/edit. `YcodeAssetCatalog`'s loader is not visible to `YcodeMCP` (no
+- `.xcstrings` goes through SwiftCode's own `StringCatalog` seam (`SwiftCodeStrings`,
+  re-exported by `SwiftCodeIDECore`); `.strings` keeps Legacy's line-based
+  scan/edit. `SwiftCodeAssetCatalog`'s loader is not visible to `SwiftCodeMCP` (no
   target dependency), and nothing here needs a compiled CAR.
 - Every path is confined to the workspace (Legacy appended paths unchecked
   in several of these tools). `.stringsdict` `add_translation` is refused,
@@ -10800,9 +10800,9 @@ Message: `No available simulators matching the requested filter.`.
 ```
 
 **Output (success).** No structured data keys (plain text result).
-Message: `\n        Successfully initialized Create New App workflow for '\(appName)'.\n        Target Directory: \(targetDir.path)\n        Bundle Identifier: \(bundleIdentifier)\n        Platform: \(platform)\n        Version: \(version) (\(build))\n        Scaffolded with Ycode's '\(tab) App' template.\n        Ready for autonomous implementation and iteration.\n        `.
+Message: `\n        Successfully initialized Create New App workflow for '\(appName)'.\n        Target Directory: \(targetDir.path)\n        Bundle Identifier: \(bundleIdentifier)\n        Platform: \(platform)\n        Version: \(version) (\(build))\n        Scaffolded with SwiftCode's '\(tab) App' template.\n        Ready for autonomous implementation and iteration.\n        `.
 
-**Notes.** Workspace-confined scaffold via Ycode's macOS/iOS "App" templates; no `project.json`, no auto-open (Legacy wrote to an absolute `projectLocation` and opened it). See `assist-project-build-tools.md` (Part B, "`create_new_app`").
+**Notes.** Workspace-confined scaffold via SwiftCode's macOS/iOS "App" templates; no `project.json`, no auto-open (Legacy wrote to an absolute `projectLocation` and opened it). See `assist-project-build-tools.md` (Part B, "`create_new_app`").
 
 ## 269. `generate_xcodeproj` — Generate Xcode Project
 
@@ -10957,7 +10957,7 @@ Message: `Enabled capability '\(rawCapability)' (\(mapping.key)) in \(entitlemen
 **Output (success).** Structured data keys: `diff`, `branch`, `staged_count`, `unstaged_count`.
 Message: `No changes detected. Working tree is clean.`; `Git Status on branch '\(branch)': \(staged) staged, \(unstaged) unstaged, \(hunks) diff hunks.\n\n\(formattedDiff)`.
 
-**Notes.** `git status --porcelain` / `git diff HEAD` (Legacy's `GitService` is not available in Ycode); any git failure becomes "Diff inspection failed: …". See `assist-project-build-tools.md` (Part B, "`project_diff`").
+**Notes.** `git status --porcelain` / `git diff HEAD` (Legacy's `GitService` is not available in SwiftCode); any git failure becomes "Diff inspection failed: …". See `assist-project-build-tools.md` (Part B, "`project_diff`").
 
 ## 274. `project_mutation_controller` — Xcode Project Mutation Controller
 
@@ -11077,7 +11077,7 @@ Message: `Found \(schemes.count) scheme(s): \(schemes.joined(separator: ", "))`.
 **Output (success).** Structured data keys: `snapshot_id`.
 Message: `Successfully created project snapshot: \(message)`.
 
-**Notes.** Ported honestly, not failed: self-contained store — whole-tree copy + `metadata.json` under Application Support `YcodeSnapshots/<uuid>/` (Legacy: `AssistSnapshots/`). Reclassified `writes: true` (Legacy `safeRead`). See `assist-project-build-tools.md` (Part B, "`project_snapshot`").
+**Notes.** Ported honestly, not failed: self-contained store — whole-tree copy + `metadata.json` under Application Support `SwiftCodeSnapshots/<uuid>/` (Legacy: `AssistSnapshots/`). Reclassified `writes: true` (Legacy `safeRead`). See `assist-project-build-tools.md` (Part B, "`project_snapshot`").
 
 ## 278. `project_structure_map` — Project Structure Map
 
@@ -11994,7 +11994,7 @@ Message: `Info.plist \(key) = \(signingPlistString(found))`; `Info.plist has \(k
 
 **Output (success).** Structured data keys: `configuration`, `codeSignStyle`, `developmentTeam`, `bundleId`, `codeSignIdentity`, `provisioningProfileSpecifier`, `provisioningProfileCount`, `provisioningProfiles`, `scheme`.
 
-**Notes.** No `xcodebuild` spawned — settings resolved from the `.xcodeproj` via Ycode's own `ProjectSettingsBuilder` (the `build_settings` seam), so it works on Linux and honours xcconfigs. Target is the first target, or the target named by `scheme`; unknown configuration falls back to the project's default. See `assist-project-build-tools.md` (Part D, "`project_signing`").
+**Notes.** No `xcodebuild` spawned — settings resolved from the `.xcodeproj` via SwiftCode's own `ProjectSettingsBuilder` (the `build_settings` seam), so it works on Linux and honours xcconfigs. Target is the first target, or the target named by `scheme`; unknown configuration falls back to the project's default. See `assist-project-build-tools.md` (Part D, "`project_signing`").
 
 ## 308. `provisioning_check` — Provisioning Check
 
@@ -12490,8 +12490,8 @@ Message: `Key '\(key)' (\(locale)) = "\(found)" in \(fileURL.lastPathComponent).
 | `read_file` / `view_file` → `file_read`, `open_finder` → `open_in_finder`, `reveal_finder` / `show_in_finder` → `reveal_in_finder`, `list_dir` / `list_directory` / `directory_read` → `dir_read` aliases | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table; `AssistToolRouter.swift` metadata switch |
 | Capability / risk / permission derivation rules, `isReadOnly` / `isMutating` / `isDestructive` defaults, fail-closed unknown-tool rule | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTool.swift` (`AssistTool` protocol extension defaults); `AssistToolRouter.swift` `ToolCapability`, `ToolRiskLevel`, `ToolPermissionRequirement`, `metadata(for:)` and `metadata(for tool:)` |
 | Result envelope fields and all-string `data` values | 1 | Legacy `SwiftCode/Backend/Assist/AssistModels.swift` (`AssistToolResult`); `AssistToolResultFormatter.swift` (`AssistToolErrorCode`) |
-| Ycode MCP annotation shape (`readOnly`, `destructive`, `idempotent`, `openWorld`; `.read` preset; `writes` flag) | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPToolAnnotations`, `MCPToolDefinition`); `ycode/Sources/YcodeMCP/MCPCommand.swift` (`--allow-writes`, write policy) |
-| Ycode `file_list` / `file_read` schemas that must not be merged with the Legacy tools | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Workspace.swift` |
+| SwiftCode MCP annotation shape (`readOnly`, `destructive`, `idempotent`, `openWorld`; `.read` preset; `writes` flag) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPToolAnnotations`, `MCPToolDefinition`); `swiftcode/Sources/SwiftCodeMCP/MCPCommand.swift` (`--allow-writes`, write policy) |
+| SwiftCode `file_list` / `file_read` schemas that must not be merged with the Legacy tools | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Workspace.swift` |
 | `file_checksum_verifier` computes only (no expected hash, no comparison), silent SHA-256 fallback for unknown algorithms, no structured data, no containment check | 1 | Legacy `Tools/AssistFileChecksumVerifierTool.swift`, read directly |
 | `file_hash_verify` uses `/usr/bin/shasum` and `/usr/bin/md5` subprocesses | 1 | Legacy `Tools/AssistFileHashVerifyTool.swift`, read directly |
 | Finder tools use `NSWorkspace` (`open`, `activateFileViewerSelecting`) with a `/usr/bin/open` fallback for open only | 1 | Legacy `Tools/AssistFinderTools.swift`, read directly |
@@ -12500,39 +12500,39 @@ Message: `Key '\(key)' (\(locale)) = "\(found)" in \(fileURL.lastPathComponent).
 | Wave 2: all 24 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `file_create` as the 24th tool (registry line 75, `AssistCreateFileTool.swift:4`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` (register lines 68–77, 91–95, 202, 238, 310–316, 319); `Tools/AssistWriteFileTool.swift`, `AssistCreateFileTool.swift`, `AssistAppendFileTool.swift`, `AssistDeleteFileTool.swift`, `AssistMoveFileTool.swift`, `AssistCopyFileTool.swift`, `AssistRenameFileTool.swift`, `AssistCreateDirectoryTool.swift`, `AssistDeleteDirectoryTool.swift`, `AssistGenerateFileTool.swift`, `AssistFormatCodeTool.swift`, `AssistInsertCodeBlockTool.swift`, `AssistMultiFileEditTool.swift`, `AssistRefactorTool.swift`, `AssistReplaceInFileTool.swift`, `AssistRegexReplaceInFilesTool.swift`, `AssistPlistEditTool.swift`, `AssistDataMutationTools.swift`, `AssistDataInspectionTools.swift` (`AssistGenerateFileChecksumTool`), read directly |
 | Wave 2: `generate_file_checksum` is `fileReading` / `safeRead`, computes four hashes, writes nothing — family-classification correction | 1 | Legacy `Tools/AssistDataInspectionTools.swift` (`AssistGenerateFileChecksumTool`, lines 334–399), read directly |
 | Wave 2: registry aliases for this wave; `plist` → `plist_editor` and `checksum_verifier` → `file_checksum_verifier` are different tools, not aliases for `plist_edit` / `generate_file_checksum` | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly |
-| Wave 2: `file_write` alignment — Ycode's existing registration in `YcodeTools+Content.swift` (workspace/path/content, `path`/`created`/`lineCount`, `commit()`), its `destructive: true` annotation vs Legacy `safeMutation` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`file_write` tool, `commit`, `writeFile`), read directly; Wave 1 `file_read` alignment precedent in `YcodeTools+Workspace.swift` (Legacy `lines` object added to the existing registration) |
+| Wave 2: `file_write` alignment — SwiftCode's existing registration in `SwiftCodeTools+Content.swift` (workspace/path/content, `path`/`created`/`lineCount`, `commit()`), its `destructive: true` annotation vs Legacy `safeMutation` | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Content.swift` (`file_write` tool, `commit`, `writeFile`), read directly; Wave 1 `file_read` alignment precedent in `SwiftCodeTools+Workspace.swift` (Legacy `lines` object added to the existing registration) |
 | Wave 2: output messages and structured data keys; `file_append` / `file_move` / `file_copy` return no data and no `filesChanged`; `code_generate` returns no `filesChanged`; `regex_replace_in_files` returns no data in any outcome | 1 | Each Legacy Wave 2 tool `execute()` listed above, read directly |
 | Wave 2: `file_delete` / `dir_delete` schemas contain only `path` (no `confirm` parameter) | 1 | Legacy `Tools/AssistDeleteFileTool.swift`, `Tools/AssistDeleteDirectoryTool.swift`, read directly |
-| Wave 3: all 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `search_text` / `search_symbol` are distinct from Ycode's `search` / `symbol_search` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistCallHierarchyTool.swift`, `AssistCodeSummaryTool.swift`, `AssistDependencyGraphTool.swift`, `AssistImportGraphTool.swift`, `AssistProtocolConformanceListTool.swift`, `AssistRegexSearchTool.swift`, `search_skills.swift`, `AssistSymbolSearchTool.swift`, `AssistSearchTool.swift`, `AssistSemanticQueryEngine.swift`, `AssistSourceGraphBuilder.swift`, `AssistSymbolMoveFileTool.swift`, `AssistSymbolReferenceGraphTool.swift`, `AssistSymbolRenameProjectTool.swift`, `AssistTypeHierarchyTool.swift`, `AssistDataInspectionTools.swift` (`extract_code_symbols`), `AssistToolRegistry.swift` (register lines 83–87, 127–128, 144, 173, 245–246, 318, 332–335), read directly |
-| Wave 3: registry aliases for this wave; `search` → `search_text` deliberately NOT carried over (collides with Ycode's `search`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Workspace.swift` (`search`), read directly |
+| Wave 3: all 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `search_text` / `search_symbol` are distinct from SwiftCode's `search` / `symbol_search` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistCallHierarchyTool.swift`, `AssistCodeSummaryTool.swift`, `AssistDependencyGraphTool.swift`, `AssistImportGraphTool.swift`, `AssistProtocolConformanceListTool.swift`, `AssistRegexSearchTool.swift`, `search_skills.swift`, `AssistSymbolSearchTool.swift`, `AssistSearchTool.swift`, `AssistSemanticQueryEngine.swift`, `AssistSourceGraphBuilder.swift`, `AssistSymbolMoveFileTool.swift`, `AssistSymbolReferenceGraphTool.swift`, `AssistSymbolRenameProjectTool.swift`, `AssistTypeHierarchyTool.swift`, `AssistDataInspectionTools.swift` (`extract_code_symbols`), `AssistToolRegistry.swift` (register lines 83–87, 127–128, 144, 173, 245–246, 318, 332–335), read directly |
+| Wave 3: registry aliases for this wave; `search` → `search_text` deliberately NOT carried over (collides with SwiftCode's `search`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Workspace.swift` (`search`), read directly |
 | Wave 3: `semantic_query_engine` is a literal substring scan with `view` / `model` / `service` expansions, not an embedding/LLM search | 1 | Legacy `Tools/AssistSemanticQueryEngine.swift`, read directly |
 | Wave 3: `symbol_rename_project` is whole-word textual replacement with no symbol index; `symbol_move_file` is brace-count extraction with verify-and-restore | 1 | Legacy `Tools/AssistSymbolRenameProjectTool.swift`, `Tools/AssistSymbolMoveFileTool.swift`, read directly |
-| Wave 3: `search_skills` searches Legacy's `SkillIndex` (Application Support library); Ycode has no such catalogue — the port searches workspace skill files with Legacy's parsing and scoring | 1 | Legacy `Tools/search_skills.swift`, `SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/AgentSkill.swift`, read directly |
+| Wave 3: `search_skills` searches Legacy's `SkillIndex` (Application Support library); SwiftCode has no such catalogue — the port searches workspace skill files with Legacy's parsing and scoring | 1 | Legacy `Tools/search_skills.swift`, `SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/AgentSkill.swift`, read directly |
 | Wave 3: scan rules (1 MB cap, binary extensions, skipped dirs, 300 KB / 800 KB caps) and the clamping vs strict path resolvers | 1 | Legacy `Functions/AssistSearchFunctions.swift`, `Tools/AssistToolSharedHelpers.swift` (`AssistWorkspaceScan`), `Tools/AssistToolingSupport.swift`, read directly |
 | Wave 3 (Git): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `git_pr_summary` is local-only, `github_repo` honestly failing | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistConflictMarkerScanTool.swift`, `AssistGitBisectTool.swift`, `AssistGitBlameTool.swift`, `AssistGitBranchCompareTool.swift`, `AssistGitBranchManagerTool.swift`, `AssistGitCherryPickTool.swift`, `AssistGitConflictResolverTool.swift`, `AssistGitLogViewerTool.swift`, `AssistGitPRSummaryTool.swift`, `AssistGitStashTool.swift`, `AssistGitHubRepoTool.swift`, `AssistRecentChangesTool.swift`, `AssistVersionControlOperator.swift`, `AssistTool.swift` (capability/risk/permission defaults), `AssistToolRegistry.swift` (register lines 163, 177–180, 262–265, 389, 399; alias table lines 431–438, 505, 518–521), read directly |
 | Wave 3 (Git): `git_bisect` `.execution` risk (rank 2, between safeMutation and potentiallyDestructive); `git_pr_summary` local-only; `github_repo` GitHub API + credential | 1 | Legacy `AssistGitBisectTool.swift:11`, `AssistToolRouter.swift:19–31`; `AssistGitPRSummaryTool.swift:6` and its `execute()` (four local git commands, no network); `AssistGitHubRepoTool.swift:37–44, 105+`, read directly |
 | Wave 4 (Terminal): all 17 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `env_capture_logs`, `use_extension`, `use_composio`, `use_workers`, `take_screenrecord` honestly failing; `use_mcp` / `use_app` partial | 1 | Legacy `SwiftCode/Backend/Assist/Tools/UseTermFunction.swift`, `AssistTaskRunnerTool.swift`, `AssistLogCaptureTool.swift`, `AssistEnvironmentInfoTool.swift`, `UseMCP.swift`, `UseExtensionTool.swift`, `AssistComposioTool.swift`, `Subagents/Tools/UseWorkersTool.swift`, `AssistEnvironmentVariableManagerTool.swift`, `AssistClipboardManagerTool.swift`, `AssistProcessMonitorTool.swift`, `AssistDiskSpaceAnalyzerTool.swift`, `AssistSystemNotificationTool.swift`, `AssistSystemTool.swift`, `AssistTakeScreenshotTool.swift`, `AssistTakeScreenrecordTool.swift`, `AssistUseAppTool.swift`, `AssistToolRegistry.swift` (register lines 104, 108–113, 141, 207–211, 349, 393–395; alias table lines 430–556), read directly |
-| Wave 4 (Terminal): `use_terminal` tokenize-to-argv, shell-metacharacter rejection, approval on every run, no allow-list / Full Access / Autopilot; `take_screenshot` writes despite Legacy `safeRead`; `use_system` sysctl allowlist, blocked global domain, read-back verification | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift`, `YcodeTools+TerminalSupport.swift`; Legacy `UseTermFunction.swift`, `AgentTerminalService`, `AssistSystemTool.swift`, read directly |
-| Wave 4 (Memory): all 9 IDs, titles, descriptions, capabilities, risk levels, and input schemas; per-workspace stores (in-memory graph, `UserMemory.md`, `.assist_context_store.json`, conversation file) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistStoreMemoryTool.swift`, `AssistRetrieveMemoryTool.swift`, `AssistClearMemoryTool.swift`, `AssistContextSnapshotTool.swift`, `AssistContextPersistenceStore.swift`, `AssistSaveToMemoryTool.swift`, `AssistViewMemoryTool.swift`, `AssistManageMemoryTool.swift`, `AssistConversationContextTool.swift`, `AssistToolRegistry.swift` (register lines 122–125, 135, 167–170; alias table lines 507–511), read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Memory.swift`, `YcodeTools+MemorySupport.swift` |
-| Wave 4 (Memory): Legacy's durable user memory is app-global and would leak across workspaces, so the port uses a per-workspace file in the same format; `mem_context_snapshot` latest snapshot is always `"none"` (no snapshot store) | 1 | Legacy `AssistMemoryGraph.swift`, `UserMemoryManager.swift` (`~/Library/Application Support/SwiftCode/UserMemory.md`), `AssistConversationHistory.swift`, `AssistSnapshotFunctions.swift`, read directly; Ycode `CodingAssistantModel.archiveURL(forWorkspace:)` (conversation archive, considered and rejected for memory) |
+| Wave 4 (Terminal): `use_terminal` tokenize-to-argv, shell-metacharacter rejection, approval on every run, no allow-list / Full Access / Autopilot; `take_screenshot` writes despite Legacy `safeRead`; `use_system` sysctl allowlist, blocked global domain, read-back verification | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift`, `SwiftCodeTools+TerminalSupport.swift`; Legacy `UseTermFunction.swift`, `AgentTerminalService`, `AssistSystemTool.swift`, read directly |
+| Wave 4 (Memory): all 9 IDs, titles, descriptions, capabilities, risk levels, and input schemas; per-workspace stores (in-memory graph, `UserMemory.md`, `.assist_context_store.json`, conversation file) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistStoreMemoryTool.swift`, `AssistRetrieveMemoryTool.swift`, `AssistClearMemoryTool.swift`, `AssistContextSnapshotTool.swift`, `AssistContextPersistenceStore.swift`, `AssistSaveToMemoryTool.swift`, `AssistViewMemoryTool.swift`, `AssistManageMemoryTool.swift`, `AssistConversationContextTool.swift`, `AssistToolRegistry.swift` (register lines 122–125, 135, 167–170; alias table lines 507–511), read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Memory.swift`, `SwiftCodeTools+MemorySupport.swift` |
+| Wave 4 (Memory): Legacy's durable user memory is app-global and would leak across workspaces, so the port uses a per-workspace file in the same format; `mem_context_snapshot` latest snapshot is always `"none"` (no snapshot store) | 1 | Legacy `AssistMemoryGraph.swift`, `UserMemoryManager.swift` (`~/Library/Application Support/SwiftCode/UserMemory.md`), `AssistConversationHistory.swift`, `AssistSnapshotFunctions.swift`, read directly; SwiftCode `CodingAssistantModel.archiveURL(forWorkspace:)` (conversation archive, considered and rejected for memory) |
 | Wave 4 (Planning): all 8 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `intel_autofix` honestly failing; `plan-AskUser` handoff, never blocking | 1 | Legacy `SwiftCode/Backend/Assist/Tools/ExecutionPlanTool.swift`, `AssistPlanTaskTool.swift`, `AssistBreakdownTaskTool.swift`, `AssistAutoFixErrorsTool.swift`, `AssistExplainCodeTool.swift`, `AssistGenerateTestsTool.swift`, `PlanAskUserTool.swift`, `ReportToUserTool.swift`, `AssistToolRegistry.swift` (register lines 116–120, 142–143, 147; alias table lines 484–491), `Functions/System Assets/ExecutionPlans.md`, `Resources/WriteExecutionPlan.md`, read directly |
 | Wave 4 (Planning): `plan-AskUser` hyphenated ID is the documented intentional exception to snake_case; `execution_plan` honours documented lowercase `"plan"` / `"autopilot"` (Legacy's `rawValue` init only matches capitalised forms) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/validate_tools.py`; `AgentSessionState.swift:4-6` (`ExecutionMode` raw values `"Plan"` / `"Autopilot"`); `ExecutionPlanTool.swift:28-32` |
-| Wave 4: registry aliases for this wave (terminal / memory / planning) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
-| Wave 5 (Artboards): all 8 IDs, titles, descriptions, capabilities, risk levels, and input schemas; in-memory artboard store, PreviewRenderRunner compile, `run` delegation | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistArtboard{Compile,Create,Delete,Get,List,RunApp,Update}Tool.swift`, `AssistFixArtboardsTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Artboards.swift`, `YcodePreviews/PreviewRenderRunner.swift` |
-| Wave 5 (Simulator): all 4 IDs; `simulator_boot` / `simulator_list` aligned in place onto Ycode's existing registrations (Ycode Simulator behaviour unchanged, `simctl` behaviour added); `device_list` / `simulator_controller` new via `devicectl` / `simctl` subprocesses | 1 | Legacy `Tools/AssistDeviceListTool.swift`, `AssistSimulatorBootTool.swift`, `AssistSimulatorControllerTool.swift`, `AssistSimulatorListTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Run.swift` (aligned), `YcodeTools+Simulator.swift` |
+| Wave 4: registry aliases for this wave (terminal / memory / planning) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 5 (Artboards): all 8 IDs, titles, descriptions, capabilities, risk levels, and input schemas; in-memory artboard store, PreviewRenderRunner compile, `run` delegation | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistArtboard{Compile,Create,Delete,Get,List,RunApp,Update}Tool.swift`, `AssistFixArtboardsTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Artboards.swift`, `SwiftCodePreviews/PreviewRenderRunner.swift` |
+| Wave 5 (Simulator): all 4 IDs; `simulator_boot` / `simulator_list` aligned in place onto SwiftCode's existing registrations (SwiftCode Simulator behaviour unchanged, `simctl` behaviour added); `device_list` / `simulator_controller` new via `devicectl` / `simctl` subprocesses | 1 | Legacy `Tools/AssistDeviceListTool.swift`, `AssistSimulatorBootTool.swift`, `AssistSimulatorControllerTool.swift`, `AssistSimulatorListTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Run.swift` (aligned), `SwiftCodeTools+Simulator.swift` |
 | Wave 5 (Image/Archive/Data): all 18 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `json_validate` vs `json_validator_tool` kept separate; YAML is Legacy's heuristic, not a full parser | 1 | Legacy `Tools/AssistImageInspectionTools.swift`, `AssistImageMutationTools.swift`, `AssistArchiveTools.swift`, `AssistBinaryPlistConverterTool.swift`, `AssistJsonValidateTool.swift`, `AssistJSONValidatorTool.swift`, `AssistYAMLParserTool.swift`, `AssistYamlValidateTool.swift`, read directly |
 | Wave 5 (Engines/Web/Reverse): all 6 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `reverse_analyze` honestly failing (missing Node REA bridge) | 1 | Legacy `Tools/AssistCodeMutationEngine.swift`, `AssistDependencyResolutionEngine.swift`, `AssistExternalResourceGateway.swift`, `AssistPatchApplicationEngine.swift`, `AssistFetchDocumentationTool.swift`, `API/Internal API/Reverse/ReverseToolAdapter.swift`, read directly |
-| Wave 5: registry aliases for this wave (`simulator` → `simulator_controller`, `binary_plist` → `binary_plist_converter`, `json_validator` → `json_validator_tool`, `yaml_parser` → `yaml_parser_tool`, `reverse` → `reverse_analyze`); `reverse_analyze` maps to itself, so it needs no entry | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
-| Wave 6 (Test running): all 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas; runs through the session test seam (`discoverTests` / `runTests(only:)`), no `xcodebuild` spawn, no parallel runner | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTestRunSingleTool.swift`, `AssistXctestDiscoveryTool.swift`, `AssistTestLogParseTool.swift`, `AssistTestFlakyDetectTool.swift`, `AssistTestCoverageReportTool.swift`, `AssistTestCoverageReporterTool.swift`, `AssistTestDataFactoryTool.swift`, `AssistTestSnapshotManageTool.swift`, `AssistTestTargetAddTool.swift`, `AssistUITestScaffoldTool.swift`, `AssistInterfaceSimulatorTool.swift`, `AssistPreflightChecksTool.swift`, `AssistPerformanceBenchmarkTool.swift`, `AssistCompilerDiagnosticsEngine.swift`, `AssistCrashLogParseTool.swift`, `AssistRuntimeDiagnosticsEngine.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Testing.swift`, `YcodeBuild/TestResults.swift`, `YcodeXcodebuild/TestActions.swift`, `XCResultReader.swift`, `Coverage.swift` |
+| Wave 5: registry aliases for this wave (`simulator` → `simulator_controller`, `binary_plist` → `binary_plist_converter`, `json_validator` → `json_validator_tool`, `yaml_parser` → `yaml_parser_tool`, `reverse` → `reverse_analyze`); `reverse_analyze` maps to itself, so it needs no entry | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 6 (Test running): all 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas; runs through the session test seam (`discoverTests` / `runTests(only:)`), no `xcodebuild` spawn, no parallel runner | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTestRunSingleTool.swift`, `AssistXctestDiscoveryTool.swift`, `AssistTestLogParseTool.swift`, `AssistTestFlakyDetectTool.swift`, `AssistTestCoverageReportTool.swift`, `AssistTestCoverageReporterTool.swift`, `AssistTestDataFactoryTool.swift`, `AssistTestSnapshotManageTool.swift`, `AssistTestTargetAddTool.swift`, `AssistUITestScaffoldTool.swift`, `AssistInterfaceSimulatorTool.swift`, `AssistPreflightChecksTool.swift`, `AssistPerformanceBenchmarkTool.swift`, `AssistCompilerDiagnosticsEngine.swift`, `AssistCrashLogParseTool.swift`, `AssistRuntimeDiagnosticsEngine.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Testing.swift`, `SwiftCodeBuild/TestResults.swift`, `SwiftCodeXcodebuild/TestActions.swift`, `XCResultReader.swift`, `Coverage.swift` |
 | Wave 6 (Static analysis): all 22 IDs, titles, descriptions, capabilities, risk levels, and input schemas; Legacy-faithful regex/line heuristics, no AST parser (`swift_ast_inspector` is the regex fallback only); `import_cleanup` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistLintTool.swift`, `AssistSwiftFormatLintTool.swift`, `AssistDeadCodeScanTool.swift`, `AssistDeadCodeEliminatorTool.swift`, `AssistDuplicateCodeScanTool.swift`, `AssistUnusedImportsDetectorTool.swift`, `AssistImportCleanupTool.swift`, `AssistForceUnwrapScanTool.swift`, `AssistTodoScanTool.swift`, `AssistTodoFixmeScannerTool.swift`, `AssistCommentDensityReportTool.swift`, `AssistCodeCommentExtractTool.swift`, `AssistComplexityAnalysisTool.swift`, `AssistFunctionSizeReportTool.swift`, `AssistCodeMetricsTool.swift`, `AssistStringLiteralAuditTool.swift`, `AssistDeprecationUsageScanTool.swift`, `AssistSwiftASTInspectorTool.swift`, `AssistSwiftConcurrencyAnalyzerTool.swift`, `AssistConcurrencyAuditTool.swift`, `AssistEntryPointsDiscoverTool.swift`, `AssistMigrationTool.swift`, read directly |
-| Wave 6 (Audits): all 18 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `mach_o_binary_analyzer` reuses Ycode's `YcodeMachO`; `memory_leak_detector` is a static scan, as in Legacy; `privacy_manifest_auditor` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistSecurityAuditTool.swift`, `AssistNetworkSecurityAuditorTool.swift`, `AssistPermissionsAuditTool.swift`, `AssistPrivacyManifestAuditorTool.swift`, `AssistAccessibilityAuditTool.swift`, `AssistAccessibilityAuditScannerTool.swift`, `AssistAccessLevelAuditTool.swift`, `AssistDependencyLicensesTool.swift`, `AssistFrameworkLinkerAuditorTool.swift`, `AssistMemoryLeakDetectorTool.swift`, `AssistMachOBinaryAnalyzerTool.swift`, `AssistCoreDataModelInspectorTool.swift`, `AssistSwiftDataSchemaAuditorTool.swift`, `AssistBundleResourceAuditorTool.swift`, `AssistBinarySizeReportTool.swift`, `AssistImageAssetSizeReportTool.swift`, `AssistLicenseHeaderCheckTool.swift`, `AssistSecretsScanTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Audits.swift`, `YcodeMachO` |
+| Wave 6 (Audits): all 18 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `mach_o_binary_analyzer` reuses SwiftCode's `SwiftCodeMachO`; `memory_leak_detector` is a static scan, as in Legacy; `privacy_manifest_auditor` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistSecurityAuditTool.swift`, `AssistNetworkSecurityAuditorTool.swift`, `AssistPermissionsAuditTool.swift`, `AssistPrivacyManifestAuditorTool.swift`, `AssistAccessibilityAuditTool.swift`, `AssistAccessibilityAuditScannerTool.swift`, `AssistAccessLevelAuditTool.swift`, `AssistDependencyLicensesTool.swift`, `AssistFrameworkLinkerAuditorTool.swift`, `AssistMemoryLeakDetectorTool.swift`, `AssistMachOBinaryAnalyzerTool.swift`, `AssistCoreDataModelInspectorTool.swift`, `AssistSwiftDataSchemaAuditorTool.swift`, `AssistBundleResourceAuditorTool.swift`, `AssistBinarySizeReportTool.swift`, `AssistImageAssetSizeReportTool.swift`, `AssistLicenseHeaderCheckTool.swift`, `AssistSecretsScanTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Audits.swift`, `SwiftCodeMachO` |
 | Wave 6 (Docs/review): all 23 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `code_review` and `safe_undo` honestly failing (LLM provider / snapshot store); `code_review` class verified live in `CodeReview.swift` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistApiDocsCoverageTool.swift`, `AssistApiEndpointAuditTool.swift`, `AssistApiSurfaceExtractTool.swift`, `AssistAutomatedRepairEngine.swift`, `AssistAutonomousReviewEngine.swift`, `AssistChangeImpactEstimateTool.swift`, `CodeReview.swift`, `AssistCodeSnippetTool.swift`, `AssistColorUsageAuditTool.swift`, `AssistColorSetBuilderTool.swift`, `AssistDocStringGeneratorTool.swift`, `AssistIconGeneratorTool.swift`, `AssistMarkdownLinkCheckTool.swift`, `AssistMarkdownTocGenerateTool.swift`, `AssistReadmeGenerateTool.swift`, `AssistReadmeLocateTool.swift`, `AssistRepoOverviewTool.swift`, `AssistUndoTool.swift`, `AssistValidateChangesTool.swift`, `AssistSessionExportTool.swift`, `AssistSessionProgressReportTool.swift`, `AssistStaleFilesReportTool.swift`, `AssistToolCapabilityLookupTool.swift`, read directly |
 | Wave 6: capability/risk/permission for all 79 tools extracted live from each Legacy tool file's `capability` / `riskLevel` properties (router static metadata agrees for the two tools it covers); permission follows the `AssistTool` default derivation (fileSystem iff mutating) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTool.swift:192-198` (permission derivation); `AssistToolRouter.swift` static `metadata(for:)` (`code_review`, `compiler_diagnostics_engine` entries), read directly |
-| Wave 6: registry aliases for this wave (23 entries) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
-| Wave 7 (Build & run): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; session seam for build/test/clean, real `xcodebuild`/`xcrun` subprocesses for archive/xcresult/toolchain/destinations; `project_clean` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistBuildProjectTool.swift`, `AssistTestRunnerTool.swift`, `AssistProjectCleanTool.swift`, `AssistProjectArchiveTool.swift`, `AssistBuildLogAnalyzeTool.swift`, `AssistBuildSystemDetectTool.swift`, `AssistBuildConfigurationListTool.swift`, `AssistBuildSettingsDiffTool.swift`, `AssistBuildPhaseScriptsListTool.swift`, `AssistXCResultParserTool.swift`, `AssistDerivedDataLocateTool.swift`, `AssistXcodeToolchainInfoTool.swift`, `AssistXcodeDeviceDestinationTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+ProjectBuild.swift`, `YcodeBuild`, `YcodeXcodebuild` |
-| Wave 7 (Project model): all 19 IDs, titles, descriptions, capabilities, risk levels, and input schemas; pbxproj-backed, no `xcodebuild`; `YcodeSnapshots` store; `project_target_add` registers properly; `project_mutation_controller` model edits | 1 | Legacy `Tools/AssistCreateNewAppTool.swift`, `AssistBuildProjectTool.swift` (`AssistGenerateXcodeprojTool`), `AssistPbxprojLintTool.swift`, `AssistProjectBuildSettingsTool.swift`, `AssistProjectCapabilitiesTool.swift`, `AssistDiffTool.swift`, `AssistProjectMutationController.swift`, `AssistRestoreSnapshotTool.swift`, `AssistProjectSchemeListTool.swift`, `AssistSnapshotProjectTool.swift`, `AssistProjectStructureMapTool.swift`, `AssistProjectTargetAddTool.swift`, `AssistProjectTargetListTool.swift`, `AssistSchemeTestPlanListTool.swift`, `AssistTargetDependenciesListTool.swift`, `AssistTargetSourceListTool.swift`, `AssistWorkspaceSettingsReadTool.swift`, `AssistXcodeBuildSettingsTool.swift`, `AssistXcodeSchemeTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+ProjectModel.swift`, `YcodeProject` |
-| Wave 7 (SPM/docs): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; real `swift` subprocesses; `Package.swift` edited as text | 1 | Legacy `Tools/AssistSwiftPackageTool.swift`, `AssistPackageManifestReadTool.swift`, `AssistPackageManifestValidateTool.swift`, `AssistPackageDependencyAddTool.swift`, `AssistPackageDependencyAuditTool.swift`, `AssistPackageDependencyUpdateTool.swift`, `AssistSPMDependencyTreeTool.swift`, `AssistCarthageCartfileInspectorTool.swift`, `AssistPodfileInspectorTool.swift`, `AssistDoccBuildTool.swift`, `AssistDocsGenerateTool.swift`, `AssistDocsIndexBuildTool.swift`, `AssistChangeLogTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+SPMDocs.swift` |
-| Wave 7 (Signing): all 11 IDs, titles, descriptions, capabilities, risk levels, and input schemas; real `codesign`/`security` subprocesses; `plist_editor` distinct from Wave 2 `plist_edit` | 1 | Legacy `Tools/AssistCodeSigningDiagnoseTool.swift`, `AssistEntitlementsDiffTool.swift`, `AssistEntitlementsTool.swift`, `AssistInfoPlistAuditTool.swift`, `AssistPlistTool.swift`, `AssistProjectEntitlementsTool.swift`, `AssistProjectInfoPlistTool.swift`, `AssistProjectSigningTool.swift`, `AssistProvisioningCheckTool.swift`, `AssistProvisioningProfileReaderTool.swift`, `AssistSigningCertificateInspectorTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Signing.swift`, `YcodeSigning`, `YcodePlist` |
-| Wave 7 (Assets/localization): all 9 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `StringCatalog` seam for `.xcstrings`, line-based `.strings`, workspace-confined paths | 1 | Legacy `Tools/AssistAssetCatalogListTool.swift`, `AssistAssetCatalogTool.swift`, `AssistAssetImageAddTool.swift`, `AssistLocalizationAuditTool.swift`, `AssistLocalizationTool.swift`, `AssistLocalizeAppTool.swift`, `AssistStringCatalogMigratorTool.swift`, `AssistStringsFileValidateTool.swift`, `AssistStringsLocalizationTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+AssetsLocalization.swift`, `YcodeStrings` (`StringCatalog`), `YcodeAssetCatalog` |
-| Wave 7: registry aliases for this wave (21 entries); `build` / `test` deliberately NOT carried over (collide with Ycode's native `build` / `test`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
-| Wave 7: `scan-public.py` findings in Wave 6's `YcodeAuditToolsTests.swift` (AWS documentation example key in the `secrets_scan` fixture) fixed by assembling the example key from parts so the literal never appears in tracked source; test semantics unchanged | 1 | Ycode `ycode/Tests/YcodeMCPTests/YcodeAuditToolsTests.swift`, `.github/scripts/scan-public.py` |
+| Wave 6: registry aliases for this wave (23 entries) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 7 (Build & run): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; session seam for build/test/clean, real `xcodebuild`/`xcrun` subprocesses for archive/xcresult/toolchain/destinations; `project_clean` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistBuildProjectTool.swift`, `AssistTestRunnerTool.swift`, `AssistProjectCleanTool.swift`, `AssistProjectArchiveTool.swift`, `AssistBuildLogAnalyzeTool.swift`, `AssistBuildSystemDetectTool.swift`, `AssistBuildConfigurationListTool.swift`, `AssistBuildSettingsDiffTool.swift`, `AssistBuildPhaseScriptsListTool.swift`, `AssistXCResultParserTool.swift`, `AssistDerivedDataLocateTool.swift`, `AssistXcodeToolchainInfoTool.swift`, `AssistXcodeDeviceDestinationTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ProjectBuild.swift`, `SwiftCodeBuild`, `SwiftCodeXcodebuild` |
+| Wave 7 (Project model): all 19 IDs, titles, descriptions, capabilities, risk levels, and input schemas; pbxproj-backed, no `xcodebuild`; `SwiftCodeSnapshots` store; `project_target_add` registers properly; `project_mutation_controller` model edits | 1 | Legacy `Tools/AssistCreateNewAppTool.swift`, `AssistBuildProjectTool.swift` (`AssistGenerateXcodeprojTool`), `AssistPbxprojLintTool.swift`, `AssistProjectBuildSettingsTool.swift`, `AssistProjectCapabilitiesTool.swift`, `AssistDiffTool.swift`, `AssistProjectMutationController.swift`, `AssistRestoreSnapshotTool.swift`, `AssistProjectSchemeListTool.swift`, `AssistSnapshotProjectTool.swift`, `AssistProjectStructureMapTool.swift`, `AssistProjectTargetAddTool.swift`, `AssistProjectTargetListTool.swift`, `AssistSchemeTestPlanListTool.swift`, `AssistTargetDependenciesListTool.swift`, `AssistTargetSourceListTool.swift`, `AssistWorkspaceSettingsReadTool.swift`, `AssistXcodeBuildSettingsTool.swift`, `AssistXcodeSchemeTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+ProjectModel.swift`, `SwiftCodeProject` |
+| Wave 7 (SPM/docs): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; real `swift` subprocesses; `Package.swift` edited as text | 1 | Legacy `Tools/AssistSwiftPackageTool.swift`, `AssistPackageManifestReadTool.swift`, `AssistPackageManifestValidateTool.swift`, `AssistPackageDependencyAddTool.swift`, `AssistPackageDependencyAuditTool.swift`, `AssistPackageDependencyUpdateTool.swift`, `AssistSPMDependencyTreeTool.swift`, `AssistCarthageCartfileInspectorTool.swift`, `AssistPodfileInspectorTool.swift`, `AssistDoccBuildTool.swift`, `AssistDocsGenerateTool.swift`, `AssistDocsIndexBuildTool.swift`, `AssistChangeLogTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+SPMDocs.swift` |
+| Wave 7 (Signing): all 11 IDs, titles, descriptions, capabilities, risk levels, and input schemas; real `codesign`/`security` subprocesses; `plist_editor` distinct from Wave 2 `plist_edit` | 1 | Legacy `Tools/AssistCodeSigningDiagnoseTool.swift`, `AssistEntitlementsDiffTool.swift`, `AssistEntitlementsTool.swift`, `AssistInfoPlistAuditTool.swift`, `AssistPlistTool.swift`, `AssistProjectEntitlementsTool.swift`, `AssistProjectInfoPlistTool.swift`, `AssistProjectSigningTool.swift`, `AssistProvisioningCheckTool.swift`, `AssistProvisioningProfileReaderTool.swift`, `AssistSigningCertificateInspectorTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Signing.swift`, `SwiftCodeSigning`, `SwiftCodePlist` |
+| Wave 7 (Assets/localization): all 9 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `StringCatalog` seam for `.xcstrings`, line-based `.strings`, workspace-confined paths | 1 | Legacy `Tools/AssistAssetCatalogListTool.swift`, `AssistAssetCatalogTool.swift`, `AssistAssetImageAddTool.swift`, `AssistLocalizationAuditTool.swift`, `AssistLocalizationTool.swift`, `AssistLocalizeAppTool.swift`, `AssistStringCatalogMigratorTool.swift`, `AssistStringsFileValidateTool.swift`, `AssistStringsLocalizationTool.swift`, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AssetsLocalization.swift`, `SwiftCodeStrings` (`StringCatalog`), `SwiftCodeAssetCatalog` |
+| Wave 7: registry aliases for this wave (21 entries); `build` / `test` deliberately NOT carried over (collide with SwiftCode's native `build` / `test`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 7: `scan-public.py` findings in Wave 6's `SwiftCodeAuditToolsTests.swift` (AWS documentation example key in the `secrets_scan` fixture) fixed by assembling the example key from parts so the literal never appears in tracked source; test semantics unchanged | 1 | SwiftCode `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeAuditToolsTests.swift`, `.github/scripts/scan-public.py` |

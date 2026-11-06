@@ -9,11 +9,11 @@ public enum AppStore {
     public static var canMakePayments: Bool { true }
 
     /// The vendor identifier used in `deviceVerification`.
-    public static var deviceVerificationID: UUID? { YcodeStoreKit.shared.vendorID }
+    public static var deviceVerificationID: UUID? { SwiftCodeStoreKit.shared.vendorID }
 
     /// `AppStore.sync()`: succeeds at once unless an error is simulated (testing-session.md §9).
     public static func sync() async throws {
-        do { try YcodeStoreKit.shared.store.sync() } catch { throw StoreKitError(error.kind) }
+        do { try SwiftCodeStoreKit.shared.store.sync() } catch { throw StoreKitError(error.kind) }
     }
 
     /// The environment of a signed value.
@@ -36,11 +36,11 @@ public enum AppStore {
 }
 
 /// The signed app transaction (formats.md §2.4).
-public struct AppTransaction: Hashable, Sendable, YcodeSignedValue {
+public struct AppTransaction: Hashable, Sendable, SwiftCodeSignedValue {
     let jws: String
     let payload: JSONValue
 
-    public var ycodeJWS: String { jws }
+    public var swiftcodeJWS: String { jws }
 
     init(jws: String, payload: JSONValue) {
         self.jws = jws
@@ -69,7 +69,7 @@ public struct AppTransaction: Hashable, Sendable, YcodeSignedValue {
     /// configuration is installed (formats.md §2.4).
     public static var shared: VerificationResult<AppTransaction> {
         get async throws {
-            let rt = YcodeStoreKit.shared
+            let rt = SwiftCodeStoreKit.shared
             do { try rt.store.checkAppTransaction() } catch { throw StoreKitError(error.kind) }
             let jws = try rt.signer.signAppTransaction(applicationVersion: rt.applicationVersion, at: rt.now)
             return rt.verify(jws, simulated: rt.store.simulatedError(for: .verification), make: AppTransaction.init(jws:payload:))
@@ -96,18 +96,18 @@ public struct Storefront: Identifiable, Hashable, Sendable {
     /// The storefront in force (the configuration's, or the session's override).
     public static var current: Storefront? {
         get async {
-            let s = YcodeStoreKit.shared.store.settings.storefront
+            let s = SwiftCodeStoreKit.shared.store.settings.storefront
             return Storefront(countryCode: s.countryCode, id: s.id, currencyCode: s.currency)
         }
     }
 }
 
 extension Transaction {
-    /// Ycode extension: the refund request without a sheet (simulator-baseline.md §6:
+    /// SwiftCode extension: the refund request without a sheet (simulator-baseline.md §6:
     /// the sheet's two choices are "Developer Issue" and "Other"). Completing it
     /// refunds the transaction and the app receives it through `Transaction.updates`.
-    public func ycodeRequestRefund(developerIssue: Bool = false) async throws -> RefundRequestStatus {
-        let rt = YcodeStoreKit.shared
+    public func swiftcodeRequestRefund(developerIssue: Bool = false) async throws -> RefundRequestStatus {
+        let rt = SwiftCodeStoreKit.shared
         do { try rt.store.checkSimulatedError(for: .refundRequest) } catch {
             if case .refundRequest(let r)? = error.simulated {
                 throw r == .duplicateRequest ? RefundRequestError.duplicateRequest : RefundRequestError.failed

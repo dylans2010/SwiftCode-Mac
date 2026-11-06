@@ -1,12 +1,12 @@
 # xcodebuild: build actions and the build log
 
-Ycode: `YcodeXcodebuild` (`BuildActions`, `BuildLog`), helper
-`ycode-swb build`. Grammar: `cli.md`. Targets, configuration and
+SwiftCode: `SwiftCodeXcodebuild` (`BuildActions`, `BuildLog`), helper
+`swiftcode-swb build`. Grammar: `cli.md`. Targets, configuration and
 parameters: `show-build-settings.md` §2 and §4 (the same plan is built).
 
 ## 1. Actions
 
-| Action | Banner word | ycodebuild |
+| Action | Banner word | swiftcodebuild |
 |---|---|---|
 | `build` | `BUILD` | swift-build, build command `build` |
 | `analyze` | `ANALYZE` | swift-build, action `analyze` |
@@ -42,7 +42,7 @@ After the invocation header, the command-line sections
 
 (the reference tool prints its own preparation steps in this style; it
 also prints `ComputePackagePrebuildTargetDependencyGraph` and `Prepare
-packages`, which ycodebuild, resolving no packages, leaves out). Then, for
+packages`, which swiftcodebuild, resolving no packages, leaves out). Then, for
 each swift-build message, in arrival order:
 
 | Message | Printed |
@@ -88,7 +88,7 @@ section.
 
 ## 3. The helper's build command
 
-`ycode-swb build <request.json>` with
+`swiftcode-swb build <request.json>` with
 `{"pif", "parameters", "targets": [guid], "containerPath", "parallel",
 "implicitDependencies", "hideShellScriptEnvironment", "continueAfterErrors",
 "command": "build" | "cleanBuildFolder", "locationStyle": "regular" |
@@ -111,7 +111,7 @@ Message fields used (swift-build's message encoding): `kind`;
 
 ## 4. Signing
 
-The helper answers swift-build's provisioning questions with Ycode's
+The helper answers swift-build's provisioning questions with SwiftCode's
 resolver (`specs/ide/signing.md`): identity `-` ("Sign to Run Locally")
 signs ad hoc with the project's entitlements plus
 `com.apple.security.get-task-allow`; the identity name it reports, `Sign to
@@ -133,7 +133,7 @@ configuration of the launch action, `Debug` in autocreated schemes;
 system adds symbol-graph and `CompileDocumentation` tasks; the archive is
 `TARGET_BUILD_DIR/<PRODUCT_MODULE_NAME>.doccarchive` (scheme builds:
 `<DerivedData folder>/Build/Products/<configuration>/`; `-target` builds:
-`build/<configuration>/`). For package schemes ycodebuild builds the
+`build/<configuration>/`). For package schemes swiftcodebuild builds the
 products' package targets (`packages.md` §3). Banner `** BUILD
 DOCUMENTATION SUCCEEDED **`.
 
@@ -155,7 +155,7 @@ DOCUMENTATION SUCCEEDED **`.
 - OPEN QUESTION: for `build` and `test` the reference prints them either
   before the target's first task or at the end of the build, varying
   between cases of the same project (end of the build after a fresh
-  description, it seems); ycodebuild prints them where they arrive.
+  description, it seems); swiftcodebuild prints them where they arrive.
 - Test and archive logs: `test-actions.md`, `archive.md`; result bundles:
   `result-bundle.md`. The validation warning placement (inside the
   `Validate` section): black-box archive run (level 3); the
@@ -166,5 +166,5 @@ DOCUMENTATION SUCCEEDED **`.
   and documentation tasks: open-source swift-build (level 1).
 - OPEN QUESTION: for package schemes the reference tool extracts symbol
   graphs into `<target temp>/symbol-graph/…` and also lists the product
-  target in its dependency graph; ycodebuild's build emits them from the
+  target in its dependency graph; swiftcodebuild's build emits them from the
   compiler into `<products>/<arch>/<Module>.symbolgraphs` (same archive).

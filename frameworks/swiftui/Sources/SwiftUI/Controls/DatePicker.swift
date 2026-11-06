@@ -11,7 +11,7 @@ import SwiftUICore
 // filling a proposed width like a toggle row (fit[0×0] = 130.67 = 8 + the
 // button). The date is formatted in the environment's locale, calendar and
 // time zone (medium date style; short time style). A click opens a pop-up:
-// a month calendar for the date, steppers for the time (Ycode).
+// a month calendar for the date, steppers for the time (SwiftCode).
 
 /// Which parts of a date a picker edits.
 public struct DatePickerComponents: OptionSet, Sendable {
@@ -83,7 +83,7 @@ extension DatePicker where Label == Text {
 
 @MainActor @preconcurrency
 public protocol DatePickerStyle {
-    /// Ycode's style identifier: 0 compact, 1 graphical.
+    /// SwiftCode's style identifier: 0 compact, 1 graphical.
     var _ovStyleKind: Int { get }
 }
 
@@ -312,7 +312,7 @@ struct DayCell: View {
     }
 }
 
-/// Hour and minute steppers (Ycode's time pop-up).
+/// Hour and minute steppers (SwiftCode's time pop-up).
 struct TimeSteppers: View {
     let selection: Binding<Date>
     @Environment(\.calendar) private var calendar

@@ -66,7 +66,7 @@ struct AccessibilityTests {
             if let v = el.value { s += "=\(v)" }
             return s + " [" + AccessibilityTree.traitNames(el.traits).joined(separator: "+") + "]"
         }
-        // 08 §2's rows in order (the stepper is Ycode's, open question 6).
+        // 08 §2's rows in order (the stepper is SwiftCode's, open question 6).
         #expect(summary == [
             "Heading [header+staticText]",
             "Save [button]",
@@ -133,7 +133,7 @@ struct AccessibilityTests {
         let group = root.flattened.first { $0.role == .group && $0.children.count == 3 }
         #expect(group?.children.map(\.label) == ["High", "Mid", "Low"])
         let labels = root.exposedElements.compactMap(\.label)
-        // A label reads its title only; symbols have Ycode's default labels;
+        // A label reads its title only; symbols have SwiftCode's default labels;
         // an image-only button takes the image's label.
         #expect(labels.contains("Files") && !labels.contains("Folder"))
         #expect(labels.contains("Settings") && labels.contains("Add"))

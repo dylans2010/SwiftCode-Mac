@@ -1,4 +1,4 @@
-// Ycode extension, plan.md R4: developer tokens for the WeatherKit REST API
+// SwiftCode extension, plan.md R4: developer tokens for the WeatherKit REST API
 // (rest-api.md §2) and the HTTP transport the REST backend uses.
 //
 // Token format: a JWT signed with ES256 (ECDSA P-256, SHA-256), header
@@ -69,7 +69,7 @@ public actor SigningWeatherTokenProvider: WeatherTokenProvider {
 
     /// - Parameters:
     ///   - privateKeyPEM: the PKCS#8 PEM text of the `.p8` key.
-    ///   - lifetime: seconds between `iat` and `exp` (Ycode default one hour).
+    ///   - lifetime: seconds between `iat` and `exp` (SwiftCode default one hour).
     public init(
         teamID: String, serviceID: String, keyID: String, privateKeyPEM: String, lifetime: TimeInterval = 3600,
         clock: @escaping @Sendable () -> Date = { Date() }

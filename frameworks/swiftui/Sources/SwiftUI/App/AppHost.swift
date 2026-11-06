@@ -777,7 +777,7 @@ package final class AppHost: RunLoopClient {
         env._appCommands = actions
         var size = scene.defaultSize ?? defaultWindowSize
         if isSettings && scene.defaultSize == nil {
-            // Settings windows take their content's ideal size (Ycode's rule).
+            // Settings windows take their content's ideal size (SwiftCode's rule).
             size = idealSize(of: scene.content(), environment: env, minimum: CGSize(width: 360, height: 200))
         }
         var config = WindowConfiguration(title: isSettings && scene.title.isEmpty ? "Settings" : scene.title, size: size,

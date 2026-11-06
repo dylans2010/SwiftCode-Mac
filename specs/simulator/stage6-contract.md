@@ -8,9 +8,9 @@ services, §7.2), `bootstrap-wire.md`, `stage4c-contract.md` §9.4.
 
 ## 1. Exit criterion
 
-On the Thor, `ycode-simd --device <dir> --runtime-paths` (new option: the
+On the Thor, `swiftcode-simd --device <dir> --runtime-paths` (new option: the
 four `Paths` CoreSimulator uses, `launchd-sim.md` §4.1, with DEV's own
-`Library/LaunchDaemons` empty or Ycode-written) and `--timeout-ms 180000`,
+`Library/LaunchDaemons` empty or SwiftCode-written) and `--timeout-ms 180000`,
 no debug flags:
 
 1. `launchd_sim` imports the full job set and stays up for the whole run.
@@ -23,7 +23,7 @@ no debug flags:
 3. No **crash loop**: no job in the core set exits more than twice, and
    `launchd.log` contains no "crashed" or "throttled" line for it.
 4. Everything else that crashes or throttles is listed with the abort
-   message (fault report) and a one-line cause: Ycode gap (to fix later),
+   message (fault report) and a one-line cause: SwiftCode gap (to fix later),
    missing host service (`launchd-sim.md` §6.3, expected), or display/GPU
    dependency (stage 8, expected). SpringBoard and backboardd are expected
    to fail without a display; that is acceptable here.
@@ -32,7 +32,7 @@ no debug flags:
 ## 2. Model
 
 As 4c-iii (`stage4c-contract.md` §9.2): one integrator agent owns all of
-`ycode/`; small tested fixes; evidence levels 1–3 only (Apple open source,
+`swiftcode/`; small tested fixes; evidence levels 1–3 only (Apple open source,
 files read as formats, our own runs and probes); no disassembly, no
 `.claude/Xcode.app`, no `research/dirty/`, no Ghidra. Questions that
 levels 1–3 cannot answer are reported, not guessed.
@@ -44,7 +44,7 @@ levels 1–3 cannot answer are reported, not guessed.
 - The `0x11` assertion at `launchd_sim+64312` (a level-3 probe on the Mac
   can show whether `launchd_sim` holds the receive right of its task
   bootstrap port there).
-- Host-side names (`launchd-sim.md` §6.3): Ycode registers none yet; if a
+- Host-side names (`launchd-sim.md` §6.3): SwiftCode registers none yet; if a
   core daemon needs one to start, report which.
 - Performance: if the boot is too slow to reach steady state in 180 s,
   measure where time goes (trap counts per process, vCPU counts) before
@@ -72,8 +72,8 @@ levels 1–3 cannot answer are reported, not guessed.
 
 ## 5. Performance track (separate agent, parallel)
 
-Owner **Q** (new): `Sources/YcodeDarwinABI/AddressSpace.swift`,
-`Sources/YcodeHypervisor/PhysicalBacking.swift` and `KVM.swift`, and new
+Owner **Q** (new): `Sources/SwiftCodeDarwinABI/AddressSpace.swift`,
+`Sources/SwiftCodeHypervisor/PhysicalBacking.swift` and `KVM.swift`, and new
 files they need. Goals, measured on a full boot with the release build:
 address-space operations O(log n) in the number of mappings; one host
 mapping and memslot of each shared-cache file reused by every VM instead
@@ -87,7 +87,7 @@ orchestrator).
 - Address-space operations are O(log n) (interval treap, in-place page
   tables with dirty tracking): `vm_allocate`/`vm_protect`/`vm_deallocate`
   ~12–19 µs independent of mapping count (were 130–660 µs and growing).
-- **Shared read-only file window:** one host reservation per `ycode-simd`
+- **Shared read-only file window:** one host reservation per `swiftcode-simd`
   process (64 GiB, `PROT_NONE`); each file (dev, ino, size, mtime) is mapped
   once `MAP_SHARED`/`PROT_READ`; every VM registers the window once as one
   `KVM_MEM_READONLY` memslot at **GPA `0x80_0000_0000`**. Read-only file
@@ -174,7 +174,7 @@ now follow the §5.1 pattern for regular host files:
   against it (Darwin serializes both on the directory vnode).
 - Lock order stays L0 → L1 → L2. The offset lock is never held while
   another lock is taken, and no thread waits for it while holding L0.
-- `YCODE_FS_LOCKED_IO=1` keeps these calls under L0 (diagnostics).
+- `SWIFTCODE_FS_LOCKED_IO=1` keeps these calls under L0 (diagnostics).
 - **No host access-time updates.** Host opens use `O_NOATIME` where the
   host allows it (files the host user owns), for every access mode. A
   device copy keeps old access times, so with `relatime` the first read of
@@ -198,7 +198,7 @@ make a `posix_spawn`, `execve` or `__mac_execve` trap first builds one
 empty VM with no lock held and leaves it ready; the image build takes a
 ready VM when there is one and builds its own otherwise. At most two VMs
 wait; a spawn that fails before its image is built leaves its VM to the
-next build. Traced images always build their own. `YCODE_VM_PREBUILD=0`
+next build. Traced images always build their own. `SWIFTCODE_VM_PREBUILD=0`
 turns this off. No guest-visible behavior changes.
 
 Host-side cost model (measured on the Thor, a standalone program): creating
@@ -211,7 +211,7 @@ touched page became 37 µs at 40 k mappings). Building the VM off L0 does
 not remove that cost; fewer host mappings or fewer VM creations would.
 
 Evidence: level 3 (our own measurements; Linux KVM and mmu_notifier
-behavior as documented in the kernel sources). The rest is Ycode's own
+behavior as documented in the kernel sources). The rest is SwiftCode's own
 design.
 
 ### 5.4 vCPUs created in batches (speed round 2)
@@ -227,7 +227,7 @@ microseconds. Profiled boots averaged 30 ms per new vCPU over ~2,700
 creations.
 
 Rule: when a vCPU must be created, the VM creates the next `n` free ids
-too, back to back (`n` = 3 by default; `YCODE_VCPU_BATCH=<n>`, 0 = one at a
+too, back to back (`n` = 3 by default; `SWIFTCODE_VCPU_BATCH=<n>`, 0 = one at a
 time), bounded by the pool's capacity. They wait unused; a later thread
 start that reaches one of those ids takes it with no ioctl. A request for
 an id whose batch is still being created waits for that batch. The batch
@@ -237,13 +237,13 @@ four waits for at most one. Unused vCPUs are closed with the VM. Guest-
 visible behavior does not change (the guest's CPU count comes from
 `sysctl`, not from the number of KVM vCPUs).
 
-Evidence: level 3 (our own measurements). The rest is Ycode's own design. `RWF_NOWAIT`
+Evidence: level 3 (our own measurements). The rest is SwiftCode's own design. `RWF_NOWAIT`
   follows the Linux `preadv2(2)` manual page. tmpfs refusing it with
   `EOPNOTSUPP` (and ext4 accepting it) is level 3: a probe on the Thor
   (kernel 6.8, `/run/user` tmpfs) and the x86-64 workstation (kernel 7.0,
   `/tmp` tmpfs), where `HostFileIOTests` failed before the fallback. The
   tmpfs and ramfs magic numbers are those of Linux `statfs(2)`. The rest is
-  Ycode's own locking design.
+  SwiftCode's own locking design.
 
 ## 6. Resolution (stage 6 done, 2026-10-12)
 
@@ -257,7 +257,7 @@ user-domain jobs have a pid in `launchctl list`, including SpringBoard and
 backboardd (headless). The 54-check verify suite passes; 448 Swift tests
 pass on macOS, the Thor, and x86-64.
 
-Decisions (Ycode, recorded here):
+Decisions (SwiftCode, recorded here):
 
 - **Sandbox:** `__mac_syscall` returns ENOPOLICY except the Sandbox check
   call (2), which returns 0 ("allowed"): every simulator daemon on the Mac
@@ -273,7 +273,7 @@ Decisions (Ycode, recorded here):
   images `0x22000201` plus linker-signed (level 3).
 - **Durability:** `fsync`/`fdatasync` are no-ops on files (ENOTSUP on other
   descriptors); the host's page cache is trusted.
-- **Extended attributes** persist as host xattrs named `user.ycode.<name>`.
+- **Extended attributes** persist as host xattrs named `user.swiftcode.<name>`.
 - **chown** cannot change the owner; group may be −1, the current group, or
   20. **chflags** is accepted and not stored.
 - **rlimits:** NOFILE (256, unlimited), NPROC (6000, 9000) (level 3).

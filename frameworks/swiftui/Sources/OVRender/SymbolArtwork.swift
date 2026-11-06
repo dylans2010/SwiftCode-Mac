@@ -1,6 +1,6 @@
-// Ycode's own symbol set for `Image(systemName:)` (09-open-design.md §3.6).
+// SwiftCode's own symbol set for `Image(systemName:)` (09-open-design.md §3.6).
 // Apple's SF Symbols may not be shipped or copied, so these are original,
-// deliberately plain drawings made for Ycode: geometric outlines on a 24 × 24
+// deliberately plain drawings made for SwiftCode: geometric outlines on a 24 × 24
 // grid (stroke width 2, round caps and joins; `.fill` variants filled). The
 // names are the common system names, used as interop identifiers so that
 // existing code finds a picture. Licence: the repository's (MIT), no
@@ -380,7 +380,7 @@ extension SymbolArtwork {
             make("circle.fill", [f(S.circle(12, 12, 10))]),
             make("square", [s(S.roundedRect(3.5, 3.5, 17, 17, 2.5))]),
             make("square.fill", [f(S.roundedRect(3, 3, 18, 18, 3))]),
-            // R13 (names the Linux IDE shell uses; Ycode's own drawings).
+            // R13 (names the Linux IDE shell uses; SwiftCode's own drawings).
             // Code: two angle brackets with a slash between them.
             make("chevron.left.forwardslash.chevron.right", 72 * third, 54 * third,
                  [s(S.join([S.poly([(7, 7), (2.5, 12), (7, 17)]), S.poly([(17, 7), (21.5, 12), (17, 17)]),
@@ -422,7 +422,7 @@ extension SymbolArtwork {
             make("tablecells", [s(S.roundedRect(3, 4.5, 18, 15, 2), 1.75),
                                 s(S.join([S.poly([(3, 9.5), (21, 9.5)]), S.poly([(3, 14.5), (21, 14.5)]), S.poly([(12, 4.5), (12, 19.5)])]), 1.5)]),
             // LINUX-UI-PARITY (the workspace window's toolbar, selector
-            // bars, jump bar, debug bar and inspector; Ycode's own drawings).
+            // bars, jump bar, debug bar and inspector; SwiftCode's own drawings).
             // A speech bubble: a rounded frame with a tail at the lower left.
             make("text.bubble", [s(bubble), s(S.join([S.poly([(8, 9), (16, 9)]), S.poly([(8, 12.5), (13.5, 12.5)])]), 1.5)]),
             make("plus.bubble", [s(bubble), s(S.join([S.poly([(12, 7), (12, 14.5)]), S.poly([(8.25, 10.75), (15.75, 10.75)])]), 1.75)]),
@@ -493,7 +493,7 @@ extension SymbolArtwork {
             make("checklist", [s(S.join([S.poly([(3, 6.5), (5, 8.5), (8.5, 4.5)]), S.poly([(3, 15.5), (5, 17.5), (8.5, 13.5)]),
                                          S.poly([(11.5, 7), (21, 7)]), S.poly([(11.5, 16), (21, 16)])]), 1.75)]),
             make("hammer.circle", [s(c, 1.75), f(S.hammer().applying(RenderTransform(a: 0.55, b: 0, c: 0, d: 0.55, tx: 5.4, ty: 5.4)))]),
-            // Ycode's editors (asset and String Catalogs, the Attributes
+            // SwiftCode's editors (asset and String Catalogs, the Attributes
             // inspector): a picture (frame, hill, sun), a picture on a
             // second frame, a closed book with a character (the sliders are
             // the debugger's set below).

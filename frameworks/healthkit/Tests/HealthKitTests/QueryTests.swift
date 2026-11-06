@@ -36,8 +36,8 @@ struct QueryTests {
     func otherPredicates() async throws {
         let g = try await Golden.make()
         let a = g.a
-        #expect(try await a.count(T.steps, HKQuery.predicateForObjects(withMetadataKey: "YcodeProbe", allowedValues: ["golden"])) == 1)
-        #expect(try await a.count(T.steps, HKQuery.predicateForObjects(withMetadataKey: "YcodeNumber", operatorType: .greaterThan, value: 40)) == 1)
+        #expect(try await a.count(T.steps, HKQuery.predicateForObjects(withMetadataKey: "SwiftCodeProbe", allowedValues: ["golden"])) == 1)
+        #expect(try await a.count(T.steps, HKQuery.predicateForObjects(withMetadataKey: "SwiftCodeNumber", operatorType: .greaterThan, value: 40)) == 1)
         #expect(try await a.count(T.steps, HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID)) == 1)
         #expect(try await a.count(T.steps, HKQuery.predicateForQuantitySamples(with: .greaterThanOrEqualTo,
                                                                                quantity: HKQuantity(unit: .count(), doubleValue: 1000))) == 3)
@@ -57,10 +57,10 @@ struct QueryTests {
         #expect(try await a.count(T.energy, HKQuery.predicateForObject(with: g.energySample.uuid)) == 1)
         // metadata values come back with their classes
         let s3 = try #require(try await a.samples(T.steps, HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID)).first)
-        #expect(s3.metadata?[HKMetadataKeyExternalUUID] as? String == "ycode-s3")
-        #expect(s3.metadata?["YcodeNumber"] as? Int == 42)
-        #expect((s3.metadata?["YcodeQuantity"] as? HKQuantity)?.description == "3 m")
-        #expect(s3.metadata?["YcodeDate"] as? Date == T.d0)
+        #expect(s3.metadata?[HKMetadataKeyExternalUUID] as? String == "swiftcode-s3")
+        #expect(s3.metadata?["SwiftCodeNumber"] as? Int == 42)
+        #expect((s3.metadata?["SwiftCodeQuantity"] as? HKQuantity)?.description == "3 m")
+        #expect(s3.metadata?["SwiftCodeDate"] as? Date == T.d0)
         #expect(try await a.count(T.bodyMass, HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyWasUserEntered,
                                                                            operatorType: .equalTo, value: true)) == 1)
     }
@@ -161,9 +161,9 @@ struct QueryTests {
             }
             return box.current
         }
-        #expect(await sources(b, T.steps) == ["dev.ycode.healthprobe", "dev.ycode.healthprobe.b"])
-        #expect(await sources(g.a, T.steps) == ["dev.ycode.healthprobe", "dev.ycode.healthprobe.b"])   // A reads steps too
-        #expect(await sources(b, T.sleep) == ["dev.ycode.healthprobe"])
+        #expect(await sources(b, T.steps) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])
+        #expect(await sources(g.a, T.steps) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])   // A reads steps too
+        #expect(await sources(b, T.sleep) == ["dev.swiftcode.healthprobe"])
         // B's heart-rate read is off: A's samples are invisible, B's own are visible
         #expect(try await b.count(T.heartRate) == 0)
         try await b.save(T.qs(T.heartRate, 61, T.bpm, T.at(0, 11)))

@@ -6,14 +6,14 @@ from the specifications in `specs/frameworks/<name>/` under the protocol in
 
 | Directory | Package | Library module | Spec |
 |---|---|---|---|
-| `eventkit/` | `ycode-eventkit` | `EventKit` (+ `CLLocation` shim on Linux) | `specs/frameworks/eventkit/` (rounds R2–R4) |
-| `weatherkit/` | `ycode-weatherkit` | `WeatherKit` (+ `CoreLocation` shim on Linux) | `specs/frameworks/weatherkit/` (R2–R4) |
-| `swiftui/` | `ycode-swiftui` | `SwiftUI` (re-exports `SwiftUICore`); built as `OpenViews` / `OpenViewsCore` on Apple hosts | `specs/frameworks/swiftui/` (R1, R2, R3 core, R4, R6, R7); bundles Noto Sans (OFL 1.1); vendors SDL 3.4.18 headers (zlib) and opens libSDL3 at run time |
-| `healthkit/` | `ycode-healthkit` | `HealthKit` | `specs/frameworks/healthkit/` (rounds R2–R5, and R10's query descriptors) |
-| `contacts/` | `ycode-contacts` | `Contacts` | `specs/frameworks/contacts/` (rounds R2–R5) |
-| `homekit/` | `ycode-homekit` | `HomeKit` (+ `CoreLocation` region shim on Linux) | `specs/frameworks/homekit/` (round R3) |
-| `storekit/` | `ycode-storekit` | `StoreKit`, `StoreKitTest` (+ `StoreKitConfiguration`, `StoreKitEngine`, `StoreKitSigning`) | `specs/frameworks/storekit/` (rounds R2, R7–R9) |
-| `usd/` | `ycode-usd` | `USDCore`, `USDStage`, `USDShade` (not an Apple framework: a Swift-native USD/MaterialX library shared by the Scene Composer and, later, RealityKit) | public OpenUSD/MaterialX sources; `specs/tools/scene-composer/ycode-design.md` |
+| `eventkit/` | `swiftcode-eventkit` | `EventKit` (+ `CLLocation` shim on Linux) | `specs/frameworks/eventkit/` (rounds R2–R4) |
+| `weatherkit/` | `swiftcode-weatherkit` | `WeatherKit` (+ `CoreLocation` shim on Linux) | `specs/frameworks/weatherkit/` (R2–R4) |
+| `swiftui/` | `swiftcode-swiftui` | `SwiftUI` (re-exports `SwiftUICore`); built as `OpenViews` / `OpenViewsCore` on Apple hosts | `specs/frameworks/swiftui/` (R1, R2, R3 core, R4, R6, R7); bundles Noto Sans (OFL 1.1); vendors SDL 3.4.18 headers (zlib) and opens libSDL3 at run time |
+| `healthkit/` | `swiftcode-healthkit` | `HealthKit` | `specs/frameworks/healthkit/` (rounds R2–R5, and R10's query descriptors) |
+| `contacts/` | `swiftcode-contacts` | `Contacts` | `specs/frameworks/contacts/` (rounds R2–R5) |
+| `homekit/` | `swiftcode-homekit` | `HomeKit` (+ `CoreLocation` region shim on Linux) | `specs/frameworks/homekit/` (round R3) |
+| `storekit/` | `swiftcode-storekit` | `StoreKit`, `StoreKitTest` (+ `StoreKitConfiguration`, `StoreKitEngine`, `StoreKitSigning`) | `specs/frameworks/storekit/` (rounds R2, R7–R9) |
+| `usd/` | `swiftcode-usd` | `USDCore`, `USDStage`, `USDShade` (not an Apple framework: a Swift-native USD/MaterialX library shared by the Scene Composer and, later, RealityKit) | public OpenUSD/MaterialX sources; `specs/tools/scene-composer/swiftcode-design.md` |
 
 The round numbers name the rounds of each spec's plan (`plan.md`, or
 `10-plan.md` for SwiftUI) that are done.
@@ -25,7 +25,7 @@ no package yet.
 Conventions:
 
 - One Swift package per framework: `frameworks/<name>/Package.swift`, package
-  name `ycode-<name>`. The library module may use the Apple framework's
+  name `swiftcode-<name>`. The library module may use the Apple framework's
   module name (an interop identifier) so existing source compiles against it.
 - Swift 6.4 toolchain; must build and test on macOS and on Linux (x86-64 and
   arm64). Dependencies must be permissively licensed (MIT, BSD, Apache-2.0,
@@ -38,5 +38,5 @@ Conventions:
 - On macOS a package must not shadow the system framework for other targets:
   keep each package self-contained and test it in its own build
   (`cd frameworks/<name> && swift build && swift test`).
-- `ycode/scripts/lint.sh` lints these packages with the repository's
+- `swiftcode/scripts/lint.sh` lints these packages with the repository's
   `.swiftlint.yml`.

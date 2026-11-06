@@ -25,7 +25,7 @@ extension Product {
 
         /// True until the customer has had a subscription in the group; an unknown group answers true.
         public static func isEligibleForIntroOffer(for groupID: String) async -> Bool {
-            YcodeStoreKit.shared.store.isEligibleForIntroOffer(groupID: groupID)
+            SwiftCodeStoreKit.shared.store.isEligibleForIntroOffer(groupID: groupID)
         }
 
         /// The statuses of this subscription's group.
@@ -33,13 +33,13 @@ extension Product {
 
         /// One status per subscription of the group (a simulated status error answers an empty list).
         public static func status(for groupID: String) async throws -> [Status] {
-            let rt = YcodeStoreKit.shared
+            let rt = SwiftCodeStoreKit.shared
             return Status.make(rt.store.subscriptionStatuses(groupID: groupID), runtime: rt)
         }
 
         /// The status of the subscription containing a transaction.
         public static func status(transactionID: UInt64) async throws -> Status? {
-            let rt = YcodeStoreKit.shared
+            let rt = SwiftCodeStoreKit.shared
             guard let s = rt.store.subscriptionStatus(forTransaction: transactionID) else { return nil }
             return Status.make([s], runtime: rt).first
         }
@@ -72,7 +72,7 @@ extension Product {
             public let transaction: VerificationResult<Transaction>
             public let renewalInfo: VerificationResult<RenewalInfo>
 
-            static func make(_ snapshots: [SubscriptionStatusSnapshot], runtime rt: YcodeStoreKit) -> [Status] {
+            static func make(_ snapshots: [SubscriptionStatusSnapshot], runtime rt: SwiftCodeStoreKit) -> [Status] {
                 let nonce = UUID()
                 let simulated = rt.store.simulatedError(for: .verification)
                 let now = rt.now
@@ -89,11 +89,11 @@ extension Product {
         }
 
         /// Signed renewal information (formats.md §2.3).
-        public struct RenewalInfo: Hashable, Sendable, YcodeSignedValue {
+        public struct RenewalInfo: Hashable, Sendable, SwiftCodeSignedValue {
             let jws: String
             let payload: JSONValue
 
-            public var ycodeJWS: String { jws }
+            public var swiftcodeJWS: String { jws }
 
             init(jws: String, payload: JSONValue) {
                 self.jws = jws

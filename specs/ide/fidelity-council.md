@@ -1,7 +1,7 @@
 # Fidelity council: the checklist
 
 **Status:** boundary spec. A review council of three judges scores how
-faithful Ycode's macOS IDE is to the reference, Xcode 27.1, from one
+faithful SwiftCode's macOS IDE is to the reference, Xcode 27.1, from one
 scripted capture session that ran on both apps. The dirty room then
 measures every finding from the reference's captures. This file is the
 **clean implementer's work list**: one row per finding, with a target
@@ -17,7 +17,7 @@ Prose and numbers only.
   1x, with the navigator 290 wide and the inspector 260 wide.
   Positions in a different window follow the stated rule ("the editor's
   left edge plus 51"), not the absolute x.
-- "Ycode now" is the session's build. That build declared SDK 15.0 (row
+- "SwiftCode now" is the session's build. That build declared SDK 15.0 (row
   1), so its glass rows show the pre-macOS-26 fallback.
 
 ## Round 1 (2026-11-04)
@@ -42,41 +42,41 @@ viewer has no scroll area (row 3).
 
 ### Disputed values, settled by measurement
 
-| Item | Opus | Sol | Gemini | Measured (reference) | Ycode now |
+| Item | Opus | Sol | Gemini | Measured (reference) | SwiftCode now |
 |---|---|---|---|---|---|
 | Minimap width | about 115 | about 140 | about 80 | **127**, plus a 1-pt separator, in an 850-pt editor; rule min(128, 15 % of the editor) | about 125, with its scroll bar inside |
 | Navigator row height | 22 | 22 | 20 | **22** | 22 |
-| Navigator indentation | within 6 of Ycode | — | 16 | **14 per level** | 13 |
+| Navigator indentation | within 6 of SwiftCode | — | 16 | **14 per level** | 13 |
 | Keyword colour | — | #C4246E | #9B2393 | **#C4246E** | #FF2D55 |
 | String colour | — | — | #C41A16 | **#CA2B1C** | #FF383C |
 | Comment colour | — | #6A7084 | #6A737D | **#6A7084** | #808080 |
 | Number colour | — | #006279 | #1C00CF | **#0178B8**. #006178 is the declaration-name colour. | #0088FF |
-| Toolbar height | — | — | 52 (Ycode 44) | **52 in both apps** | 52 |
+| Toolbar height | — | — | 52 (SwiftCode 44) | **52 in both apps** | 52 |
 | Toolbar shape height | 28–32 | 34–36 | — | **38** (y 7–44) | none drawn |
-| Gutter | — | — | 40 (Ycode 48) | numbers end at the **editor's left edge + 38**; code at **+51** | numbers +27, code +58 |
-| Inspector row spacing | 25–27 (Ycode 22) | — | 14 (Ycode 18) | **24** field to pop-up, **22** pop-up to pop-up, **27** across a rule | about 22–23 |
+| Gutter | — | — | 40 (SwiftCode 48) | numbers end at the **editor's left edge + 38**; code at **+51** | numbers +27, code +58 |
+| Inspector row spacing | 25–27 (SwiftCode 22) | — | 14 (SwiftCode 18) | **24** field to pop-up, **22** pop-up to pop-up, **27** across a rule | about 22–23 |
 | Inspector hide duration | 310 ms | 310 ms | 310 ms | **about 215 ms of motion**, starting about 40 ms after the pressed state | 113 ms latency, then about 255 ms |
 | Inspector slide distance | about 205 pt | — | 205.56 px | the inspector moves **260** (its width); content centred in the editor moves 130 | — |
-| Editor scroll travel | Ycode 566 against 589 | 23 pt less | — | the reference **600** for 600 of input; Ycode **566** | 566 |
-| Scroll durations | Ycode slower | Ycode slower | — | **not app behaviour**: the harness delivered Ycode's input more slowly; both follow their input within a frame | — |
+| Editor scroll travel | SwiftCode 566 against 589 | 23 pt less | — | the reference **600** for 600 of input; SwiftCode **566** | 566 |
+| Scroll durations | SwiftCode slower | SwiftCode slower | — | **not app behaviour**: the harness delivered SwiftCode's input more slowly; both follow their input within a frame | — |
 
 ### Checklist
 
 Ordered by impact. **H**: a judge would see it in every step. **M**:
 visible in one area. **L**: detail.
 
-| # | Area | Target (reference) | Ycode now | Spec | Level | Raised by | Impact |
+| # | Area | Target (reference) | SwiftCode now | Spec | Level | Raised by | Impact |
 |---|---|---|---|---|---|---|---|
-| 1 | Capture build | The compared Ycode **declares SDK 26 or later** in `LC_BUILD_VERSION`: the capture wrapper must stamp it as `make-app.sh` does | wrapper bundles the bare `swift build` executable, which declares SDK 15.0, so the toolbar, bars and jump bar draw the pre-26 fallback | `liquid-glass-ycode.md` §12.1 | — | meas. | H |
+| 1 | Capture build | The compared SwiftCode **declares SDK 26 or later** in `LC_BUILD_VERSION`: the capture wrapper must stamp it as `make-app.sh` does | wrapper bundles the bare `swift build` executable, which declares SDK 15.0, so the toolbar, bars and jump bar draw the pre-26 fallback | `liquid-glass-swiftcode.md` §12.1 | — | meas. | H |
 | 2 | Opening a file | An open-document event for a file in the open workspace (and a navigator selection) opens it in that window. The row selection, jump bar, inspector and editor all change in **one frame**. | nothing changes | `editor-area.md` §C.6 | 3 | Opus, Sol, Gemini | H |
 | 3 | Image viewer | Image **scaled to fit and centred**; 20 above it; 20 gap; a flat "Open with Preview" button 20 tall, centred; 20 to the bottom bar. "Loading…" while it decodes. Inspector: Image Properties and Localization sections, no Text Settings. No scroll area while it fits. | none | `editor-area.md` §C.6 | 3 | Opus, Sol, Gemini | H |
 | 4 | Editor text metrics | advance **8.0**; line pitch **18**; first line's top **7** below the content top; code column at the editor's left edge **+51**; wrapped lines continue **4 columns** past their indentation; text container ends 9–10 before the minimap separator | 7.45; 15; 2; +58 | `editor-area.md` §C.1 | 3 | Opus, Sol, Gemini | H |
-| 5 | Scroll-under (editor) | Text passes under the toolbar band, jump bar, sticky header and bottom bar, which each let **about 6 %** show as a shapeless veil (at most 6–8 levels per pixel). **No fade** below any bar. | opaque bars, text clipped at y 83 | `liquid-glass.md` §7.3; `liquid-glass-ycode.md` §12.4 | 3 | Opus, Sol, Gemini | H |
+| 5 | Scroll-under (editor) | Text passes under the toolbar band, jump bar, sticky header and bottom bar, which each let **about 6 %** show as a shapeless veil (at most 6–8 levels per pixel). **No fade** below any bar. | opaque bars, text clipped at y 83 | `liquid-glass.md` §7.3; `liquid-glass-swiftcode.md` §12.4 | 3 | Opus, Sol, Gemini | H |
 | 6 | Toolbar shapes | Glass shapes **38 tall at y 7**, grouped and placed as `liquid-glass.md` §7.1. Inactive: one flat fill (#ECECEC over the editor, #E6E6E7 over the side areas) with a 1-pt outline. | bare glyphs (fallback) | `liquid-glass.md` §7.1, §2.2 | 3 | Opus, Sol, Gemini | H (needs row 1) |
 | 7 | Sticky scope header | A 20-pt band (an 18-pt row plus 2) in editor white, nearly opaque. It shows **its line number** in the gutter in the line-number colour. A **2-pt #E5E5E5 separator** below it spans the gutter and text, not the minimap. No outline, no shadow. | see-through, no number, outlined in some frames | `editor-area.md` §C.3 | 3 | Opus | H |
 | 8 | Minimap | 127 wide plus a 1-pt #E6E6E6 separator; width min(128, 15 % of the editor). Text at **1/6 scale**: 2-pt bars on a 3-pt pitch in the tokens' colours at about 35 %. **No labels or boxes.** Full-width visible-area shade #EDEDED. The scroll bar's lane sits **right of the minimap**, at the editor's edge. | grey bars with symbol-name pills; scroll bar on the left | `editor-area.md` §C.5 | 3 | Opus, Sol, Gemini | H |
 | 9 | Inspector show/hide | The inspector **slides rigidly** by its width while the editor **resizes live** (its centred content moves half as far). About **215 ms**, following the progress table in §C.7 (best fit cubic-bezier(0.8, 0.4, 0.65, 1.0)). Motion starts within about 40 ms of the pressed state. No glitch frames. | first motion 113 ms after the press; ends at 367 ms with 56–71 ms pauses; text re-wraps in the last frame | `editor-area.md` §C.7 | 3 | Opus, Sol, Gemini | H |
-| 10 | Syntax colours (default light) | keyword #C4246E, plain #322529, comment #6A7084, string #CA2B1C, number #0178B8, type #9D31CF, type declaration #007D9E, other declaration #006178, line number #B8B3B4 | system colours | `editor-area.md` §C.4 | 3 | Sol, Gemini | H. **Owner decision**: earlier specs kept Ycode's themes its own |
+| 10 | Syntax colours (default light) | keyword #C4246E, plain #322529, comment #6A7084, string #CA2B1C, number #0178B8, type #9D31CF, type declaration #007D9E, other declaration #006178, line number #B8B3B4 | system colours | `editor-area.md` §C.4 | 3 | Sol, Gemini | H. **Owner decision**: earlier specs kept SwiftCode's themes its own |
 | 11 | Navigator order | In synchronized folders, **folders first**, then files, each by name | mixed | `navigators.md` Council §1 | 3 | Opus, Sol | M |
 | 12 | Navigator selection | The open file's row is selected: a band 22 tall, **inset 10** on both sides (13 before a shown scroll-bar lane), corners about 8. Inactive: #E7E7E8 on #F2F2F3. | none | `metrics.md` §12.1; `navigators.md` Council §3 | 3 | Opus, Sol | M |
 | 13 | Pane backgrounds | Inactive: navigator **and** inspector #F2F2F3; toolbar band over the editor and the jump bar white (the editor's background); jump bar separator **2 pt** #E5E5E5; editor ▸ inspector divider 1 pt #DADADB; no line between navigator and editor | #E6E6E7 / #EBECEC; grey band and jump bar; 1-pt separator | `liquid-glass.md` §7.4 | 3 | Opus, Sol | M |
@@ -86,7 +86,7 @@ visible in one area. **L**: detail.
 | 17 | Scheme capsule | One capsule: target glyph, scheme, "›", destination glyph, destination. **No up-down chevrons.** | chevrons after both titles | `liquid-glass.md` §7.1 item 2 | 3 | Opus, Gemini | M |
 | 18 | Selected tab glyph | In the selector and inspector tab bars the selected glyph is **grey (#7C7D7E) on a grey pill (#CACACB)**, not accent | accent-blue glyph | `liquid-glass.md` §7.2 | 3 | Opus | M |
 | 19 | Navigator geometry | indentation **14**; triangle centred at 18 + 14 × level; icon at 27 + 14 × level; label at 48 + 14 × level | 13; labels 4–5 left | `metrics.md` §12.1 | 3 | Gemini, Opus | M |
-| 20 | Navigator icon colours | Swift files **orange**; folders light blue; project and image badges blue (colour family only; Ycode's own artwork) | Swift files blue | `navigators.md` Council §4 | 3 | Opus, Gemini | M |
+| 20 | Navigator icon colours | Swift files **orange**; folders light blue; project and image badges blue (colour family only; SwiftCode's own artwork) | Swift files blue | `navigators.md` Council §4 | 3 | Opus, Gemini | M |
 | 21 | Gutter | Numbers right-aligned, ending at the editor's left edge **+38**, 12 before the code; **a smaller face** (digits 9 px against the code's 10, about 6-pt steps); #B8B3B4; on the code baseline | numbers end at +27 | `editor-area.md` §C.2 | 3 | Gemini | M |
 | 22 | Inspector layout | insets **7 / 8**; key column ends at the inspector's edge +78; values from +83 to 7 before the edge; Name field **22 tall, filled #E5E5E6, no border**; pop-ups **16 tall, filled #E1E1E2**; row pitch 24 / 22 / 27; section rules 6 from the controls | 12 / 12 insets, white bordered fields, about 22 pitch | `metrics.md` §12.4 | 3 | Opus, Gemini | M |
 | 23 | Target Membership | A bordered table **110 tall** (1-pt #A6A6A7); rows show the target glyph, name and "Default"; a 19-pt footer with +, − and a pencil | 52 tall, a checkbox | `metrics.md` §12.4 | 3 | Opus | M |
@@ -136,7 +136,7 @@ a 100 Hz display. The session added:
 - the Welcome window.
 
 Known artefacts:
-- Ycode's Stripes row could not be found through Accessibility (step 05).
+- SwiftCode's Stripes row could not be found through Accessibility (step 05).
 - The reference's split step failed (the menu labels differ), and its menu
   stayed open in the stills that follow.
 - In the narrow-window still the reference is drawn at 0.898 scale
@@ -160,34 +160,34 @@ Known artefacts:
 | 13 plain group | 7 | 7.8 | 7.5 | 7.4 |
 | 14 expand folder | 7 | 7.2 | 7 | 7.1 |
 | 15 navigator scroll | 3 | 6.5 | 1 | 3.5 |
-| 16 split editor (Ycode only) | 5 | 7.8 | 8.5 | 7.1 |
+| 16 split editor (SwiftCode only) | 5 | 7.8 | 8.5 | 7.1 |
 | 17 narrower window | 4 | 4.2 | 5 | 4.4 |
 | 18 Welcome window | 6 | 6.4 | 8.5 | 7.0 |
 | **Overall** | **5.5** | **6.1** | **6.2** | **5.9** (round 1: 4.8) |
 
 ### Disputed values, settled by measurement
 
-| Item | Judges | Measured (reference) | Ycode |
+| Item | Judges | Measured (reference) | SwiftCode |
 |---|---|---|---|
-| Syntax colours | Gemini: keywords #AD3DA4, strings #D12F1B, types teal #36867A, and Ycode's types uncoloured | unchanged from round 1 in the active window: **#C4246E, #CA2B1C, types #9D31CF** | the same, types included; only `Foundation` after `import` is wrong (D.1) |
+| Syntax colours | Gemini: keywords #AD3DA4, strings #D12F1B, types teal #36867A, and SwiftCode's types uncoloured | unchanged from round 1 in the active window: **#C4246E, #CA2B1C, types #9D31CF** | the same, types included; only `Foundation` after `import` is wrong (D.1) |
 | Toolbar response to red content | Sol: mean 229,230,231 → 228,220,221 | per region: toolbar band **#FFFFFF → #FDE5E3**, jump bar → **#FFF2F0**, bottom bar → **#FEEDEB**; over slate #ECEDF0, #F6F7F8, #F2F3F5; **blurred** (edge spread about 15 pt), not a flat tint | toolbar band unchanged, jump bar ≤ 2 levels; bottom bar matches |
 | Inspector hide / show | 305 / 270 ms | motion **222 / 216 ms** (fitted ends about 255 / 240); ease-in-out; 43 / 118 ms from the press | 144 ms in 4 frames after a 135 ms wait / 309 ms |
-| Frame interval, linear scroll | Xcode 13.3 ms, Ycode 20 ms | **20 ms median in both**; flick 13.0 against 15.7 ms | — |
-| Ycode scroll travel (step 03) | 1000 / 1060 / "67 lines" | **1050** (the reference 600) | — |
+| Frame interval, linear scroll | Xcode 13.3 ms, SwiftCode 20 ms | **20 ms median in both**; flick 13.0 against 15.7 ms | — |
+| SwiftCode scroll travel (step 03) | 1000 / 1060 / "67 lines" | **1050** (the reference 600) | — |
 | Navigator scroll bar | Gemini: overlay, hidden until scrolled | layout-taking on this Mac, **shown once content overflows, not hidden 1 s later**; track y 83–832, knob 438 at the top | track y 179–798, knob 363 |
 | Narrow window | Sol: Xcode's frame ends near 988 | an artefact: the still is drawn at 0.898; the window is 1100 | — |
 | Navigator indentation | Gemini: 16 against 12 | **14** | 14 |
 | Inspector heading colour | Sol: #858587 against #3A3A3C | **#858587**, bold | #393A3B |
 | Welcome title | Sol: 49 × 13 against 95 × 24 | **49 × 13** (cap ink) | 95 × 26 |
 | Image loading | Opus: Xcode never shows "Loading…" | it does, for about 100 ms, 454 ms after a click | one 50 ms frame |
-| Minimap scale | Opus: Ycode at half scale | **1/6 in both**; the difference is per-token against per-word bars | — |
+| Minimap scale | Opus: SwiftCode at half scale | **1/6 in both**; the difference is per-token against per-word bars | — |
 | Flick duration | 713 against 788 ms | not comparable (different start offsets). The app part: overscroll **83 pt**, spring ω **12.6 rad/s** | 10 pt, ω 10.5 |
-| Inspector button state | Gemini: Ycode's stays accent-highlighted after hiding | not seen in either app; but Ycode accent-fills the Navigators toggle and the selected editor mode | — |
-| "800 × 1800" glyph | Gemini: Ycode uses an ASCII x | **cannot be told at 1x** | — |
+| Inspector button state | Gemini: SwiftCode's stays accent-highlighted after hiding | not seen in either app; but SwiftCode accent-fills the Navigators toggle and the selected editor mode | — |
+| "800 × 1800" glyph | Gemini: SwiftCode uses an ASCII x | **cannot be told at 1x** | — |
 
 ### Rows whose target changed
 
-| # | Area | New target | Ycode now | Spec |
+| # | Area | New target | SwiftCode now | Spec |
 |---|---|---|---|---|
 | 2 | Opening a file | By **click**: navigator band, jump bar, editor and status bar change in one frame; the inspector follows 12–61 ms later (289 ms for the session's first selection). By open-document: as round 1. | inspector in the same frame | `editor-area.md` §D.7 |
 | 3 | Image viewer | "Loading…" also shows after a click (about 100 ms). The status bar shows no Line and Col for an image. | Loading one frame; "Line: 1 Col: 1" | §D.7 |
@@ -202,13 +202,13 @@ Known artefacts:
 | 25 | Scroll travel | 1:1 still (600 → 600; 1200 → 1200) | **1050 for 600** in step 03; 1200 for 1200 | `editor-area.md` §D.3 |
 | 26 | Frame pacing | Linear scroll: median 20 ms, 90th percentile ≤ 28 ms. Flick: median 13 ms. Navigator: worst gap ≤ 33 ms. | flick 90th percentile 49 ms; navigator worst 75 ms | §D.3 |
 
-Since round 1 Ycode now matches rows 1 (SDK), 4 (pitch 18, code column
+Since round 1 SwiftCode now matches rows 1 (SDK), 4 (pitch 18, code column
 +51), 6 (toolbar shapes), 10 (colours, but see row 48), 13, 19
 (indentation), 23 (table height) and 30 (jump bar).
 
 ### New rows (round 2)
 
-| # | Area | Target (reference) | Ycode now | Spec | Level | Raised by | Impact |
+| # | Area | Target (reference) | SwiftCode now | Spec | Level | Raised by | Impact |
 |---|---|---|---|---|---|---|---|
 | 34 | Toolbar overflow | At 1100 the editor-mode group and the Notices circle go into a **"»" circle** placed 7 before the inspector's edge; the scheme capsule **drops its titles** (glyphs and "›" only, about 87 wide); the subtitle truncates in the middle | no "»"; "Glas…" truncated; editor modes collapsed to a pull-down | `liquid-glass.md` §8.2 | 3 | Opus, Sol, Gemini | H |
 | 35 | Navigator clipping | Rows never draw above the selector capsule's top. They pass only under the selector and filter capsules. | rows over the toolbar band and window buttons at full contrast | `liquid-glass.md` §8.4 | 3 | Opus, Sol, Gemini | H |
@@ -227,7 +227,7 @@ Since round 1 Ycode now matches rows 1 (SDK), 4 (pitch 18, code column
 | 48 | Module name after `import` | plain text #322529 | type colour #9D31CE | `editor-area.md` §D.1 | 3 | meas. | L |
 | 49 | Navigator scroll-bar track | y 83–832 (3 below the selector capsule, 11 above the filter capsule) | 179–798 | `metrics.md` §13.2 | 3 | Opus, Sol | M |
 | 50 | Wrap edge | The text container ends at x ≈ 986, so " so" does not fit on line 6's first row | "so" fits (ink to 987) | `editor-area.md` §C.1 | 3 | Sol, Opus | L |
-| 51 | Pinned header onset | Pins exactly when the declaration's line reaches y 87, with no fade; separator in the same frame | not tested (Ycode over-scrolled) | `editor-area.md` §D.2 | 3 | Sol, Gemini | M |
+| 51 | Pinned header onset | Pins exactly when the declaration's line reaches y 87, with no fade; separator in the same frame | not tested (SwiftCode over-scrolled) | `editor-area.md` §D.2 | 3 | Sol, Gemini | M |
 
 **Top 10 new or changed rows by impact:**
 1. 35, navigator clipping.
@@ -260,22 +260,22 @@ Since round 1 Ycode now matches rows 1 (SDK), 4 (pitch 18, code column
 
 Both apps were captured at **Retina (2x)** on a 120 Hz display, in the
 foreground with the window key, at 120 fps; round 3 numbers compare only
-with round 3. Ycode was `0c3ae33f`, wrapped with the macOS 27 SDK so its
+with round 3. SwiftCode was `0c3ae33f`, wrapped with the macOS 27 SDK so its
 glass layout ran. The session added three areas:
 - **the merge workflow and conflict editor** (a test repository with a
   conflicting branch; the reference's path was the branch row's context
-  menu, the confirmation alert and the merge sheet; Ycode's merge had to
+  menu, the confirmation alert and the merge sheet; SwiftCode's merge had to
   be started with `git merge` because its branch rows have no context
   menu);
 - **Settings ▸ General**;
 - **the device window** (Device Hub with an iPhone Duo on iOS 27.1;
-  Ycode's simulators run on a remote host, so its canvas showed an
+  SwiftCode's simulators run on a remote host, so its canvas showed an
   outline).
 
 Known artefacts: the Mac was under heavy load (load average 300–840 in the
 main session), so scroll and flick durations are weighed lightly; neither
 app rotated the device, so the landscape step is not scored; three steps
-were re-run (main 10–11 for Ycode, Settings and the Repositories still for
+were re-run (main 10–11 for SwiftCode, Settings and the Repositories still for
 the reference).
 
 ### Scores
@@ -315,7 +315,7 @@ The main-window steps scored in both rounds rose from a mean of 5.95 to
 
 ### Disputed values, settled by measurement
 
-| Item | Judges | Measured (reference) | Ycode |
+| Item | Judges | Measured (reference) | SwiftCode |
 |---|---|---|---|
 | "The merge sheet animates in about 288 ms, ease-out" | Opus, Sol, the summary | The 288 ms segment is the **confirmation alert** appearing with the window's veil (veil about 255 ms, ease-out). The **sheet** comes about 1.1 s later, after Merge in the alert: it fades in over about 90 ms and slides down 32 points from under the toolbar over about 200 ms (`merge-sheet.md` §1.2, §10) | the editor appears in one frame |
 | "Choose Right takes 330 ms, ease-in-out" | all three | The 330 ms is the **Choose menu's dismissal** (item blink, a hold, a fade). The left pane's text then changes in **one frame**, 117 ms after the menu is gone; the change stays selected (`merge-sheet.md` §7) | the Result pane changes in 50 ms; the view moves to the next change |
@@ -324,26 +324,26 @@ The main-window steps scored in both rounds rose from a mean of 5.95 to
 | Conflict colours "#FADADD, light blue #D7E8FB" | Opus, summary | conflict rows **#FFDCDD**, changed words **#FF9A9D**, the selected change's rules **#DA5559** (#FF656A once decided); the clean change **#D6EBFE**; in the gutter #F9D5D5 and #D1E4F8 | pink to the end of the text; green #DDF5DD |
 | Split editor "200 ms ease-out" | Opus, Sol, Gemini | The split appears in **one frame**; 100 ms later the new pane's jump bar re-lays out once (truncation, issue stepper). No sliding animation (`editor-area.md` E.2) | one frame (12 ms): **matches** |
 | Minimap "auto-hides below about 350 pt" | Gemini | **No**: the reference keeps minimaps in split panes: 67 at a 424-point pane, 63 at 274 (`editor-area.md` E.6) | 67 and 45 |
-| Full-block glyph "wider in Ycode" | Gemini | Ycode's is **narrower**: 6.89 per block against the reference's 8.0 (one cell); a 110-block row is 758 against 884.5 (`editor-area.md` E.7) | 6.89 |
-| Keywords "coral red in Ycode" | Gemini | keywords are **#C4246E in both apps** | matches |
-| Ycode's jump bar "opaque #F6F6F6" | Gemini | Ycode's jump bar shows a **flat pink tint** (239–245 in the green channel over red bands), not an opaque fill; what it lacks is the content's structure (`liquid-glass.md` §9.1) | flat tint |
+| Full-block glyph "wider in SwiftCode" | Gemini | SwiftCode's is **narrower**: 6.89 per block against the reference's 8.0 (one cell); a 110-block row is 758 against 884.5 (`editor-area.md` E.7) | 6.89 |
+| Keywords "coral red in SwiftCode" | Gemini | keywords are **#C4246E in both apps** | matches |
+| SwiftCode's jump bar "opaque #F6F6F6" | Gemini | SwiftCode's jump bar shows a **flat pink tint** (239–245 in the green channel over red bands), not an opaque fill; what it lacks is the content's structure (`liquid-glass.md` §9.1) | flat tint |
 | Settings window "680 × 400" / "708 × 453" / "710 × 452" | Gemini / Opus / summary | **710 × 452** (the capture's window frame) | 860 × 560 |
 | Settings sidebar "inset glass" | summary | **flush**: full height, #EDEDED, 179.5 wide plus a 0.5-point divider (`settings.md` R3.2) | flush, 200 |
 | Settings title "regular weight" | Opus | regular to medium (stems 1.5–2.0 at a 12-point cap height), colour **#4D4D4D**, not black | bold, #272727 |
-| "Loading…" for about 170 ms on selecting an image | Opus (about Ycode) | Reference round 3: **one frame, no Loading**; round 2 showed Loading for about 100 ms after 454 ms. Ycode: Loading for 192 ms (`editor-area.md` E.3) | 192 ms |
+| "Loading…" for about 170 ms on selecting an image | Opus (about SwiftCode) | Reference round 3: **one frame, no Loading**; round 2 showed Loading for about 100 ms after 454 ms. SwiftCode: Loading for 192 ms (`editor-area.md` E.3) | 192 ms |
 | Device inspector rows | `device-hub.md` §6: 32–36 tall | **42 + 1** (43 pitch), in cards 260 wide, 10 apart (`device-hub.md` §11.3) | no cards |
-| Momentum flick | all three | confirmed: the reference has no start delay, overshoots **48 points (8 %)** and settles by 713 ms; Ycode holds still **85–98 ms**, overshoots 120 points (20 %), settles by 883 ms (`editor-area.md` E.1) | — |
+| Momentum flick | all three | confirmed: the reference has no start delay, overshoots **48 points (8 %)** and settles by 713 ms; SwiftCode holds still **85–98 ms**, overshoots 120 points (20 %), settles by 883 ms (`editor-area.md` E.1) | — |
 
 ### Rows whose target changed
 
-| # | Area | New target | Ycode now | Spec |
+| # | Area | New target | SwiftCode now | Spec |
 |---|---|---|---|---|
 | 3 | Image viewer | Keep the old content until the image is ready; one-frame swap. Show "Loading…" only if the image is still not ready after about 450 ms. | Loading for 192 ms | `editor-area.md` E.3 |
 | 8 | Minimap | Width **clamp(15.5 % of the pane, 63, about 140)**: 131 at 850, 67 at 424, **63 at 274** | 45 at 274 | `editor-area.md` E.6 |
 | 40 | Top bounce | No start delay; overshoot scales with the flick (48 for this 600-point flick, 8 %); critically damped return, ω about 11–12.6 rad/s | 85–98 ms delay; 20 % overshoot | `editor-area.md` E.1 |
 | 12 | Navigator selection | Accent band only while the outline has focus; the unfocused grey band as soon as an editor takes focus | stays accent blue | `navigators.md` round 3 §1 |
 
-Since round 2 Ycode now matches rows 9 (inspector hide 321 against 323 ms,
+Since round 2 SwiftCode now matches rows 9 (inspector hide 321 against 323 ms,
 show 295 against 296 ms, the same curve shape), 13 (plain-group order),
 25 (scroll travel 600 → 600) and 36 (the editor's top inset), and the
 split pane sizes. Row 35 is met for the toolbar band; the selector
@@ -351,7 +351,7 @@ capsule still shows rows legibly (row 69).
 
 ### New rows (round 3)
 
-| # | Area | Target (reference) | Ycode now | Spec | Level | Raised by | Impact |
+| # | Area | Target (reference) | SwiftCode now | Spec | Level | Raised by | Impact |
 |---|---|---|---|---|---|---|---|
 | 52 | Starting a merge | A local branch row's context menu with 12 items in 6 groups, "Merge “b” into “current”…" enabled; then a centred **420 × 133** alert (title, message, Cancel and **Merge**, Merge the default); the veil darkens white to #CDCDCD over about 255 ms | no row menu on macOS; no Integrate ▸ Merge | `merge-sheet.md` §1 | 3 | Opus, Sol, Gemini | H |
 | 53 | Merge sheet frame | A modal sheet **24** in from each side of the window, top at the toolbar's bottom, corner radius about 16, over the veiled window; one bordered content box 20 inside it | an in-window three-pane editor with a Result pane | `merge-sheet.md` §2 | 3 | Opus, Sol, Gemini | H |
@@ -364,7 +364,7 @@ capsule still shows rows legibly (row 69).
 | 60 | Cancel and Merge | 84-wide buttons right-aligned with the content box, 12 apart, 21.5 below it; Merge disabled while a conflict is undecided | Mark as Resolved, Continue Merge, Abort Merge | `merge-sheet.md` §9 | 3 | Opus, Sol, Gemini | M |
 | 61 | Sheet transition | Fade in over about 90 ms while sliding down 32 points from under the toolbar over about 200 ms (keyframes in §10); the alert fades out in the same 90 ms | one frame | `merge-sheet.md` §10 | 3 | Sol, Opus | M |
 | 62 | Settings window | **710 × 452**; window buttons at x 19, 42, 65 on y 26, all enabled; one 73.5 × 34.5 glass back/forward capsule with a divider; the title at x 273.5, about 17 points, #4D4D4D, regular to medium | 860 × 560; minimize disabled; two circles; bold black title | `settings.md` R3.1 | 3 | Opus, Sol, Gemini | H |
-| 63 | Settings sidebar | Flush, **179.5** + a 0.5 divider #D4D4D4; **32-point rows**; a 160 × 32 selection #0070F5 inset 10; accent-tinted symbols centred on x 29; labels aligned at x 47; 12 items in the reference's order (Ycode's names where the protocol requires) | 200 wide, 26-point rows, grey symbols, labels at 42–47.5, 13 items | `settings.md` R3.2 | 3 | Opus, Sol | H |
+| 63 | Settings sidebar | Flush, **179.5** + a 0.5 divider #D4D4D4; **32-point rows**; a 160 × 32 selection #0070F5 inset 10; accent-tinted symbols centred on x 29; labels aligned at x 47; 12 items in the reference's order (SwiftCode's names where the protocol requires) | 200 wide, 26-point rows, grey symbols, labels at 42–47.5, 13 items | `settings.md` R3.2 | 3 | Opus, Sol | H |
 | 64 | Settings General pane | Section headers bold over **cards** x 200–690, #F7F7F7, radius about 12; rows 37.5 + 1-point separators #EBEBEB inset 10; labels left at x 211, no colons; help text #7C7C7C, 14-point pitch; pop-ups as value text plus a 20-point circular chevron button 13.5 inside the card; switches 10 inside; controls centred on the label's line | right-aligned labels with colons, checkboxes, no cards, no help | `settings.md` R3.3 | 3 | Opus, Sol, Gemini | H |
 | 65 | Device control capsules | Two glass capsules, **108** and **145.5** wide, **36.5** tall, 7.5 apart, floating 8 above the window's bottom edge, centred on the canvas; glyphs black on a 34-point pitch; the current Duo pose in the accent colour | missing | `device-hub.md` §11.1 | 3 | Opus, Sol, Gemini | H |
 | 66 | Device inspector | Settings rows in **cards** (x 830–1090, #E6E6E7, radius about 12, 10 apart), **43-point** row pitch, symbol, label, trailing control | one grey message; a full-height scroll track | `device-hub.md` §11.3 | 3 | Opus, Sol, Gemini | M |
@@ -420,7 +420,7 @@ capsule still shows rows legibly (row 69).
 | Scores and the judges' claims | — | The council's three reports for rounds 1 and 2 (dirty room) |
 | Every reference value in the checklist | 3 | The cited spec sections. They are measured from the round-1 1x stills and recordings of the reference with `research/tools/council-r1/measure_captures.py`; the method is in `research/notes/council-r1-2026-11-04.md` |
 | Round 2 reference values | 3 | The round 2 1x stills and recordings (foreground, key window), measured with `research/tools/council-r2/measure_r2.py`; method in `research/notes/council-r2-2026-11-04.md` |
-| Round 3 reference values | 3 | The round 3 Retina stills and 120 fps recordings of the reference and Ycode (foreground, key window; the merge session, Settings and Device Hub added), measured in the dirty room with colour runs, ink boxes, per-frame column profiles and the capture tool's timing segments; full descriptions in the cited spec sections |
-| Ycode values | — | The same session's captures of Ycode; `otool -l` of the captured executable |
+| Round 3 reference values | 3 | The round 3 Retina stills and 120 fps recordings of the reference and SwiftCode (foreground, key window; the merge session, Settings and Device Hub added), measured in the dirty room with colour runs, ink boxes, per-frame column profiles and the capture tool's timing segments; full descriptions in the cited spec sections |
+| SwiftCode values | — | The same session's captures of SwiftCode; `otool -l` of the captured executable |
 | EditorConfig lookup | 1 | The EditorConfig specification (editorconfig.org) |
 | Scroller style API | 1 | AppKit documentation (`NSScroller.preferredScrollerStyle`, `NSScroller.preferredScrollerStyleDidChangeNotification`) |

@@ -1,8 +1,8 @@
 # xcodebuild: result bundles (`.xcresult`)
 
-Ycode: `YcodeXcodebuild` (`XCResultStore`, `XCRValue`, `ResultRecords`,
+SwiftCode: `SwiftCodeXcodebuild` (`XCResultStore`, `XCRValue`, `ResultRecords`,
 `ResultBundleSession`). The bundle is a file format Xcode's tools read
-(`xcrun xcresulttool`, the IDE's report navigator). ycodebuild writes a
+(`xcrun xcresulttool`, the IDE's report navigator). swiftcodebuild writes a
 compatible subset: build results and issues, build logs, test summaries,
 code coverage (`coverage.md`), test diagnostics, the archive path.
 
@@ -64,7 +64,7 @@ without references has the one-byte file `00`. References are listed
 once each, sorted by identifier string.
 
 **data file.** The object's encoded text (below), as a Zstandard frame
-(RFC 8878; `compression: standard`). ycodebuild writes frames of raw
+(RFC 8878; `compression: standard`). swiftcodebuild writes frames of raw
 (stored) blocks of at most 128 KiB with a 4-byte content size and no
 checksum, which every decoder accepts.
 
@@ -91,7 +91,7 @@ round-trip form. A reference is an object of type `Reference` with `id`
 `supertype`). This is the same tree `xcresulttool get object --legacy
 --format json` prints (`_type._name`, `_value`, `_values`).
 
-## 4. Records ycodebuild writes
+## 4. Records swiftcodebuild writes
 
 Type and property names are those of `xcresulttool formatDescription get
 --legacy` (version 3.60). Root: `ActionsInvocationRecord` {`metadataRef` →
@@ -172,7 +172,7 @@ lineNumber, issueType "Assertion Failure", `sourceCodeContext.location`},
 
 ## 5. Compatibility checked
 
-`xcresulttool` (version 25115) reads ycodebuild's bundles: `get
+`xcresulttool` (version 25115) reads swiftcodebuild's bundles: `get
 build-results`, `get test-results summary|tests`, `get
 content-availability`, `get log --type build|action`, `get object
 --legacy`, `metadata get`. Their JSON equals that of the reference tool's
@@ -180,7 +180,7 @@ bundles for the same sample runs, apart from times, UUIDs and the run
 order of concurrent tests (`conformance.md`); `xccov view` reads their
 coverage (`coverage.md`).
 
-## Ycode implementation (TEST-HOST, 2026-10-30)
+## SwiftCode implementation (TEST-HOST, 2026-10-30)
 
 - **Configurations.** A test plan run with several configurations records
   one `ActionTestPlanRunSummary` per configuration, named after it, holding
@@ -189,15 +189,15 @@ coverage (`coverage.md`).
   are the configuration's `language` and `region`.
 - **Test kinds.** `xctest-tool hosted` (observed); `app hosted` for a
   bundle run inside its `TEST_HOST` and `UI test` for a UI test bundle are
-  Ycode's words (OPEN QUESTION).
-- **Reader.** `XCResultReader` (`YcodeXcodebuild`) reads the bundles
-  ycodebuild writes: `Info.plist`'s root, `Data/data.<id>` frames of raw
+  SwiftCode's words (OPEN QUESTION).
+- **Reader.** `XCResultReader` (`SwiftCodeXcodebuild`) reads the bundles
+  swiftcodebuild writes: `Info.plist`'s root, `Data/data.<id>` frames of raw
   and RLE blocks (compressed Zstandard blocks are reported as unsupported,
   so it does not read the reference tool's bundles), the object encoding of
   §3 (the inverse of the writer: a type spelled out once and named after;
   `_v` with `V` text is a scalar), and the tests of every test action
   (run, target, identifier, name, status, duration, failures, skip
-  message, arguments) and the invocation's metrics. `ycode results
+  message, arguments) and the invocation's metrics. `swiftcode results
   <bundle> [--json]` prints them (exit 1 when a test failed). Round trip
   tested: `ResultBundleReaderTests`.
 
@@ -215,8 +215,8 @@ coverage (`coverage.md`).
 - Directory listings and their reference order: reference bundles'
   coverage archives and diagnostics (level 2).
 - OPEN QUESTION: titles and command names for analyze, install and
-  build-for-testing (not probed; Ycode's choice is in the table's style).
+  build-for-testing (not probed; SwiftCode's choice is in the table's style).
 - OPEN QUESTION: the argument hash for tests with several arguments
   (observed only for one argument: SHA-256 of its description).
 - OPEN QUESTION: the suite order rule (one observation) and `LogStoreManifest.plist`
-  in `Logs/Test` (written by the reference tool; not by ycodebuild).
+  in `Logs/Test` (written by the reference tool; not by swiftcodebuild).

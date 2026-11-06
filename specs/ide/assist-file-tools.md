@@ -1,6 +1,6 @@
 # Assist file tools — shared behaviour
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools; the Wave 1 port
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools; the Wave 1 port
 registers the tools here).
 
 This spec covers the behaviour shared by the 24 Wave 1 file tools
@@ -31,7 +31,7 @@ those tools behave.
 
 ## 2. Path-safety rules
 
-There are three path-resolution behaviours in Legacy. The Ycode port
+There are three path-resolution behaviours in Legacy. The SwiftCode port
 must preserve which tool uses which — they differ observably, and
 unifying them would change behaviour.
 
@@ -132,7 +132,7 @@ does not exist.)
 - `file_checksum_verifier`: an absolute path is used verbatim as a
   filesystem path; a relative path is appended to the workspace root.
   No containment check is performed, so an absolute path outside the
-  workspace is hashed without complaint. The Ycode port must either
+  workspace is hashed without complaint. The SwiftCode port must either
   preserve this (and record it as a known gap) or tighten it and
   record the tightening as a deliberate behaviour change — it must
   not silently change.
@@ -149,7 +149,7 @@ does not exist.)
 - The strict resolver (§2.2) standardises but does **not** resolve
   symlinks; a symlink inside the workspace that points outside it is
   therefore followed by the tools that use this resolver. This is a
-  known Legacy inconsistency, recorded here so the Ycode port can
+  known Legacy inconsistency, recorded here so the SwiftCode port can
   decide deliberately (tightening it is a behaviour change to record,
   not a silent fix).
 - `tree_view` **never follows symlinks**: a symlink is rendered as a
@@ -218,9 +218,9 @@ does not exist.)
 
 ### 3.4 Size caps on reads
 
-- Legacy `file_read` has **no size cap**. (Ycode's existing
+- Legacy `file_read` has **no size cap**. (SwiftCode's existing
   `file_read` MCP tool refuses files over 8 MB and caps reads at 2000
-  lines — that is Ycode's tool, not this one; do not import those
+  lines — that is SwiftCode's tool, not this one; do not import those
   limits here. See `assist-tool-catalogue.md` §1.6.)
 - `read_artifact` truncates content at 60,000 characters (§7).
 - `create_artifact` has a recommended ~25,000-character ceiling that
@@ -259,7 +259,7 @@ does not exist.)
   relative paths against the workspace root regardless of `dir_cd`.
   In Legacy, `use_terminal` also defaults its working directory to
   it when no working directory is given; that is outside Wave 1 but
-  the Ycode port must keep the session directory available for it.
+  the SwiftCode port must keep the session directory available for it.
 
 ## 5. Per-tool behaviour notes (defaults and caps)
 
@@ -319,7 +319,7 @@ does not exist.)
   a single hunk covering both whole files:
   `--- a/<pathA>`, `+++ b/<pathB>`,
   `@@ -1,<linesA> +1,<linesB> @@`. A single inserted line therefore
-  shifts every following line into a `-`/`+` pair. The Ycode port
+  shifts every following line into a `-`/`+` pair. The SwiftCode port
   must reproduce this, not substitute a smarter diff.
 - Identical files (byte-identical content) succeed with
   `identical: "true"` and no diff.
@@ -357,7 +357,7 @@ does not exist.)
   `assist-tool-catalogue.md` §10.
 - Legacy `file_hash_verify` computes hashes by running the macOS
   binaries `/usr/bin/shasum` (`-a 256` / `-a 1`) and `/usr/bin/md5`
-  (`-q`). The Ycode port must hash in-process (CryptoKit /
+  (`-q`). The SwiftCode port must hash in-process (CryptoKit /
   swift-crypto on Apple platforms; an equivalent on Linux) with
   identical observable behaviour, including the failure
   `Failed to compute <algorithm> for <path>.` when hashing fails.
@@ -406,7 +406,7 @@ does not exist.)
 
 - `open_in_finder` and `reveal_in_finder` are **macOS-only**. They
   depend on Finder / `NSWorkspace`. On a platform without Finder the
-  Ycode port must fail with a clear error; it must never report
+  SwiftCode port must fail with a clear error; it must never report
   success without having opened or revealed anything.
 - `open_in_finder`: opens the target in Finder (directories) or its
   default application (files). If the Finder open reports failure,
@@ -419,7 +419,7 @@ does not exist.)
 - Both require the target to exist, and both apply **no**
   workspace-containment check (§2.5).
 - Both are declared `safeRead` / read-only in Legacy, but opening a
-  Finder window is an external side effect. The Ycode port must set
+  Finder window is an external side effect. The SwiftCode port must set
   `openWorld: true` for both and must not present them as pure reads
   (see `assist-tool-catalogue.md` §1.3).
 
@@ -546,7 +546,7 @@ A requested name is normalised before use; an unsafe name fails with
 Failure messages are part of the contract: reproduce them verbatim,
 including the trailing `.)` in the `file_read` range message. Where a
 Legacy tool supplies a classified error code, it is shown; where it
-supplies none, the code column says "—" and the Ycode port must leave
+supplies none, the code column says "—" and the SwiftCode port must leave
 the code absent.
 
 ### 8.1 Missing / invalid arguments
@@ -639,7 +639,7 @@ absolute paths anywhere on disk (§2.5).
   session states expose which capabilities, the phase gate) is out of
   scope; only the per-tool `requiredPermission` derivation is
   specified here.
-- Ycode's own MCP write policy (`ycode mcp --allow-writes`, the
+- SwiftCode's own MCP write policy (`swiftcode mcp --allow-writes`, the
   read-only server mode) gates the three `writes: true` tools; the
   exact user-facing behaviour when writes are disallowed is defined
   by the MCP server, not by this spec.

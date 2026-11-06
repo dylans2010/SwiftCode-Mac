@@ -14,7 +14,7 @@ import SwiftUICore
 // A `Button` hands its label, role and action to the `PrimitiveButtonStyle`
 // in the environment (`buttonStyle(_:)`); a `ButtonStyle` is wrapped in the
 // standard press behaviour (pressed state, release inside, focus, Space and
-// Return). Look: Ycode's palette (ControlSupport.swift; 09 §4.2).
+// Return). Look: SwiftCode's palette (ControlSupport.swift; 09 §4.2).
 
 // MARK: - Role
 
@@ -229,7 +229,7 @@ struct ButtonBehavior<Content: View>: View {
 // MARK: - Built-in styles
 
 /// Padding of bordered buttons per control size (golden: regular 12 × 7,
-/// large 20 × 15; the other sizes are Ycode's).
+/// large 20 × 15; the other sizes are SwiftCode's).
 func borderedPadding(_ size: ControlSize) -> (h: CGFloat, v: CGFloat) {
     switch size {
     case .mini: return (7, 2)
@@ -432,7 +432,7 @@ public struct ButtonBorderShape: Equatable, Sendable, Shape {
         }
     }
 
-    /// The automatic shape is a capsule (Ycode's choice for every size).
+    /// The automatic shape is a capsule (SwiftCode's choice for every size).
     func resolvedShape(controlSize: ControlSize) -> AnyShape {
         switch kind {
         case .automatic, .capsule: return AnyShape(Capsule())

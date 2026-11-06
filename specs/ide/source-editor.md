@@ -1,8 +1,8 @@
 # Source editor
 
-Ycode module: `YcodeUI` (`SourceEditorController`, `GutterView`,
-`Theme`), `YcodeSyntax` (tokens, structure, typing rules; portable) and
-`YcodeIDECore` (`SourceTokenizer`, the settings). See "Ycode
+SwiftCode module: `SwiftCodeUI` (`SourceEditorController`, `GutterView`,
+`Theme`), `SwiftCodeSyntax` (tokens, structure, typing rules; portable) and
+`SwiftCodeIDECore` (`SourceTokenizer`, the settings). See "SwiftCode
 implementation" at the end.
 
 ## Layout
@@ -45,7 +45,7 @@ rounded label at the line's right end. The stopped line is tinted green.
 
 ⌘/ comments or uncomments the selected lines with the language's comment
 (`// `, `# `, or `<!-- … -->` around the lines; all commented →
-uncomment; "Ycode implementation", Typing). ⌘L (Navigate ▸ Jump to Line in “<file>”…) jumps to a line.
+uncomment; "SwiftCode implementation", Typing). ⌘L (Navigate ▸ Jump to Line in “<file>”…) jumps to a line.
 ⌃⇧⌘M toggles the minimap. ⌘S saves. The rest of the editing commands
 (Move Line Up / Down, Font Size, column selection, …) are in
 `reference-ui-5.md` §6.4.
@@ -81,8 +81,8 @@ hides the bar and the tints.
 
 ## Syntax coloring
 
-Superseded (2026-10-30) by "Ycode implementation" ▸ Highlighting: Swift
-through swift-syntax's parser, eleven languages through Ycode's own line
+Superseded (2026-10-30) by "SwiftCode implementation" ▸ Highlighting: Swift
+through swift-syntax's parser, eleven languages through SwiftCode's own line
 lexers. Colors come from the theme's role colors, else system colors
 (keyword pink semibold, string red, comment secondary label, doc comment
 green, number blue, preprocessor orange, attribute brown, type purple)
@@ -103,14 +103,14 @@ rounded tint (stronger when the token is selected).
 - A click inside a token selects the whole token.
 - Inserting a Library snippet or accepting a completion selects the first
   placeholder of the inserted text. Completion items in LSP snippet form
-  (`insertTextFormat` 2; Ycode announces `snippetSupport`) are converted:
+  (`insertTextFormat` 2; SwiftCode announces `snippetSupport`) are converted:
   `${n:text}` → `<#text#>`, `$n` / `${n}` → `<#value#>`, `$0` dropped,
   `\$` → `$`.
 
 ## Editing performance
 
 - Each edit re-colors only the lines whose tokens changed
-  (`SyntaxDocument`, "Ycode implementation" ▸ Highlighting). Block
+  (`SyntaxDocument`, "SwiftCode implementation" ▸ Highlighting). Block
   comment and multi-line string markers no longer force a full pass.
 - The line index (line starts) is updated for each edit instead of being
   rebuilt: starts inside the edited range are replaced by those of the
@@ -132,17 +132,17 @@ ribbon in the gutter for the open file, from the newest test report with
 coverage (the scheme's test action gathers it, `testing.md`). Each
 executable line gets a strip just left of the change bars: red where the
 line never ran, faint grey where it ran. Line counts: projects from
-ycodebuild's coverage summary (`lines`, one count per line, -1 for lines
-that are not executable; `YcodeXcodebuild` `Coverage.summaryJSON`);
+swiftcodebuild's coverage summary (`lines`, one count per line, -1 for lines
+that are not executable; `SwiftCodeXcodebuild` `Coverage.summaryJSON`);
 packages from llvm-cov's export segments through LLVM's line-coverage
-rules (`Coverage.lineCounts`). The look is Ycode's (the reference's
+rules (`Coverage.lineCounts`). The look is SwiftCode's (the reference's
 ribbon, with its execution counts, was not observed). Tests:
 `IDEQuickWinsTests.coverageLines`, `IDEQuickWinsUITests.codeCoverageRibbon`.
 
-## Ycode implementation
+## SwiftCode implementation
 
-Ycode's own design (2026-10-30, EDITOR-TYPING). The text rules below are
-in the portable `YcodeSyntax` module, which builds and tests on macOS and
+SwiftCode's own design (2026-10-30, EDITOR-TYPING). The text rules below are
+in the portable `SwiftCodeSyntax` module, which builds and tests on macOS and
 Linux; the macOS editor (`SourceEditorController+Typing.swift`) applies
 them, and the Linux editor (EditorKit, `docs/PARITY.md` §5.3) will too.
 
@@ -350,25 +350,25 @@ to an editable file with one selection and no input-method composition.
 
 ### Settings (Editing ▸ Indentation)
 
-Ycode's own rows and defaults (the reference's page is still to observe,
+SwiftCode's own rows and defaults (the reference's page is still to observe,
 `reference-ui-5.md` §12): Prefer indent using Spaces / Tabs (Spaces),
 Tab width (4), Indent width (4; with tabs one step is one tab), Tab key
 (Indents in leading whitespace / Indents always / Inserts indentation),
 Syntax-aware indenting (on), Automatically insert closing brackets and
 quotes (on), Enclose selection in matching delimiters (on). Stored under
-`Ycode.indentWithTabs`, `Ycode.tabWidth`, `Ycode.indentWidth`,
-`Ycode.tabKey`, `Ycode.autoIndent`, `Ycode.autoInsertClosers`,
-`Ycode.encloseSelection`.
+`SwiftCode.indentWithTabs`, `SwiftCode.tabWidth`, `SwiftCode.indentWidth`,
+`SwiftCode.tabKey`, `SwiftCode.autoIndent`, `SwiftCode.autoInsertClosers`,
+`SwiftCode.encloseSelection`.
 
 ### Scope guides and invisibles
 
 - Editor ▸ Scope Guides toggles Editing ▸ Display ▸ Scope guides between
-  None (default) and Lines (Ycode's own choice): a thin line down each
+  None (default) and Lines (SwiftCode's own choice): a thin line down each
   block spanning three or more lines, from below its first line to above
   its last, half a character in from the column where the first line's
   text starts. In large files the guides update with the folds, after
   typing pauses.
-- Editor ▸ Invisibles (a user setting, `Ycode.showInvisibles`, default
+- Editor ▸ Invisibles (a user setting, `SwiftCode.showInvisibles`, default
   off) draws `·` for spaces, `→` for tabs and `¬` at line ends in the
   visible lines, in the tertiary label color.
 
@@ -376,12 +376,12 @@ quotes (on), Enclose selection in matching delimiters (on). Stored under
 
 | Dependency | Use | License |
 |---|---|---|
-| swift-syntax 604.0.0 (`SwiftSyntax`, `SwiftParser`, `SwiftIDEUtils`), pinned exactly in `ycode/Package.swift` | Swift parsing, incremental reparse, syntax classification | Apache-2.0 |
+| swift-syntax 604.0.0 (`SwiftSyntax`, `SwiftParser`, `SwiftIDEUtils`), pinned exactly in `swiftcode/Package.swift` | Swift parsing, incremental reparse, syntax classification | Apache-2.0 |
 
 tree-sitter (MIT) was considered for the other languages and not used:
 each grammar is a generated C parser of several megabytes to vendor and
 build on three hosts, and these languages' highlighting needs are
-lexical. Ycode's line lexers are written from the languages' public
+lexical. SwiftCode's line lexers are written from the languages' public
 specifications (Evidence) and carry their state per line, which gives the
 incremental behavior directly. A grammar can still replace a lexer behind
 the same `LineLexer` interface later.
@@ -391,7 +391,7 @@ the same `LineLexer` interface later.
 A generated 20,000-line Swift file (`SyntaxBenchmark.swiftSource`), this
 Mac (arm64), 2026-10-30.
 
-Optimized build (`swift build -c release --product ycode-syntax-bench`):
+Optimized build (`swift build -c release --product swiftcode-syntax-bench`):
 
 | Measurement | Time |
 |---|---|
@@ -428,7 +428,7 @@ component waits for the typing pause, as folds do.
   structure), C and Objective-C public documentation (level 1).
 - Xcode's default light theme colours and the editor's text metrics were
   measured in council round 1 (`editor-area.md` §C.1–§C.4, level 3). The
-  font size is to confirm at 2x. Whether Ycode's default theme adopts
+  font size is to confirm at 2x. Whether SwiftCode's default theme adopts
   these colours is the owner's decision (`fidelity-council.md`); until
   then ours are our own choices.
 - OPEN QUESTION: annotation placement and wording.
@@ -438,7 +438,7 @@ component waits for the typing pause, as folds do.
   (skipped while the find bar is shown).
 - Jump bar (reference-ui.md §3, level 3): after the file, a symbol
   component naming the innermost declaration at or before the caret's
-  line (Ycode's approximation by declaration start lines), "No Selection"
+  line (SwiftCode's approximation by declaration start lines), "No Selection"
   when there is none.
 - Find bar commands and shortcuts: Apple's public Xcode Help and shortcut
   reference (level 1). OPEN QUESTION: the bar's exact layout and the
@@ -452,8 +452,8 @@ component waits for the typing pause, as folds do.
   the Language Server Protocol specification (level 1). OPEN QUESTION: the
   reference token colors and shape, and whether Return on an unselected
   token does anything.
-- "Ycode implementation" (2026-10-30): the typing rules, indentation
-  rules, settings, theme mapping, scope guides and invisibles are Ycode's
+- "SwiftCode implementation" (2026-10-30): the typing rules, indentation
+  rules, settings, theme mapping, scope guides and invisibles are SwiftCode's
   own design. Lexical rules from public specifications (level 1): The
   Swift Programming Language, "Lexical Structure"; the C and C++
   standards' public drafts; Apple's public Objective-C and Metal Shading

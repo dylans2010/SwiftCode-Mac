@@ -1,12 +1,12 @@
-# Ycode Scene Composer (core and CLI)
+# SwiftCode Scene Composer (core and CLI)
 
-The platform-neutral core of the Ycode Scene Composer, a scene editor for
+The platform-neutral core of the SwiftCode Scene Composer, a scene editor for
 RealityKit content that runs on Linux and macOS, and its command-line tool
-`ycode-scene`. Design: `docs/SCENE-COMPOSER.md`; Ycode decisions:
-`specs/tools/scene-composer/ycode-design.md`. Clean-room code: behaviour of
+`swiftcode-scene`. Design: `docs/SCENE-COMPOSER.md`; SwiftCode decisions:
+`specs/tools/scene-composer/swiftcode-design.md`. Clean-room code: behaviour of
 the reference comes only from `specs/tools/scene-composer/`.
 
-Depends on `../frameworks/usd` (package `ycode-usd`) by path; no other
+Depends on `../frameworks/usd` (package `swiftcode-usd`) by path; no other
 dependencies.
 
 ## Modules
@@ -14,25 +14,25 @@ dependencies.
 | Module | Content |
 |---|---|
 | `SceneComposerCore` | `SceneDocument` (edit target layer, composed stage, selection, undo/redo of spec deltas, grouping, change observers, open/save), edits (create, delete/deactivate, rename, reparent, duplicate, copy/paste, attributes and time samples, metadata, transforms, references, variant selections, material binding, components), `Xform`/`TRS`/`Matrix4`/`Quat` (USD conventions), `ComponentCatalogue` + `RealityKitComponentStorage`, `SceneValidator` |
-| `SceneComposerCLI` | the `ycode-scene` commands, callable from tests |
-| `ycode-scene` | the executable |
+| `SceneComposerCLI` | the `swiftcode-scene` commands, callable from tests |
+| `swiftcode-scene` | the executable |
 
-## `ycode-scene`
+## `swiftcode-scene`
 
-    ycode-scene info <file>
-    ycode-scene tree <file> [--layer] [--all] [--components]
-    ycode-scene cat <file> [--flatten] [--sorted]
-    ycode-scene convert <input> <output> [--flatten] [--format usda|usdc|usdz]
-    ycode-scene validate <file> [--strict]
-    ycode-scene edit <file> [-o <output>] <operation>...
-    ycode-scene components
+    swiftcode-scene info <file>
+    swiftcode-scene tree <file> [--layer] [--all] [--components]
+    swiftcode-scene cat <file> [--flatten] [--sorted]
+    swiftcode-scene convert <input> <output> [--flatten] [--format usda|usdc|usdz]
+    swiftcode-scene validate <file> [--strict]
+    swiftcode-scene edit <file> [-o <output>] <operation>...
+    swiftcode-scene components
 
 Example:
 
-    ycode-scene edit Scene.usda \
+    swiftcode-scene edit Scene.usda \
         --add-prim /Root/Ball Sphere --set /Root/Ball.radius double 0.25 \
         --translate /Root/Ball 0 1 0 --add-component /Root/Ball RealityKit.Collider
-    ycode-scene validate Scene.usda && ycode-scene convert Scene.usda Scene.usdz
+    swiftcode-scene validate Scene.usda && swiftcode-scene convert Scene.usda Scene.usdz
 
 ## Tests
 

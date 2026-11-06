@@ -2,21 +2,21 @@
 
 Part of `specs/frameworks/weatherkit/`.
 
-> **Ycode-original design note.** Nothing in this file describes Apple's
+> **@@SWIFTCODE_ORIGINAL@@ design note.** Nothing in this file describes Apple's
 > implementation. It is our proposal for an open-source, Linux-buildable
 > WeatherKit that is source-compatible with the API in `api.md`, and for how
-> Ycode's simulator relates to it.
+> SwiftCode's simulator relates to it.
 
 ## 1. Goals and targets
 
 1. **Open WeatherKit for Linux** (and macOS), a Swift package exposing module
    `WeatherKit` with the names, shapes and semantics of `api.md`, so that
    weather code from an iOS app compiles and runs on Linux.
-2. **Simulator parity first**: in Ycode's iOS simulator, apps keep using
-   **Apple's own** WeatherKit from the runtime; Ycode provides the services of
+2. **Simulator parity first**: in SwiftCode's iOS simulator, apps keep using
+   **Apple's own** WeatherKit from the runtime; SwiftCode provides the services of
    `simulator-baseline.md` §6 and `location.md` §6. No replacement framework
    is needed for parity.
-3. Optional later: a **guest drop-in** WeatherKit for Ycode's simulator with a
+3. Optional later: a **guest drop-in** WeatherKit for SwiftCode's simulator with a
    fixture backend ("simulated weather"), for deterministic UI tests and for
    users without an Apple developer account (`plan.md` R8). It needs Swift
    ABI compatibility (same mangled names, resilient layouts), so it reuses
@@ -81,12 +81,12 @@ Wetterdienst open data, MeteoAlarm feeds (terms vary by member service).
 |---|---|
 | `SunEvents` | compute locally: solar position from the standard published equations (e.g. NOAA's solar calculator method, Meeus); dawn/dusk at −18°, −12°, −6°; sunrise/sunset at −0.833°; nil when the sun does not cross the threshold |
 | `MoonEvents` | moon phase from the synodic month and a published new-moon epoch, binned into the eight phases; moonrise/moonset from a low-precision lunar position algorithm |
-| `WeatherCondition` | Ycode table from WMO weather codes (Open-Meteo), MET symbol codes, or NWS icons, refined by wind (breezy/windy thresholds) and temperature (hot/frigid thresholds) |
-| `symbolName` | Ycode table (condition × daylight → SF Symbols name); align with Apple's choices once W-DATA shows them |
+| `WeatherCondition` | SwiftCode table from WMO weather codes (Open-Meteo), MET symbol codes, or NWS icons, refined by wind (breezy/windy thresholds) and temperature (hot/frigid thresholds) |
+| `symbolName` | SwiftCode table (condition × daylight → SF Symbols name); align with Apple's choices once W-DATA shows them |
 | `apparentTemperature` | from the backend when present, else heat index / wind chill from published formulas |
 | `UVIndex.category`, `Wind.compassDirection` | ranges of `api.md` §3.8; 16 sectors of 22.5° centred on north |
-| `pressureTrend` | sign of the 3-hour pressure change with a ±1 hPa dead band (Ycode choice) |
-| `WeatherChanges` | compare each day with the previous one; thresholds are a Ycode choice, documented in code |
+| `pressureTrend` | sign of the 3-hour pressure change with a ±1 hPa dead band (SwiftCode choice) |
+| `WeatherChanges` | compare each day with the previous one; thresholds are a SwiftCode choice, documented in code |
 | statistics, summaries, `HistoricalComparisons` | from a historical archive (Open-Meteo archive/climate APIs) over a fixed 30-year baseline; percentiles and means computed locally; `baselineStartDate` = baseline start |
 | minute forecasts | only from Apple REST (`forecastNextHour`); open backends report minute availability `unsupported` and return nil |
 | alerts | Apple REST or NWS (CAP fields → `WeatherAlert`: headline → `summary`, sender → `source`, area → `region`, severity map); elsewhere availability `unsupported` |
@@ -105,16 +105,16 @@ Wetterdienst open data, MeteoAlarm feeds (terms vary by member service).
 - Errors: authentication failures → `WeatherError.permissionDenied`; other
   service errors → `.unknown`; transport errors passed through
   (`behavior.md` §4). Reversed date ranges trap, as in the reference.
-- Localization: Ycode's own string tables for `description` and
+- Localization: SwiftCode's own string tables for `description` and
   `accessibilityDescription` (English values of `behavior.md` §6 as the
   base).
 
 ## 7. Simulator integration
 
-- Parity path (default): nothing replaced; Ycode supplies network, per-app
+- Parity path (default): nothing replaced; SwiftCode supplies network, per-app
   XPC services, entitlement sections, GEO, locationd simulation and tccd.
-- Ycode's host CLI mirrors `simctl location` (`set`, `start`, `run`,
-  `clear`, `list`) with **Ycode-recorded** scenarios and the same
+- SwiftCode's host CLI mirrors `simctl location` (`set`, `start`, `run`,
+  `clear`, `list`) with **SwiftCode-recorded** scenarios and the same
   interpolation rules, and `simctl privacy` for location.
 - Optional "simulated weather" (R8): the drop-in framework serves fixtures
   chosen from the host, the way simulated location works.

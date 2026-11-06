@@ -2,26 +2,26 @@
 
 Status: **implemented, off by default; a development option** (agent L,
 2026-10-17; agent SVC-FULL, 2026-10-27: IDE runs no longer turn it on by
-default, §9). It describes how Ycode can make the guest do less work while
+default, §9). It describes how SwiftCode can make the guest do less work while
 it boots, without losing what a developer needs: the home screen, app
-install, app launch and normal app behavior. `ycode-simd` and the harness
-boot every service unless `YCODE_LEAN_BOOT` asks otherwise; since
+install, app launch and normal app behavior. `swiftcode-simd` and the harness
+boot every service unless `SWIFTCODE_LEAN_BOOT` asks otherwise; since
 2026-10-27 the IDE does too (`specs/ide/run.md`, Lean boot off by default).
 
 Facts come from the runtime's job plists read as data files (level 2),
 from black-box runs of the Mac's simulator through `xcrun simctl` on a
 throwaway device (level 3), from the public `launchctl(1)` and
-`launchd.plist(5)` manual pages (level 1), and from Ycode boots on the Thor
+`launchd.plist(5)` manual pages (level 1), and from SwiftCode boots on the Thor
 (level 3). No disassembly or decompilation was used.
 
 Terms are as in `launchd-sim.md`: **RR** (RuntimeRoot), **DEV** (the device
 directory), **TMP** (launchd_sim's per-device temporary directory,
-`/private/var/tmp/com.apple.CoreSimulator.SimDevice.<UDID>`; on Ycode the
+`/private/var/tmp/com.apple.CoreSimulator.SimDevice.<UDID>`; on SwiftCode the
 host path `DEV/private-var-tmp/<that name>`).
 
 ## 1. Why the boot does a lot of work
 
-A Ycode boot runs the guest's own daemons. The boot is bound by the
+A SwiftCode boot runs the guest's own daemons. The boot is bound by the
 global kernel lock (`stage6-contract.md`, the speed ledger), so the time
 to the home screen follows the total amount of guest work more than the
 cost of any one trap. Making a trap cheaper did not move the boot time;
@@ -48,14 +48,14 @@ How a job comes to run (launchd.plist(5) keys, counted over the plists):
 | Off in the plist | `Disabled` true, or a feature-flag condition dictionary | 10 (`com.apple.locate`, `com.apple.resourcegrabberd`, flag-gated ones) |
 
 `TMP/launchd.log` gives the reason for every start ("Successfully spawned
-`<name>`[pid] because `<reason>`"). In one 900 s Ycode boot (integration
+`<name>`[pid] because `<reason>`"). In one 900 s SwiftCode boot (integration
 branch, 2026-10-17) about 250 jobs started. Reasons were `ipc (mach)`,
 `xpc event`, `launch job demand`, `speculative`, `event publisher`,
 `system support` and `inefficient`.
 
 ### 1.2 Where the guest work goes
 
-Per-process trap counts from the exit summary of three 900 s Ycode boots
+Per-process trap counts from the exit summary of three 900 s SwiftCode boots
 (level 3; mean per boot, about 30.7 M traps in all):
 
 | Process | Traps per boot | Share | Starts per boot | Started because |
@@ -78,17 +78,17 @@ The first four processes alone are 46 % of all traps. Their worker
 threads loop many times a second. Every restart also costs a process
 spawn and an exec.
 
-## 2. Switches (Ycode)
+## 2. Switches (SwiftCode)
 
 | Variable | Values | Effect |
 |---|---|---|
-| `YCODE_LEAN_BOOT` | unset/`0` (default): off; `1` or `daemons`: §3; `logging`: §4.4; `all`: both | the profile |
-| `YCODE_LEAN_BOOT_DISABLE` | `label,label` | more labels to disable (with `daemons`/`all`) |
-| `YCODE_LEAN_BOOT_KEEP` | `label,label` | labels taken off the list |
-| `YCODE_DEVICE_TEMPLATE` | a golden device directory | §5 |
+| `SWIFTCODE_LEAN_BOOT` | unset/`0` (default): off; `1` or `daemons`: §3; `logging`: §4.4; `all`: both | the profile |
+| `SWIFTCODE_LEAN_BOOT_DISABLE` | `label,label` | more labels to disable (with `daemons`/`all`) |
+| `SWIFTCODE_LEAN_BOOT_KEEP` | `label,label` | labels taken off the list |
+| `SWIFTCODE_DEVICE_TEMPLATE` | a golden device directory | §5 |
 
-When the profile is on, `ycode-simd` prints one line, for example
-`ycode-simd: lean boot: 23 jobs disabled, 40 log subsystems off`.
+When the profile is on, `swiftcode-simd` prints one line, for example
+`swiftcode-simd: lean boot: 23 jobs disabled, 40 log subsystems off`.
 
 ## 3. Disabled jobs
 
@@ -121,10 +121,10 @@ service will fail"). Black-box on the Mac (throwaway iOS 27.1 device):
 `launchd-sim.md` §4.2 already names the file. `false` for a label means
 enabled (`launchctl enable`), and it wins over the plist's `Disabled` key.
 
-**Ycode.** With `daemons` or `all`, `ycode-simd` creates TMP itself before
+**SwiftCode.** With `daemons` or `all`, `swiftcode-simd` creates TMP itself before
 the boot (mode 0700, the mode launchd_sim gives it) and writes
 `TMP/disabled.plist` with every label of the profile set to `true`. An
-explicit `false` already present stays (§3.3: Ycode's TMP is new for each
+explicit `false` already present stays (§3.3: SwiftCode's TMP is new for each
 boot today, so there is none yet). Nothing in RR is changed and no job
 plist is copied.
 
@@ -155,10 +155,10 @@ With the list: Spotlight search on the home screen, Siri, suggestions
 for apps, HomeKit, a paired watch, FaceTime message storage, and on-device
 media/photo analysis. App code that talks to these services gets the same
 failure as on a device where the service is missing (lookup error 3). A
-developer who needs one adds its label to `YCODE_LEAN_BOOT_KEEP`.
+developer who needs one adds its label to `SWIFTCODE_LEAN_BOOT_KEEP`.
 
-Ycode differs from the Mac in one point that the profile does not change:
-Ycode moves the previous boot's TMP aside at every boot
+SwiftCode differs from the Mac in one point that the profile does not change:
+SwiftCode moves the previous boot's TMP aside at every boot
 (`DeviceMode.swift`, `prepare()`), so a `launchctl disable` made by a user
 inside the guest lasts for one boot only. On the Mac it lasts until the
 device is erased.
@@ -190,12 +190,12 @@ PRIVATE_DATA`.
 ### 4.3 What breaks the boot: `OS_ACTIVITY_MODE=disable`
 
 `OS_ACTIVITY_MODE=disable` is a publicly documented environment variable
-(the usual Xcode scheme variable to silence os_log). A Ycode boot with it in
+(the usual Xcode scheme variable to silence os_log). A SwiftCode boot with it in
 `Bootstrap.Child` (every launchd child gets it), together with §3, did not
 reach the home screen: SpringBoard aborted 17 times with an uncaught
 `NSInvalidArgumentException` ("-[__NSSetM addObject:]: object cannot be
 nil"), 369 fatal guest conditions against 40 without it (level 3, run
-`all1`, 2026-10-17). Ycode does not use it.
+`all1`, 2026-10-17). SwiftCode does not use it.
 
 ### 4.4 The mechanism: per-subsystem level off
 
@@ -206,7 +206,7 @@ works in the simulator (exit 0) and writes
     { "DEFAULT-OPTIONS" = { "Level" = { "Enable" = "off"; "Persist" = "off"; }; }; }
 
 This is the documented per-subsystem configuration of log(1); the same
-directory already holds Ycode harness files that raise levels.
+directory already holds SwiftCode harness files that raise levels.
 
 The busiest subsystems were taken from a Mac simulator boot of the same
 runtime (`log show --last 10m --info --style ndjson` right after boot,
@@ -215,9 +215,9 @@ runtime (`log show --last 10m --info --style ndjson` right after boot,
 the messages; 15 % had no subsystem. The list is in
 `LeanBootProfile.loggingOffSubsystems`.
 
-**Ycode.** With `logging` or `all`, `ycode-simd` writes the level-off file
+**SwiftCode.** With `logging` or `all`, `swiftcode-simd` writes the level-off file
 for each listed subsystem that has no file yet, and records the names in
-`DEV/ycode-lean-logging.txt`. A boot without the profile removes the
+`DEV/swiftcode-lean-logging.txt`. A boot without the profile removes the
 recorded files that still hold exactly that content. A file someone else
 wrote is never changed.
 
@@ -225,7 +225,7 @@ Not established: whether level off stops a process from sending the
 messages to diagnosticd's system-mode client. On the Mac, an active
 `log stream --level debug` client still received messages of a subsystem
 after it was set to level off (processes already running, a client that
-asks for debug). §7 measures the effect under Ycode.
+asks for debug). §7 measures the effect under SwiftCode.
 
 What a developer loses: the listed Apple subsystems' messages in `log
 show`/`log stream` in the guest. App subsystems are not touched.
@@ -248,18 +248,18 @@ On the Mac, `xcrun simctl clone <source> <name>` (source shut down):
 The clone boots; `com.apple.migration.plist` came with the data, so the
 first-boot migration chain (`first-boot.md`) does not run again.
 
-### 5.2 Ycode
+### 5.2 SwiftCode
 
-`YCODE_DEVICE_TEMPLATE=<golden DEV>`: when DEV has no `data` directory
-yet, `ycode-simd` copies `<golden DEV>/data` to `DEV/data` before
+`SWIFTCODE_DEVICE_TEMPLATE=<golden DEV>`: when DEV has no `data` directory
+yet, `swiftcode-simd` copies `<golden DEV>/data` to `DEV/data` before
 preparing the device (`cp -a --reflink=auto` on Linux: modes and times
-kept, shared blocks where the file system allows). Ycode derives the UDID
+kept, shared blocks where the file system allows). SwiftCode derives the UDID
 from the DEV path (`DeviceLayout.stableUDID`), so the copy gets a new
 identity, as with `simctl clone`. A DEV that already has `data` is never
 overwritten.
 
 A golden device records its runtime build and device type
-(`DEV/ycode-runtime`, `DEV/ycode-device-type`; `ipad.md` §9.2): another
+(`DEV/swiftcode-runtime`, `DEV/swiftcode-device-type`; `ipad.md` §9.2): another
 type is refused, another build warned about. Making a golden device, once per runtime build: boot a new DEV to the home
 screen (the first boot pays the data migration, about 10 minutes on the
 Thor), let it end, and keep that DEV unchanged as the template. Every
@@ -274,8 +274,8 @@ an app launch, the device directory has no file or directory whose name
 contains `dyld` and no `*.closure` file; the simulator's dyld uses the
 runtime's shared cache (`DYLD_SHARED_CACHE_DIR`,
 `RR/System/Library/Caches/com.apple.dyld/dyld_sim_shared_cache_arm64*`,
-present on the Thor). The Ycode golden device has none either. There is no
-closure store for Ycode to provide.
+present on the Thor). The SwiftCode golden device has none either. There is no
+closure store for SwiftCode to provide.
 
 ## 7. Measurements
 
@@ -284,7 +284,7 @@ Thor harness (`SX/bin/bench.sh`), CPU governor `performance`, device in RAM
 2026-10-17 01:48–04:15, interleaved with other agents' boots. Base: main
 line + speed-int 28ef252 (select, SCDynamicStore host, diagnosticd host
 socket off); the cooperative-workqueue change is not in it. Same binary for
-each comparison, profile switched by `YCODE_LEAN_BOOT` only. `home_s` has a
+each comparison, profile switched by `SWIFTCODE_LEAN_BOOT` only. `home_s` has a
 5 s granularity; traps and process images are per 700 s run.
 
 | Profile | Runs | home_s | Mean | Guest traps (M) | Process images | guest_fatal |
@@ -299,25 +299,25 @@ each comparison, profile switched by `YCODE_LEAN_BOOT` only. `home_s` has a
   replicatord aborts that the base has too.
 - **Logging (on top of daemons).** diagnosticd's traps fall from
   1.66–1.69 M to 0.92–1.14 M (−40 %) and Mach messages per run from
-  about 500 k to about 400 k (`YCODE_DEBUG_MACH_STATS=1`, msd1/msa1;
+  about 500 k to about 400 k (`SWIFTCODE_DEBUG_MACH_STATS=1`, msd1/msa1;
   runningboardd → diagnosticd 42.9 k → 27.2 k, SpringBoard 25.2 k →
   14.9 k). Against the paired `daemons` runs on the same binary (d4, d5,
   msd1: 325, 300, 260) the home time is 265 against 295, within the noise
   of n = 3. So level off does reduce the stream to diagnosticd (§4.4,
-  answered for Ycode), but the boot-time effect is small.
+  answered for SwiftCode), but the boot-time effect is small.
 - **Home screen and apps.** Every `daemons` and `all` run reached the
   wallpapered home screen (frames checked: dock icons, Settings, Safari).
-  With `daemons`, the probe app (`--install-app YcodeProbe.app --launch
-  dev.ycode.probe`, run dapp1) installed and launched; it printed its
+  With `daemons`, the probe app (`--install-app SwiftCodeProbe.app --launch
+  dev.swiftcode.probe`, run dapp1) installed and launched; it printed its
   device information (UIKit `iOS 27.1`) and ran until the end of the run.
 - `OS_ACTIVITY_MODE=disable` (§4.3): home screen not reached.
 - **The Mac.** The same 23 labels on the Mac's simulator (same runtime
   and device type) do not change the time to the home screen there
-  (subsequent boot: full 21.4 s, lean 24.3 s, n = 4 each). Ycode is 23.8
+  (subsequent boot: full 21.4 s, lean 24.3 s, n = 4 each). SwiftCode is 23.8
   times slower than the Mac without the profile and 11.7 times with it.
   Of the restart loops in §1.2, intelligencetasksd and mlhostd also loop
   on the Mac; proactiveeventtrackerd, facetimemessagestored, pairedsyncd
-  and searchd loop only on Ycode. `parity-ladder.md` has the method, the
+  and searchd loop only on SwiftCode. `parity-ladder.md` has the method, the
   numbers and the ladder that re-enables the services one at a time.
 
 ## 8. Recommendation
@@ -325,27 +325,27 @@ each comparison, profile switched by `YCODE_LEAN_BOOT` only. `home_s` has a
 Boot every service (no profile): that is parity with the Mac, whose
 simulator boots every service, and since the scheduling work
 (`scheduling-policy.md` §4.2, §7.5) and the service fixes
-(`service-fidelity.md`) it costs Ycode about 1 s to the home screen (§9).
-`YCODE_LEAN_BOOT=daemons` (or `all`) stays as a development option for
+(`service-fidelity.md`) it costs SwiftCode about 1 s to the home screen (§9).
+`SWIFTCODE_LEAN_BOOT=daemons` (or `all`) stays as a development option for
 boots that do not need Spotlight, Siri, suggestions, HomeKit or a paired
 watch and want less guest work after the home screen (for example a
 profiling run that should not see those services); it removes services
-that an app under development may use, and `YCODE_LEAN_BOOT_KEEP` brings
+that an app under development may use, and `SWIFTCODE_LEAN_BOOT_KEEP` brings
 any of them back. Benchmarks against the Mac are full boots
 (`parity-ladder.md`).
 
 ## 9. Full boot as the IDE default (agent SVC-FULL, 2026-10-27)
 
-From 2026-10-17 to 2026-10-27 IDE runs used `YCODE_LEAN_BOOT=daemons` by
+From 2026-10-17 to 2026-10-27 IDE runs used `SWIFTCODE_LEAN_BOOT=daemons` by
 default (Settings ▸ Simulators ▸ Lean boot, on), because a full boot then
 took 455–560 s to the home screen against 260–325 s lean (§7). On the
 main line of 2026-10-27 (5f74ef9) the difference is about 1 s:
 
-Thor, `SX/bin/timed.sh` around the series (no other `ycode-simd`, load
+Thor, `SX/bin/timed.sh` around the series (no other `swiftcode-simd`, load
 under 4 at the start), one copy of the golden device at its own path,
 booted once before the series, cold boots with the default switches
 (start hold, boot priority), arms alternated each round, home from the
-home watch (`YCODE_HOME_WATCH`), 5 s held after home (series
+home watch (`SWIFTCODE_HOME_WATCH`), 5 s held after home (series
 `svcfull` T, 13:30–13:39):
 
 | Arm | n | home_s each | median | mean ± sd | range | guest fatal by home + 5 s |
@@ -358,7 +358,7 @@ home watch (`YCODE_HOME_WATCH`), 5 s held after home (series
   5.2–6.6 s per full boot against 4.6–5.1 s lean (exit summaries).
 - Against the Mac (`parity-ladder.md` §3.4, subsequent boot, r3): full
   30.3 s against 21.4 s (1.42 ×), lean 29.3 s against 24.3 s (1.21 ×).
-  Ycode's full ÷ lean is 1.04; the Mac's is 0.88 in r3 and 1.02 pooled
+  SwiftCode's full ÷ lean is 1.04; the Mac's is 0.88 in r3 and 1.02 pooled
   over r1–r3 (by the means), so the shape test of `parity-ladder.md`
   §4.1 (≤ the Mac's + 0.10) passes against the pooled Mac numbers and
   misses by 0.06 against r3 alone, within the Mac's own spread.
@@ -377,25 +377,25 @@ So the IDE's default is now a full boot (`specs/ide/run.md`): Lean boot is
 a checkbox that is off by default, and a stored `true` from the old
 default is not carried over. Warm-boot snapshots of a lean boot and of a
 full boot are never shared: the launcher's fingerprint includes the
-`YCODE_LEAN_BOOT*` variables (`run.md` §Warm boot, item 2).
+`SWIFTCODE_LEAN_BOOT*` variables (`run.md` §Warm boot, item 2).
 
 ## Evidence
 
 | Claim | Level |
 |---|---|
 | Job counts and launch keys (§1.1, §3.2) | 2 (RR job plists read as data, `plistlib`) |
-| Start reasons, `nanoregistrylaunchd` enabling the Nano jobs (§1.1) | 3 (`TMP/launchd.log` of Ycode boots, read as a format) |
-| Per-process traps and restart counts (§1.2) | 3 (Ycode exit summaries, three 900 s boots) |
+| Start reasons, `nanoregistrylaunchd` enabling the Nano jobs (§1.1) | 3 (`TMP/launchd.log` of SwiftCode boots, read as a format) |
+| Per-process traps and restart counts (§1.2) | 3 (SwiftCode exit summaries, three 900 s boots) |
 | `launchctl disable` writes `TMP/disabled.plist`, label → true; survives shutdown; disabled jobs not loaded; hand-written file honored; lookups fail with error 3; home screen and app launch still work (§3.1) | 3 (`xcrun simctl` on a throwaway device, file diffs, `launchctl print-disabled`, `launchctl list`, screenshots) |
 | `launchctl disable`/`enable` semantics | 1 (launchctl(1)) |
 | `Disabled` plist key | 1 (launchd.plist(5)); 2 (RR plists) |
 | `log config --mode` refused in the simulator; `STREAM_LIVE` status; lookup storm without diagnosticd (§4.2) | 3 (`xcrun simctl spawn … log config`, `launchd.log`) |
 | filter plist value on the Mac (§4.1) | 2 (file read as a format) |
 | `OS_ACTIVITY_MODE=disable` (§4.3): the variable | 1 (public developer documentation and forums) |
-| SpringBoard abort loop with it | 3 (Ycode run `all1`) |
+| SpringBoard abort loop with it | 3 (SwiftCode run `all1`) |
 | `log config --subsystem … level:off` file and format; busiest subsystems; stream client still served (§4.4) | 3 (`xcrun simctl spawn … log config`, `log show`, `log stream`, files read as formats) |
 | `simctl clone` copies data with times, new identity, no TMP (§5.1) | 3 (`xcrun simctl clone`, tree diff) |
 | No closure files in a device (§6) | 3 (Mac device tree after boot and app launch) |
-| Boot times, trap and image counts, crash counts, Mach traffic, app install/launch (§7) | 3 (Ycode boots on the Thor, exit summaries, `YCODE_DEBUG_MACH_STATS`) |
+| Boot times, trap and image counts, crash counts, Mach traffic, app install/launch (§7) | 3 (SwiftCode boots on the Thor, exit summaries, `SWIFTCODE_DEBUG_MACH_STATS`) |
 | Full against lean on the 2026-10-27 main line (§9) | 3 (Thor, `ide-remote/svcfull` series T: run logs' home-watch lines and exit summaries) |
-| The IDE default and the settings migration (§9) | Ycode design (`specs/ide/run.md`) |
+| The IDE default and the settings migration (§9) | SwiftCode design (`specs/ide/run.md`) |

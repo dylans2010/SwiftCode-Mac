@@ -6,7 +6,7 @@ simulator runtime (24A94401) and, for comparison, the iOS 27.0 runtime
 (24A434) that still ships the Health app.
 
 Implementation status (2026-10-28): `frameworks/healthkit/` (package
-`ycode-healthkit`: library product `HealthKit`, test target
+`swiftcode-healthkit`: library product `HealthKit`, test target
 `HealthKitTests`). Rounds R2–R5 of `plan.md` are done, with the Swift query
 descriptors of R10; R6–R9, R11 and the rest of R10 are deferred. The package
 README lists what is done, deferred and not started.
@@ -18,7 +18,7 @@ the health store, the object-type model and its identifiers, units, samples
 and their subclasses, metadata, sources and devices, correlations, workouts
 (builder, live session, routes), every query kind and its result semantics,
 authorization and its privacy rules, background delivery and errors. It also
-records what Apple's iOS Simulator does today, which is the baseline Ycode's
+records what Apple's iOS Simulator does today, which is the baseline SwiftCode's
 simulator must match first — HealthKit is an "easy win": it **works fully in
 the reference simulator**, on both runtimes, without any account.
 
@@ -38,12 +38,12 @@ an app; see `interface.md` §8).
 | `queries.md` | Predicates and their interval rules, sorting, limits, anchors and tombstones, observer and long-running queries, statistics options, merging across sources, collection bucketing and proration, background delivery |
 | `authorization.md` | Entitlements, Info.plist keys, the authorization model and status values, read-privacy semantics, the system sheet flow, historical-data range, per-object authorization |
 | `errors.md` | `HKErrorDomain` codes, exceptions and when each is raised |
-| `design.md` | **Ycode-original design note**: an open implementation (daemon split, SQLite storage engine, query engine, authorization store, statistics engine) |
+| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: an open implementation (daemon split, SQLite storage engine, query engine, authorization store, statistics engine) |
 | `plan.md` | Implementation rounds and the conformance-test plan with measured golden values |
 | `identifiers.md` | Generated appendix: every type identifier with string value, aggregation style, unit family and duration limits; metadata keys and other string constants with their values; every enumeration with raw values |
 | `api-inventory.md` | Generated appendix: every class, superclass and member name, with introduction versions |
 
-Simulated health data on the watch and phone simulators (read-only types, the watch's workout generator, sync, the store format, Ycode's health agent and commands): `specs/simulator/health-simulation.md`.
+Simulated health data on the watch and phone simulators (read-only types, the watch's workout generator, sync, the store format, SwiftCode's health agent and commands): `specs/simulator/health-simulation.md`.
 
 Black-box observations: `research/notes/healthkit-simulator-observations-2026-10-19.md`.
 Probe app (our own code): `research/experiments/healthkit/HealthProbe/`.
@@ -61,7 +61,7 @@ Generators: `research/experiments/healthkit/{extract_names,gen_tables,gen_api}.p
 - In the simulator runtime the framework bundle also carries the daemon
   executable (`HealthKit.framework/healthd`), a `PlugIns/` folder of
   diagnostic and notification extensions, a `cda_validation` folder, and two
-  property lists that map UCUM unit codes to HealthKit unit strings. Ycode
+  property lists that map UCUM unit codes to HealthKit unit strings. SwiftCode
   writes its own data; it does not copy these resources.
 - Availability: the API starts at iOS 8.0; members carry their own versions
   (listed in `api-inventory.md`). New in the 27.0 SDK:
@@ -75,7 +75,7 @@ Generators: `research/experiments/healthkit/{extract_names,gen_tables,gen_api}.p
 Level 1: Apple's public HealthKit documentation (summarized in our words,
 never copied). Level 2: file formats of the store (SQLite, as file names and
 sizes only), launchd property lists and app Info.plists in the runtimes.
-Level 3: `HealthProbe` on simulators named `ycode-test-healthkit-*` on iOS
+Level 3: `HealthProbe` on simulators named `swiftcode-test-healthkit-*` on iOS
 27.1 and 27.0. Level 4: public SDK metadata (header and module structure,
 names, enum raw values, availability annotations) — never pasted. Level 5
 (disassembly/decompilation) was **not** used. The reference tools folder,

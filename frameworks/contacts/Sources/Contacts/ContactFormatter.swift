@@ -166,7 +166,7 @@ public class CNContactFormatter: Formatter, @unchecked Sendable {
 
 // MARK: - Name sorting
 
-/// Sort keys (Ycode's reading of interface.md §4.3): each name part is
+/// Sort keys (SwiftCode's reading of interface.md §4.3): each name part is
 /// replaced by its phonetic part when that is set; a contact without given
 /// and family name (or an organization) sorts by its organization name; the
 /// primary part is the family or given name per the order, then the other

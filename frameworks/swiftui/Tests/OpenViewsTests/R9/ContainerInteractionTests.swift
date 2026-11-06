@@ -11,7 +11,7 @@ import Testing
 #endif
 
 // Round R9: list selection and keyboard, outlines and disclosure groups,
-// tabs (06 §2.3), split views (06 §2.2 and Ycode's desktop panes), and the
+// tabs (06 §2.3), split views (06 §2.2 and SwiftCode's desktop panes), and the
 // QA leftover of R8 (a removed spinner row stayed on screen).
 
 struct FileNode: Identifiable, Hashable {

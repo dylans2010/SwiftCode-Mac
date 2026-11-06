@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/healthkit/`. This is what a HealthKit app sees in the
 reference simulator (Xcode 27.1; iOS 27.1 runtime 24A94401 on an iPhone Duo,
-iOS 27.0 runtime 24A434 on an iPhone 18 Pro; Apple-silicon Mac). Ycode's
+iOS 27.0 runtime 24A434 on an iPhone 18 Pro; Apple-silicon Mac). SwiftCode's
 simulator must behave the same way. Statements are level 3 (our probe app
 `research/experiments/healthkit/HealthProbe`, observations in
 `research/notes/healthkit-simulator-observations-2026-10-19.md`) unless
@@ -113,7 +113,7 @@ Per device, under `<device>/data/Library/Health/`:
 | `Journals/`, `CloudSyncJournals/` | empty directories | write journals, cloud sync |
 
 Preferences in `<device>/data/Library/Preferences/com.apple.private.health.*.plist`
-and caches in `Library/Caches/com.apple.healthd`. Ycode does not need to read
+and caches in `Library/Caches/com.apple.healthd`. SwiftCode does not need to read
 or write these formats: its own HealthKit keeps its own store (`design.md`).
 It only needs the guest to give `healthd` a writable, persistent
 `/var/mobile/Library/Health`.
@@ -153,7 +153,7 @@ System UI:
 | `PreferenceBundles/Privacy/HealthPrivacySettings.bundle` | — | Settings → Privacy → Health |
 
 The client talks to `healthd` over XPC; the service name the framework uses is
-not observed directly (inference: `com.apple.healthd.server`). A Ycode guest
+not observed directly (inference: `com.apple.healthd.server`). A SwiftCode guest
 that runs Apple's runtime already gets all of this for free; what it must
 provide is listed in `design.md` §2.
 
@@ -163,8 +163,8 @@ a boot; store calls made in that window waited instead of failing.
 ## 8. Conformance checklist
 
 Each row: the probe phase (`HealthProbe -phase <p>`, variant in brackets) and
-the expected result on the reference. A Ycode simulator (guest with Apple's
-runtime) and a Ycode HealthKit implementation must both produce it. Numbers
+the expected result on the reference. A SwiftCode simulator (guest with Apple's
+runtime) and a SwiftCode HealthKit implementation must both produce it. Numbers
 are exact unless written "≈".
 
 | # | Probe | Expected |

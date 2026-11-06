@@ -1,6 +1,6 @@
 # Comparison (code review) editor
 
-Ycode module: `YcodeUI` (`LineDiff`, `ComparisonView`,
+SwiftCode module: `SwiftCodeUI` (`LineDiff`, `ComparisonView`,
 `GitRepository.headContents`/`diff`, commit-sheet diff pane).
 
 ## Code review editor
@@ -41,12 +41,12 @@ lines green. The first file is selected when the sheet opens.
   whether it compares against HEAD or the index by default, and its
   inline (non side-by-side) presentation.
 
-## Ycode implementation: conflict editor and Compare Files (SCM-BRANCHES, 2026-10-31)
+## SwiftCode implementation: conflict editor and Compare Files (SCM-BRANCHES, 2026-10-31)
 
-Ycode's design; the reference's conflict view and its file-merge tool
+SwiftCode's design; the reference's conflict view and its file-merge tool
 were not observed (open question below).
 
-### Three-way merge (`YcodeIDECore/SourceControl/ThreeWayMerge.swift`)
+### Three-way merge (`SwiftCodeIDECore/SourceControl/ThreeWayMerge.swift`)
 
 The textbook diff3 procedure: line-diff the base against each side with
 `LineDiff`, take base lines both diffs keep (in order) as sync points, and
@@ -71,15 +71,15 @@ is not unchanged) and the result:
 section) back into chunks; a marker is seven characters alone or followed
 by a space.
 
-### Conflict editor (`YcodeUI/SourceControl/ConflictEditorController.swift`)
+### Conflict editor (`SwiftCodeUI/SourceControl/ConflictEditorController.swift`)
 
 Since B3-MERGE (2026-11-05) a repository's conflicts are resolved in the
-merge sheet (`merge-sheet.md`, §12 for Ycode's implementation); this
+merge sheet (`merge-sheet.md`, §12 for SwiftCode's implementation); this
 controller remains Compare Files' view.
 
 Its state and every text it shows are the core's `ConflictEditorState`,
 which the Linux IDE's conflict editor draws too (`source-control.md`,
-"Ycode implementation: the Linux IDE").
+"SwiftCode implementation: the Linux IDE").
 
 Shown over the editor area like the commit editor. Top row: "Conflicts in
 <file>", a pop-up of the conflicted files, the unresolved count ("1
@@ -99,7 +99,7 @@ next conflicted file.
 
 ### Compare Files
 
-Ycode's file-merge tool: **Ycode ▸ Open Developer Tool ▸ Compare Files…**
+SwiftCode's file-merge tool: **SwiftCode ▸ Open Developer Tool ▸ Compare Files…**
 asks for a left file, a right file, then an optional common ancestor, and
 opens a "Compare Files" window with the same controller. Two files: the
 hunks read "Difference n of m", the pair control is hidden and Base is
@@ -107,7 +107,7 @@ disabled; the result starts as the right file. Three files: a three-way
 merge against the ancestor. **Save Merge…** writes the result (refused
 while a conflict is unresolved).
 
-**`ycode compare <left> <right> [--ancestor <base> [--merge <out>]]`** does
+**`swiftcode compare <left> <right> [--ancestor <base> [--merge <out>]]`** does
 the same without a window: two files print a unified diff (`---`/`+++`
 headers, `@@ -a,b +c,d @@` hunks, three context lines; exit 1 when they
 differ), three print or write the merged text with conflict markers
@@ -124,4 +124,4 @@ standard error); 2 for bad arguments.
   Help and the `opendiff` manual page (level 1).
 - OPEN QUESTION: the reference conflict view's layout and per-conflict
   controls; the file-merge tool's window, its choice menu and folder
-  comparison (not done in Ycode).
+  comparison (not done in SwiftCode).

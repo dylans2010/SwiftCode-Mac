@@ -19021,7 +19021,7 @@
    "onsetTime": "2026-01-15T13:00:00Z",
    "region": "Fixture County",
    "severity": "moderate",
-   "source": "Ycode Fixture Weather Office",
+   "source": "SwiftCode Fixture Weather Office",
    "summary": "Fixture Winter Weather Advisory"
   }
  ],

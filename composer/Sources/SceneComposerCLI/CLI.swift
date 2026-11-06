@@ -4,21 +4,21 @@ import USDCore
 import USDShade
 import USDStage
 
-/// `ycode-scene`: the Scene Composer's command-line tool.
+/// `swiftcode-scene`: the Scene Composer's command-line tool.
 public enum SceneComposerCLI {
     public static let version = "0.1.0"
 
     public static let usage = """
-    ycode-scene \(version) — Ycode Scene Composer command-line tool
+    swiftcode-scene \(version) — SwiftCode Scene Composer command-line tool
 
     Usage:
-      ycode-scene info <file>
-      ycode-scene tree <file> [--layer] [--all] [--components]
-      ycode-scene cat <file> [--flatten] [--sorted]
-      ycode-scene convert <input> <output> [--flatten] [--format usda|usdc|usdz]
-      ycode-scene validate <file> [--strict]
-      ycode-scene edit <file> [-o <output>] <operation>...
-      ycode-scene components
+      swiftcode-scene info <file>
+      swiftcode-scene tree <file> [--layer] [--all] [--components]
+      swiftcode-scene cat <file> [--flatten] [--sorted]
+      swiftcode-scene convert <input> <output> [--flatten] [--format usda|usdc|usdz]
+      swiftcode-scene validate <file> [--strict]
+      swiftcode-scene edit <file> [-o <output>] <operation>...
+      swiftcode-scene components
 
     Edit operations (applied in order, one undo step each):
       --add-prim <path> [<type>]            define a prim (missing parents become overs)
@@ -70,14 +70,14 @@ public enum SceneComposerCLI {
                 print(usage, to: &out)
                 return 0
             default:
-                print("ycode-scene: unknown command '\(command)'\n\n\(usage)", to: &err)
+                print("swiftcode-scene: unknown command '\(command)'\n\n\(usage)", to: &err)
                 return 2
             }
         } catch let e as UsageError {
-            print("ycode-scene \(command): \(e.message)", to: &err)
+            print("swiftcode-scene \(command): \(e.message)", to: &err)
             return 2
         } catch {
-            print("ycode-scene \(command): \(error)", to: &err)
+            print("swiftcode-scene \(command): \(error)", to: &err)
             return 2
         }
     }

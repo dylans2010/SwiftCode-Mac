@@ -14,7 +14,7 @@ import SwiftUICore
 // scene modifiers `commands(content:)`, `commandsRemoved()`,
 // `commandsReplaced(content:)`).
 //
-// Design (Ycode's): the commands of every scene are merged into one menu
+// Design (SwiftCode's): the commands of every scene are merged into one menu
 // model for the application (as on desktop systems with one menu bar). Each
 // window evaluates the merged commands inside its own view graph, below an
 // unlaid-out host: a custom `Commands` type is a graph node like a view (its

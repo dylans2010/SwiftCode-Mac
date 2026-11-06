@@ -1,9 +1,9 @@
 // swift-tools-version:6.0
-// ycode-healthkit: clean-room open HealthKit (see README.md and specs/frameworks/healthkit/).
+// swiftcode-healthkit: clean-room open HealthKit (see README.md and specs/frameworks/healthkit/).
 import PackageDescription
 
 let package = Package(
-    name: "ycode-healthkit",
+    name: "swiftcode-healthkit",
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "HealthKit", targets: ["HealthKit"]),

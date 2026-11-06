@@ -8,7 +8,7 @@ BASE="${1:-}"
 HEAD="${2:-HEAD}"
 
 everything() {
-    echo "ycode=true"
+    echo "swiftcode=true"
     echo "frameworks=true"
     echo "lint=true"
     exit 0
@@ -30,7 +30,7 @@ fi
 CODE="$(printf '%s\n' "$FILES" | grep -Ev '\.md$' || true)"
 area() { printf '%s\n' "$CODE" | grep -Eq "$1" && echo true || echo false; }
 
-# ycode/ uses frameworks/swiftui by path.
-echo "ycode=$(area '^(ycode/|frameworks/swiftui/)')"
+# swiftcode/ uses frameworks/swiftui by path.
+echo "swiftcode=$(area '^(swiftcode/|frameworks/swiftui/)')"
 echo "frameworks=$(area '^(frameworks/|composer/)')"
-echo "lint=$(area '^(ycode/|frameworks/|composer/|\.swiftlint\.yml$)')"
+echo "lint=$(area '^(swiftcode/|frameworks/|composer/|\.swiftlint\.yml$)')"

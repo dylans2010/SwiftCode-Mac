@@ -68,7 +68,7 @@ struct JWTTests {
     func verifiesWithOpenSSL() throws {
         let decoded = try DeveloperToken.decode(try token())
         let signature = try P256.Signing.ECDSASignature(rawRepresentation: decoded.signature)
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-jwt-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-jwt-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let publicKey = directory.appendingPathComponent("public.pem")
@@ -99,7 +99,7 @@ struct JWTTests {
 
     @Test("Signing provider: reads a PKCS#8 .p8 file and reuses a token until a minute before exp")
     func signingProvider() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-jwt-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-jwt-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("AuthKey_KEY1234567.p8")

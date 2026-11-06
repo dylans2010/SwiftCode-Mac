@@ -1,6 +1,6 @@
 # Workspace window
 
-Ycode module: `YcodeUI` (`WorkspaceWindowController`, `WorkspaceSession`).
+SwiftCode module: `SwiftCodeUI` (`WorkspaceWindowController`, `WorkspaceSession`).
 
 ## Opening
 
@@ -26,7 +26,7 @@ files and any changed project through the byte-exact pbxproj writer
 +-----------+-------------------------------------+------------------+
 ```
 
-| Area | Toggle | Ycode default |
+| Area | Toggle | SwiftCode default |
 |---|---|---|
 | Navigator (left, sidebar) | toolbar / View ▸ Navigators (no default shortcut; ⌘0 is Show Coding Assistant) | shown, 290 pt |
 | Inspector (right) | toolbar / View ▸ Inspectors (no default shortcut) | shown, 260 pt (observed in pass 5 and in council round 1, `liquid-glass.md` §7) |
@@ -43,7 +43,7 @@ Menu titles for toggles read "Show …" or "Hide …" by current state.
 
 Superseded by the toolbar layout in the Evidence notes below and
 `reference-ui-5.md` §4. The default toolbar has no Library button, and the
-activity area shows no subtitle while idle. Ycode's earlier layout was:
+activity area shows no subtitle while idle. SwiftCode's earlier layout was:
 navigator toggle; Run (▶, ⌘R) and Stop (■, ⌘.); the scheme pop-up and
 run-destination pop-up joined by a chevron; the activity view; Library (+,
 ⇧⌘L); inspector toggle.
@@ -79,7 +79,7 @@ frame and the editor highlights the stopped line.
 
 ## Icons
 
-Ycode uses SF Symbols through the public runtime API only, and never a
+SwiftCode uses SF Symbols through the public runtime API only, and never a
 trademark-shaped symbol: no Swift bird (`swift`), Apple logo, or Xcode
 hammer. Swift files and package manifests use
 `chevron.left.forwardslash.chevron.right`; projects use

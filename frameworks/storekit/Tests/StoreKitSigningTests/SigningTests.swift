@@ -123,13 +123,13 @@ struct JWSTests {
         #expect(failureReason { _ = try JWSVerifier(requiredPayloadKeys: ["transactionId"]).verify(good) } == .missingRequiredProperties)
     }
 
-    @Test("A chain issued by a Ycode test CA verifies against that root only, and only inside the validity period")
+    @Test("A chain issued by a SwiftCode test CA verifies against that root only, and only inside the validity period")
     func chains() throws {
-        let ca = try SigningIdentity.generate(subject: DistinguishedName([(.commonName, "Ycode Test CA")]), now: referenceStart,
+        let ca = try SigningIdentity.generate(subject: DistinguishedName([(.commonName, "SwiftCode Test CA")]), now: referenceStart,
                                               validityYears: 5, isCA: true)
         #expect(ca.certificate.isCA == true)
         let leaf = try SigningIdentity.generate(now: referenceStart, issuer: ca)
-        #expect(leaf.certificates.count == 2 && leaf.certificate.issuer.description == "CN=Ycode Test CA")
+        #expect(leaf.certificates.count == 2 && leaf.certificate.issuer.description == "CN=SwiftCode Test CA")
         #expect(leaf.certificate.isSigned(by: ca.certificate.publicKey))
         let jws = try JWS.sign(.object(["x": .bool(true)]), identity: leaf)
         _ = try JWSVerifier(trustedRoots: [ca.certificate], date: referenceStart.addingTimeInterval(3600)).verify(jws)

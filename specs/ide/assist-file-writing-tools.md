@@ -1,6 +1,6 @@
 # Assist file-writing tools — shared behaviour
 
-Ycode modules: `YcodeMCP` (the MCP server and its tools; the Wave 2 port
+SwiftCode modules: `SwiftCodeMCP` (the MCP server and its tools; the Wave 2 port
 registers the tools here).
 
 This spec covers the behaviour shared by the 24 Wave 2 file-writing
@@ -44,13 +44,13 @@ subsystem map assigned it to this wave, but its `writes` flag is
   / `Data.write(to:options: .atomic)`.
 - **Legacy-only envelope fields**: `duration`,
   `suggestedNextActions`, `beforeContent`, `afterContent` are set by
-  some Legacy tools but have no equivalent in Ycode's
+  some Legacy tools but have no equivalent in SwiftCode's
   `MCPToolResult` and are dropped by the port. The unified diff
   survives as `data["diff"]` (see §8.4).
 
 ## 2. Path-safety rules
 
-There are four path-resolution behaviours in this wave. The Ycode
+There are four path-resolution behaviours in this wave. The SwiftCode
 port must preserve which tool uses which — they differ observably,
 and unifying them would change behaviour. (Wave 1's §2 describes
 the same resolvers for the read tools; this section states the
@@ -85,8 +85,8 @@ Used by: `file_write`, `file_create`, `file_append`, `file_delete`,
   `No active project: workspace root is unavailable. Open a project first.`
 - Narrow carve-out in Legacy: paths exactly equal to
   `/tmp/swiftcode/scripts` or under `/tmp/swiftcode/scripts/` are
-  returned unchanged. **Ycode does not keep this carve-out** — see
-  `assist-approval-model.md` §7.2. In Ycode those paths are outside
+  returned unchanged. **SwiftCode does not keep this carve-out** — see
+  `assist-approval-model.md` §7.2. In SwiftCode those paths are outside
   the workspace and are refused like any other outside path.
 - The resolved path is returned standardised.
 
@@ -154,7 +154,7 @@ Used by: `plist_edit` only.
   no code). This rejects even an in-workspace `a/../b`.
 - In Legacy, a path with the prefix `/tmp/swiftcode/scripts` skips
   this check entirely (and the scripts directory is created on
-  demand). **Ycode does not keep this** — see
+  demand). **SwiftCode does not keep this** — see
   `assist-approval-model.md` §7.2. Note also that Legacy's inline
   prefix check has **no `/` boundary** (unlike the resolver's
   carve-out in §2.1): in Legacy, `/tmp/swiftcode/scripts-evil`
@@ -171,7 +171,7 @@ Used by: `plist_edit` only.
   absolute path) is silently replaced with the workspace root
   itself. An empty path defaults to `"."`. The tool therefore
   never reports an outside-workspace error; given an escaping
-  path it formats the workspace root (see §5.6). The Ycode port
+  path it formats the workspace root (see §5.6). The SwiftCode port
   must preserve this clamping behaviour and record it as a known
   Legacy quirk — it must not silently upgrade it to a failure,
   and it must not silently widen it. (Its writes still go through
@@ -250,7 +250,7 @@ batch. `code_multi_edit` says so in its own schema description
 ("Not atomic: earlier edits persist if a later one fails"). The
 same holds for `code_format`, `regex_replace_in_files`, and
 `batch_rename_files`, which apply file by file and stop or continue
-per their own rules (§5). The Ycode port must not add a
+per their own rules (§5). The SwiftCode port must not add a
 transaction or rollback: the observable behaviour is "earlier
 files stay changed".
 
@@ -277,7 +277,7 @@ Overwriting is silent and in place:
   rewrite in place.
 
 Backups exist in Legacy only as the separate, explicit `file_backup`
-tool (Wave 1). The Ycode port must not add an automatic `.bak`,
+tool (Wave 1). The SwiftCode port must not add an automatic `.bak`,
 snapshot, or trash step to any Wave 2 tool: an unrequested backup
 is a second write the approval gate never saw (see
 `assist-approval-model.md` §5.3). A caller that wants a backup
@@ -341,7 +341,7 @@ existing-file rule:
   lines — see §8.4), `path`, and `is_new`. `filesChanged` is
   `[path]`. Legacy also auto-registers a new file in the
   `.pbxproj` and streams the edit through `LiveDiffStreamer`; the
-  Ycode port does neither (see `assist-approval-model.md` §7.4).
+  SwiftCode port does neither (see `assist-approval-model.md` §7.4).
 - `file_create` writes `content` (default `""`) as a new file.
   Only `path` is required; a missing or blank `path` fails with
   `Missing required parameter: path` (code `missingArgument`).
@@ -391,7 +391,7 @@ existing-file rule:
   cross-directory allowance. Success:
   `Successfully copied file from <source> to <destination>`; no
   data, no `filesChanged`. Legacy auto-registers the destination
-  in the `.pbxproj`; the Ycode port does not (§7.4 of the approval
+  in the `.pbxproj`; the SwiftCode port does not (§7.4 of the approval
   model).
 - `file_rename` (`oldPath`, `newName`, both required, no codes)
   renames within the same directory. `newName` must be a single
@@ -418,7 +418,7 @@ existing-file rule:
   Legacy's filesystem layer deletes whatever is at the path —
   `FileManager.removeItem` removes a directory recursively — so
   `file_delete` on a directory deletes the whole directory tree.
-  The Ycode port preserves this (coordinator decision, Wave 2:
+  The SwiftCode port preserves this (coordinator decision, Wave 2:
   Legacy behaviour wins over the tightening originally specified
   here); `dir_delete` remains the tool intended for directories.
   Success: `Successfully deleted file: <path>`, data `path`,
@@ -468,7 +468,7 @@ existing-file rule:
   disk during operation.` — but no code path in the replacement
   routine throws it (the enum case is defined and the tool
   handles it, but the throw site does not exist in the Legacy
-  source read for this spec); the Ycode port must keep the
+  source read for this spec); the SwiftCode port must keep the
   handler for it and must not invent a condition that triggers
   it. Success output is
   `Successfully updated <path> with targeted replacement.\n\nUnified Diff:\n<diff>`
@@ -586,9 +586,9 @@ existing-file rule:
   (`Refactor failed at <path>: <system error>`). Success:
   `Refactoring '<action>' applied to <path>`; no data, no
   `filesChanged`. **Portability question for the implementer,
-  flagged not hand-waved:** Ycode's MCP layer has no LLM call of
+  flagged not hand-waved:** SwiftCode's MCP layer has no LLM call of
   its own — refactoring must be routed through the host assistant
-  (YcodeAssistant / provider system), which is outside this
+  (SwiftCodeAssistant / provider system), which is outside this
   wave's scope, or the tool must be registered as unavailable
   with a clear error. The port must not substitute a regex or
   template "refactor" and present it as Legacy's behaviour, and
@@ -684,7 +684,7 @@ already ended with one keeps exactly one).
   before the failure stay formatted (not atomic as a batch).
 - **Portability note:** the description promises "project style
   guidelines" but the implementation applies one fixed
-  normaliser. The Ycode port must reproduce the normaliser, not
+  normaliser. The SwiftCode port must reproduce the normaliser, not
   substitute a real formatter: adopting `swift-format` or similar
   would change every output. If a later decision wants a real
   formatter, that is a new tool behaviour to specify, not a
@@ -917,8 +917,8 @@ family; that assignment is wrong, and this spec corrects it:
   `Failed to compute file checksum: <system error>`.
 - Unlike Wave 1's `file_hash_verify` (which shells out to
   `/usr/bin/shasum` and `/usr/bin/md5`), this tool hashes
-  in-process. The Ycode port hashes in-process too (swift-crypto,
-  already a Ycode dependency) — no subprocess, no platform
+  in-process. The SwiftCode port hashes in-process too (swift-crypto,
+  already a SwiftCode dependency) — no subprocess, no platform
   dependency. Unlike `file_checksum_verifier` (Wave 1), it always
   returns all four hashes and always returns structured data.
 
@@ -947,7 +947,7 @@ family; that assignment is wrong, and this spec corrects it:
 diff in `data["diff"]` (and, for `code_replace`, embedded in the
 message). The diff is produced by Legacy's `AssistDiffEngine`
 (My­ers algorithm, 3 context lines) over the original and modified
-full contents. The Ycode port must produce a unified diff with the
+full contents. The SwiftCode port must produce a unified diff with the
 same content — same hunks, same context — not a different diff
 format. The exact hunk-header format and line prefixes are the
 standard unified format (`---` / `+++` / `@@ -a,b +c,d @@` /
@@ -965,7 +965,7 @@ than failing the call).
 Failure messages are part of the contract: reproduce them
 verbatim. Where a Legacy tool supplies a classified error code,
 it is shown; where it supplies none, the code column says "—"
-and the Ycode port must leave the code absent. The error-code
+and the SwiftCode port must leave the code absent. The error-code
 taxonomy is the Wave 1 one (`assist-tool-catalogue.md` §1.1):
 `missingArgument`, `invalidInput`, `notFound`,
 `permissionDenied`, `executionFailed`, and the rest.
@@ -1084,12 +1084,12 @@ and therefore no outside-workspace error either.
 - `file_write` and `code_replace` set `suggestedNextActions` to
   `["project_build"]`, and to `["project_build", "project_build"]`
   for `.swift` files (the code inserts a second `"project_build"`
-  at index 0 instead of replacing). Ycode's `MCPToolResult` has no
+  at index 0 instead of replacing). SwiftCode's `MCPToolResult` has no
   suggested-actions field; the duplication is recorded here and
   dropped, not reproduced.
 - `file_write`, `file_create`, `code_replace`, and `code_insert`
   set `duration`, `beforeContent`, and `afterContent` on the
-  result. Ycode's `MCPToolResult` has no such fields; they are
+  result. SwiftCode's `MCPToolResult` has no such fields; they are
   dropped. (`beforeContent` / `afterContent` for review purposes
   are the `MCPChange.original` / `proposed` — see the approval
   model §6.1.)
@@ -1108,9 +1108,9 @@ and therefore no outside-workspace error either.
 - File-reading tools (Wave 1), search/navigation tools, and the
   rest of the Legacy registry — out of scope for Wave 2.
 - `code_refactor`'s LLM provider routing (which assistant /
-  provider performs the refactor in Ycode) — flagged as an open
+  provider performs the refactor in SwiftCode) — flagged as an open
   implementation decision in §5.4.
-- Whether Ycode auto-registers newly created files in a project
+- Whether SwiftCode auto-registers newly created files in a project
   model (Legacy's `XcodeProjWriter.addFileReference`) — a
   project-model decision for a later spec, not a Wave 2 tool
   behaviour.

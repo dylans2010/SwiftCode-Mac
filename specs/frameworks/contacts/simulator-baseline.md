@@ -34,7 +34,7 @@ There is no Contacts **app** in the 27.1 runtime:
 | User defaults | sort order 3 (family name), country code "us" |
 | Database | shipped in the device template (file dated before the device was created), level 2 |
 
-Ycode ships its **own** made-up seed set with the same *shape* (a handful of
+SwiftCode ships its **own** made-up seed set with the same *shape* (a handful of
 persons with names, phones, emails, addresses and birthdays, one with a
 company, two groups), never Apple's records.
 
@@ -89,7 +89,7 @@ contacts for search. Private frameworks (names only): `ContactsFoundation`,
 The `LimitedAccess` table has columns (bundle identifier, contact guid,
 sequence number, active flag), primary key (bundle, guid), and triggers
 that drop rows when a contact is deleted and move rows to the surviving
-contact when a link is removed. Ycode's own Contacts keeps its own store
+contact when a link is removed. SwiftCode's own Contacts keeps its own store
 (`design.md`); for the baseline it only needs a writable, persistent
 `/var/mobile/Library/AddressBook` seeded at device creation.
 

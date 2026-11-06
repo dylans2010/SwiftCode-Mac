@@ -10,7 +10,7 @@ import SwiftUICore
 // `contextMenu(menuItems:preview:)`, `contextMenu(forSelectionType:menu:
 // primaryAction:)`).
 //
-// Design (Ycode's): a `contextMenu` modifier registers its items with the
+// Design (SwiftCode's): a `contextMenu` modifier registers its items with the
 // window. A secondary click (mouse button 3) — or a touch held 0.5 s without
 // moving more than 10 points — opens the items of the innermost view under
 // the pointer that has a context menu, as an R8 pop-up menu at the pointer;

@@ -1,6 +1,6 @@
 // CNErrorDomain errors and the two Contacts exceptions
 // (specs/frameworks/contacts/errors.md). Codes and user-info keys are the
-// contract; the English messages are Ycode's own wording.
+// contract; the English messages are SwiftCode's own wording.
 
 import Foundation
 
@@ -63,7 +63,7 @@ public struct CNError: Error, @unchecked Sendable {
     public static var predicateInvalid: Code { .predicateInvalid }
     public static var vCardMalformed: Code { .vCardMalformed }
 
-    /// Ycode's short description for a code.
+    /// SwiftCode's short description for a code.
     static func message(for code: Code) -> String {
         switch code {
         case .communicationError: return "Could not reach the contacts service"
@@ -153,7 +153,7 @@ public struct CNException: Error, Equatable, CustomStringConvertible, Sendable {
         CNException(name: CNContactPropertyNotFetchedExceptionName, reason: notFetchedReason)
     }
 
-    private static let captureKey = "org.ycode.contacts.exception-capture"
+    private static let captureKey = "org.swiftcode.contacts.exception-capture"
 
     private final class Capture {
         var depth = 0

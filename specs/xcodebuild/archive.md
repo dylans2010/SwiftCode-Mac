@@ -1,7 +1,7 @@
 # xcodebuild: archive and -exportArchive
 
-Ycode: `YcodeXcodebuild` (`Archives`, `Plan.archiveLocations`), helper
-`ycode-swb build` (`schemeCommand`, `debuggable`). Scope: macOS
+SwiftCode: `SwiftCodeXcodebuild` (`Archives`, `Plan.archiveLocations`), helper
+`swiftcode-swb build` (`schemeCommand`, `debuggable`). Scope: macOS
 application and command-line tool targets, signed ad hoc ("Sign to Run
 Locally", `CODE_SIGN_IDENTITY = -`); export limited to ad hoc signing.
 
@@ -9,7 +9,7 @@ Locally", `CODE_SIGN_IDENTITY = -`); export limited to ad hoc signing.
 
 Requires a scheme (without one, the reference tool runs an ordinary
 build of the target with action `archive` into the project's `build`
-folder and reports `ARCHIVE SUCCEEDED`; ycodebuild does the build the
+folder and reports `ARCHIVE SUCCEEDED`; swiftcodebuild does the build the
 same way but writes no archive). Targets: the scheme's build entries for
 archiving; configuration: the `ArchiveAction` configuration (`Release` in
 autocreated schemes). Destination: the generic "Any Mac", listed first in
@@ -100,13 +100,13 @@ exit 0. The export folder contains only the application.
 ## Evidence
 
 - Archive locations and settings: `-showBuildSettings -json archive` of
-  the reference tool on a hand-written app project; ycodebuild prints the
+  the reference tool on a hand-written app project; swiftcodebuild prints the
   same 565 settings with equal values (level 3).
 - Archive layout and `Info.plist` keys, default archive path, destination
   warning order, export output, messages, exit codes, export folder
   contents and signature identity: black-box `xcodebuild` 27.1 runs on a
   hand-written macOS app and tool (level 3); archives studied as files
-  (level 2). The archives ycodebuild writes have the same file tree and
+  (level 2). The archives swiftcodebuild writes have the same file tree and
   `Info.plist` (creation date masked).
 - `archive` action and scheme command in the build system: open-source
   swift-build (`SWBBuildAction`, `SWBSchemeCommand`, product validation)

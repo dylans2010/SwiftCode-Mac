@@ -61,7 +61,7 @@ About an hour after the fresh device first booted, a third source
 "US Holidays" (type 3 subscription, `subscribed` YES, not modifiable)
 appeared without any app action (inference: a holiday subscription the
 system adds by itself, probably fetched over the network; not present on the
-other device during its shorter life). Ycode may seed an equivalent
+other device during its shorter life). SwiftCode may seed an equivalent
 read-only holiday calendar of its own or none; apps must not depend on it.
 
 Calendar properties observed: "Calendar" color RGB (0.0, 0.5333, 1.0),
@@ -177,7 +177,7 @@ alarm earlier than the previous occurrence, start in year 4100, start in
   to the title.
 - Duplicate alarms are kept (two −900 s alarms read back as two).
 - Read-back order (observed): location alarm, relative alarms, absolute
-  alarm — Ycode returns alarms ordered by kind then value, the same way.
+  alarm — SwiftCode returns alarms ordered by kind then value, the same way.
 
 ### 3.6 Fetching
 
@@ -201,7 +201,7 @@ alarm earlier than the previous occurrence, start in year 4100, start in
 Apps cannot add attendees (no public setter); `EKParticipant` exposes `URL`,
 `name`, `participantStatus`, `participantRole`, `participantType`,
 `isCurrentUser`, `contactPredicate`. Local events have no organizer and no
-attendees. Ycode needs attendee support only for seeded or synced data
+attendees. SwiftCode needs attendee support only for seeded or synced data
 (plan R6).
 
 ## 5. Change notification
@@ -214,7 +214,7 @@ made by this or another store instance or process, roughly one per commit
 are `EKEventStoreChangeTypeUserInfoKey`, `EKEventStoreCalendarDataChangedUserInfoKey`,
 `EKEventStoreRemindersDataChangedUserInfoKey` and
 `EKEventStoreChangedObjectIDsUserInfoKey` (not declared in the SDK; apps
-should not depend on them; Ycode provides the same keys with its own
+should not depend on them; SwiftCode provides the same keys with its own
 values). Swift (iOS 26+): the overlay adds `EKEventStore.EventStoreChanged`,
 a main-actor `NotificationCenter` message whose subject is the store and
 whose name is the same notification, and the message identifier `.changed`.

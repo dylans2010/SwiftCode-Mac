@@ -6,8 +6,8 @@ same conventions used by Xcode 27.1's visionOS app template, and what
 RealityKit (macOS 27) and `realitytool` (Xcode 27.1) accept. Reality
 Composer Pro 3.0 no longer stores scenes as USD (`project-format.md` §4);
 for it, USD is an import/export format. This file is therefore the
-contract for (a) the source form Ycode writes and Xcode compiles, and (b)
-what Ycode must read from USD exported by any tool.
+contract for (a) the source form SwiftCode writes and Xcode compiles, and (b)
+what SwiftCode must read from USD exported by any tool.
 
 Evidence tags: **[tmpl]** format study of Xcode 27.1's visionOS app
 template scenes (grammar only, nothing copied); **[probe]** our own USDA
@@ -23,15 +23,15 @@ Every scene file is a text USD layer (`#usda 1.0`). Rules:
 |---|---|---|
 | Header metadata | `defaultPrim`, `metersPerUnit = 1`, `upAxis = "Y"` | always written **[tmpl]**. RealityKit converts other units/axes on the load wrapper (`07-assets.md` §2). |
 | Default prim | an `Xform` named `Root` | the loaded wrapper entity's single child **[probe]**; other names work, but every reference tool writes `Root`. |
-| Other layer metadata | `customLayerData` is allowed and ignored by the loader **[probe]**; `timeCodesPerSecond`, `startTimeCode`, `endTimeCode` when the layer has time samples (`timelines-behaviors.md` §6). | Ycode writes `customLayerData = { string creator = "<tool name> <version>" }`. |
-| Child order | `reorder nameChildren = [...]` on a prim lists children in editor order **[tmpl]** | Purely for ordering; the reference sometimes leaves empty strings in the list (seen inside a material, `materials.md` §2); readers must tolerate them, Ycode never writes them. |
+| Other layer metadata | `customLayerData` is allowed and ignored by the loader **[probe]**; `timeCodesPerSecond`, `startTimeCode`, `endTimeCode` when the layer has time samples (`timelines-behaviors.md` §6). | SwiftCode writes `customLayerData = { string creator = "<tool name> <version>" }`. |
+| Child order | `reorder nameChildren = [...]` on a prim lists children in editor order **[tmpl]** | Purely for ordering; the reference sometimes leaves empty strings in the list (seen inside a material, `materials.md` §2); readers must tolerate them, SwiftCode never writes them. |
 | Activation | `active = true` metadata is written on most prims the editor created **[tmpl]**; `active = false` drops the prim and its subtree from the loaded scene **[probe]** | |
-| Transforms | `xformOp:translate` (`float3` or `double3`), `xformOp:orient` (`quatf`, real part first), `xformOp:scale` (`float3`), `uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]` **[tmpl]** | The template keeps the three-entry `xformOpOrder` even when some ops are unauthored (e.g. only `scale` on a referencing prim). Readers must accept any `UsdGeomXformable` op set (rotateXYZ, transform …). Ycode writes exactly T·R·S in this order, `double3` for translate. |
+| Transforms | `xformOp:translate` (`float3` or `double3`), `xformOp:orient` (`quatf`, real part first), `xformOp:scale` (`float3`), `uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]` **[tmpl]** | The template keeps the three-entry `xformOpOrder` even when some ops are unauthored (e.g. only `scale` on a referencing prim). Readers must accept any `UsdGeomXformable` op set (rotateXYZ, transform …). SwiftCode writes exactly T·R·S in this order, `double3` for translate. |
 | Visibility | `token visibility = "invisible"` keeps the entity in the tree **[probe]** | Whether the entity is disabled or only hidden: open question Q4. |
 | Material binding | `prepend apiSchemas = ["MaterialBindingAPI"]` on the prim plus `rel material:binding = </path/Material> (bindMaterialAs = "weakerThanDescendants")` **[tmpl]** | A root prim may carry `rel material:binding = None (bindMaterialAs = …)`, i.e. an explicitly empty binding **[tmpl]**. |
 
 Prim names are USD identifiers. Entity names in RealityKit are the prim
-names, so `Entity.findEntity(named:)` in app code depends on them; Ycode
+names, so `Entity.findEntity(named:)` in app code depends on them; SwiftCode
 must never rename prims silently.
 
 ## 2. Geometry and assets
@@ -137,8 +137,8 @@ loaded collider without a rigid body is static.
 
 RCP 3 stores collision as `tm_re_collision_component` with `mode`
 **0 = default, 1 = trigger, 2 = colliding** (`project-format.md` §4.7.4);
-its `.reality` export of mode 1 loads as `.trigger`. Ycode's importer of
-RCP 3 projects maps mode 1 to the runtime's trigger mode; Ycode's USD
+its `.reality` export of mode 1 loads as `.trigger`. SwiftCode's importer of
+RCP 3 projects maps mode 1 to the runtime's trigger mode; SwiftCode's USD
 writer has no verified spelling for it yet and keeps `mode` in its
 pass-through data (§7).
 
@@ -225,7 +225,7 @@ RCP 3 point light (`tm_re_point_light_component`, `project-format.md`
 white (linear sRGB), `intensity` 100000, `attenuationRadius` 10 and
 falloff exponent **1** (the API's default exponent is 2) and light
 layer `default` **[run]**. The editor's defaults, not the API's, are
-what a user sees; Ycode's editor should offer the same values for a new
+what a user sees; SwiftCode's editor should offer the same values for a new
 light and write them explicitly.
 
 Defaults with only `intensity` written: spot inner 45°, outer 60°,
@@ -346,28 +346,28 @@ holding `<Name>.usda` and an **empty** `<Name>_textures/` folder **[run]**.
 Consequences: the USDA (Mesh) export is geometry-only, as its menu name
 says. It settles none of the component names of §4.3 (they remain
 confirmed by our own loads only), and it cannot be used to carry an
-RCP 3 scene into Ycode. Ycode imports such files as plain USD meshes,
+RCP 3 scene into SwiftCode. SwiftCode imports such files as plain USD meshes,
 and must accept the matrix transform form, bindings without
 `MaterialBindingAPI`, and `st1` as a texture-coordinate primvar. The
 `.reality` export (`compile.md` §6.9) is the full-fidelity path; a
 direct RCP 3 project import (`project-format.md` §4.6) is the editable
 one.
 
-## 6. Requirements for Ycode
+## 6. Requirements for SwiftCode
 
 1. Writer: §1 conventions exactly; component prims per §4 with verified
    names only; anything unverified stays in a "pass-through" bag (§7).
 2. Reader: full OpenUSD composition (references, payloads, variants,
    instancing), unknown prims and fields preserved on round trip.
-3. A component catalogue file in Ycode (data, not code) maps each
+3. A component catalogue file in SwiftCode (data, not code) maps each
    `info:id` to fields, types, defaults and the verification state above,
    so later observation rounds only edit data.
 
 ## 7. Round-trip rule
 
-Ycode must keep unknown component prims, unknown fields and unknown
+SwiftCode must keep unknown component prims, unknown fields and unknown
 metadata verbatim (as opaque USD specs) and write them back unchanged.
-This is how files from newer reference versions survive a Ycode edit.
+This is how files from newer reference versions survive a SwiftCode edit.
 
 ## Open questions
 

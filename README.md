@@ -2,7 +2,7 @@
   <img src="docs/images/logo.svg" alt="" width="112" height="112">
 </p>
 
-<h1 align="center">Ycode</h1>
+<h1 align="center">SwiftCode</h1>
 
 <p align="center">
   <strong>An independent, open-source IDE for Apple-platform projects, on macOS and Linux.</strong><br>
@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MarcoDotIO/Ycode/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MarcoDotIO/Ycode/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/MarcoDotIO/Ycode/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/MarcoDotIO/Ycode?include_prereleases&label=release"></a>
+  <a href="https://github.com/dylans2010/SwiftCode-Mac/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/dylans2010/SwiftCode-Mac/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/dylans2010/SwiftCode-Mac/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/MarcoDotIO/SwiftCode?include_prereleases&label=release"></a>
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue"></a>
   <img alt="Platforms: macOS, Linux x86-64 and arm64" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20x86--64%20%7C%20Linux%20arm64-lightgrey">
   <a href="https://flatpark.org/apps/io.github.MarcoDotIO.Ycode/"><img alt="Get it on FlatPark" src="https://flatpark.org/badges/get-it-on-flatpark.svg" height="20"></a>
@@ -29,24 +29,24 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.png">
-  <img alt="The Ycode workspace window on Linux, showing a Swift package: the project navigator, a highlighted source file, and the file inspector." src="docs/images/hero-light.png">
+  <img alt="The SwiftCode workspace window on Linux, showing a Swift package: the project navigator, a highlighted source file, and the file inspector." src="docs/images/hero-light.png">
 </picture>
 
 > [!NOTE]
 > **This is a public beta (1.0.0-beta.2).** The project file formats and command-line tools are the most
 > mature part. The IDE is usable and still has rough edges, and the Linux IDE is well behind the macOS one.
-> Keep your projects under version control, and please [report what you find](https://github.com/MarcoDotIO/Ycode/issues/new/choose).
+> Keep your projects under version control, and please [report what you find](https://github.com/dylans2010/SwiftCode-Mac/issues/new/choose).
 
-## What is Ycode?
+## What is SwiftCode?
 
-Ycode is a desktop IDE for projects that target Apple platforms. It reads and writes the same files as
+SwiftCode is a desktop IDE for projects that target Apple platforms. It reads and writes the same files as
 Apple's Xcode (`.xcodeproj`, `.xcworkspace`, `.xcscheme`, `.xcconfig`, Swift packages), so you can move a
 project between the two tools and keep your colleagues' diffs small.
 
 It is written from scratch in Swift under a [clean-room protocol](#clean-room): **it contains no Apple
 code.** It builds with the compilers and SDKs you have installed, and it ships none of Apple's.
 
-**Ycode may suit you if** you want to edit, build and run Swift projects on Linux, you need `xcodebuild`-style
+**SwiftCode may suit you if** you want to edit, build and run Swift projects on Linux, you need `xcodebuild`-style
 tooling or project-file handling you can read and change, or you want to take part in an open IDE.
 
 **It won't suit you yet if** you need a drop-in replacement for Xcode to ship an app. Signing and
@@ -64,10 +64,10 @@ expect gaps. **Not yet** means it isn't there. The full audit against Xcode 27.1
 |---|---|---|
 | Read and write `.pbxproj`, `.xcworkspace`, `.xcscheme`. Round trips of Xcode-written files are byte-identical on our test corpus. | Beta | Beta |
 | Resolve build settings (`.xcconfig`, defaults, conditions). [111,310 of 111,310 values](specs/xcodebuild/conformance.md) match `xcodebuild -showBuildSettings` across our corpus. | Beta | Beta |
-| `ycodebuild`, an `xcodebuild`-compatible command line. [363 of 363 checks](specs/xcodebuild/conformance.md) match on our corpus. | Experimental | Experimental: settings and queries; building needs its build helper |
-| `ycode assets` and `ycode strings`: asset catalog and String Catalog compilers | Experimental | Experimental |
-| `ycode mcp`: an MCP server that lets coding agents build, test and search. Read-only unless you pass `--allow-writes`. | Experimental | Experimental |
-| `ycode profile`: Gauge, a sampling profiler | Not yet for Mac processes | Experimental |
+| `swiftcodebuild`, an `xcodebuild`-compatible command line. [363 of 363 checks](specs/xcodebuild/conformance.md) match on our corpus. | Experimental | Experimental: settings and queries; building needs its build helper |
+| `swiftcode assets` and `swiftcode strings`: asset catalog and String Catalog compilers | Experimental | Experimental |
+| `swiftcode mcp`: an MCP server that lets coding agents build, test and search. Read-only unless you pass `--allow-writes`. | Experimental | Experimental |
+| `swiftcode profile`: Gauge, a sampling profiler | Not yet for Mac processes | Experimental |
 
 ### The IDE
 
@@ -101,32 +101,32 @@ expect gaps. **Not yet** means it isn't there. The full audit against Xcode 27.1
 |---|---|
 | [Simulators](#simulators-experimental) for iOS, iPadOS, watchOS and visionOS, on arm64 Linux with KVM | Experimental |
 | [Open frameworks](frameworks/README.md): Swift packages that also build on Linux. Contacts, EventKit, HealthKit, HomeKit, StoreKit, WeatherKit and SwiftUI (OpenViews, which draws the Linux IDE), plus a USD library | Experimental and partial; each README lists what is done |
-| [Scene Composer](docs/SCENE-COMPOSER.md): `ycode-scene`, a command-line core for USD scenes | Experimental; no editor window yet |
+| [Scene Composer](docs/SCENE-COMPOSER.md): `swiftcode-scene`, a command-line core for USD scenes | Experimental; no editor window yet |
 
 ## Install
 
-Download from the [Releases page](https://github.com/MarcoDotIO/Ycode/releases). During the beta the version
+Download from the [Releases page](https://github.com/dylans2010/SwiftCode-Mac/releases). During the beta the version
 numbers end in `-beta.N`, and each release has a `SHA256SUMS.txt`.
 
 ### macOS
 
 **Requires** macOS 15 or later on Apple silicon. The Liquid Glass look needs macOS 26 or later. To build
-anything you also need Xcode from Apple, which provides the compilers and SDKs. Ycode is developed against
+anything you also need Xcode from Apple, which provides the compilers and SDKs. SwiftCode is developed against
 Xcode 27.1.
 
-1. Download `Ycode-1.0.0-beta.2.dmg` and open it.
-2. Drag **Ycode** to **Applications**.
-3. Open Ycode from Applications.
+1. Download `SwiftCode-1.0.0-beta.2.dmg` and open it.
+2. Drag **SwiftCode** to **Applications**.
+3. Open SwiftCode from Applications.
 
 #### Opening an ad-hoc signed build
 
 The release notes say whether a build is notarized. If it is ad-hoc signed, macOS blocks the first launch.
-Try to open Ycode once, then go to **System Settings ▸ Privacy & Security** and choose **Open Anyway**.
+Try to open SwiftCode once, then go to **System Settings ▸ Privacy & Security** and choose **Open Anyway**.
 
 ### Linux (Flatpak)
 
 **Requires** x86-64 or arm64 (aarch64), Flatpak, and [Swift 6.4 installed on the host](https://www.swift.org/install/linux/).
-Ycode uses your host's Swift toolchain to build.
+SwiftCode uses your host's Swift toolchain to build.
 
 The easiest way is [FlatPark](https://flatpark.org/apps/io.github.MarcoDotIO.Ycode/). It installs the Linux release
 from this repository's Releases page, checks it against a pinned checksum, and brings new releases with `flatpak update`:
@@ -144,7 +144,7 @@ Or install the bundle from the Releases page:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./Ycode-1.0.0-beta.2-x86_64.flatpak      # or -aarch64
+flatpak install --user ./SwiftCode-1.0.0-beta.2-x86_64.flatpak      # or -aarch64
 flatpak run io.github.MarcoDotIO.Ycode
 ```
 
@@ -164,17 +164,17 @@ flatpak run io.github.MarcoDotIO.Ycode
 ## Build from source
 
 You need Swift 6.4: Xcode 27 on macOS, or the [swift.org release](https://www.swift.org/install/) on Linux.
-On Ubuntu, also install `libsqlite3-dev`. Clone the whole repository, because `ycode/` uses
+On Ubuntu, also install `libsqlite3-dev`. Clone the whole repository, because `swiftcode/` uses
 `frameworks/swiftui` by path.
 
 ```sh
-git clone https://github.com/MarcoDotIO/Ycode.git
-cd Ycode/ycode
+git clone https://github.com/dylans2010/SwiftCode-Mac.git
+cd SwiftCode/swiftcode
 swift build
 swift test
 ```
 
-**On macOS**, build the app, which appears at `.build-ide/app/Ycode.app`:
+**On macOS**, build the app, which appears at `.build-ide/app/SwiftCode.app`:
 
 ```sh
 scripts/make-app.sh
@@ -184,27 +184,27 @@ scripts/make-app.sh
 SDL3, or point `OV_SDL3_LIBRARY` at your own `libSDL3.so.0`.
 
 ```sh
-.build/debug/ycode-ide path/to/Package.swift
+.build/debug/swiftcode-ide path/to/Package.swift
 ```
 
 **The command-line tools** work on both systems:
 
 ```sh
-.build/debug/ycode describe path/to/App.xcodeproj
-.build/debug/ycode roundtrip path/to/App.xcodeproj
-.build/debug/ycodebuild -list -project path/to/App.xcodeproj
+.build/debug/swiftcode describe path/to/App.xcodeproj
+.build/debug/swiftcode roundtrip path/to/App.xcodeproj
+.build/debug/swiftcodebuild -list -project path/to/App.xcodeproj
 ```
 
-[ycode/README.md](ycode/README.md) has the rest: every tool, the tests and the opt-in test inputs.
+[swiftcode/README.md](swiftcode/README.md) has the rest: every tool, the tests and the opt-in test inputs.
 
 ## Simulators (experimental)
 
-Ycode's simulator runs Apple's simulator runtimes on **arm64 Linux**, with its own Darwin kernel layer in
+SwiftCode's simulator runs Apple's simulator runtimes on **arm64 Linux**, with its own Darwin kernel layer in
 KVM micro-VMs and Metal translated to Vulkan. It is the most experimental part of the project: slower than
 Apple's simulator on a Mac, and incomplete.
 
 **Nothing of Apple's ships here.** No runtime, SDK, firmware, artwork or font is in this repository or in
-the packages, and Ycode doesn't download or decrypt any of it. You supply a simulator runtime from your own
+the packages, and SwiftCode doesn't download or decrypt any of it. You supply a simulator runtime from your own
 Xcode installation, and you are responsible for following Apple's licence terms for it. Check whether those
 terms allow your setup before you use it.
 
@@ -228,13 +228,13 @@ The figures and open problems are in [docs/SIMULATOR.md](docs/SIMULATOR.md), and
 
 ## Clean room
 
-Ycode is developed under a two-room protocol, so that it stays independent and can be released:
+SwiftCode is developed under a two-room protocol, so that it stays independent and can be released:
 
 - **Dirty room (`research/`).** Xcode is studied only to learn *what* it does: file formats, protocols and
   observable behaviour. Decompiler and disassembler output never leaves an untracked local folder.
 - **The boundary (`specs/`).** Only written specifications cross over. They describe behaviour and formats,
   never Apple's code, and each one lists its evidence.
-- **Clean room (`ycode/`, `frameworks/`, `composer/`).** Code is written only from the specs, public
+- **Clean room (`swiftcode/`, `frameworks/`, `composer/`).** Code is written only from the specs, public
   documentation and suitably licensed open source.
 
 Every contribution follows these rules. [CONTRIBUTING.md](CONTRIBUTING.md) explains what they mean in
@@ -243,21 +243,21 @@ practice, and [AGENTS.md](AGENTS.md) is the full protocol.
 ## Architecture at a glance
 
 ```text
- macOS: Ycode.app (AppKit)            Linux: ycode-ide (SwiftUI on OpenViews, SDL3, Vulkan)
+ macOS: SwiftCode.app (AppKit)            Linux: swiftcode-ide (SwiftUI on OpenViews, SDL3, Vulkan)
           │                                     │
           └──────────────┬──────────────────────┘
-                 YcodeIDECore: the portable IDE model
+                 SwiftCodeIDECore: the portable IDE model
                          │
    Project files          Build                Language and debug
-   YcodePlist             YcodeBuild           YcodeLanguage → sourcekit-lsp
-   YcodeProject           YcodeXcodebuild      YcodeDebug    → lldb-dap
-   YcodeWorkspace         → swift-build
-   YcodeSettings          → SwiftPM
+   SwiftCodePlist             SwiftCodeBuild           SwiftCodeLanguage → sourcekit-lsp
+   SwiftCodeProject           SwiftCodeXcodebuild      SwiftCodeDebug    → lldb-dap
+   SwiftCodeWorkspace         → swift-build
+   SwiftCodeSettings          → SwiftPM
 
- Simulator (arm64 Linux): ycode-simd → Darwin kernel layer → KVM; Metal → Vulkan
+ Simulator (arm64 Linux): swiftcode-simd → Darwin kernel layer → KVM; Metal → Vulkan
 ```
 
-Ycode reuses open-source tools where they exist and rebuilds what isn't open. Read
+SwiftCode reuses open-source tools where they exist and rebuilds what isn't open. Read
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the modules, and
 [docs/README.md](docs/README.md) for a guide to the documentation and the top-level folders.
 
@@ -272,7 +272,7 @@ The full gap list is in [docs/PARITY.md](docs/PARITY.md) and the longer view in 
   window, and UIKit previews at interactive speed. Language features, the navigators, the debugger, Source Control
   and the coding assistant arrived in 1.0.0-beta.2; Settings ▸ Accounts, the conflict editor, the Organizer,
   SwiftUI previews, Interface Builder documents and debugging on a simulator arrive in 1.0.0-beta.3.
-- **Fixes from beta reports.** Please [file them](https://github.com/MarcoDotIO/Ycode/issues/new/choose).
+- **Fixes from beta reports.** Please [file them](https://github.com/dylans2010/SwiftCode-Mac/issues/new/choose).
 - **Distribution:** listed on [FlatPark](https://flatpark.org/apps/io.github.MarcoDotIO.Ycode/) since 1.0.0-beta.1, alongside the GitHub release.
 
 ### Version 2: Xcode 27.2 parity
@@ -285,12 +285,12 @@ The full gap list is in [docs/PARITY.md](docs/PARITY.md) and the longer view in 
 | Device Hub | Shake, memory pressure, slow animations and Standby | Planned |
 | Editor | Rendered Markdown with formatting tools; `#Playground` | Planned |
 | Icons | Icon Composer 2.0 documents, and an `.icon` viewer | Partial: `.icon` files build into app icons today |
-| Command line | `simctl`-style verbs for Ycode's simulators, including reboot | Partial |
-| Coding assistant | Edit history, and the newer agent and plug-in workflows | Partial: chat, proposals, `ycode mcp` |
+| Command line | `simctl`-style verbs for SwiftCode's simulators, including reboot | Partial |
+| Coding assistant | Edit history, and the newer agent and plug-in workflows | Partial: chat, proposals, `swiftcode mcp` |
 
 ### Further out
 
-- **Signing, distribution and physical devices,** so an app can go from Ycode to a device and a store.
+- **Signing, distribution and physical devices,** so an app can go from SwiftCode to a device and a store.
 - **Simulators:** speed and fidelity first, then tvOS, visionOS input, and wearing the visionOS simulator in a
   headset (an OpenXR viewer exists and is experimental).
 - **AR on the simulator:** a virtual iPhone inside a room, giving ARKit and RealityKit apps camera, depth and
@@ -305,11 +305,11 @@ Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 ## FAQ
 
 **Is this a fork of Xcode?**
-No. Xcode isn't open source, and no Apple code is in Ycode. Ycode matches its file formats and observable
+No. Xcode isn't open source, and no Apple code is in SwiftCode. SwiftCode matches its file formats and observable
 behaviour, and reuses Apple's *open-source* projects such as swift-build, SwiftPM and SourceKit-LSP under
 their licences.
 
-**Will Ycode change my project files?**
+**Will SwiftCode change my project files?**
 It writes the same formats as Xcode. Round trips are byte-identical on our test corpus, but that corpus isn't
 every project, so keep your work under version control and report any unexpected diff.
 
@@ -318,13 +318,13 @@ Yes, as of this beta: the Linux editor has undo, find and replace, and saves tha
 file. Build errors and SourceKit-LSP's live issues show in the editor, and Ctrl+Space lists completions.
 
 **Can I build iOS apps on Linux?**
-That needs Apple's iOS SDK, which Ycode doesn't ship and which Apple licenses for use on Apple-branded
+That needs Apple's iOS SDK, which SwiftCode doesn't ship and which Apple licenses for use on Apple-branded
 hardware. The usual setup builds on a Mac. Swift packages for Linux build with no Apple software at all.
 
 **Can I submit an app to the App Store with it?**
 Not yet. Use Xcode for that.
 
-**Does Ycode collect data?**
+**Does SwiftCode collect data?**
 It has no telemetry. It uses the network for things you ask for: resolving packages, cloning, a coding
 assistant you set up, and connecting to a simulator host.
 
@@ -336,11 +336,11 @@ See [SUPPORT.md](SUPPORT.md). To report a security problem, follow [SECURITY.md]
 
 ## Licence
 
-Ycode is released under the [MIT Licence](LICENSE). Third-party components keep their own licences, listed in
+SwiftCode is released under the [MIT Licence](LICENSE). Third-party components keep their own licences, listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). By contributing, you agree that your contributions are
 licensed under the MIT Licence.
 
 ---
 
-Ycode is not affiliated with or endorsed by Apple Inc. Xcode, iOS, visionOS and others are trademarks of
+SwiftCode is not affiliated with or endorsed by Apple Inc. Xcode, iOS, visionOS and others are trademarks of
 Apple Inc.

@@ -121,7 +121,7 @@ localized phrase, `failureReason` is set for `permissionDenied` only,
   condition and daylight (values not observed without data; an
   implementation needs its own condition → symbol table, `design.md` §5).
 
-Ycode writes its own localization tables (these short English labels are
+SwiftCode writes its own localization tables (these short English labels are
 facts about output; other languages are not copied).
 
 ## 7. Attribution and display requirements (level 1)

@@ -1,7 +1,7 @@
 # Spec: native mode — running Darwin guest processes directly on arm64 Linux
 
 Status: **stage 1 implemented and measured (2026-11-05, agent B3-NATIVE,
-§10).** The implementation (`ycnative`, `YCODE_NATIVE=1`) lives on the
+§10).** The implementation (`ycnative`, `SWIFTCODE_NATIVE=1`) lives on the
 long-lived branch `native-mode`, not on the main line: by the owner's
 decision (2026-11-05) native mode is developed there in pieces across beta
 releases, so no beta waits on it, and pieces move to the main line when
@@ -22,7 +22,7 @@ documentation and uapi headers.
 In the micro-VM model each guest process is its own KVM VM, one vCPU per
 guest thread, behind an EL1 shim. Guest instructions run natively, but every
 Darwin system call and Mach trap is a `KVM_EXIT` into the Swift kernel
-personality in the single host process `ycode-simd`, and that personality is
+personality in the single host process `swiftcode-simd`, and that personality is
 serialized by one global kernel lock. Profiling of the boot
 (`docs/SIMULATOR-LINUX.md`, the speed ledger) shows the boot is bound by that
 lock: one 661 s boot held it for 370 s across 13.94 M traps, and the cost is
@@ -40,7 +40,7 @@ Two separate costs therefore sit on every guest system call:
 Native mode attacks both. If a guest process is a plain Linux process, then:
 
 - a Darwin system call that originates in **our** host libraries
-  (`ycode/SimHostLibs`, which already replace `libsystem_kernel`,
+  (`swiftcode/SimHostLibs`, which already replace `libsystem_kernel`,
   `libsystem_platform`, and `libsystem_pthread`) can become a direct
   **function call** into a process-local kernel-personality runtime — tens
   of nanoseconds, no VM exit;
@@ -53,7 +53,7 @@ Native mode attacks both. If a guest process is a plain Linux process, then:
 The micro-VM stays the correct model where it is needed (an x86-64 host, or
 any guest code we cannot mediate). Native mode is an arm64-host optimisation
 that rests on the fact that **almost every guest system call already
-originates in Ycode code we control**, because we supply the three host
+originates in SwiftCode code we control**, because we supply the three host
 libraries the runtime re-exports.
 
 ## 2. Why a plain Linux process is normally a poor fit, and what changes
@@ -96,7 +96,7 @@ This is the hardest obstacle and deserves the most care.
 `TPIDRRO_EL0` with an inlined `mrs` (`host-libraries.md` §8: the base points
 at TSD slot 0, and `pthread_t = base − 224`). `__thread` accesses and errno
 (`__error`, TSD slot 1) depend on it. Separately, Darwin reads a CPU index
-from `TPIDR_EL0` (public XNU `_os_cpu_number`, low 12 bits); Ycode's own
+from `TPIDR_EL0` (public XNU `_os_cpu_number`, low 12 bits); SwiftCode's own
 `pthread_cpu_number_np` does exactly this (`pthread/thread.c`).
 
 **What Linux does.** On a native AArch64 task the kernel writes
@@ -213,7 +213,7 @@ register file, so the handler reads `x16` and `x0..x8`, dispatches the
 Darwin call, writes `x0` and the carry (PSTATE bit 29) back into the
 `ucontext`, and returns. The handler runs on the sigaltstack (§5).
 
-Costs (design estimate, not yet measured in Ycode): a `SIGSYS` round trip is
+Costs (design estimate, not yet measured in SwiftCode): a `SIGSYS` round trip is
 signal-delivery cost, on the order of one to a few microseconds — far
 cheaper than a `KVM_EXIT` plus the global lock, but far costlier than the
 bound function-call path, which is why library sites should take the direct
@@ -249,7 +249,7 @@ work:
 3. **A hybrid**: in-process fast paths for a task's own ports, the broker
    for anything that crosses a task boundary.
 
-The existing in-process Mach engine (`YcodeDarwinKernel/MachIPC*`) is the
+The existing in-process Mach engine (`SwiftCodeDarwinKernel/MachIPC*`) is the
 starting point for the per-process half; the cross-task half is new work and
 is the real scope of native mode, mirroring the micro-VM's stage 4b/4c/5/6
 progression but without a VM under each process.
@@ -258,8 +258,8 @@ progression but without a VM under each process.
 
 ### 8.1 The guest probe (built, not yet run natively)
 
-`ycode/Native/guest/nt_probe.c` is a Darwin arm64 (iOS-simulator platform)
-program that links only Ycode's `libsystem_kernel`. It checks the native
+`swiftcode/Native/guest/nt_probe.c` is a Darwin arm64 (iOS-simulator platform)
+program that links only SwiftCode's `libsystem_kernel`. It checks the native
 process contract — the TSD base and slot 0, errno through TSD slot 1, the
 commpage signature and 16 KiB page-shift fields, the CPU-number register,
 and both library and raw-`svc` calls — and then times a library `getppid`, a
@@ -271,12 +271,12 @@ check passes in both modes, and §10.5 has its timings.
 
 ### 8.2 KVM exit cost: MMIO doorbell vs forwarded HVC (measured)
 
-`research/experiments/linux-host/exitbench.c` (Ycode's own code) runs a tiny
+`research/experiments/linux-host/exitbench.c` (SwiftCode's own code) runs a tiny
 hand-assembled guest loop and times, per iteration, a bare guest→host→guest
 round trip two ways:
 
 - **mmio** — the guest stores to an unbacked GPA; KVM returns
-  `KVM_EXIT_MMIO` and advances the guest PC itself. This is Ycode's doorbell
+  `KVM_EXIT_MMIO` and advances the guest PC itself. This is SwiftCode's doorbell
   exit (`vm-shim-protocol.md` §5).
 - **hvc** — the guest issues `HVC` with a vendor SMCCC function id, and an
   SMCCC filter range with action `FWD_TO_USER` makes KVM return
@@ -292,7 +292,7 @@ iterations each:
 
 The forwarded HVC is about **8.4 % (≈ 230 ns) cheaper** than the MMIO
 doorbell, consistently. Both are bare exits with no Swift dispatcher and no
-lock; the full `ycode-simd` trap round trip is far larger (the project's own
+lock; the full `swiftcode-simd` trap round trip is far larger (the project's own
 earlier figures put the complete EL0→personality→back path in the single- to
 low-tens-of-microseconds range, dominated by the dispatcher and the global
 lock, not by the exit itself).
@@ -336,7 +336,7 @@ Staged plan (each stage behind a flag, no change to the micro-VM default):
    sigaltstack; the in-process Mach engine and kevent/workqueue, all
    process-local, no global lock. Mirror micro-VM stage 4a.
 3. **Stray-`svc` via seccomp.** Add the `SIGSYS` path for `dyld_sim` and
-   friends; measure its cost in Ycode (fills the gap left by §6/§8.3).
+   friends; measure its cost in SwiftCode (fills the gap left by §6/§8.3).
 4. **Multiple processes + the shared component.** `posix_spawn`/`exec`,
    lifecycle, and the cross-task Mach broker (§7, option 1 first). Mirror
    micro-VM stage 4b.
@@ -370,7 +370,7 @@ cross-process traffic; the direction is a large reduction, not a few percent.
   micro-VM (and would need user-mode arm64 translation regardless).
 - **Two code paths.** Running both models means the personality must work
   both behind a VM and in-process; keeping them from diverging is an ongoing
-  cost. Sharing `YcodeDarwinKernel` as the single personality mitigates it.
+  cost. Sharing `SwiftCodeDarwinKernel` as the single personality mitigates it.
 
 ## 10. Stage 1: implementation and measurements (2026-11-05, agent B3-NATIVE)
 
@@ -381,12 +381,12 @@ and measures what the route can deliver before anyone commits to stages
 
 ### 10.1 What was built, and the switch
 
-`ycode/Native/runtime/` (C and assembly, about 2,300 lines, original Ycode
+`swiftcode/Native/runtime/` (C and assembly, about 2,300 lines, original SwiftCode
 code) builds `ycnative` on arm64 Linux (`sh build.sh`; `sh build.sh test`
 also runs the host test of §10.4). It runs one Darwin arm64 program as
-the calling Linux process, built the way `ycode-simd --macos` builds a
+the calling Linux process, built the way `swiftcode-simd --macos` builds a
 micro-VM process (`specs/macos/macos-apps.md` §3): the program's segments
-at their addresses, Ycode's dyld from the macOS userland root at
+at their addresses, SwiftCode's dyld from the macOS userland root at
 `0x3_0000_0000` (its `LC_MAIN` entry, `SP` on the Mach-header slot), the
 two commpage pages with the micro-VM's default fast-path flags
 (`DIRECT_CLOCK | CRED_BLOCK | LOCAL_CALLS | SYSCTL_CACHE`, the 24 MHz clock
@@ -396,17 +396,17 @@ main-thread block of `host-libraries.md` §8 item 3. The guest's `/` is the
 userland root (read-only), `/tmp` a per-run directory, the program's
 directory is at its own path; all Darwin mappings stay below 2^47.
 
-**The switch.** `YCODE_NATIVE=1` makes `ycode-simd --macos …` hand the run
+**The switch.** `SWIFTCODE_NATIVE=1` makes `swiftcode-simd --macos …` hand the run
 to `ycnative` with the same arguments (`MacOSMode.execNativeIfRequested`,
-`YCODE_NATIVE_RUNNER=<path>` names the runner). Unset or `0` (the
+`SWIFTCODE_NATIVE_RUNNER=<path>` names the runner). Unset or `0` (the
 default), nothing changes: the micro-VM path is untouched. `ycnative` takes
-`ycode-simd`'s `--macos`, `--macos-root`, `--env`, `--exec-args` and
+`swiftcode-simd`'s `--macos`, `--macos-root`, `--env`, `--exec-args` and
 `--timeout-ms`, so `MacUserland/run-samples.sh` drives either.
 
 ### 10.2 The choices §2 left open
 
 - **System calls (§2.1).** At load time every `svc #0x80` in an
-  instruction section of a Ycode-built image (the userland root: dyld,
+  instruction section of a SwiftCode-built image (the userland root: dyld,
   libSystem, the three host libraries) is replaced by `b veneer`; the
   per-site veneer, in a page mapped within branch range, steps over the
   128-byte red zone, saves x17 and x30, and calls the runtime's entry,
@@ -416,8 +416,8 @@ default), nothing changes: the micro-VM path is untouched. `ycnative` takes
   runtime and libc) and answers every call from below with
   `SECCOMP_RET_TRAP`; the `SIGSYS` handler runs on a per-thread
   `sigaltstack` (§5) and puts the PC back after the `svc` when the kernel's
-  restart logic rewound it (§6). `YCN_BIND=none|ycode|all` (default
-  `ycode`) chooses which images are bound; `all` also binds the program's
+  restart logic rewound it (§6). `YCN_BIND=none|swiftcode|all` (default
+  `swiftcode`) chooses which images are bound; `all` also binds the program's
   own sites.
 - **TLS (§2.2): option (b), and it is one word for one word.** In every
   instruction section of every image (the program, dyld, and each file
@@ -442,13 +442,13 @@ default), nothing changes: the micro-VM path is untouched. `ycnative` takes
   `TPIDR_EL0`. The **heavy entry** (`YCN_HEAVY=1`, measurement only) also
   saves Q0–Q31, FPCR and FPSR and switches `TPIDR_EL0` to the runtime's
   value and back: the crossing a personality with its own TLS and FP use
-  (Swift, `YcodeDarwinKernel`) would need.
+  (Swift, `SwiftCodeDarwinKernel`) would need.
 - **Page size (§2.3).** The personality rounds every mapping to 16 KiB and
   places mappings without `MAP_FIXED` itself (first free 16 KiB-aligned
   range from `0x3_2000_0000`, with `MAP_FIXED_NOREPLACE`).
 - **Threads (§5, part of stage 2).** `bsdthread_register` and
   `bsdthread_create` (`PTHREAD_START_CUSTOM`) follow
-  `threads-and-events.md` §1 as Ycode's kernel does: a `clone` with the
+  `threads-and-events.md` §1 as SwiftCode's kernel does: a `clone` with the
   new thread's TSD base as its TLS, the thread port in TSD slot 3,
   `thread_start` with x0–x5 as the micro-VM passes them, a runtime-owned
   area per thread for its signal stack and its exit. `bsdthread_terminate`
@@ -461,19 +461,19 @@ default), nothing changes: the micro-VM path is untouched. `ycnative` takes
 ### 10.3 The personality's surface
 
 What the userland root's dyld and libSystem and the Milestone A samples
-call (counted from `ycode-simd --macos --trace` runs of each sample):
+call (counted from `swiftcode-simd --macos --trace` runs of each sample):
 BSD `exit`, `read`, `write`, `open`, `openat`, `close`, `unlink`, `rmdir`,
 `mkdir`, `access`, `stat64`, `lstat64`, `fstat64`, `fstatat64`, `pread`,
 `pwrite`, `lseek`, `fcntl` (dup, fd and status flags), `ioctl` (terminal
 query only), `mmap`, `munmap`, `mprotect`, `madvise`, `getpid`, `getppid`,
 the four credential calls, `issetugid`, `getentropy`, `gettimeofday`,
 `kill` of itself, `sigaction` and the signal masks (accepted, not
-modelled), `proc_info` (ENOTSUP, as Ycode's kernel answers most of it),
+modelled), `proc_info` (ENOTSUP, as SwiftCode's kernel answers most of it),
 the thread calls above, `abort_with_payload`; Mach traps −3/−4 (time), −10,
 −12, −14 (`mach_vm_allocate`/`deallocate`/`protect`), −16, −18…−20 (port
 names and rights, without a port table), −26…−29 (reply, thread, task and
 host ports), −59/−61 (yield), −89 (`mach_timebase_info`); the platform
-call (§4 of `darwin-trap-tables.md`); Ycode's private traps `0x7963_0F00`
+call (§4 of `darwin-trap-tables.md`); SwiftCode's private traps `0x7963_0F00`
 (unimplemented library function, logged) and `0x7963_2005`
 (`task_get_special_port`). `mach_msg`/`mach_msg2` answer
 `MACH_SEND_INVALID_DEST`: there is no Mach IPC, no signal delivery, no
@@ -485,7 +485,7 @@ is a function of this process: there is no kernel lock.
 | Check | Result (Thor) |
 |---|---|
 | `nt_probe` (§8.1), all checks: TSD base and slot 0, CPU-number read, commpage, library and raw calls, errno through TSD slot 1, time, a raw `svc` and an unknown call (carry, ENOSYS) | **checks ok, exit 0** natively, in every binding mode and with the heavy entry; also in the micro-VM (`--exec` with the iOS 27.1 runtime). Check 13 compared the wrong bytes of the commpage signature (`commpage 64-bit` has a space at byte 8) and failed in both modes; fixed in the probe |
-| Milestone A (`run-samples.sh`: `hello`, `hello fail`, `fileio`, `threads`, `dispatch`, `hello-swift`) | **6 of 6 pass** natively, directly, with the heavy entry, and through `YCODE_NATIVE=1 ycode-simd`; 6 of 6 in the micro-VM |
+| Milestone A (`run-samples.sh`: `hello`, `hello fail`, `fileio`, `threads`, `dispatch`, `hello-swift`) | **6 of 6 pass** natively, directly, with the heavy entry, and through `SWIFTCODE_NATIVE=1 swiftcode-simd`; 6 of 6 in the micro-VM |
 | Repeats: `threads`, `dispatch`, `hello-swift`, `fileio`, 20 each | 80 of 80 |
 | Call counts: `hello` makes 62 calls natively, the micro-VM 62 traps | identical sequence |
 | `bind_test` (host test): bound `svc` result, carry and errno, x9/x15/x17, the red zone below SP, `d16` (heavy and light), `TPIDRRO_EL0` → `TPIDR_EL0`, CPU number → 0 | 18 of 18 |
@@ -499,9 +499,9 @@ Thor, one series (`s2`) under the boot-timing lock: 7 rounds, arms
 alternated each round, every run pinned to the same four cores
 (`taskset -c 8-11`), the same binaries in both modes, 1-minute load 13.8
 falling to 4.2 over the series (other agents' work; no boot ran). Medians
-of 7 runs, range in parentheses. *VM* is `ycode-simd --macos` (`nt_probe`:
+of 7 runs, range in parentheses. *VM* is `swiftcode-simd --macos` (`nt_probe`:
 `--exec`), *native* is `ycnative` with the light entry, *heavy* with the
-heavy entry. `nt_bench` is `ycode/Native/guest/nt_bench.c` (macOS
+heavy entry. `nt_bench` is `swiftcode/Native/guest/nt_bench.c` (macOS
 platform, public POSIX and Mach API; its header says what each row does).
 
 | Measure | VM | Native | Heavy | VM ÷ native |
@@ -531,7 +531,7 @@ So:
   (`docs/native-loader-evaluation.md` §2.1).
 - **The seccomp path costs about 0.86 µs** above the host call: 7 × a
   bound call, 5 × less than a micro-VM trap. Binding a site by rewriting
-  works on any text, not only Ycode's (`YCN_BIND=all`).
+  works on any text, not only SwiftCode's (`YCN_BIND=all`).
 - **A micro-VM trap costs 4.2–4.3 µs whatever the call does**, 2.5 µs of
   it the bare exit; `guest-cpu.md` §5.2 has the rest of the breakdown.
 - **Faults barely differ** (1.2–1.3 ×): fresh guest memory in the micro-VM
@@ -594,7 +594,7 @@ alone.
   time cost (§10.2). Left: code that is written at run time (a JIT, such as
   JavaScriptCore's in the runtime's WebKit; copied trampolines) is never
   rewritten and would read the old register (0 on Linux). A hook exists:
-  such code must call `sys_icache_invalidate`, which is in Ycode's
+  such code must call `sys_icache_invalidate`, which is in SwiftCode's
   `libsystem_platform` and could rescan the range. A data word in an
   instruction section that equals one of the two encodings would be
   corrupted; none was seen, and only sections flagged as instructions are
@@ -605,7 +605,7 @@ alone.
   below 2^47 (the Objective-C pointer mask) and the runtime above it only
   separates them by address. The personality must also stay without TLS
   and FP (or pay the heavy entry, about 60 ns a call), which rules out
-  running `YcodeDarwinKernel` (Swift) unchanged on raw-cloned guest
+  running `SwiftCodeDarwinKernel` (Swift) unchanged on raw-cloned guest
   threads: they have no libc TLS block.
 - **Signal handling.** Not in stage 1. Guest handlers need Darwin's
   `ucontext`/`mcontext` layout built from Linux's, Mach exception
@@ -624,7 +624,7 @@ alone.
 Stage 2 (§9) is half done: threads, ulocks and thread exit run. What is
 left: in-process Mach IPC (port spaces, rights, messages, MIG routines),
 `kevent`/kqueue with workloops, the workqueue, signals, `posix_spawn`. In
-`YcodeDarwinKernel` those are about 7,700 lines (`MachIPC*`, `KEvent`,
+`SwiftCodeDarwinKernel` those are about 7,700 lines (`MachIPC*`, `KEvent`,
 `Workqueue`) plus 2,000 for threads, ulocks and semaphores. Either port
 them to the freestanding personality or make the Swift kernel callable
 in-process (heavy entry, threads made by the runtime with libc TLS, a
@@ -659,12 +659,12 @@ later (for example if ranks 1, 2 and 4 stop short).
   (level 1 / level 3).
 - Darwin TSD base, `pthread_t = base − 224`, errno slot, commpage
   page-shift, CPU-number read: `host-libraries.md`, `host-library-init.md`,
-  `darwin-process-start.md`, and Ycode's own `SimHostLibs` code (level 1
+  `darwin-process-start.md`, and SwiftCode's own `SimHostLibs` code (level 1
   specs over public Darwin API; level 4 for layout facts).
 - The red zone and `x18` reservation: the public AAPCS64 / Apple arm64
   calling-convention documentation (level 1).
 - seccomp `SECCOMP_RET_TRAP` / `SIGSYS` arm64 semantics: public Linux
-  kernel documentation and uapi (level 1); the Ycode cost figure is a
+  kernel documentation and uapi (level 1); the SwiftCode cost figure is a
   design estimate, not yet measured (noted as such in §6/§8.3).
 - The SMCCC filter and `KVM_EXIT_HYPERCALL`: the public KVM API docs
   (`Documentation/virt/kvm/api.rst`, `devices/vm.rst`) and uapi
@@ -672,8 +672,8 @@ later (for example if ranks 1, 2 and 4 stop short).
 - The MMIO-vs-HVC numbers: `research/experiments/linux-host/exitbench.c`,
   our own code, run on the Thor, 2026-10-17 (level 3). The bare-MMIO figure
   agrees with the ≈ 2.75–2.97 µs recorded in `docs/postmortem-kvm-sve.md`.
-- Stage 1 (§10): `ycnative` and its host test (`ycode/Native/runtime`),
-  `nt_probe` and `nt_bench` (`ycode/Native/guest`), all our own code, run
+- Stage 1 (§10): `ycnative` and its host test (`swiftcode/Native/runtime`),
+  `nt_probe` and `nt_bench` (`swiftcode/Native/guest`), all our own code, run
   on the Thor 2026-11-05 against the micro-VM with the same binaries
   (level 3). The A64 encodings of the rewritten instructions: the Arm
   Architecture Reference Manual (level 1). That EL0 cannot write
@@ -681,6 +681,6 @@ later (for example if ranks 1, 2 and 4 stop short).
   ARM and the public Linux arm64 sources (`process.c` `copy_thread`,
   `tls_thread_switch`) (level 1). seccomp's `instruction_pointer` and
   `si_call_addr`: public Linux documentation (`seccomp_filter.rst`) and
-  uapi (level 1). The personality's call surface: `ycode-simd --trace`
-  runs of Ycode's own samples (level 3). Level 5 was not used; `research/`,
+  uapi (level 1). The personality's call surface: `swiftcode-simd --trace`
+  runs of SwiftCode's own samples (level 3). Level 5 was not used; `research/`,
   the reference tools, Ghidra and the IPSW were not opened.

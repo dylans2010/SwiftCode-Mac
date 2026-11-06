@@ -15,7 +15,7 @@ import SwiftUICore
 // placed at the top-leading corner (centred across the axis when narrower)
 // and moved by the content offset; the scroll view clips it.
 //
-// Scrolling (06 §3, Ycode's rules where the spec is silent):
+// Scrolling (06 §3, SwiftCode's rules where the spec is silent):
 // - the offset runs from 0 to content − viewport per axis;
 // - a scroll view whose frame touches the safe-area boundary scrolls its
 //   content under that inset (the reference: container 382 × 644 with a
@@ -29,7 +29,7 @@ import SwiftUICore
 //   vertical and a horizontal-only one vertical deltas as horizontal;
 //   nested scroll views take the delta innermost first, passing it on at an
 //   edge;
-// - indicators (Ycode's look): 3-point capsules 3 points inside the trailing
+// - indicators (SwiftCode's look): 3-point capsules 3 points inside the trailing
 //   and bottom edges, at least 36 long, shown while scrolling and for 1 s
 //   after (then faded over 0.25 s), always with `.visible`.
 

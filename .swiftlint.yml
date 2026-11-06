@@ -1,5 +1,5 @@
-# SwiftLint configuration for ycode/, frameworks/ and composer/.
-# Run it with ycode/scripts/lint.sh (or `swiftlint lint` from the repository root).
+# SwiftLint configuration for swiftcode/, frameworks/ and composer/.
+# Run it with swiftcode/scripts/lint.sh (or `swiftlint lint` from the repository root).
 # Test directories carry a nested .swiftlint.yml that relaxes a few rules.
 #
 # The rules below are tuned to the existing house style. Size metrics and
@@ -9,12 +9,12 @@
 # spelled the slow way, unused bindings, and whitespace.
 
 # Only Swift packages are linted. The C, C++ and Metal sources under
-# ycode/Translator, ycode/SimShim, ycode/Native and the guest builds are not.
+# swiftcode/Translator, swiftcode/SimShim, swiftcode/Native and the guest builds are not.
 included:
-  - ycode/Package.swift
-  - ycode/Sources
-  - ycode/Tests
-  - ycode/Tools
+  - swiftcode/Package.swift
+  - swiftcode/Sources
+  - swiftcode/Tests
+  - swiftcode/Tools
   - frameworks
   - composer/Package.swift
   - composer/Sources
@@ -22,10 +22,10 @@ included:
 
 excluded:
   - "**/.build"
-  - ycode/.swiftpm
+  - swiftcode/.swiftpm
   # Real project files read as test corpora.
-  - ycode/Tests/YcodeProjectTests/Fixtures
-  - ycode/Tests/YcodeWorkspaceTests/Fixtures
+  - swiftcode/Tests/SwiftCodeProjectTests/Fixtures
+  - swiftcode/Tests/SwiftCodeWorkspaceTests/Fixtures
   # Swift written by the packages' Scripts/ generators.
   - frameworks/healthkit/Sources/HealthKit/Generated
   - frameworks/homekit/Sources/HomeKit/Generated

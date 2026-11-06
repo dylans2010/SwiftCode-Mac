@@ -248,7 +248,7 @@ seen.
   queue on devices (the simulator calls them synchronously on the calling
   thread).
 - Delegate callbacks for one session are serialized (one queue).
-- Per frame, the order Ycode uses: anchor callbacks for that frame (added,
+- Per frame, the order SwiftCode uses: anchor callbacks for that frame (added,
   then updated, then removed) and then `didUpdateFrame` with a frame whose
   `anchors` already reflect those changes; `cameraDidChangeTrackingState`
   before the `didUpdateFrame` of the frame that changed it. The device order
@@ -294,7 +294,7 @@ The remaining Swift refinements are listed in the files where the types live.
 | Member semantics (run, pause, options, observer callbacks, defaults, queues) | 1 | ARKit developer documentation pages; SDK header documentation summarized |
 | Interruption causes, relocalization behavior | 1 | same |
 | Info.plist keys and permission behavior | 1 | "Verifying Device Support and User Permission" page; error codes in the SDK |
-| Simulator remarks ("Sim:") and asynchronous failure delivery, queue behavior in the simulator | 3 | `ARProbe` runs on `ycode-test-arkit-1` (iOS 27.1) |
+| Simulator remarks ("Sim:") and asynchronous failure delivery, queue behavior in the simulator | 3 | `ARProbe` runs on `swiftcode-test-arkit-1` (iOS 27.1) |
 | Frame-pool starvation | 1 | long-standing guidance in ARKit documentation and sample code; not measured |
-| Callback order per frame on devices | — | **unverified**; Ycode decision pending a hardware check |
+| Callback order per frame on devices | — | **unverified**; SwiftCode decision pending a hardware check |
 | Framework layout | 4 | `.tbd` install names, header includes, runtime bundle file list |

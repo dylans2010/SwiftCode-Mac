@@ -5,7 +5,7 @@ Status: **reference** (agent OBS-NET, 2026-10-27). It records, for the iOS
 networking depends on besides AF_INET/AF_INET6 sockets: the endpoints guest
 processes use, what the guest sees of the network and where each part comes
 from, how names are resolved, which parts each common use case needs, and
-what Ycode must provide. It complements the host-passthrough socket work
+what SwiftCode must provide. It complements the host-passthrough socket work
 (NET-IMPL) and `scdynamicstore-host.md`.
 
 Every behavioral fact comes from black-box runs on a Mac (level 3): a
@@ -21,10 +21,10 @@ mDNSResponder `dnssd_ipc.h`, xnu `route.h`, `route_private.h`, `netsrc.h`,
 Terms:
 
 - **Host**: the machine the simulator runs on (in the reference, the Mac;
-  in Ycode, the Linux host). **Guest**: processes of the simulated device.
+  in SwiftCode, the Linux host). **Guest**: processes of the simulated device.
 - **Host kernel facility**: something the reference guest gets from the
   Mac's kernel directly, because guest processes are host processes.
-  Ycode's guest kernel personality has to provide these itself.
+  SwiftCode's guest kernel personality has to provide these itself.
 - **Host-side endpoint**: a Mach name, socket path or file that leads to a
   host process.
 - **Guest-side service**: a daemon of the runtime, started by
@@ -319,11 +319,11 @@ evaluation succeeded.
   A host-wide conditioner would affect guest traffic because the guest
   uses the host stack; not tested.
 
-## 7. What Ycode must do (beyond plain sockets)
+## 7. What SwiftCode must do (beyond plain sockets)
 
 1. **dnssd responder at `/var/run/mDNSResponder`.** Guest processes
-   connect to that literal path. Ycode's guest kernel must route a guest
-   AF_UNIX `connect` to that path to Ycode's dnssd responder (NET-IMPL),
+   connect to that literal path. SwiftCode's guest kernel must route a guest
+   AF_UNIX `connect` to that path to SwiftCode's dnssd responder (NET-IMPL),
    with SCM_RIGHTS descriptor passing and the 1-byte-payload `sendmsg`
    per request (§4.2). The responder must implement at least
    `connection_request` (4-byte error reply), `query_request` (with the
@@ -359,7 +359,7 @@ evaluation succeeded.
    `ioctl`s, `com.apple.netsrc` replies, the DNS configuration and the
    store keys (`PrimaryInterface`, `__IF_INDEX__`,
    `State:/Network/Interface/<if>/…`). The reference shows the host's own
-   names; Ycode may present the Linux host's interfaces under Darwin-style
+   names; SwiftCode may present the Linux host's interfaces under Darwin-style
    names (for example `lo0` and `en0` for the primary), as long as every
    view agrees.
 6. **`com.apple.netsrc` kernel control** (optional for function, needed
@@ -367,7 +367,7 @@ evaluation succeeded.
    request/reply of §3.7 with the source address the Linux host would use
    and the interface index (RTT and counters may be 0). Without it, fail
    the CTLIOCGINFO lookup cleanly; the guest copes.
-7. **Host store values for `configd_sim`.** Ycode's host SCDynamicStore
+7. **Host store values for `configd_sim`.** SwiftCode's host SCDynamicStore
    (`scdynamicstore-host.md`) is empty today, so `configd_sim` builds an
    empty DNS configuration and NWI state. For parity, serve the network
    keys of §3.3 from the Linux host's configuration (at least

@@ -1,44 +1,44 @@
 # Spec: predictive code completion
 
-Status: **implemented** (PREDICT, 2026-10-31). Ycode's inline completion
+Status: **implemented** (PREDICT, 2026-10-31). SwiftCode's inline completion
 from a local model the user runs. The reference's own on-device model cannot
 be used: it is encrypted and bound to the Mac (`codelm-format.md` §1,
-`specs/simulator/runtime-downloads.md` §7 on branch `obs-runtime`). Ycode
+`specs/simulator/runtime-downloads.md` §7 on branch `obs-runtime`). SwiftCode
 therefore has its own backend. Ollama is the default (owner decision O3);
 llama.cpp's `llama-server` and OpenAI-compatible servers are advanced
 choices.
 
-**Ycode decision** marks Ycode's own choices. Everything else follows
+**SwiftCode decision** marks SwiftCode's own choices. Everything else follows
 public documentation (level 1). The Evidence section lists the sources.
 
-## 1. What follows the reference and what is Ycode's own
+## 1. What follows the reference and what is SwiftCode's own
 
 | Behaviour | Source |
 |---|---|
 | Suggestions appear inline in the editor as you type. They are whole statements and methods, based on the surrounding code. | Level 1: WWDC24 "Xcode essentials" (session 10181), Code completion chapter. |
 | Tab accepts what is shown. Holding Option expands the whole prediction. Option-Tab accepts the whole prediction. | Level 1: the same session. |
-| Accepting in smaller segments while holding ⌃ (Control). | Level 1: Xcode 26 release notes, Source Editor ▸ New Features (137459125). The size of a segment and the exact keys are not documented. **Ycode decision:** ⌃Tab accepts the next word (see §3.2). **Open question** for the dirty room. |
+| Accepting in smaller segments while holding ⌃ (Control). | Level 1: Xcode 26 release notes, Source Editor ▸ New Features (137459125). The size of a segment and the exact keys are not documented. **SwiftCode decision:** ⌃Tab accepts the next word (see §3.2). **Open question** for the dirty room. |
 | Editor ▸ Show Predictive Completion, ⌃⌥Space. | Level 2: `reference-ui-5.md` §2.7 item 7, `reference-ui-4.md`. |
 | A switch named "Predictive code completion" in the editing settings. | A public third-party article (Lickability, "Xcode predictive code completion") places it in Settings ▸ Text Editing ▸ Editing. Apple's own documentation found for this spec does not name it. **Open question:** the label and place in 27.1. |
-| The reference's model runs on the Mac (Apple silicon, macOS 15 or later; not in a virtual machine). | Level 1: Xcode 16 release notes (116310768, 130449481, 129198328). Ycode has no such limit: the model runs wherever the user's server runs. |
-| The reference's suggestions use context from the project; Xcode 16.3 widened it. | Level 1: Xcode 16.3 release notes (141363041). Ycode's context is in §4.1. |
-| The reference steers a prediction by the item selected in the completion pop-up. | Level 1: Xcode 16.2 release notes (129624498, 138437280). **Not done** in Ycode: the ghost text hides while the pop-up shows (§3.3). |
-| Grey ghost text, the debounce, Escape, typing through the suggestion, the drawing of extra lines, the status line. | **Ycode decisions** (§3). No public source describes them. **Open questions** for the dirty room: whether Escape dismisses, whether typing through keeps the suggestion, the delay, and whether suggestions are offered when the caret is in the middle of a line. |
+| The reference's model runs on the Mac (Apple silicon, macOS 15 or later; not in a virtual machine). | Level 1: Xcode 16 release notes (116310768, 130449481, 129198328). SwiftCode has no such limit: the model runs wherever the user's server runs. |
+| The reference's suggestions use context from the project; Xcode 16.3 widened it. | Level 1: Xcode 16.3 release notes (141363041). SwiftCode's context is in §4.1. |
+| The reference steers a prediction by the item selected in the completion pop-up. | Level 1: Xcode 16.2 release notes (129624498, 138437280). **Not done** in SwiftCode: the ghost text hides while the pop-up shows (§3.3). |
+| Grey ghost text, the debounce, Escape, typing through the suggestion, the drawing of extra lines, the status line. | **SwiftCode decisions** (§3). No public source describes them. **Open questions** for the dirty room: whether Escape dismisses, whether typing through keeps the suggestion, the delay, and whether suggestions are offered when the caret is in the middle of a line. |
 
 ## 2. Settings keys (the shared model)
 
-`PredictiveCompletionSettings` (`YcodeCompletion`) is the only settings
-model. Both IDEs, `ycode complete`, the MCP tool and the onboarding
+`PredictiveCompletionSettings` (`SwiftCodeCompletion`) is the only settings
+model. Both IDEs, `swiftcode complete`, the MCP tool and the onboarding
 (RUNTIME-ONBOARD) read and write it. It is stored as one JSON value (data)
-under the user default **`Ycode.predictiveCompletion`**. Missing keys keep
+under the user default **`SwiftCode.predictiveCompletion`**. Missing keys keep
 their defaults, so a writer can set only some of them.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `enabled` | bool | `false` | The switch. Off until the user or the onboarding turns it on. **Ycode decision:** Ycode bundles no model, so nothing is on by default. |
+| `enabled` | bool | `false` | The switch. Off until the user or the onboarding turns it on. **SwiftCode decision:** SwiftCode bundles no model, so nothing is on by default. |
 | `backend` | `"ollama"` \| `"llamaServer"` \| `"openAICompatible"` | `"ollama"` | Where suggestions come from. |
-| `address` | string, optional | absent | The server address. When absent, Ollama uses **the coding assistant's Ollama address** (`Ycode.codingAssistant` → `ollamaURL`, default `http://127.0.0.1:11434`). The other backends use `http://127.0.0.1:9931` (llama-server's documented default port). |
-| `model` | string | `""` | The model ID. `""` means: for Ollama, the first installed model whose `/api/show` `capabilities` include `insert` (it can fill in the middle); for the servers, their loaded model. No model name is built into Ycode. |
+| `address` | string, optional | absent | The server address. When absent, Ollama uses **the coding assistant's Ollama address** (`SwiftCode.codingAssistant` → `ollamaURL`, default `http://127.0.0.1:11434`). The other backends use `http://127.0.0.1:9931` (llama-server's documented default port). |
+| `model` | string | `""` | The model ID. `""` means: for Ollama, the first installed model whose `/api/show` `capabilities` include `insert` (it can fill in the middle); for the servers, their loaded model. No model name is built into SwiftCode. |
 | `maxTokens` | int | 128 | The most tokens in one suggestion. |
 | `debounceMilliseconds` | int | 250 | The pause in typing before a request. |
 | `temperature` | number or `null` | 0.2 | `null` means the server's default. |
@@ -73,7 +73,7 @@ import calls the function with the values it read.
 ### 3.1 Showing a suggestion
 
 - The suggestion is drawn after the caret in the text color at 40 %
-  opacity (**Ycode decision**).
+  opacity (**SwiftCode decision**).
 - **Collapsed** (the default), the suggestion shows up to the end of its
   first line that has text. A suggestion that starts with a line break
   shows the next line too.
@@ -83,7 +83,7 @@ import calls the function with the values it read.
   Predictive Completion) is covered and drawn again to the right of the
   suggestion. The extra lines are drawn on a block filled with the
   background over the lines below, with a thin bar at its left edge.
-  **Ycode decision:** the document's layout does not change, so nothing
+  **SwiftCode decision:** the document's layout does not change, so nothing
   scrolls or reflows.
 - The drawing is on a transparent view above the text view, because
   TextKit 2 draws text in fragment views. That view does not take clicks.
@@ -94,7 +94,7 @@ import calls the function with the values it read.
 |---|---|
 | Tab | Accepts what is shown (collapsed: the first line; while Option is held: all of it). |
 | ⌥Tab | Accepts all of it. |
-| ⌃Tab | Accepts the next segment: line breaks and spaces, then one run of word characters or one run of other characters. **Ycode decision** (§1). |
+| ⌃Tab | Accepts the next segment: line breaks and spaces, then one run of word characters or one run of other characters. **SwiftCode decision** (§1). |
 | Escape | Dismisses the suggestion and stops its request. |
 | Typing | Typing the suggestion's next characters keeps the rest of it (no new request). Typing anything else, deleting, moving the caret, selecting, or showing the completion pop-up removes it. |
 | ⌃⌥Space | Editor ▸ Show Predictive Completion: asks at once, wherever the caret is. |
@@ -103,16 +103,16 @@ Accepting inserts text through the text view, so it can be undone and the
 suggestion's remaining text stays. Tab with no suggestion keeps its usual
 meaning: placeholders, then indentation.
 
-### 3.3 When Ycode asks
+### 3.3 When SwiftCode asks
 
-All of these are **Ycode decisions**:
+All of these are **SwiftCode decisions**:
 
-- Ycode asks when the switch is on, after an edit that leaves a single
+- SwiftCode asks when the switch is on, after an edit that leaves a single
   caret and no selection, once typing pauses for `debounceMilliseconds`.
 - It asks only when the rest of the caret line holds nothing but closing
   brackets, quotes, separators and spaces. In the middle of code, only
   Show Predictive Completion asks.
-- Ycode does not ask while the language server's completion pop-up shows,
+- SwiftCode does not ask while the language server's completion pop-up shows,
   or while there are several carets.
 - A new request cancels the one before it. A request that is still
   streaming learns what was typed through its partial suggestion.
@@ -148,7 +148,7 @@ rows:
   If Ollama is not reachable, the line gives the install text, and a
   **Get Ollama…** button opens ollama.com/download in the browser.
 - **Download a model** (Ollama only): a name field and a **Download**
-  button. This is the only place where Ycode pulls a model (`/api/pull`,
+  button. This is the only place where SwiftCode pulls a model (`/api/pull`,
   with progress). It happens only when the user asks, with the name the
   user typed.
 - **Wait after typing (ms)**, **Most tokens**, **Temperature** (empty
@@ -156,7 +156,7 @@ rows:
 - **Prompt format** (OpenAI-compatible only).
 - The privacy note (§9).
 
-## 4. The engine (`YcodeCompletion`, portable)
+## 4. The engine (`SwiftCodeCompletion`, portable)
 
 ### 4.1 Context
 
@@ -167,11 +167,11 @@ the context:
   The prefix is cut to `prefixTokens` and starts at a line start. The
   suffix is cut to `suffixTokens` and ends at a line end. The caret line is
   always kept whole.
-- **Token estimate.** Tokens are counted as 3 UTF-16 units each. **Ycode
+- **Token estimate.** Tokens are counted as 3 UTF-16 units each. **SwiftCode
   decision:** there is no tokenizer round trip per keystroke.
 - **Path and language.** The path is workspace-relative in the IDE. The
   language comes from the file extension.
-- **Related snippets** (**Ycode decision**, the "neighbouring files"
+- **Related snippets** (**SwiftCode decision**, the "neighbouring files"
   approach):
   - Each other open file is cut into 20-line windows.
   - Each window is scored by the Jaccard overlap between its identifiers
@@ -188,7 +188,7 @@ its reply.
 
 ### 4.3 Shaping the output
 
-`SuggestionShaper` decides what is shown. All of these are **Ycode
+`SuggestionShaper` decides what is shown. All of these are **SwiftCode
 decisions**:
 
 1. **Chat replies** lose their code fence, `<CURSOR>`, and a repeat of the
@@ -252,7 +252,7 @@ The macOS editor drives it. The Linux editor drives the same object at L2
 ## 5. Privacy
 
 The code goes only to the address in the settings, and only while the
-switch is on, or when `ycode complete` or the MCP tool asks.
+switch is on, or when `swiftcode complete` or the MCP tool asks.
 
 - Every default address is the loopback interface (`127.0.0.1`), so with
   the defaults code never leaves the machine. It leaves only if the user
@@ -262,10 +262,10 @@ switch is on, or when `ycode complete` or the MCP tool asks.
   files.
 - Nothing is logged or stored. The only exception is the in-memory cache
   (§4.4).
-- Ycode never downloads a model by itself. It never changes the server's
+- SwiftCode never downloads a model by itself. It never changes the server's
   settings: Ollama's `keep_alive` is not sent, so the server's own value
   applies.
-- API keys are not supported for this feature. Ycode stores no secret for
+- API keys are not supported for this feature. SwiftCode stores no secret for
   it.
 
 ## 6. Backends
@@ -273,11 +273,11 @@ switch is on, or when `ycode complete` or the MCP tool asks.
 ### 6.1 Ollama (default)
 
 This backend follows Ollama's public API documentation. It extends
-`YcodeAssistant.OllamaProvider` (`OllamaProvider+Generate.swift`), the
+`SwiftCodeAssistant.OllamaProvider` (`OllamaProvider+Generate.swift`), the
 same code the coding assistant uses.
 
 - `GET /api/tags` lists the models. `POST /api/show {model}` gives
-  `capabilities`. Ycode picks the first model with `insert` and remembers
+  `capabilities`. SwiftCode picks the first model with `insert` and remembers
   it per address until the model list changes.
 - `POST /api/generate {model, prompt, suffix, stream: true, options:
   {num_predict, temperature, top_p, top_k}}` streams NDJSON:
@@ -286,11 +286,11 @@ same code the coding assistant uses.
 
   With `suffix`, the model's own template builds the fill-in-the-middle
   prompt. For example, Qwen2.5-Coder's template uses `<|fim_prefix|>`,
-  `<|fim_suffix|>` and `<|fim_middle|>`. Ycode never writes those tokens
+  `<|fim_suffix|>` and `<|fim_middle|>`. SwiftCode never writes those tokens
   for Ollama.
 - The template has no slot for other files. Related snippets therefore go
   before the prefix as line comments: `// From <path>:` followed by the
-  lines (**Ycode decision**). This happens only for languages with a
+  lines (**SwiftCode decision**). This happens only for languages with a
   line-comment marker.
 - `POST /api/pull {model, stream: true}` pulls a model, only from
   Settings ▸ Download.
@@ -351,7 +351,7 @@ backends, session and settings. The Linux shell's editor is read-only
 until L2 (`docs/PARITY.md` §5.9), so Linux has no ghost text yet. Two
 entry points work today:
 
-- **`ycode complete --file F --line L --column C`** prints the suggestion.
+- **`swiftcode complete --file F --line L --column C`** prints the suggestion.
   - Options: `--backend ollama|llama-server|openai`, `--address`,
     `--model`, `--max-tokens`, `--temperature`, `--top-p`, `--top-k`,
     `--fim`, `--related <file>` (repeatable), `--raw` (the model's output
@@ -362,7 +362,7 @@ entry points work today:
   - Exit statuses: 0 for a suggestion, 1 for no suggestion, 64 for usage,
     65 for no such line, 66 for an unreadable file, 69 for an unusable
     backend.
-- **MCP tool `complete`** (`ycode mcp`, now 29 tools): `{path, line,
+- **MCP tool `complete`** (`swiftcode mcp`, now 29 tools): `{path, line,
   column, maxTokens?}` returns `{suggestion, backend, model, totalMs}`.
 
 ### 7.2 What L2 must call
@@ -392,7 +392,7 @@ These calls are also listed in `docs/PARITY.md` §5.9:
 
 ## 8. Tests and measurements
 
-- **Unit tests** (`YcodeCompletionTests`, macOS and Linux):
+- **Unit tests** (`SwiftCodeCompletionTests`, macOS and Linux):
   - context cuts, line and column offsets, related snippets;
   - every shaping rule, with streaming and early stop;
   - the cache;
@@ -403,7 +403,7 @@ These calls are also listed in `docs/PARITY.md` §5.9:
     speaks Ollama, `/infill` and the OpenAI endpoints;
   - the session: debounce, typing through, typing ahead of a streaming
     request, accepting, an unreachable backend with back-off, off;
-  - `ycode complete`.
+  - `swiftcode complete`.
 - **macOS UI tests** (`PredictiveCompletionUITests`): real key events into
   a source editor with a stand-in backend. They check:
   - the ghost text appears and is drawn (pixels change);
@@ -421,9 +421,9 @@ These calls are also listed in `docs/PARITY.md` §5.9:
   - the activity-view text.
 - **End to end on the Mac** (2026-10-31). The setup was:
   - Ollama 0.40.13 at 127.0.0.1:11434, model `qwen2.5-coder:latest`
-    (7.6B, Q4_K_M, Apache-2.0, capability `insert`). Ycode chose it
+    (7.6B, Q4_K_M, Apache-2.0, capability `insert`). SwiftCode chose it
     automatically.
-  - `ycode complete --json` on six Swift samples, with defaults
+  - `swiftcode complete --json` on six Swift samples, with defaults
     (temperature 0.2, 128 tokens).
   - The Mac was heavily loaded by other agents.
 
@@ -452,18 +452,18 @@ These calls are also listed in `docs/PARITY.md` §5.9:
   git clone https://github.com/ggml-org/llama.cpp && cd llama.cpp
   cmake -B build -DGGML_CUDA=ON && cmake --build build --config Release -j
   # A FIM model, Apache-2.0, 1.65 GB (8.1 GB for the 7B Q8_0 file)
-  mkdir -p ~/Ycode-predict/models && curl -L -o ~/Ycode-predict/models/qwen2.5-coder-1.5b-q8_0.gguf \
+  mkdir -p ~/SwiftCode-predict/models && curl -L -o ~/SwiftCode-predict/models/qwen2.5-coder-1.5b-q8_0.gguf \
     https://huggingface.co/ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF/resolve/main/qwen2.5-coder-1.5b-q8_0.gguf
   # loopback only
-  build/bin/llama-server -m ~/Ycode-predict/models/qwen2.5-coder-1.5b-q8_0.gguf \
+  build/bin/llama-server -m ~/SwiftCode-predict/models/qwen2.5-coder-1.5b-q8_0.gguf \
     --host 127.0.0.1 --port 9931 -ngl 99 -c 4096 -b 1024 -ub 1024 --cache-reuse 256
   # then
-  ycode complete --backend llama-server --file Sample.swift --line 6 --column 9 --json
+  swiftcode complete --backend llama-server --file Sample.swift --line 6 --column 9 --json
   ```
 
 ## 9. Models (suggested, never bundled)
 
-Ycode bundles no model and downloads none by itself. These are suggestions
+SwiftCode bundles no model and downloads none by itself. These are suggestions
 with OSI licences and published FIM tokens. The user pulls one in Ollama
 (`ollama pull <name>`, or Settings ▸ Download), or downloads a GGUF from
 the publisher for `llama-server`.
@@ -477,7 +477,7 @@ Not suggested as defaults, because their licences are not OSI-approved:
 StarCoder2 (BigCode OpenRAIL-M), Code Llama (Llama licence), DeepSeek-Coder
 (DeepSeek licence), Codestral (Mistral non-production licence). Apple's
 research models (for example SimpleSD and DiffuCoder; Apple ML Research
-licence) are never a default. A user who runs one can point Ycode at that
+licence) are never a default. A user who runs one can point SwiftCode at that
 server.
 
 ## 10. Open questions (for the dirty room)
@@ -507,6 +507,6 @@ server.
 | llama-server `/infill`, `input_extra`, repo-level FIM layout, `/v1/models`, port 9931 | 1 | llama.cpp `tools/server/README.md` (MIT) |
 | FIM token layouts | 1 | each model family's model card |
 | Model licences | 1 | Hugging Face model cards (Qwen2.5-Coder sizes, ggml-org GGUF repos, IBM Granite Code, StarCoder2) |
-| Everything marked **Ycode decision** | — | Ycode's own design |
+| Everything marked **SwiftCode decision** | — | SwiftCode's own design |
 
 No Apple binary was inspected and Xcode was not run for this spec.

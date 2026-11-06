@@ -5,7 +5,7 @@ Part of `specs/frameworks/contacts/`. Every enumeration of Contacts and Contacts
 SDK with its case names and raw values (level 4), and every exported string
 constant. Constant values were read from the running framework by our probe
 (level 3); they are interop identifiers (dictionary keys, labels, notification
-names) that apps compare against, so Ycode must return the same strings.
+names) that apps compare against, so SwiftCode must return the same strings.
 
 ## Contacts enumerations
 

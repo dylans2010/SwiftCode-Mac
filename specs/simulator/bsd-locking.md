@@ -3,13 +3,13 @@
 Status: **implemented, agent SP-L0, 2026-10-19.** Continues
 `mach-ipc-locking.md` (which moved the Mach IPC, kevent and workqueue
 traps off L0) for the BSD descriptor, path, ulock and VM traps that still
-ran under L0. On by default; `YCODE_BSD_FAST=0` sends every trap of §4
-back to L0 (§6's purgeable call follows `YCODE_TASK_LOCAL_TRAPS`).
+ran under L0. On by default; `SWIFTCODE_BSD_FAST=0` sends every trap of §4
+back to L0 (§6's purgeable call follows `SWIFTCODE_TASK_LOCAL_TRAPS`).
 Measurements: §10. Extended by agent KLOCK (2026-10-23/24): more traps,
 the process table, directory cursors and file locks without L0 (§12–§15),
 measurements §16, open items §17.
 
-This is Ycode's own design for Ycode's own kernel personality. It names
+This is SwiftCode's own design for SwiftCode's own kernel personality. It names
 no Apple internals. The semantics kept are those of the locked paths
 (`stage6-contract.md` §5, `processes.md`, `threads-and-events.md` §4.1),
 whose level-1 sources are POSIX and the xnu sources (`bsd/kern/kern_descrip.c`,
@@ -17,7 +17,7 @@ whose level-1 sources are POSIX and the xnu sources (`bsd/kern/kern_descrip.c`,
 
 ## 1. Problem: what still took L0 after the IPC split
 
-Trap profile (`YCODE_TRAP_PROFILE`, main line aa1bf7c, one full boot to
+Trap profile (`SWIFTCODE_TRAP_PROFILE`, main line aa1bf7c, one full boot to
 the home screen, 62.7 s profiled, Thor load average below 1 at the start):
 L0 45.3 % busy, 2.21 M acquisitions (0.76 per trap), 34.6 % contended,
 1,016 s of summed waits (on average 16 threads waiting for L0 at any
@@ -42,7 +42,7 @@ own hold (1–10 µs for most).
 | BSD 381 `__mac_syscall` | 19,992 | 19,992 | 9 s | 4.6 µs |
 | BSD 244 `posix_spawn` | 440 | 440 | 0.3 s | 10 ms (4.4 s held, max 308 ms) |
 
-The holder-stack samples (`YCODE_TRAP_PROFILE_STACKS`) put getattrlist's
+The holder-stack samples (`SWIFTCODE_TRAP_PROFILE_STACKS`) put getattrlist's
 hold in host path resolution (59 % in `stat`), the protection-class lookup
 (13 %) and `realpath` (20 %); mmap's in the host `mmap` (62 %; the host
 process's `mmap_lock`) and the address-space bookkeeping. Most of the
@@ -62,7 +62,7 @@ guest memory.
 
 A thread takes levels 0–3 in strictly increasing order (unchanged). A leaf
 lock is taken last: its holder takes no other lock, waits for nothing and
-runs no callback. With `YCODE_LOCK_ORDER_CHECK=1` each thread counts the
+runs no callback. With `SWIFTCODE_LOCK_ORDER_CHECK=1` each thread counts the
 descriptor-table locks it holds (`LeafLockCheck`), and taking any kernel
 lock (L0, L_P, G) while holding one stops the process.
 
@@ -101,7 +101,7 @@ is ending, or the thread is not bound to it.
 | 3 `read`, 396, 153 `pread`, 414 | one table lookup; the transfer under the offset lock | not a regular host file (pipes, sockets, the console, devices); any error of the lookup |
 | 4 `write`, 397, 154 `pwrite`, 415 (`frame-profile.md` §5.1) | one table lookup; the host write under the offset lock | not a regular host file; a guarded descriptor; any error of the lookup; a length above `INT_MAX` |
 | 199 `lseek` | one table lookup; the offset lock | — |
-| 336 `proc_info` (`frame-profile.md` §8.2) | `PROC_INFO_CALL_DIRTYCONTROL` (flavors 1–4) on the caller's own process: one atomic operation on the process record's dirty word (a leaf, reached through the image) | another target, another call or flavor; `YCODE_DIRTY_FAST=0` |
+| 336 `proc_info` (`frame-profile.md` §8.2) | `PROC_INFO_CALL_DIRTYCONTROL` (flavors 1–4) on the caller's own process: one atomic operation on the process record's dirty word (a leaf, reached through the image) | another target, another call or flavor; `SWIFTCODE_DIRTY_FAST=0` |
 | 339 `fstat64` | one table lookup | an object other than a device node |
 | 92 `fcntl`, 406 | F_GETFD, F_SETFD, F_GETFL, F_GETPATH(_NOFIRMLINK), F_DUPFD(_CLOEXEC), the caching hints, F_CHECK_LV, F_ADDFILESIGS_RETURN, F_GETCONFINED | every other command (locks, F_SETFL, protection classes, …); F_DUPFD of a guarded descriptor |
 | 41 `dup` | one table operation | a guarded descriptor |
@@ -111,7 +111,7 @@ is ending, or the thread is not bound to it.
 | 197 `mmap` | §4.5 | a POSIX shared-memory object |
 | 381 `__mac_syscall` | the Sandbox check calls (2, 12) allow; other policies ENOPOLICY | the Sandbox extension calls |
 | 327 `issetugid` | constant | — |
-| 515, 544 `ulock_wait(2)`, 516 `ulock_wake` | §5 | no lock split; `YCODE_SCHED_QOS` (priority pushes are L0 state) |
+| 515, 544 `ulock_wait(2)`, 516 `ulock_wake` | §5 | no lock split; `SWIFTCODE_SCHED_QOS` (priority pushes are L0 state) |
 
 ### 4.1 Descriptor lifetime
 
@@ -187,7 +187,7 @@ for writes. Thread exit's join-gate wake takes L_P inside L0. No wakeup is
 lost: waiter and waker both hold L_P (I2 of `mach-ipc-locking.md`).
 Signals and image termination reach the waiters through L0's registry of
 the fine locks, as for kevent waits; the snapshot census sees them there
-and restarts the trap (`snapshot.md`). With `YCODE_SCHED_QOS` the calls
+and restarts the trap (`snapshot.md`). With `SWIFTCODE_SCHED_QOS` the calls
 stay on L0 (the inheritance push changes thread classes, L0 state).
 
 ## 6. vm_purgable_control as a task-local trap
@@ -217,7 +217,7 @@ a fatal signal, another thread's exec): after taking L0 back the call
 checks it, destroys the prepared image and fails with EINTR, as the
 stage 6 calls that release L0 do. Exec builds its new image the same way
 before its commit point; two execs racing in one image both build, the
-first to commit wins and the other gets EINTR. `YCODE_SPAWN_UNLOCKED_BUILD=0`
+first to commit wins and the other gets EINTR. `SWIFTCODE_SPAWN_UNLOCKED_BUILD=0`
 keeps the whole build under L0.
 
 ## 8. Snapshots and deadlock freedom
@@ -237,7 +237,7 @@ take no other lock, wait for nothing and run no callback (a removed
 process record or a replaced image is released after the lock; file-lock
 waiters are woken under L0 after the table lock is let go). They count in
 `LeafLockCheck`, so taking any kernel lock while holding one stops the
-process with `YCODE_LOCK_ORDER_CHECK=1`. The snapshot capture reads, and
+process with `SWIFTCODE_LOCK_ORDER_CHECK=1`. The snapshot capture reads, and
 the restore writes, these tables with L0 and every fine lock held, so no
 fast path runs then; the restore marks the descriptions whose OFD locks it
 re-arms (§15).
@@ -255,12 +255,12 @@ closing on one table on both paths; ulock waits on the fast path woken by
 a locked wake, a fast wake and an interrupt under L0; vm_purgable_control
 task-local against locked; spawn and exec through a two-step launcher
 (prepare without L0, activate with it, the switch). The kernel suite also runs with the VMM's trap
-order in every test helper (`YCODE_IPC_LOCKS_TESTS=1` or
-`YCODE_BSD_FAST_TESTS=1`, about 4,300 BSD fast traps per run, the fast
+order in every test helper (`SWIFTCODE_IPC_LOCKS_TESTS=1` or
+`SWIFTCODE_BSD_FAST_TESTS=1`, about 4,300 BSD fast traps per run, the fast
 paths writing the same trace lines as the locked path).
 
 KLOCK's tests (all with the lock-order check, on both paths where the
-suite is run with `YCODE_IPC_LOCKS_TESTS=1`): `BSDFastPathTests`
+suite is run with `SWIFTCODE_IPC_LOCKS_TESTS=1`): `BSDFastPathTests`
 `smallTrapsMatchTheLockedPath`, `processTableReadsMatchTheLockedPath`,
 `processTableReadsRaceSpawnsAndExits`, `directoryReadsMatchTheLockedPath`,
 `fileLocksWithoutL0`, the console and fcntl cases of
@@ -269,19 +269,19 @@ suite is run with `YCODE_IPC_LOCKS_TESTS=1`): `BSDFastPathTests`
 (half of the `thread_get_state` calls on the routine's fast path);
 `WorkqueueKEventTests.descriptorKnoteIsDeliveredToAParkedWorker`. The
 kernel suite (353 tests) passes on the Mac, the Thor (arm64) and the
-x86-64 workstation with `YCODE_LOCK_ORDER_CHECK=1 YCODE_IPC_LOCKS_TESTS=1`
-and with `YCODE_IPC_LOCKS=0`; the full suite passes on the Mac and the
+x86-64 workstation with `SWIFTCODE_LOCK_ORDER_CHECK=1 SWIFTCODE_IPC_LOCKS_TESTS=1`
+and with `SWIFTCODE_IPC_LOCKS=0`; the full suite passes on the Mac and the
 workstation.
 
 ## 10. Measurements
 
-Thor, harness full boots (device in RAM, `YCODE_LEAN_BOOT` unset), the two
+Thor, harness full boots (device in RAM, `SWIFTCODE_LEAN_BOOT` unset), the two
 arms started together in each round (order alternating), base = main line
 aa1bf7c (`SX/IDE`). Other agents shared the host throughout: load
 average 31–80 (14 cores), so a boot took 140–295 s instead of the 75 s
 of an idle host.
 
-### 10.1 Locks (profiled pair, `YCODE_TRAP_PROFILE`, 181 s each, load 45–50)
+### 10.1 Locks (profiled pair, `SWIFTCODE_TRAP_PROFILE`, 181 s each, load 45–50)
 
 | | base | this change |
 |---|---|---|
@@ -307,7 +307,7 @@ their holders are preempted more (63 % of hold time in preempted holds).
 |---|---|---|---|---|
 | b: §3–§4 without ulock, spawn and the small calls (e8dc7f5) | 4 | 192.5 s | 201.3 s | +8.8 s (0 … +25) |
 | d: everything (27f1afa) | 6 | 207.5 s | 212.5 s | +5.0 s (−15 … +25) |
-| e: 27f1afa, switches off against on (`YCODE_BSD_FAST=0 YCODE_SPAWN_UNLOCKED_BUILD=0`) | 4 | 206.3 s (off) | 186.3 s (on) | −20 s (−75 … +10) |
+| e: 27f1afa, switches off against on (`SWIFTCODE_BSD_FAST=0 SWIFTCODE_SPAWN_UNLOCKED_BUILD=0`) | 4 | 206.3 s (off) | 186.3 s (on) | −20 s (−75 … +10) |
 
 **Result: on this loaded host the change does not measurably move the
 time to the home screen**, although it removes about 70 % of L0's
@@ -340,25 +340,25 @@ the answers are the locked path's (the same functions run on both paths).
 
 | Trap | Without L0 | Switch |
 |---|---|---|
-| BSD 73 `munmap`, 74 `mprotect`; Mach −15 `mach_vm_map` (anonymous memory); Mach −3 `mach_absolute_time`, −4 `mach_continuous_time` | task-local traps (`boot-profile.md` §3.6): one address-space change under L1, as `vm_deallocate`, `vm_protect`, `vm_allocate`; a fixed `mach_vm_map` placement checks and maps as one change; the counter | `YCODE_TASK_LOCAL_MORE=0` |
-| BSD 116 `gettimeofday` | the clocks; the commpage time-of-day snapshot is published under a leaf lock (two threads, on and off L0, may refresh it at once) | `YCODE_BSD_FAST_MORE=0` |
+| BSD 73 `munmap`, 74 `mprotect`; Mach −15 `mach_vm_map` (anonymous memory); Mach −3 `mach_absolute_time`, −4 `mach_continuous_time` | task-local traps (`boot-profile.md` §3.6): one address-space change under L1, as `vm_deallocate`, `vm_protect`, `vm_allocate`; a fixed `mach_vm_map` placement checks and maps as one change; the counter | `SWIFTCODE_TASK_LOCAL_MORE=0` |
+| BSD 116 `gettimeofday` | the clocks; the commpage time-of-day snapshot is published under a leaf lock (two threads, on and off L0, may refresh it at once) | `SWIFTCODE_BSD_FAST_MORE=0` |
 | BSD 372 `thread_selfid`, 500 `getentropy` | the caller's thread id; host random bytes | the same |
 | BSD 322 `iopolicysys` | the image's I/O policy table, now with a leaf lock of its own (set and get are one section each) | the same |
 | BSD 381 `__mac_syscall`, the Sandbox extension calls (issue, consume, release) | stateless: a token made from the path's `stat`, a form check | the same |
 | BSD 92 `fcntl` F_SETFL of a description without an object (a host file, the console) | one store of the flags word: F_SETFL replaces every settable bit and keeps the access mode, which never changes, so no update is lost without L0; an object's F_SETFL (its readiness may change) stays on L0 | the same |
 | `fcntl` F_SETNOSIGPIPE, F_GETNOSIGPIPE | one word of the description | the same |
-| BSD 95 `fsync`, 187 `fdatasync` (Ycode's writes reach the host file before they return: a descriptor check); 136 `mkdir`, 475 `mkdirat` (the host directory; the umask is one word); 58 `readlink`, 473 `readlinkat`; 345 `statfs64`, 346 `fstatfs64` | path resolution, the descriptor table and host calls | `YCODE_BSD_FAST_MORE=0` |
+| BSD 95 `fsync`, 187 `fdatasync` (SwiftCode's writes reach the host file before they return: a descriptor check); 136 `mkdir`, 475 `mkdirat` (the host directory; the umask is one word); 58 `readlink`, 473 `readlinkat`; 345 `statfs64`, 346 `fstatfs64` | path resolution, the descriptor table and host calls | `SWIFTCODE_BSD_FAST_MORE=0` |
 | BSD 361 `bsdthread_terminate`: the unmap (or, for the main thread, the protection) of the thread's stack | released L0 for the address-space change (L1; a host mapping change runs every VM's MMU notifier, 360 µs mean L0 hold before); the thread is still alive and in its table meanwhile; the rest under L0 as before | — |
-| Mach −43 `mach_generate_activity_id` | task-local: the image's counter is an atomic | `YCODE_TASK_LOCAL_MORE=0` |
+| Mach −43 `mach_generate_activity_id` | task-local: the image's counter is an atomic | `SWIFTCODE_TASK_LOCAL_MORE=0` |
 | BSD 4 `write`, 397 of the console | the host's standard output or error (one host `write`, which the host serializes); on L0 a slow host stream (a full pipe to a log reader, a file on a busy disk) held the kernel lock for the whole write | the same |
-| Ycode's `vm_copy` (0x7963_0004) | task-local: one read and one write of guest memory | `YCODE_TASK_LOCAL_MORE=0` |
-| Ycode's Mach routines `thread_get_state`, `task_threads`, `mach_make_memory_entry_64`, `mach_vm_map` (memory object), `mach_vm_remap`, port context | the event lock and/or G (`mach-ipc-locking.md` §4.10) | `YCODE_PORT_ROUTINES_FAST=0` |
+| SwiftCode's `vm_copy` (0x7963_0004) | task-local: one read and one write of guest memory | `SWIFTCODE_TASK_LOCAL_MORE=0` |
+| SwiftCode's Mach routines `thread_get_state`, `task_threads`, `mach_make_memory_entry_64`, `mach_vm_map` (memory object), `mach_vm_remap`, port context | the event lock and/or G (`mach-ipc-locking.md` §4.10) | `SWIFTCODE_PORT_ROUTINES_FAST=0` |
 | `fcntl` F_GETPROTECTIONCLASS, F_GETPROTECTIONLEVEL | the protection-class table's leaf lock (§4.4); setting a class stays on L0 | the same |
 
 **Importance flips without QoS.** A send that changes a process's
 importance count across zero flips its darwin-bg state; the fast `mach_msg`
 deferred a class refresh to L0 for it (`mach-ipc-locking.md` §4.5) even
-when `YCODE_SCHED_QOS` is off, where the refresh does nothing. Only a start
+when `SWIFTCODE_SCHED_QOS` is off, where the refresh does nothing. Only a start
 hold's release (or QoS) now takes L0 there.
 
 ## 13. The process table without L0
@@ -388,7 +388,7 @@ process table and process records (L0 state until now).
   (other `kern.proc` names fall back). TERMINATE and DIRTYCONTROL of
   another process change state: L0.
 
-Switch: `YCODE_PROC_TABLE_FAST=0` (the locks stay; only the calls go back
+Switch: `SWIFTCODE_PROC_TABLE_FAST=0` (the locks stay; only the calls go back
 to L0). Tests: `BSDFastPathTests.processTableReadsMatchTheLockedPath`
 (every call and flavor, a running process, a zombie, pseudo-init, a pid
 that does not exist; byte for byte) and
@@ -414,7 +414,7 @@ instead of a full guest-path resolution (one `lstat` per path component;
 is plainly inside the directory's prefix; a guest symbolic link, a nested
 prefix root, `/dev` and any error take the full resolution (test
 `DirectoryEntryStatTests`).
-Switch: `YCODE_DIRECTORY_FAST=0`. Test:
+Switch: `SWIFTCODE_DIRECTORY_FAST=0`. Test:
 `BSDFastPathTests.directoryReadsMatchTheLockedPath` (the records,
 positions and end flag of both paths read in pieces; readers racing opens
 and closes).
@@ -437,7 +437,7 @@ fast path). So a waiter either saw the change, or was counted before it and
 is woken. An OFD lock's first set on a description goes to L0, which
 installs the description's release handler (L0 state); the table records
 which descriptions have one, and the fast set requires it. Switch:
-`YCODE_FILE_LOCK_FAST=0`. Test: `BSDFastPathTests.fileLocksWithoutL0` (a
+`SWIFTCODE_FILE_LOCK_FAST=0`. Test: `BSDFastPathTests.fileLocksWithoutL0` (a
 fast unlock wakes another process's F_SETLKW waiting on L0; OFD locks;
 F_GETLK on both paths), and the `FileLockTests` suite on both paths.
 
@@ -447,16 +447,16 @@ Thor, idle host for every timed boot (`timed.sh`: the machine to itself, 1-min
 load below 4 at the start; each series ran inside one `timed.sh` call with
 the arms alternating per round and a wait for load below 4 before each
 boot). Arms differ only in switches on one build: *off* =
-`YCODE_PORT_ROUTINES_FAST=0 YCODE_TASK_LOCAL_MORE=0 YCODE_BSD_FAST_MORE=0
-YCODE_PROC_TABLE_FAST=0 YCODE_DIRECTORY_FAST=0
-YCODE_DESCRIPTOR_ESCALATION=0` (and `YCODE_FILE_LOCK_FAST=0` where it
+`SWIFTCODE_PORT_ROUTINES_FAST=0 SWIFTCODE_TASK_LOCAL_MORE=0 SWIFTCODE_BSD_FAST_MORE=0
+SWIFTCODE_PROC_TABLE_FAST=0 SWIFTCODE_DIRECTORY_FAST=0
+SWIFTCODE_DESCRIPTOR_ESCALATION=0` (and `SWIFTCODE_FILE_LOCK_FAST=0` where it
 existed), *on* = the defaults. What the switches leave on in *off* (the
 process-record and table locks, the fixed importance flip, the stack unmap
 of a thread exit without L0) is small.
 
 ### 16.1 Locks (profiled cold boots of a device at its own path)
 
-`YCODE_TRAP_PROFILE`, two pairs (series P), tables copied at the home screen:
+`SWIFTCODE_TRAP_PROFILE`, two pairs (series P), tables copied at the home screen:
 
 | | off (2 boots) | on (2 boots) |
 |---|---|---|
@@ -499,7 +499,7 @@ would test it (§17) were not run.
 
 Series J (3 rounds, one warm-up session; restore, 25 s, a 40 s
 frame-profile window over home-screen drags outside the dock column, Home,
-a drag to the Today view and back, Spotlight; `ycode-display-probe`):
+a drag to the Today view and back, Spotlight; `swiftcode-display-probe`):
 
 | | off | on |
 |---|---|---|
@@ -521,7 +521,7 @@ longer waited for L0 after FPS-PROF and FPS-2.
   and descriptor readiness off L0 (then the escalation of
   `mach-ipc-locking.md` §4.11 is not needed).
 - F_SETCONFINED (95), `getrlimit` (the limits table), `persona`, `socket`,
-  `sigaction`, Ycode's `task_info` (0x7963_0006) and the image-list
+  `sigaction`, SwiftCode's `task_info` (0x7963_0006) and the image-list
   notification (0x7963_0010), `posix_spawn`'s second half, thread
   creation and exit: small or rare, still on L0.
 - Tracing turns every fast path off (by design).
@@ -542,8 +542,8 @@ longer waited for L0 after FPS-PROF and FPS-2.
 | ulock wait/wake semantics kept | 1 | xnu `bsd/kern/sys_ulock.c` (via `threads-and-events.md` §4.1) |
 | Recursive and plain pthread mutexes; Swift `Mutex` | 1 | POSIX, Swift Synchronization documentation |
 | L0 profile (§1) and measurements (§10) | 3 | Thor harness boots `SX/SPL0/prof/*`, `SX/{IDE,SPL0}/runs/sp-l0-*` |
-| KLOCK's profiles and measurements (§12, §16) | 3 | Thor timed boots and sessions of Ycode's simulator: `ide-remote/klock/runs/{p0-1,P-*,C-*,X-*,F-*,Y-*}`, `ide-remote/klock/out/{J,K}-*`, `SX/KLOCK/runs/{B,G}-*` |
-| Pipes and sockets notify readiness observers at every change (§12 stale-candidate rule, `mach-ipc-locking.md` §4.11) | — | Ycode's own `Pipe.swift`, `UnixSocket.swift` |
+| KLOCK's profiles and measurements (§12, §16) | 3 | Thor timed boots and sessions of SwiftCode's simulator: `ide-remote/klock/runs/{p0-1,P-*,C-*,X-*,F-*,Y-*}`, `ide-remote/klock/out/{J,K}-*`, `SX/KLOCK/runs/{B,G}-*` |
+| Pipes and sockets notify readiness observers at every change (§12 stale-candidate rule, `mach-ipc-locking.md` §4.11) | — | SwiftCode's own `Pipe.swift`, `UnixSocket.swift` |
 
 Level 5 was not used. The reference tools folder, `research/` and Ghidra
 were not opened.

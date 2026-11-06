@@ -14,22 +14,22 @@ open class HMAccessoryOwnershipToken: NSObject, @unchecked Sendable {
 /// A HomeKit setup payload from a setup URL.
 open class HMAccessorySetupPayload: NSObject, @unchecked Sendable {
     /// The URL as given.
-    public let ycodeURL: URL
-    public let ycodeOwnershipToken: HMAccessoryOwnershipToken?
+    public let swiftcodeURL: URL
+    public let swiftcodeOwnershipToken: HMAccessoryOwnershipToken?
 
     /// `X-HM://` followed by exactly 13 characters (9 base-36 characters and a
     /// 4-character setup ID); anything else, including Matter `MT:` codes, is
     /// rejected (simulator-baseline.md §7, T-O6).
     public init?(url setupPayloadURL: URL?) {
         guard let url = setupPayloadURL, HMAccessorySetupPayload.isValid(url.absoluteString) else { return nil }
-        ycodeURL = url
-        ycodeOwnershipToken = nil
+        swiftcodeURL = url
+        swiftcodeOwnershipToken = nil
     }
 
     public init?(url setupPayloadURL: URL?, ownershipToken: HMAccessoryOwnershipToken?) {
         guard let url = setupPayloadURL, HMAccessorySetupPayload.isValid(url.absoluteString) else { return nil }
-        ycodeURL = url
-        ycodeOwnershipToken = ownershipToken
+        swiftcodeURL = url
+        swiftcodeOwnershipToken = ownershipToken
     }
 
     static func isValid(_ text: String) -> Bool {
@@ -82,7 +82,7 @@ open class HMAccessorySetupResult: NSObject, @unchecked Sendable {
     }
 }
 
-/// Presents the setup flow. Ycode has no setup sheet in this round (R7), so
+/// Presents the setup flow. SwiftCode has no setup sheet in this round (R7), so
 /// every request ends as the reference's dismissed flow does: error 23 with
 /// an empty userInfo, on the main queue (simulator-baseline.md §6, HK-B12).
 open class HMAccessorySetupManager: NSObject, @unchecked Sendable {

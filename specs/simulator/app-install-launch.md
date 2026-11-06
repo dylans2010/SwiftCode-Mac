@@ -12,10 +12,10 @@ daemons work inside.
 
 Terms are as in `launchd-sim.md`: **RR** (RuntimeRoot), **DEV** (the device
 directory; `DEV/data` is the guest's writable world), **host** (on Linux:
-Ycode). In addition:
+SwiftCode). In addition:
 
 - **probe app**: `research/experiments/simulator/ProbeApp`, bundle id
-  `dev.ycode.probe`. It writes a `== YCODE-PROBE BEGIN … END` report to
+  `dev.swiftcode.probe`. It writes a `== SWIFTCODE-PROBE BEGIN … END` report to
   stderr from `application(_:didFinishLaunchingWithOptions:)`.
 - **ylaunch**: our guest-side helper,
   `research/experiments/simulator/app-launch/ylaunch.m`. It links only
@@ -73,7 +73,7 @@ options `PackageType = Developer`, `SimulatorRootPath = <RR>`, and
 | 11 | more than 20 daemons | Log `applicationsDidInstall` for the new app (SpringBoard, runningboardd, homed, passd, dasd, and others). SpringBoard: "Placeholder remove BEGIN", "Application added". |
 
 The daemons log each phase on the `TransactionLog` category, with the bundle
-id as a prefix. That log is the most useful trace for Ycode bring-up.
+id as a prefix. That log is the most useful trace for SwiftCode bring-up.
 
 ### 2.2 Files the install leaves
 
@@ -96,7 +96,7 @@ Other files changed during the install: the LaunchServices store
 `DEV/data/Library/FrontBoard/applicationState.db`,
 `DEV/data/Library/SpringBoard/IconState.plist`, the lsd icon cache, and the
 installcoordinationd `CoordinatorPriority.plist`. All of them are written by
-runtime daemons. Ycode does not write any of them.
+runtime daemons. SwiftCode does not write any of them.
 
 Both container UUIDs change on every reinstall.
 
@@ -152,7 +152,7 @@ plus the keys above. `XPC_SERVICE_NAME` equals the label.
 
 runningboardd logs several `memorystatus_control` and role calls that fail
 with EPERM ("Memorystatus failed", "Error setting Darwin GPU", "Carplay
-mode"). The launch is not affected. Ycode's kernel layer can return the same
+mode"). The launch is not affected. SwiftCode's kernel layer can return the same
 errors.
 
 ### 3.4 Where stdio paths land
@@ -310,16 +310,16 @@ Run as one-shots in the booted guest (`run-sequence.sh` does exactly this):
    `+uninstallAppWithBundleID:error:`).
 2. `install-ix <path>.app` (§4.1, the row that works). Wait for the
    completion block.
-3. Make sure the stdio directory exists (for example `DEV/data/tmp/ycode/`).
+3. Make sure the stdio directory exists (for example `DEV/data/tmp/swiftcode/`).
    A missing directory is created only if its parent is writable (§3.4).
-4. `open-fbs <id> --err /tmp/ycode/probe.err --out /tmp/ycode/probe.out
+4. `open-fbs <id> --err /tmp/swiftcode/probe.err --out /tmp/swiftcode/probe.out
    --arg … --env K=V`: `FBSOpenApplicationService` with `__DebugOptions`, from
    a binary that carries `com.apple.frontboard.debugapplications` in
    `__TEXT,__entitlements`. Treat a completion with no process as a failure.
-5. Read the report from `DEV/data/tmp/ycode/probe.err`. Observed: the full
+5. Read the report from `DEV/data/tmp/swiftcode/probe.err`. Observed: the full
    report, with argv[1] = the `--arg` value, the `--env` variable in the
    environment, `HOME` = the new data container, and `XPC_SERVICE_NAME =
-   UIKitApplication:dev.ycode.probe[…][rb-legacy]`.
+   UIKitApplication:dev.swiftcode.probe[…][rb-legacy]`.
 
 Total for steps 1–5 with a warm device: about 4.7 s, most of it the fixed
 waits in the script.
@@ -332,7 +332,7 @@ stdio. Differences from a real launch:
 
 - `HOME` and `TMPDIR` are `DEV/data` and `DEV/data/tmp`, not the data
   container.
-- runningboardd resolves the identity as `anon<YcodeProbe>`.
+- runningboardd resolves the identity as `anon<SwiftCodeProbe>`.
 - The FrontBoard handshake is sent, but no scene is ever created, so no
   window is made. The process stays alive until killed.
 
@@ -386,26 +386,26 @@ Conclusions:
 4. SpringBoard is needed for a real launch (it handles the open request and
    owns the scene). It is not needed for the one-shot fallback (§4.7).
 
-## 6. Requirements for Ycode (derived)
+## 6. Requirements for SwiftCode (derived)
 
 1. **No bridge.** The bridge and the CoreDevice jobs (`launchd-sim.md` §4.5)
-   are not needed for install or launch. Ycode supplies its own guest helper
+   are not needed for install or launch. SwiftCode supplies its own guest helper
    instead.
-2. **Guest helper.** Ycode ships a small simulator-platform program, written
+2. **Guest helper.** SwiftCode ships a small simulator-platform program, written
    clean-room from this spec, that implements install (§4.1), uninstall
    (§4.2), lookup (§4.3), and launch with debug options (§4.4). It must carry
-   `com.apple.frontboard.debugapplications` in `__TEXT,__entitlements`. Ycode
+   `com.apple.frontboard.debugapplications` in `__TEXT,__entitlements`. SwiftCode
    runs it with its own one-shot spawn operation (`launchd-sim.md` §7.2 item
    6) and reads its stdout for results: install done, bundle and data paths,
    pid, or an error.
 3. **Readiness.** Before launching, wait until SpringBoard serves FrontBoard
    open requests. The bridge retries for up to 120 s (300 s near boot). The
-   Ycode helper should retry "not ready" failures in the same way.
+   SwiftCode helper should retry "not ready" failures in the same way.
 4. **Bundle placement.** The source `.app` must be readable at a path that
    the helper process can open, and the helper must be able to write
    installcoordinationd's `PromiseStaging` directory under `DEV/data`.
-   Ycode copies the built app anywhere the guest can read, for example
-   `DEV/data/tmp/ycode/`. Ycode never writes the containers, metadata plists,
+   SwiftCode copies the built app anywhere the guest can read, for example
+   `DEV/data/tmp/swiftcode/`. SwiftCode never writes the containers, metadata plists,
    or LaunchServices store itself (§2.2).
 5. **Signing.** A linker ad-hoc signature on the executable was enough. No
    bundle-level signature was needed. Whether a completely unsigned
@@ -425,7 +425,7 @@ Conclusions:
      under `DEV/data`.
    - `memorystatus_control` and the role calls may keep failing with EPERM
      (§3.3).
-8. **backboardd.** Before stage 8 (display), Ycode must check on Linux
+8. **backboardd.** Before stage 8 (display), SwiftCode must check on Linux
    whether headless backboardd serves `com.apple.backboard.display.services`.
    If it does not, the stage-7 goal is blocked before `didFinishLaunching`.
    The render server can be missing for the stage-7 goal. It costs about 5 s
@@ -446,9 +446,9 @@ Conclusions:
 3. **Install without SpringBoard and the icon pipeline.** SpringBoard and
    the lsd icon cache take part in the install (placeholder icons). Is any of
    that on the critical path? This was not testable on the Mac.
-4. **Unsigned executables.** On Linux, Ycode can run binaries with no
+4. **Unsigned executables.** On Linux, SwiftCode can run binaries with no
    signature at all. Does installd's verification step (0.00–0.01 s on the
-   Mac) accept them, or must Ycode ad-hoc sign the executable (for example
+   Mac) accept them, or must SwiftCode ad-hoc sign the executable (for example
    with an open-source signer)?
 5. **How SpringBoard reads a peer's entitlements.** §4.5 is shown for a
    self-check. That a peer check uses the same `proc_pidpath` + file read

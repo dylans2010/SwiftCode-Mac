@@ -8,7 +8,7 @@ import SwiftUICore
 #endif
 
 // The menu bar (round R11). Linux desktops have no global menu bar, so every
-// main window draws its own, in the window, above the toolbar (Ycode's
+// main window draws its own, in the window, above the toolbar (SwiftCode's
 // choice; exporting through the D-Bus menu protocol is left for later).
 //
 // Menus, in order: the application menu (titled with the app's name), File,
@@ -19,7 +19,7 @@ import SwiftUICore
 // `(after:)` items around them; non-empty groups are separated by a
 // separator. Menus with no items are not shown.
 //
-// Default items (Ycode's, with the Linux shortcuts): About <App>; Settings…
+// Default items (SwiftCode's, with the Linux shortcuts): About <App>; Settings…
 // (Ctrl+, — when the app has a `Settings` scene); Quit <App> (Ctrl+Q); New
 // Window (Ctrl+N — when the app has a `WindowGroup`); Close Window (Ctrl+W);
 // Undo (Ctrl+Z), Redo (Ctrl+Shift+Z), Cut (Ctrl+X), Copy (Ctrl+C), Paste

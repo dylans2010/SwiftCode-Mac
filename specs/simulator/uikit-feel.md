@@ -1,7 +1,7 @@
 # Spec: how UIKit apps look and feel in the reference simulator
 
 Status: **observed** (B3-UIKITOBS, 2026-11-05, issue #82). It gives the
-clean-room implementer of #83 the numbers that Ycode's simulator must
+clean-room implementer of #83 the numbers that SwiftCode's simulator must
 reproduce when an unmodified UIKit app runs in it. These cover scrolling,
 gestures, the keyboard, rotation, frame pacing and pixel output. Every value
 comes from a probe app that we wrote ourselves and ran in Apple's simulator
@@ -173,7 +173,7 @@ started and d is the scroll view's height.
 | iPhone 17 Pro | 874 | 0.555 | 0.76 |
 | iPad Pro 11 | 1210 | 0.550 | 0.11 |
 
-Both edges behave the same. Ycode should use c = 0.55 and d = the scroll
+Both edges behave the same. SwiftCode should use c = 0.55 and d = the scroll
 view's size along the scroll axis. The excursion is rounded to whole pixels
 (the iPhone values are multiples of 1/3 pt and the iPad values multiples of
 1/2 pt).
@@ -382,7 +382,7 @@ A swipe is recognized during the movement (never at touch-up). A stroke of
 40 pt or less was never recognized, even at 1500 pt/s. Slow strokes of
 100 pt/s were still recognized. The travel needed rises with speed, from
 33 pt at 100 pt/s to about 50 pt at 800 pt/s and above, so the rule is not a
-plain distance threshold (§11). A Ycode implementation that reproduces
+plain distance threshold (§11). A SwiftCode implementation that reproduces
 these ten cases is acceptable.
 
 ### 4.6 Pinch
@@ -647,9 +647,9 @@ rules forbade opening Simulator's window, so the window's scaling options
 Everything above is at native resolution, 1 device pixel per screenshot
 pixel.
 
-## 9. What Ycode must reproduce (guidance for #83)
+## 9. What SwiftCode must reproduce (guidance for #83)
 
-These are behaviours, not implementation instructions. Ycode runs the real
+These are behaviours, not implementation instructions. SwiftCode runs the real
 UIKit inside the guest, so most of §3–§6 comes for free **if** the guest
 sees the right display timing and receives input with correct timestamps.
 The host-side requirements are:
@@ -667,14 +667,14 @@ The host-side requirements are:
    decay, ending at the pixel-rounded target. A rubber band must follow
    c = 0.55 (§3.2). The keyboard must move as a critically damped spring at
    ω ≈ 24 over about 383 ms (§5.2). Rotation must ease in and out over 0.3 s
-   (iPhone) or 0.4 s (iPad) (§6.2). If Ycode's guest shows a different
+   (iPhone) or 0.4 s (iPad) (§6.2). If SwiftCode's guest shows a different
    result, the guest clock or vsync is wrong.
 4. **Pixels**: the viewer must show the framebuffer at 1:1 with no
    filtering, and screenshots must have exactly the sizes in §8.1. Text
    comes from the guest and needs no host processing: grayscale, no
    hinting.
 5. **The hardware keyboard** is reported as connected (GameController) but
-   the software keyboard still shows on focus (§5.3). Ycode's default
+   the software keyboard still shows on focus (§5.3). SwiftCode's default
    should give the same result.
 
 ## 10. iPhone Duo on iOS 27.1 (cross-check)
@@ -700,7 +700,7 @@ with the cover's size, as the models predict.
 | Swipe (§4.5) | same ten outcomes; recognized at 33 / 40 / 43 / 51 pt for 100 / 200 / 400 / 800 pt/s; nothing at 40 pt or less | yes |
 | Pinch (§4.6) | a spread begins after +8.14 pt, scale 1.010 at `.began`. The inward pinch's two touches started 203 pt apart, wider than the small pad on this screen, so it began only after a 66 pt change (scale 0.70). That is an artifact of the probe layout and not a different threshold | spread yes |
 | Keyboard (§5) | portrait frame (0, 389, 466, 289); 0.383 s; curve 7; begin frame zero on show; visible curve 0.083, 0.198, 0.347, 0.484, 0.695, 0.874, 0.951, 0.993, 1.0 at 1–24 frames (show) | yes |
-| Keyboard hide notifications | after the first hide, `keyboardDidHide` arrived 8–10 ms after `keyboardWillHide` (10 of 11 hides), while the visible motion still ran for the full 383 ms. On the iPhone 17 Pro and iPad on 27.2 it arrived after about 400 ms | **no**: Ycode must allow both; a guest that sends did-hide early is not a fault |
+| Keyboard hide notifications | after the first hide, `keyboardDidHide` arrived 8–10 ms after `keyboardWillHide` (10 of 11 hides), while the visible motion still ran for the full 383 ms. On the iPhone 17 Pro and iPad on 27.2 it arrived after about 400 ms | **no**: SwiftCode must allow both; a guest that sends did-hide early is not a fault |
 | Rotation (§6) | setting the device orientation to landscape did **not** rotate the cover display's interface: no `viewWillTransition`, the size stayed 466 × 678, and the safe area changed once from (82, 0, 34, 0) to (0, 0, 34, 84). The keyboard was therefore measured in portrait only | not comparable (`foldable.md` covers the Duo's orientation handling) |
 | Frame pacing (§7) | `maximumFramesPerSecond` 60; every interval 16.667 ms when idle and animating, for both variants; callback 17.19–17.20 ms after `timestamp` | yes |
 | Pixels (§8) | identical to the iPhone 17 Pro | yes |
@@ -738,7 +738,7 @@ with the cover's size, as the models predict.
 ## 12. Frame timestamps, rotation, and two corrections (B3-SIMOBS, 2026-11-05)
 
 Same conditions as §1 (Xcode 27.1, iOS 27.2 24B8117, iPhone 17 Pro and
-iPad Pro 11-inch (M5), headless, devices `ycode-test-simobs-*`), with a new
+iPad Pro 11-inch (M5), headless, devices `swiftcode-test-simobs-*`), with a new
 build of the probe. The host's 1-minute load average was 300–600
 throughout.
 
@@ -771,7 +771,7 @@ runs at one of two delays:
 - In both modes the callbacks come every 16.667 ms on one 60 Hz grid,
   0.5–1 ms after a grid point; the modes differ only in which grid point
   `timestamp` names: A the one 0.5–1 ms ago, B the one before it.
-  §7.2's 17.19 ms is mode B. **Ycode's 0.56 ms (uikit-feel-ycode §7.2) is
+  §7.2's 17.19 ms is mode B. **SwiftCode's 0.56 ms (uikit-feel-swiftcode §7.2) is
   mode A**, which the reference shows too.
 - **`timestamp` is the previous callback's `targetTimestamp`**:
   `timestamp[n] == targetTimestamp[n−1]` in 1 045 of 1 049, 1 136 of 1 146,
@@ -838,7 +838,7 @@ So both triggers set backboardd's **raw device orientation** (the value
 its accelerometer pipeline would produce), and everything after that is
 the guest's ordinary rotation: SpringBoard decides the interface
 orientation and rotates the app's scene. Neither goes through the
-`PurpleWorkspacePort` event of `hid-input.md` §10. For Ycode: running
+`PurpleWorkspacePort` event of `hid-input.md` §10. For SwiftCode: running
 `testmanagerd` and `dthidd` unchanged gives both triggers if the guest's
 backboardd accepts their requests; a host Rotate button needs a host-side
 sender of the same request (the `devicectl` route: a client of the guest
@@ -882,7 +882,7 @@ earlier result for 3× was an analysis error: the half-pixel label's origin,
 its crop was a pixel off; re-cropping the 2026-11-05 screenshot of §8.2's
 own page gives 0.037 from the average (and 7.6 from either whole-pixel
 rendering, as before). The iPhone Duo figures (§8.2, §10) came from the same
-arithmetic. **Ycode's composite (uikit-feel-ycode §8, 0.04 of 255) matches
+arithmetic. **SwiftCode's composite (uikit-feel-swiftcode §8, 0.04 of 255) matches
 the reference.**
 
 ### 12.4 Correction: release velocity after a hold (§3.3)
@@ -903,7 +903,7 @@ The velocity is the last movement's (content speed under the rubber band,
 smaller than the finger's 0.3 pt/ms), whatever the hold. A held XCUITest
 finger delivers nothing, and UIKit does not decay the velocity with time
 since the last movement. §3.3's return curves therefore start from these
-velocities, not from rest; uikit-feel-ycode §3.3's reading was right.
+velocities, not from rest; uikit-feel-swiftcode §3.3's reading was right.
 
 ## Evidence
 
@@ -942,9 +942,9 @@ velocities, not from rest; uikit-feel-ycode §3.3's reading was right.
 
 Levels 4 and 5 were not used. No Apple binary was opened, disassembled or
 decompiled, and Ghidra was not used. Apple's simulator and `xcodebuild` ran
-only as black boxes on devices that we created (`ycode-test-uikit-*`). The
+only as black boxes on devices that we created (`swiftcode-test-uikit-*`). The
 probe app, its UI tests, logs, screenshots and analysis scripts stay in the
 git-ignored `research/dirty/uikit-feel/` and are not committed. §12
-(B3-SIMOBS) used the same rules with devices `ycode-test-simobs-*`, also
+(B3-SIMOBS) used the same rules with devices `swiftcode-test-simobs-*`, also
 deleted afterwards; its probe, logs and screenshots stay in
 `research/dirty/simobs/`.

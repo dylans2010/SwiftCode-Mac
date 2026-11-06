@@ -52,15 +52,15 @@ func onMain(_ body: @escaping () -> Void) {
 }
 
 /// The link from model objects to their store session.
-final class YcodeConnection: @unchecked Sendable {
-    let store: YcodeHomeStore
+final class SwiftCodeConnection: @unchecked Sendable {
+    let store: SwiftCodeHomeStore
     var sessionID = UUID()
     weak var manager: HMHomeManager?
 
-    init(store: YcodeHomeStore) { self.store = store }
+    init(store: SwiftCodeHomeStore) { self.store = store }
 
     /// Sends a request; the completion runs on the main queue.
-    func request(_ r: YcodeHomeRequest, _ done: @escaping (Result<YcodeHomeResponse, Error>) -> Void) {
+    func request(_ r: SwiftCodeHomeRequest, _ done: @escaping (Result<SwiftCodeHomeResponse, Error>) -> Void) {
         store.perform(r, session: sessionID) { result in
             onMain {
                 switch result {
@@ -72,7 +72,7 @@ final class YcodeConnection: @unchecked Sendable {
     }
 
     /// A request whose completion only reports an error.
-    func simple(_ r: YcodeHomeRequest, _ completion: @escaping (Error?) -> Void) {
+    func simple(_ r: SwiftCodeHomeRequest, _ completion: @escaping (Error?) -> Void) {
         request(r) { result in
             if case .failure(let e) = result { completion(e) } else { completion(nil) }
         }

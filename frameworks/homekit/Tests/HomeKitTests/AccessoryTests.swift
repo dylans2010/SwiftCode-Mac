@@ -13,7 +13,7 @@ struct DiscoveryTests {
         let store = newStore()
         _ = await loadedManager(store)
         let r = Recorder()
-        let b = HMAccessoryBrowser(ycodeStore: store, client: client())
+        let b = HMAccessoryBrowser(swiftcodeStore: store, client: client())
         b.delegate = r
         b.startSearchingForNewAccessories()
         await settle(store)
@@ -26,11 +26,11 @@ struct DiscoveryTests {
     func browse() async throws {
         let (store, _, h) = try await homeFixture()
         let r = Recorder()
-        let b = HMAccessoryBrowser(ycodeStore: store, client: client())
+        let b = HMAccessoryBrowser(swiftcodeStore: store, client: client())
         b.delegate = r
         b.startSearchingForNewAccessories()
-        let bulb = YcodeTestAccessory.lightbulb(name: "Bulb")
-        let plug = YcodeTestAccessory.outlet(name: "Plug")
+        let bulb = SwiftCodeTestAccessory.lightbulb(name: "Bulb")
+        let plug = SwiftCodeTestAccessory.outlet(name: "Plug")
         store.publish(bulb)
         store.publish(plug)
         #expect(await eventually(store) { b.discoveredAccessories.count == 2 })
@@ -55,7 +55,7 @@ struct DiscoveryTests {
         let watcher = Recorder()
         let other = await loadedManager(store)
         other.homes.first?.delegate = watcher
-        let acc = try await pair(YcodeTestAccessory.lightbulb(name: "Desk Lamp"), into: h, store: store)
+        let acc = try await pair(SwiftCodeTestAccessory.lightbulb(name: "Desk Lamp"), into: h, store: store)
         await settle(store)
         #expect(watcher.log == ["add accessory Desk Lamp"])
         #expect(acc.name == "Desk Lamp")
@@ -64,7 +64,7 @@ struct DiscoveryTests {
         #expect(h.roomForEntireHome.accessories == [acc])
         #expect(acc.category.categoryType == HMAccessoryCategoryTypeLightbulb)
         #expect(acc.category.localizedDescription == "Lightbulb")
-        #expect(acc.manufacturer == "Ycode")
+        #expect(acc.manufacturer == "SwiftCode")
         #expect(acc.model == "Test Lightbulb")
         #expect(acc.firmwareVersion == "1.0.0")
         #expect(acc.isReachable && !acc.isBridged && !acc.isBlocked)
@@ -96,9 +96,9 @@ struct DiscoveryTests {
     @Test("HK-A27: a bridge with children; removing a child alone fails (34); removing the bridge removes all")
     func bridge() async throws {
         let (store, _, h) = try await homeFixture()
-        let bridge = YcodeTestAccessory.bridge(name: "Hub", children: [
-            YcodeTestAccessory.lightbulbAccessory(name: "Porch Light"),
-            YcodeTestAccessory.switchAccessory(name: "Fan Switch"),
+        let bridge = SwiftCodeTestAccessory.bridge(name: "Hub", children: [
+            SwiftCodeTestAccessory.lightbulbAccessory(name: "Porch Light"),
+            SwiftCodeTestAccessory.switchAccessory(name: "Fan Switch"),
         ])
         let watcher = Recorder()
         let other = await loadedManager(store)
@@ -127,7 +127,7 @@ struct DiscoveryTests {
     @Test("Accessory rename, room assignment, identify, unblock; service rename and associated type (62)")
     func accessoryCalls() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.outlet(name: "Plug")
+        let device = SwiftCodeTestAccessory.outlet(name: "Plug")
         let acc = try await pair(device, into: h, store: store)
         let other = await loadedManager(store)
         let mirrorHome = try #require(other.homes.first)
@@ -162,7 +162,7 @@ struct CharacteristicTests {
     @Test("HK-A21: read and write; bounds and type checked before I/O (44/45/43); the cache updates before the completion")
     func readWrite() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.lightbulb()
+        let device = SwiftCodeTestAccessory.lightbulb()
         let acc = try await pair(device, into: h, store: store)
         let on = characteristic(acc, HMCharacteristicTypePowerState)
         let brightness = characteristic(acc, HMCharacteristicTypeBrightness)
@@ -192,7 +192,7 @@ struct CharacteristicTests {
     @Test("HK-A23: read-only write (5), write-only read (6), no-notify subscribe (7)")
     func permissions() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.lock()
+        let device = SwiftCodeTestAccessory.lock()
         let acc = try await pair(device, into: h, store: store)
         let current = characteristic(acc, HMCharacteristicTypeCurrentLockMechanismState)
         let controlPoint = characteristic(acc, HMCharacteristicTypeLockManagementControlPoint)
@@ -210,7 +210,7 @@ struct CharacteristicTests {
     @Test("HK-A22: notifications arrive on main through the accessory delegate; other clients' writes notify subscribers")
     func notifications() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.temperatureSensor()
+        let device = SwiftCodeTestAccessory.temperatureSensor()
         let acc = try await pair(device, into: h, store: store)
         let r = Recorder()
         acc.delegate = r
@@ -236,7 +236,7 @@ struct CharacteristicTests {
         #expect(r.log.count == 1)
 
         // Writes by another client reach subscribers; the writer itself is not notified.
-        let bulb = YcodeTestAccessory.lightbulb(name: "Shared Bulb")
+        let bulb = SwiftCodeTestAccessory.lightbulb(name: "Shared Bulb")
         let mine = try await pair(bulb, into: h, store: store)
         let otherManager = await loadedManager(store)
         let theirs = try #require(otherManager.homes.first?.accessories.first { $0.uniqueIdentifier == mine.uniqueIdentifier })
@@ -257,7 +257,7 @@ struct CharacteristicTests {
     @Test("HK-A24: unreachable accessory: reachability callback, reads/writes fail with 4 (no I/O)")
     func unreachable() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.switch()
+        let device = SwiftCodeTestAccessory.switch()
         let acc = try await pair(device, into: h, store: store)
         let r = Recorder()
         acc.delegate = r
@@ -276,10 +276,10 @@ struct CharacteristicTests {
     @Test("T-H8 (status mapping part): forced HAP statuses surface as their HMErrorCode")
     func forcedStatuses() async throws {
         let (store, _, h) = try await homeFixture()
-        let device = YcodeTestAccessory.lightbulb()
+        let device = SwiftCodeTestAccessory.lightbulb()
         let acc = try await pair(device, into: h, store: store)
         let on = characteristic(acc, HMCharacteristicTypePowerState)
-        for (status, code) in [(YcodeHAPStatus.resourceBusy, HMError.Code.accessoryIsBusy),
+        for (status, code) in [(SwiftCodeHAPStatus.resourceBusy, HMError.Code.accessoryIsBusy),
                                (.unableToCommunicate, .communicationFailure),
                                (.insufficientPrivileges, .insufficientPrivileges),
                                (.operationTimedOut, .operationTimedOut),
@@ -295,9 +295,9 @@ struct CharacteristicTests {
     @Test("Authorization data is sent with writes (RequiresAuthorizationData)")
     func authorizationData() async throws {
         let (store, _, h) = try await homeFixture()
-        var template = YcodeCharacteristicDefaults.template(HMCharacteristicTypeTargetLockMechanismState)!
+        var template = SwiftCodeCharacteristicDefaults.template(HMCharacteristicTypeTargetLockMechanismState)!
         template.permissions.append(.additionalAuthorization)
-        let device = YcodeTestAccessory(category: 6, accessories: [.init(name: "Vault", services: [
+        let device = SwiftCodeTestAccessory(category: 6, accessories: [.init(name: "Vault", services: [
             .init(type: HMServiceTypeLockMechanism, isPrimary: true, characteristics: [template]),
         ])])
         let acc = try await pair(device, into: h, store: store)

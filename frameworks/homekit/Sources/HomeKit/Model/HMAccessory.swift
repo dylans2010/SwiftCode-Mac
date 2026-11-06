@@ -35,7 +35,7 @@ open class HMAccessoryCategory: NSObject, @unchecked Sendable {
 
     init(categoryType: String) {
         self.categoryType = categoryType
-        localizedDescription = YcodeHomeCatalog.localizedDescription(forCategory: categoryType)
+        localizedDescription = SwiftCodeHomeCatalog.localizedDescription(forCategory: categoryType)
     }
 
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMAccessoryCategory)?.categoryType == categoryType }
@@ -74,24 +74,24 @@ open class HMAccessory: NSObject, @unchecked Sendable {
     public private(set) var matterNodeID: UInt64?
     /// On a bridge: the accessories it hosts; nil otherwise (iOS 13).
     public internal(set) var bridgedAccessories: [HMAccessory]?
-    /// Vendor additions (iOS 26.1): Ycode accessories are not vendor accessories.
+    /// Vendor additions (iOS 26.1): SwiftCode accessories are not vendor accessories.
     public var isVendorAccessory: Bool { false }
     /// The HAP accessory instance ID.
     public var hapInstanceID: Int? { discoveredID == nil ? record.aid : nil }
 
-    var record: YcodeAccessoryRecord
+    var record: SwiftCodeAccessoryRecord
     /// For accessories reported by `HMAccessoryBrowser` (not in a home yet).
     var discoveredID: UUID?
 
     init(id: UUID) {
         uniqueIdentifier = id
-        record = YcodeAccessoryRecord(id: id, name: "", categoryType: HMAccessoryCategoryTypeOther, manufacturer: nil,
+        record = SwiftCodeAccessoryRecord(id: id, name: "", categoryType: HMAccessoryCategoryTypeOther, manufacturer: nil,
                                       model: nil, firmwareVersion: nil, roomID: id, services: [], isReachable: false,
                                       isBlocked: false, isBridged: false, bridgedAccessoryIDs: [], supportsIdentify: false,
                                       endpointID: "", aid: 1, matterNodeID: nil)
     }
 
-    convenience init(discovered d: YcodeDiscoveredAccessoryRecord) {
+    convenience init(discovered d: SwiftCodeDiscoveredAccessoryRecord) {
         self.init(id: d.id)
         discoveredID = d.id
         name = d.name
@@ -110,7 +110,7 @@ open class HMAccessory: NSObject, @unchecked Sendable {
         record.bridgedAccessoryIDs.isEmpty ? nil : record.bridgedAccessoryIDs
     }
 
-    func apply(_ r: YcodeAccessoryRecord) {
+    func apply(_ r: SwiftCodeAccessoryRecord) {
         record = r
         discoveredID = nil
         name = r.name
@@ -170,9 +170,9 @@ open class HMService: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMService)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    func apply(_ r: YcodeServiceRecord) {
+    func apply(_ r: SwiftCodeServiceRecord) {
         serviceType = r.type
-        localizedDescription = YcodeHomeCatalog.localizedDescription(forType: r.type) ?? "Custom"
+        localizedDescription = SwiftCodeHomeCatalog.localizedDescription(forType: r.type) ?? "Custom"
         name = r.name
         associatedServiceType = r.associatedType
         isUserInteractive = r.isUserInteractive
@@ -218,9 +218,9 @@ open class HMCharacteristicMetadata: NSObject, @unchecked Sendable {
     public let manufacturerDescription: String?
     public let validValues: [NSNumber]?
 
-    let record: YcodeCharacteristicMetadata
+    let record: SwiftCodeCharacteristicMetadata
 
-    init(_ m: YcodeCharacteristicMetadata) {
+    init(_ m: SwiftCodeCharacteristicMetadata) {
         record = m
         minimumValue = m.minimumValue.map { NSNumber(value: $0) }
         maximumValue = m.maximumValue.map { NSNumber(value: $0) }
@@ -247,8 +247,8 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
     public private(set) var isNotificationEnabled = false
 
     /// This client's last known value: nil until read, written or notified.
-    var cachedValue: YcodeHomeValue?
-    var record: YcodeCharacteristicRecord?
+    var cachedValue: SwiftCodeHomeValue?
+    var record: SwiftCodeCharacteristicRecord?
 
     /// The cached value: booleans and numbers as `NSNumber`, strings as
     /// `String`, TLV8 and data as `Data` (object-model.md §7).
@@ -259,10 +259,10 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMCharacteristic)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    func apply(_ r: YcodeCharacteristicRecord) {
+    func apply(_ r: SwiftCodeCharacteristicRecord) {
         record = r
         characteristicType = r.type
-        localizedDescription = YcodeHomeCatalog.localizedDescription(forType: r.type) ?? "Custom"
+        localizedDescription = SwiftCodeHomeCatalog.localizedDescription(forType: r.type) ?? "Custom"
         properties = r.properties
         if metadata?.record != r.metadata { metadata = r.metadata.map(HMCharacteristicMetadata.init) }
     }
@@ -289,8 +289,8 @@ open class HMCharacteristic: NSObject, @unchecked Sendable {
     public func writeValue(_ value: Any?, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         guard properties.contains(HMCharacteristicPropertyWritable) else { fail(completion, .readOnlyCharacteristic); return }
-        let checked: YcodeHomeValue
-        switch YcodeValueValidation.validate(value, metadata: metadata?.record) {
+        let checked: SwiftCodeHomeValue
+        switch SwiftCodeValueValidation.validate(value, metadata: metadata?.record) {
         case .success(let v): checked = v
         case .failure(let e): onMain { completion(e) }; return
         }
@@ -348,15 +348,15 @@ public extension HMAccessoryBrowserDelegate {
 open class HMAccessoryBrowser: NSObject, @unchecked Sendable {
     public weak var delegate: HMAccessoryBrowserDelegate?
     public private(set) var discoveredAccessories: [HMAccessory] = []
-    let connection: YcodeConnection
+    let connection: SwiftCodeConnection
     private var searching = false
 
     public override convenience init() {
-        self.init(ycodeStore: YcodeLocalHomeStore.shared, client: .processDefault)
+        self.init(swiftcodeStore: SwiftCodeLocalHomeStore.shared, client: .processDefault)
     }
 
-    public init(ycodeStore store: YcodeHomeStore, client: YcodeHomeClient) {
-        connection = YcodeConnection(store: store)
+    public init(swiftcodeStore store: SwiftCodeHomeStore, client: SwiftCodeHomeClient) {
+        connection = SwiftCodeConnection(store: store)
         super.init()
         let session = store.connect(client: client) { [weak self] event in
             onMain { self?.handle(event) }
@@ -379,14 +379,14 @@ open class HMAccessoryBrowser: NSObject, @unchecked Sendable {
         connection.request(.setBrowsing(false)) { _ in }
     }
 
-    private func found(_ d: YcodeDiscoveredAccessoryRecord) {
+    private func found(_ d: SwiftCodeDiscoveredAccessoryRecord) {
         guard !discoveredAccessories.contains(where: { $0.uniqueIdentifier == d.id }) else { return }
         let a = HMAccessory(discovered: d)
         discoveredAccessories.append(a)
         delegate?.accessoryBrowser(self, didFindNewAccessory: a)
     }
 
-    func handle(_ event: YcodeHomeEvent) {
+    func handle(_ event: SwiftCodeHomeEvent) {
         guard searching else { return }
         switch event {
         case .accessoryDiscovered(let d): found(d)

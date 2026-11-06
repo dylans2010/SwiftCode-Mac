@@ -75,7 +75,7 @@ struct ValidationTests {
 
     @Test("errors.md §3 metadata value of an unsupported class")
     func badMetadataClass() {
-        expectValidation("Invalid metadata value") { _ = try Validation.metadata(["YcodeArray": [1, 2, 3]]) }
+        expectValidation("Invalid metadata value") { _ = try Validation.metadata(["SwiftCodeArray": [1, 2, 3]]) }
     }
 
     @Test("errors.md §3 known metadata key with the wrong value class")
@@ -134,7 +134,7 @@ struct ValidationTests {
 
     @Test("errors.md §3 executing a query twice")
     func executeTwice() throws {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         let q = HKSampleQuery(sampleType: T.steps, predicate: nil, limit: 0, sortDescriptors: nil) { _, _, _ in }
         try q.markExecuted(store)
         expectInvalidArgument("has already been executed and cannot be executed again") { try q.markExecuted(store) }

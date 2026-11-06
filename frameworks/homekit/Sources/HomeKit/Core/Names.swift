@@ -2,7 +2,7 @@
 // accessories and services (errors.md §1 codes 31–36, 60; plan.md HK-A01/A02).
 //
 // The exact rules are not observed yet (they need the account-enabled probes,
-// plan.md §3). Ycode's reading, listed in the README:
+// plan.md §3). SwiftCode's reading, listed in the README:
 //   * leading/trailing white space is trimmed before anything else;
 //   * an empty name, or one whose first character is not a letter or digit: 36;
 //   * a control, format or line-separator character anywhere: 35;
@@ -12,7 +12,7 @@
 
 import Foundation
 
-public enum YcodeNameRules {
+public enum SwiftCodeNameRules {
     static let allowedLast: Set<Character> = [".", ")", "]", "'", "\"", "!", "?", "\u{2019}"]
 
     /// The trimmed name, or the name-validation error.

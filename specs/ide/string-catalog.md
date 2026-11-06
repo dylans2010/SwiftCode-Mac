@@ -1,7 +1,7 @@
 # String Catalog editor
 
-Ycode modules: `YcodeStrings` (`StringCatalog`, `OrderedJSON`, the
-compiler, extractor and converter; portable), `YcodeUI`
+SwiftCode modules: `SwiftCodeStrings` (`StringCatalog`, `OrderedJSON`, the
+compiler, extractor and converter; portable), `SwiftCodeUI`
 (`StringCatalogEditorController`). Selecting a `.xcstrings` file opens it
 (file type `text.json.xcstrings` when added to a project).
 
@@ -24,7 +24,7 @@ Two-space indentation, `"key" : value` separators, one member per line,
 empty objects and arrays as `{`, an empty line, then `}` at the
 container's indentation. Slashes and non-ASCII characters are not escaped;
 `"`, `\`, and control characters are. Object members keep the order they
-were read in; members Ycode adds are inserted in code-unit order (the
+were read in; members SwiftCode adds are inserted in code-unit order (the
 order catalogs are written in). Numbers keep their spelling. A final
 newline is kept if the file had one.
 
@@ -50,15 +50,15 @@ bytes back.
   when it becomes empty). Add Key adds an entry with
   `extractionState = manual`. Every edit is saved at once.
 
-Linux IDE (1.0.0-beta.2): `ycode-ide` has the same editor
-(`YcodeIDEShell/StringCatalogEditorModel.swift`,
-`ycode-ide/StringCatalogEditorView.swift`), plus a filter over key, value,
+Linux IDE (1.0.0-beta.2): `swiftcode-ide` has the same editor
+(`SwiftCodeIDEShell/StringCatalogEditorModel.swift`,
+`swiftcode-ide/StringCatalogEditorView.swift`), plus a filter over key, value,
 comment and translation, sorting by any column header (the view only),
 editing the Default Localization (the source language's unit), Mark for
 Review / Mark as Reviewed and Delete in a row's context menu, and Refresh
 from Source with a summary of what changed.
 
-## Ycode implementation (RES-STRINGS, 2026-10-31)
+## SwiftCode implementation (RES-STRINGS, 2026-10-31)
 
 Clean-room implementation from this spec, Apple's public documentation
 (String Catalogs, `.strings` and `.stringsdict` files, `String(localized:)`,
@@ -67,10 +67,10 @@ open source: swift-build `release/6.4.x` (Apache-2.0: the `XCStrings.xcspec`
 command line, `XCStringsCompiler.swift`, `StringCatalogCompilerOutputParser`,
 `CopyStringsFile`, the executable search path in `Settings.swift`) and
 SwiftGen's stringsdict documentation (MIT, format examples). No Apple tool
-was run and no Apple binary was inspected. Module `YcodeStrings` (Foundation
-and swift-syntax; macOS and Linux), command `ycode strings`.
+was run and no Apple binary was inspected. Module `SwiftCodeStrings` (Foundation
+and swift-syntax; macOS and Linux), command `swiftcode strings`.
 
-### C.1 Compiling (`ycode strings compile`)
+### C.1 Compiling (`swiftcode strings compile`)
 
 swift-build's command line is accepted as it is:
 `compile [--dry-run] [-l <lang>]… [--force-build-all-strings]
@@ -79,12 +79,12 @@ absolute paths of the files a compile writes, one per line (swift-build
 declares them as the task's outputs). Diagnostics go to standard error as
 `<file>: error|warning: <message> (<language>: <key>)`, the form swift-build
 parses; an error exits 1 and writes nothing for that catalog. Unknown
-options exit 2. Ycode's own option: `--strings-encoding utf-8|utf-16`.
+options exit 2. SwiftCode's own option: `--strings-encoding utf-8|utf-16`.
 
 Outputs: `<dir>/<language>.lproj/<table>.strings` and `.stringsdict`, the
 table being the catalog's file name; a file only when it has an entry.
 
-| Rule | Ycode |
+| Rule | SwiftCode |
 |---|---|
 | Languages | the source language, then every language with a localization (code order); `-l` restricts to those given |
 | Source language | every key: its `stringUnit` value, else the key itself |
@@ -107,12 +107,12 @@ the positional substitution (`Ann has 1 apple`, `Bob has 3 apples`), the
 device rule (`mac`) and the nested device-then-plural dictionary all format
 as intended.
 
-### C.2 Symbols (`ycode strings generate-symbols`)
+### C.2 Symbols (`swiftcode strings generate-symbols`)
 
 swift-build runs `xcstringstool generate-symbols --language swift
 --output-directory $(DERIVED_SOURCES_DIR) <file>` when
 `STRING_CATALOG_GENERATE_SYMBOLS = YES` and expects
-`GeneratedStringSymbols_<table>.swift`. Ycode's file (its own design):
+`GeneratedStringSymbols_<table>.swift`. SwiftCode's file (its own design):
 for each key with `extractionState = manual`, a static member of
 `LocalizedStringResource` (`@available(macOS 13, iOS 16, tvOS 16,
 watchOS 9, *)`) named in lower camel case from the key's words (format
@@ -123,9 +123,9 @@ name) typed from the specifier (`@` String, `d`/`i` Int, `u`/`x`/`o` UInt,
 `f`/`e`/`g`/`a` Double; a key with other specifiers gets no symbol). The
 body is `LocalizedStringResource("<key>", defaultValue: "<source value with
 interpolations>", table: "<table>", bundle: .forClass(<a private class>))`.
-The file is rewritten only when it changes. Its own comment names Ycode.
+The file is rewritten only when it changes. Its own comment names SwiftCode.
 
-### C.3 Extraction (`ycode strings extract`, Refresh from Source)
+### C.3 Extraction (`swiftcode strings extract`, Refresh from Source)
 
 Swift, with swift-syntax (`SwiftParser`):
 
@@ -154,7 +154,7 @@ integers), `%llu` for unsigned ones, `%lf` for `Double`/`CGFloat`, `%f` for
 `Float`, `%@` otherwise; the type comes from integer, float and string
 literals, `.count`, and the declared type or literal initializer of a name
 declared in the same file. Literal `%` becomes `%%` in an interpolated key.
-(Xcode can use the compiler for this, `SWIFT_EMIT_LOC_STRINGS`; Ycode's
+(Xcode can use the compiler for this, `SWIFT_EMIT_LOC_STRINGS`; SwiftCode's
 syntactic guess is a known limit.) Results are in source order.
 
 Objective-C and C (a tokenizer that skips comments, character literals and
@@ -164,7 +164,7 @@ Objective-C and C (a tokenizer that skips comments, character literals and
 documented positions), with `@"…"`, `"…"` and `CFSTR("…")` literals and
 adjacent literals joined; an argument that is not a literal counts as none.
 
-Without `--catalog`, `ycode strings extract` lists what it finds (`--json`).
+Without `--catalog`, `swiftcode strings extract` lists what it finds (`--json`).
 
 ### C.4 Merging
 
@@ -183,7 +183,7 @@ Without `--catalog`, `ycode strings extract` lists what it finds (`--json`).
 A key found more than once takes the first comment and default value.
 Merging the same strings twice changes nothing (byte-identical file).
 
-### C.5 Conversion (Edit ▸ Convert ▸ To String Catalogs…, `ycode strings convert`)
+### C.5 Conversion (Edit ▸ Convert ▸ To String Catalogs…, `swiftcode strings convert`)
 
 `StringCatalogConverter`: one table (`<lang>.lproj/<table>.strings` and
 `.stringsdict` in one folder) becomes one catalog with the project's
@@ -222,20 +222,20 @@ saves when something changed.
 
 ### C.7 Builds
 
-`YcodeBuild.StringsCompilerHook`: `YCODE_STRINGS_COMPILER` = `xcstringstool`
-| `ycode` (build setting on the command line, or environment). Default:
-`ycode` off macOS; on macOS `xcstringstool` when the selected Xcode
+`SwiftCodeBuild.StringsCompilerHook`: `SWIFTCODE_STRINGS_COMPILER` = `xcstringstool`
+| `swiftcode` (build setting on the command line, or environment). Default:
+`swiftcode` off macOS; on macOS `xcstringstool` when the selected Xcode
 (`DEVELOPER_DIR`, else the `xcode-select` link, else
 `/Applications/Xcode.app`) has `usr/bin/xcstringstool` or
-`Toolchains/XcodeDefault.xctoolchain/usr/bin/xcstringstool`, else `ycode`.
+`Toolchains/XcodeDefault.xctoolchain/usr/bin/xcstringstool`, else `swiftcode`.
 swift-build has no setting for this tool's path (its command line starts
 with the bare name, looked up in the executable search paths); the first
 of those paths come from the client's `__XCODE_BUILT_PRODUCTS_DIR_PATHS`
-environment variable. With `ycode`, the IDE's swift-build engine and
-ycodebuild write a wrapper `xcstringstool` (`exec ycode strings "$@"`) in
-`<derived data>/YcodeStringsCompiler` (ycodebuild: its work folder) and
-start `swbuild`/`ycode-swb` with that folder first in the variable.
-`YCODE_STRINGS_TOOL` names the `ycode` binary (else the one
+environment variable. With `swiftcode`, the IDE's swift-build engine and
+swiftcodebuild write a wrapper `xcstringstool` (`exec swiftcode strings "$@"`) in
+`<derived data>/SwiftCodeStringsCompiler` (swiftcodebuild: its work folder) and
+start `swbuild`/`swiftcode-swb` with that folder first in the variable.
+`SWIFTCODE_STRINGS_TOOL` names the `swiftcode` binary (else the one
 `AssetCompilerHook` finds). Off macOS swift-build cannot detect a
 `.strings` file's encoding, so the hook also sets
 `STRINGS_FILE_INPUT_ENCODING = $(InputFileTextEncoding:default=utf-8)`
@@ -243,23 +243,23 @@ start `swbuild`/`ycode-swb` with that folder first in the variable.
 are read as UTF-8. swift-build's CopyStringsFile then writes the tables
 into the product (binary property lists for iOS).
 
-Results (macOS, level 3, Ycode only): `ycode/Samples/StringsSamples` (an iOS
+Results (macOS, level 3, SwiftCode only): `swiftcode/Samples/StringsSamples` (an iOS
 app with a catalog: plain strings with a non-BMP character, plurals, a
 device variation, a positional substitution and a manual key with
-`STRING_CATALOG_GENERATE_SYMBOLS = YES`) built with `ycode build --engine
-swift-build YCODE_STRINGS_COMPILER=ycode` for the iOS Simulator and with
-`ycodebuild … YCODE_STRINGS_COMPILER=ycode build`: swift-build ran
-GenerateStringSymbols and CompileXCStrings through Ycode's tool, compiled
+`STRING_CATALOG_GENERATE_SYMBOLS = YES`) built with `swiftcode build --engine
+swift-build SWIFTCODE_STRINGS_COMPILER=swiftcode` for the iOS Simulator and with
+`swiftcodebuild … SWIFTCODE_STRINGS_COMPILER=swiftcode build`: swift-build ran
+GenerateStringSymbols and CompileXCStrings through SwiftCode's tool, compiled
 `GeneratedStringSymbols_Localizable.swift` into the app (`Text(.welcomeTitle)`),
 and `StringsApp.app` holds `en.lproj` and `de.lproj`, each with
 `Localizable.strings` and `Localizable.stringsdict`.
 
-x86-64 Linux (level 3, Ycode only): the same sample built for the iOS
-Simulator (arm64) with `ycode build --engine swift-build` and the
-`ycode-swb` helper, the default compiler choice (`ycode`, no setting
+x86-64 Linux (level 3, SwiftCode only): the same sample built for the iOS
+Simulator (arm64) with `swiftcode build --engine swift-build` and the
+`swiftcode-swb` helper, the default compiler choice (`swiftcode`, no setting
 given), and a copy of the user's own iPhoneSimulator SDK and toolchain
 resources (never committed, never redistributed): swift-build ran
-GenerateStringSymbols and CompileXCStrings through Ycode's tool, and
+GenerateStringSymbols and CompileXCStrings through SwiftCode's tool, and
 CopyStringsFile turned the tables into binary property lists in
 `StringsApp.app/en.lproj` and `de.lproj` (`Localizable.strings` and
 `.stringsdict`, the plural, device and positional-substitution entries
@@ -270,12 +270,12 @@ place"): the developer folder holds `Platforms/iPhoneSimulator.platform`
 (its `Info.plist` and SDK) and `Toolchains/XcodeDefault.xctoolchain` (its
 `ToolchainInfo.plist`, `usr/lib/swift/{iphonesimulator,apinotes,swiftToCxx,clang}`
 and `usr/lib/clang/<v>/lib/darwin`); the run sets `DEVELOPER_DIR` to it
-(the swift-build that `Tools/ycode-swb` pins since beta 2 registers the
+(the swift-build that `Tools/swiftcode-swb` pins since beta 2 registers the
 folder's platforms itself, and naming them again in
 `XCODE_EXTRA_PLATFORM_FOLDERS` fails the session with "platform … already
 registered"; older swift-builds load no Xcode platforms for a Swift
 toolchain, so when the build can't find the SDK or its platform,
-`scripts/ycode-ios-build-linux` builds again with
+`scripts/swiftcode-ios-build-linux` builds again with
 `XCODE_EXTRA_PLATFORM_FOLDERS=$DEVELOPER_DIR/Platforms`; 2026-11-05), the Swift
 toolchain's real `usr/bin` first on `PATH` (swift-build rejects swiftly's
 proxy folder), and the settings `SDKROOT=iphonesimulator`, `ARCHS=arm64`,
@@ -290,7 +290,7 @@ distribution's LLVM 21 `ld64.lld` links), `DONT_RUN_SWIFT_STDLIB_TOOL=YES`
 
 ### C.8 Open questions (for an OBS agent)
 
-- Which states `xcstringstool compile` leaves out (Ycode: `new` in
+- Which states `xcstringstool compile` leaves out (SwiftCode: `new` in
   non-source languages) and what `--force-build-all-strings` adds.
 - Whether the source language's table repeats keys whose value is the key,
   and whether keys marked don't translate appear in other languages.
@@ -298,7 +298,7 @@ distribution's LLVM 21 `ld64.lld` links), `DONT_RUN_SWIFT_STDLIB_TOOL=YES`
   writes in `.stringsdict` files; whether it writes device-then-plural as
   nested format dictionaries; its `.strings` encoding and escapes; whether
   it writes empty tables.
-- The extraction state the reference gives migrated keys (Ycode:
+- The extraction state the reference gives migrated keys (SwiftCode:
   `migrated`, as seen in published catalogs), what happens to the old files
   and which tables its migration offers.
 - The shape and naming of the reference's generated symbols.
@@ -310,19 +310,19 @@ distribution's LLVM 21 `ld64.lld` links), `DONT_RUN_SWIFT_STDLIB_TOOL=YES`
 - Keys and values: Apple's public documentation for String Catalogs and
   localization (level 1); the layout matches files studied as a format
   (level 2).
-- OPEN QUESTION: the exact sort the reference uses for new keys (Ycode uses
+- OPEN QUESTION: the exact sort the reference uses for new keys (SwiftCode uses
   code-unit order); whether it writes a final newline; the reference's
   column titles and state icons; editing plural/device variations and
-  substitutions (read-only in Ycode).
+  substitutions (read-only in SwiftCode).
 - Adding a language also appends its code to the project's `knownRegions`
   (once) when the catalog is in a project: Apple's localization
   documentation (level 1).
-- Ycode implementation (C.1–C.7): Apple's public documentation for String
+- SwiftCode implementation (C.1–C.7): Apple's public documentation for String
   Catalogs, `.strings`, `.stringsdict`, `String(localized:)`,
   `LocalizedStringResource` and `NSLocalizedString` (level 1);
   swift-build's open source for the tool's command lines, output parsing
   and search paths (level 1, Apache-2.0); SwiftGen's documentation for
   `.stringsdict` examples (MIT, level 1); swiftlang/llvm-project's
   `lld/MachO/InputFiles.cpp` (Apache-2.0 with LLVM exception) for the
-  linker's refusal on Linux; black-box runs of Ycode's own
-  outputs through Foundation and swift-build (level 3, Ycode only).
+  linker's refusal on Linux; black-box runs of SwiftCode's own
+  outputs through Foundation and swift-build (level 3, SwiftCode only).

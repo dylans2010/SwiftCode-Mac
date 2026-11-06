@@ -1,6 +1,6 @@
 # ARKit spec: implementation rounds and conformance tests
 
-Part of `specs/frameworks/arkit/`. This plan is Ycode's own. Each round is
+Part of `specs/frameworks/arkit/`. This plan is SwiftCode's own. Each round is
 sized for one clean-room agent. Clean-room agents read only `specs/`, public
 documentation and permissively licensed open source; they must not open the
 reference tools (the Xcode copy, Ghidra, the IPSW), `research/dirty/`, or
@@ -8,9 +8,9 @@ Ghidra projects.
 
 ## 1. Two delivery targets
 
-1. **Guest drop-in ARKit** for Ycode's iOS simulator. Ycode's guest runs
+1. **Guest drop-in ARKit** for SwiftCode's iOS simulator. SwiftCode's guest runs
    Apple's simulator runtime, whose own ARKit already shows the baseline
-   behavior. To add the simulated world, Ycode supplies its own
+   behavior. To add the simulated world, SwiftCode supplies its own
    `ARKit.framework` that apps load instead of Apple's. It must be
    **binary-compatible** with apps built against the SDK: same install name,
    Objective-C class names and selectors, exported C symbols (the constants
@@ -29,13 +29,13 @@ Ghidra projects.
 | Round | Owner (one agent) | Scope | Done when |
 |---|---|---|---|
 | R0 | KIT-ARKIT (this) | Specification | this directory reviewed and merged |
-| R1 | simulator track | **Baseline in Ycode** with Apple's own ARKit: run the conformance app C-BASE in a Ycode guest and diff against the golden output from the reference simulator; fix host gaps (Metal device for the matte generator, SceneKit/SpriteKit rendering, asset-catalog lookup). | C-BASE output identical (modulo UUIDs, addresses, times) |
-| R2 | clean room | **ABI inventory and skeleton**: from public headers and the `.swiftinterface`, generate the list of public classes, selectors, properties, constants and Swift declarations; build a drop-in framework that implements `simulator-baseline.md` exactly (baseline mode) plus the documented data behavior of `ARAnchor`, `AREnvironmentProbeAnchor`, skeleton definitions. Decide with the simulator track how the guest loads it (runtime-root overlay or loader redirect). | C-BASE identical with Ycode's framework; C-SWIFT compiles and links against it |
-| R3 | clean room | **Data model and math**: every anchor subclass with real storage; secure coding (anchor keys per `anchors.md` §1.2); `ARPointCloud`, plane/face/mesh geometry types; `ARReferenceImage` (CGImage, pixel buffer, asset-catalog AR groups via the asset-catalog reader); `ARWorldMap` and `ARCollaborationData` containers (Ycode payloads); 3D skeleton definition and face topology authored by Ycode; all `ARCamera`/`ARFrame` math of `coordinates.md`. | C-MATH (formulas), C-ARCHIVE pass |
+| R1 | simulator track | **Baseline in SwiftCode** with Apple's own ARKit: run the conformance app C-BASE in a SwiftCode guest and diff against the golden output from the reference simulator; fix host gaps (Metal device for the matte generator, SceneKit/SpriteKit rendering, asset-catalog lookup). | C-BASE output identical (modulo UUIDs, addresses, times) |
+| R2 | clean room | **ABI inventory and skeleton**: from public headers and the `.swiftinterface`, generate the list of public classes, selectors, properties, constants and Swift declarations; build a drop-in framework that implements `simulator-baseline.md` exactly (baseline mode) plus the documented data behavior of `ARAnchor`, `AREnvironmentProbeAnchor`, skeleton definitions. Decide with the simulator track how the guest loads it (runtime-root overlay or loader redirect). | C-BASE identical with SwiftCode's framework; C-SWIFT compiles and links against it |
+| R3 | clean room | **Data model and math**: every anchor subclass with real storage; secure coding (anchor keys per `anchors.md` §1.2); `ARPointCloud`, plane/face/mesh geometry types; `ARReferenceImage` (CGImage, pixel buffer, asset-catalog AR groups via the asset-catalog reader); `ARWorldMap` and `ARCollaborationData` containers (SwiftCode payloads); 3D skeleton definition and face topology authored by SwiftCode; all `ARCamera`/`ARFrame` math of `coordinates.md`. | C-MATH (formulas), C-ARCHIVE pass |
 | R4 | clean room + simulator track | **Session engine and oracle core**: state machine, run options, delegate queue dispatch and ordering, bounded frame pool, interruptions; sensor-channel client; host sensor renderer for the back camera and IMU; world/orientation/positional tracking from ground truth; scripted tracking states; light estimate; feature points; capability answers in simulated-world mode (`isSupported` YES, video formats of the simulated device model). | C-SESSION passes in simulated-world mode; baseline mode still passes C-BASE |
 | R5 | clean room | **Scene understanding (oracle)**: progressive planes with merging and classification; raycasts, tracked raycasts, legacy hit tests; scene depth and confidence; mesh anchors; environment probes; image detection/tracking; object detection/tracking; world maps with relocalization; collaboration between two simulated devices. | C-PLANE, C-IMAGE, C-DEPTH, C-MAP, C-COLLAB pass |
 | R6 | clean room | **People and faces (oracle)**: front camera and face rig; face anchors, blend shapes, eye transforms, `ARFaceGeometry`, directional light estimate, front depth; body tracking with retargeting to the joint set; 2D body detection; person segmentation and estimated depth; `ARMatteGenerator`. | C-FACE, C-BODY pass |
-| R7 | clean room | **Views**: `ARSCNView`, `ARSKView` (on the guest's SceneKit/SpriteKit), `ARCoachingOverlayView` with Ycode-original artwork, SceneKit geometry helpers, view-rotation angle and `viewLayer`. | C-VIEWS screenshots match goldens produced by Ycode's own reference renderer; behavior checks pass |
+| R7 | clean room | **Views**: `ARSCNView`, `ARSKView` (on the guest's SceneKit/SpriteKit), `ARCoachingOverlayView` with @@SWIFTCODE_ORIGINAL@@ artwork, SceneKit geometry helpers, view-rotation angle and `viewLayer`. | C-VIEWS screenshots match goldens produced by SwiftCode's own reference renderer; behavior checks pass |
 | R8 | clean room | **Geo and App Clip Codes (oracle)**: availability checks, geo states, geo anchors, point↔coordinate conversion, App Clip Code anchors from the world side-car. | C-GEO passes |
 | R9 | clean room (optional) | **Vision backend**: VIO from permissive libraries (Basalt or Kimera-VIO), plane fitting, TSDF meshing (Open3D-style, own code or MIT library); evaluation against ground truth. | trajectory error and plane accuracy within agreed bounds on the test worlds |
 | R10 | clean room (optional) | **Linux package**: source-compatible Swift API on Linux (simd substitute, no UIKit/SceneKit views), driven by recorded trajectories. | conformance tests that do not need views pass on Linux |
@@ -54,10 +54,10 @@ see §4); "oracle" means expected values computed from the simulated world.
 | Test | App does | Expected |
 |---|---|---|
 | C-BASE | Everything `ARProbe -probe all`, `-probe consts`, `-ui scn|sk|coachscn` does | Identical to the golden output of the reference simulator (`simulator-baseline.md`), after normalizing UUIDs, addresses and times |
-| C-SWIFT | Uses the Swift refinements: `TrackingState` enum with reasons, plane `Classification` with status, arrays of points/vertices/joints, optional `viewRotationAngle`, optional unprojection, `ARSkeletonJointName.init(_:)` | Compiles against the SDK, links against Ycode's framework, same output as against Apple's |
+| C-SWIFT | Uses the Swift refinements: `TrackingState` enum with reasons, plane `Classification` with status, arrays of points/vertices/joints, optional `viewRotationAngle`, optional unprojection, `ARSkeletonJointName.init(_:)` | Compiles against the SDK, links against SwiftCode's framework, same output as against Apple's |
 | C-SESSION | Runs/pauses/re-runs with each option; custom and main delegate queues; retains frames to starve the pool; backgrounds and foregrounds the app; changes configuration while running | Callback threads; per-frame invariants (`session.md` §6.4); tracking-state sequence; frames stop while starved and resume after release; interruption begin/end and the relocalization question; `configuration` reflects the last run |
 | C-MATH | For fixed intrinsics/poses: projection, view matrices, display transforms for all four angles and several viewport sizes, project/unproject round trips | Matches `coordinates.md`; also run on hardware once to confirm the derived formulas |
-| C-ARCHIVE | Archives anchors (plain, named, subclasses) with Apple's and Ycode's frameworks and decodes each with the other | Round trip preserves identifier, name, transform |
+| C-ARCHIVE | Archives anchors (plain, named, subclasses) with Apple's and SwiftCode's frameworks and decodes each with the other | Round trip preserves identifier, name, transform |
 | C-PLANE | Tabletop world, plane detection on, raycast from the screen center | A horizontal plane anchor within the scripted discovery time at the table height (±1 cm); extent grows as the camera pans; raycast hit on the table; vertical plane on the wall when enabled |
 | C-IMAGE | Poster world; image tracking and world-tracking detection | Image anchor at the poster pose (±1 cm, ±1°); `isTracked` false when out of view; `estimatedScaleFactor` 1 unless scale estimation is on |
 | C-DEPTH | Room world, scene depth and reconstruction | Depth equals ground-truth distance (±1 %); confidence high on near frontal surfaces; mesh anchors cover the walls and floor with correct classification |
@@ -93,7 +93,7 @@ level 3 evidence and allowed):
 
 Design questions:
 
-11. How Ycode's guest loads Ycode's `ARKit.framework` instead of Apple's
+11. How SwiftCode's guest loads SwiftCode's `ARKit.framework` instead of Apple's
     (runtime-root overlay versus loader redirect), and how the Swift overlay
     `libswiftARKit` is replaced consistently (simulator track decision).
 12. The `.referenceobject` file format (produced by Create ML) — study as a
@@ -104,10 +104,10 @@ Design questions:
 14. A separate spec for visionOS ARKit (`ARKitSession`, providers) when the
     visionOS track starts; the simulated world should feed both.
 15. The reference simulator's AVFoundation has a simulator capture source
-    (its log names one when the app queries capture devices); whether Ycode's
+    (its log names one when the app queries capture devices); whether SwiftCode's
     camera service should plug in there for AVFoundation apps is a simulator
     track question.
 
 ## Evidence
 
-Ycode plan; facts it relies on are cited in the other files.
+SwiftCode plan; facts it relies on are cited in the other files.

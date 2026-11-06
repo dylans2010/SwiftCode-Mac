@@ -7,8 +7,8 @@ runtimes ship HomeKit bundle version 1493.1.5.1.1 and behaved identically in
 every probe.
 
 Implementation status (2026-10-28): `frameworks/homekit/` (package
-`ycode-homekit`: library product `HomeKit`, test target `HomeKitTests`).
-Round R3 of `plan.md` (the model library) is done; R4 (`ycode-homed`) and
+`swiftcode-homekit`: library product `HomeKit`, test target `HomeKitTests`).
+Round R3 of `plan.md` (the model library) is done; R4 (`swiftcode-homed`) and
 R5–R9 are not started. The package README lists what is done, deferred and
 not started.
 
@@ -35,7 +35,7 @@ the names HomeKit uses, and certification/MFi.
 | `type-identifiers.md` | Service and characteristic type UUIDs (184), accessory category strings (33), formats, units, properties, action-set types, significant events, characteristic value enumerations |
 | `errors.md` | `HMErrorCode` catalog, the errors observed in the simulator (incl. the private 2040), proposed HAP status mapping |
 | `accessory-protocols.md` | HAP over IP (discovery, transport, pairing, setup payload, categories), BLE outline, Matter; source licensing |
-| `open-design.md` | **Ycode-original design note**: simulator dependencies (Track S), open HomeKit library + daemon (Track O), Ycode accessory simulator |
+| `open-design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: simulator dependencies (Track S), open HomeKit library + daemon (Track O), SwiftCode accessory simulator |
 | `plan.md` | Rounds R1–R9, account-enabled checks HK-A01–A30, owner inputs, open-implementation tests |
 
 Black-box observations: `research/notes/homekit-simulator-observations-2026-10-19.md`.
@@ -50,17 +50,17 @@ Raw logs and screenshots: git-ignored `research/dirty/homekit/`.
 2. **No home without iCloud.** On a fresh simulator (no Apple Account),
    `addHomeWithName:` fails with private `HMErrorDomain` code 2040 before
    any name validation. Nothing below a home can be exercised. This is the
-   reference baseline Ycode must match.
+   reference baseline SwiftCode must match.
 3. **No development team needed** for simulator builds: the HomeKit
    entitlement goes in the binary's `__entitlements` section with ad hoc
    signing. Putting it in the ad hoc signature makes the app unlaunchable.
 4. Missing usage string aborts the app; missing entitlement still prompts
    but the daemon refuses the connection (no homes callback; later 47).
 5. `simctl privacy grant all` does not cover HomeKit; the prompt must be
-   answered (or Ycode offers its own pre-grant).
+   answered (or SwiftCode offers its own pre-grant).
 6. HomeKit Accessory Simulator is **not installed** on this Mac; no Home
    app exists in either runtime.
-7. Ycode's lean boot disables `homed`; HomeKit needs it running
+7. SwiftCode's lean boot disables `homed`; HomeKit needs it running
    (`open-design.md` S1). Since 2026-10-27 IDE runs boot every service
    by default (`specs/ide/run.md`), so `homed` runs unless Lean boot is
    turned on.
@@ -82,7 +82,7 @@ permission to pair with software accessories on an isolated network.
 - `_HomeKit_SwiftUI.framework` exports SwiftUI `CameraView` (iOS 14).
 - The runtime bundle carries `DefaultCharacteristics.plist`, 57
   localizations and three app extensions (intent, diagnostic, customer
-  diagnostic). Localized strings are Apple's; Ycode writes its own.
+  diagnostic). Localized strings are Apple's; SwiftCode writes its own.
 - Platform: iOS 8+, watchOS 2+, tvOS 10+, Mac Catalyst 14+, visionOS
   where listed; native macOS only for `HMAccessorySetupManager` and its
   request/result/payload types (macOS 27).
@@ -92,8 +92,8 @@ permission to pair with software accessories on an isolated network.
 Level 1: Apple's public HomeKit documentation (summarized), Apple's
 HomeKit ADK (Apache-2.0), connectedhomeip (Apache-2.0) repository facts, CSA
 license notices. Level 2: launchd plists in both runtimes. Level 3:
-`HMProbe` on `ycode-test-homekit-271` (iPhone Duo, 27.1) and
-`ycode-test-homekit-270` (iPhone 18 Pro, 27.0), both deleted after use.
+`HMProbe` on `swiftcode-test-homekit-271` (iPhone Duo, 27.1) and
+`swiftcode-test-homekit-270` (iPhone 18 Pro, 27.0), both deleted after use.
 Level 4: SDK header/API-notes/Swift-interface metadata (names, values,
 availability; nothing reproduced), bundle structure. Level 5
 (disassembly/decompilation) was **not** used. The reference tools folder,

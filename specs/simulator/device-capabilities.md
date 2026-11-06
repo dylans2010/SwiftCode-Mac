@@ -2,9 +2,9 @@
 
 Status: **reference** for stages 7–8 (integrator H, 2026-10-13). It says
 which file the runtime reads to learn what kind of device it runs on, what
-happens without it, and what Ycode writes. Facts come from the device-type
+happens without it, and what SwiftCode writes. Facts come from the device-type
 bundle read as a file format on this Mac (level 2), the environment of a
-booted iOS 27.1 simulator's processes (`ps -E`, level 3), and Ycode runs on
+booted iOS 27.1 simulator's processes (`ps -E`, level 3), and SwiftCode runs on
 the Thor (level 3). No disassembly was used.
 
 ## 1. The variable and the file
@@ -27,7 +27,7 @@ the Thor (level 3). No disassembly was used.
 
 ## 2. Without the file
 
-Ycode set the variable to an empty string until 2026-10-13. Observed on the
+SwiftCode set the variable to an empty string until 2026-10-13. Observed on the
 Thor (level 3, `log stream` one-shot):
 
 - every process that asks MobileGestalt logs "can't load simulator
@@ -38,13 +38,13 @@ Thor (level 3, `log stream` one-shot):
   iconservicesagent.
 
 With the file (§3) these messages are gone. (The grey icons of the first
-Ycode home screens had other causes as well; `home-screen.md` §2.)
+SwiftCode home screens had other causes as well; `home-screen.md` §2.)
 
-## 3. What Ycode writes
+## 3. What SwiftCode writes
 
-`ycode-simd --device` writes `DEV/ycode-capabilities.plist` on every boot and
+`swiftcode-simd --device` writes `DEV/swiftcode-capabilities.plist` on every boot and
 sets `SIMULATOR_CAPABILITIES` to its path. The file has one key,
-`capabilities`, with these entries for Ycode's single device model
+`capabilities`, with these entries for SwiftCode's single device model
 (`iPhone19,4`; the values are the device type's own, read from its
 `capabilities.plist`, level 2):
 
@@ -67,7 +67,7 @@ Left out: `marketing-name`; the legacy `iconState`; the `displays` array
 2026-10-27: the iPhone Duo by default). *Correction (OBS-FOLD2, 2026-10-27): `displays` is not only a
 host-side list. The guest reads it from this file and takes each built-in
 panel's role (cover, inner) from it; without it a two-panel device's
-SpringBoard stops (§3.1, `foldable.md` §9 Q7). A foldable must have it.* Ycode's main display (`SIMULATOR_MAINSCREEN_*` and its headless
+SpringBoard stops (§3.1, `foldable.md` §9 Q7). A foldable must have it.* SwiftCode's main display (`SIMULATOR_MAINSCREEN_*` and its headless
 SimFramebuffer's default) is 1398 × 2034 @3, pitch 460, matching the table;
 before 2026-10-13 it was 1206 × 2622, which no device type of model
 iPhone19,4 has.
@@ -126,14 +126,14 @@ How the guest uses it (level 3, black-box boots on the Mac with
 - The `TVOut`, `Wireless` and `Resizable` entries are not needed for the
   surfaces (a list with only the two integrated entries worked).
 
-**Ycode decision:** for a device type with a second built-in panel, Ycode
+**SwiftCode decision:** for a device type with a second built-in panel, SwiftCode
 writes the type's whole `displays` array (all five entries, all keys, the
-types above) into `DEV/ycode-capabilities.plist`, inside `capabilities`.
+types above) into `DEV/swiftcode-capabilities.plist`, inside `capabilities`.
 The values are facts read from the device type. The mask and chrome
-identifiers are written as strings only; Ycode ships no mask or chrome
+identifiers are written as strings only; SwiftCode ships no mask or chrome
 file.
 
-**What Ycode writes (FOLD2, 2026-10-27).** `ycode-simd` writes the iPhone
+**What SwiftCode writes (FOLD2, 2026-10-27).** `swiftcode-simd` writes the iPhone
 Duo's `displays` array exactly as the table above: five dictionaries in
 the order `LCD`, `TVOut`, `LCD-1`, `Wireless`, `Resizable`; integers for
 `screenID`, `width`, `height`, `powerState`, `surfaceType`,
@@ -142,7 +142,7 @@ the order `LCD`, `TVOut`, `LCD-1`, `Wireless`, `Resizable`; integers for
 of strings for `requiredFeatures`. Each built-in entry has 22 keys (the
 twenty that worked on the reference plus `colorspace` and `refreshRate`),
 `TVOut` and `Wireless` 13, `Resizable` 18. The record is
-`DisplayEntry.iPhoneDuo` in `ycode-simd/DeviceTypes.swift`; the `LCD-1`
+`DisplayEntry.iPhoneDuo` in `swiftcode-simd/DeviceTypes.swift`; the `LCD-1`
 entry is built from the same record as the framebuffer library's second
 display (id 3, `LCD-1`, `primary-1`, 2007 × 2853 @3, 460 dpi, mounted at
 270°), and the `LCD` entry agrees with `SIMULATOR_MAINSCREEN_*`; the
@@ -150,13 +150,13 @@ other three agree with the list the library publishes (`simframebuffer.md`
 §4, §10).
 
 - The array is written **only together with the inner panel**: by default
-  for a foldable (`foldable.md` §10.4); with `YCODE_FOLD_DISPLAYS=0` the
+  for a foldable (`foldable.md` §10.4); with `SWIFTCODE_FOLD_DISPLAYS=0` the
   framebuffer library publishes the cover only and the file is byte for
   byte the file before 2026-10-27 (no `displays`). Other device types
   (iPhone 18 Pro, iPads, Apple Vision Pro) still get no `displays`.
 - No mask or chrome file: the identifiers are strings only, and the
   framebuffer library's `SFBDisplayGetMaskPath` stays NULL. Result under
-  Ycode: see `foldable.md` §10.4.
+  SwiftCode: see `foldable.md` §10.4.
 
 ## 4. Note: the default home screen of this runtime
 
@@ -166,7 +166,7 @@ read with `plutil`) shows **Settings** on the first page and **Safari** in
 the dock, nothing else; `IconState.plist` holds exactly
 `iconLists = [[com.apple.Preferences]]`, `buttonBar = [com.apple.mobilesafari]`
 and the Today widgets. `DesiredIconState.plist` (written later) lists a full
-iPhone layout, but the home screen does not use it. Ycode's device shows the
+iPhone layout, but the home screen does not use it. SwiftCode's device shows the
 same two icons, so the short app set is the reference behavior, not a fault.
 
 ## Evidence
@@ -175,10 +175,10 @@ same two icons, so the short app set is the reference behavior, not a fault.
 |---|---|---|
 | The variable and its value on the Mac (§1) | 3 | `ps -E` of PosterBoard in a booted throwaway iOS 27.1 device |
 | File structure and values (§1, §3) | 2 | the device type's `capabilities.plist` and `profile.plist` read with `plutil` |
-| Failures without the file (§2) | 3 | Ycode `log stream` one-shot on the Thor (iconservicesagent, CoreUI lines) |
+| Failures without the file (§2) | 3 | SwiftCode `log stream` one-shot on the Thor (iconservicesagent, CoreUI lines) |
 | Default home screen (§4) | 2, 3 | Mac `simctl io screenshot`; `IconState.plist`, `DesiredIconState.plist` via `plutil` |
-| What Ycode writes | — | Ycode decision from the above |
-| The `displays` array Ycode writes (§3.1 "What Ycode writes") | — | Ycode decision; unit test `DeviceTypeTests.iPhoneDuoDisplaysList` checks every key, value and plist type against the table |
+| What SwiftCode writes | — | SwiftCode decision from the above |
+| The `displays` array SwiftCode writes (§3.1 "What SwiftCode writes") | — | SwiftCode decision; unit test `DeviceTypeTests.iPhoneDuoDisplaysList` checks every key, value and plist type against the table |
 | `displays` structure, key types and values (§3.1) | 2 | the iPhone Duo device type's `capabilities.plist` read with `plistlib` (OBS-FOLD2) |
 | The guest reads `displays`; surface roles, required keys (§3.1) | 3 | reference boots of throwaway iPhone Duo devices with `SIMCTL_CHILD_SIMULATOR_CAPABILITIES` pointing at edited copies: SpringBoard log stream, `ps -E`, launchd run counts, crash-report frame names (OBS-FOLD2) |
 

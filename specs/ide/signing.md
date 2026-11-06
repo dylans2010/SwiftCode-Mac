@@ -1,15 +1,15 @@
 # Code signing and entitlements
 
-Ycode: `YcodeSigning` (Foundation only), compiled into the `ycode-swb`
-helper through the symbolic link `ycode/Tools/ycode-swb/Sources/YcodeSigning`;
-`YcodeBuild.SwiftBuildEngine` (IDE builds and `ycode build --engine
-swift-build`); `YcodeXcodebuild` (`ycodebuild`, `-exportArchive`). Tests:
-`YcodeSigningTests` (synthetic identities and profiles only),
-`YcodeIDECoreTests/SigningBuildTests`.
+SwiftCode: `SwiftCodeSigning` (Foundation only), compiled into the `swiftcode-swb`
+helper through the symbolic link `swiftcode/Tools/swiftcode-swb/Sources/SwiftCodeSigning`;
+`SwiftCodeBuild.SwiftBuildEngine` (IDE builds and `swiftcode build --engine
+swift-build`); `SwiftCodeXcodebuild` (`swiftcodebuild`, `-exportArchive`). Tests:
+`SwiftCodeSigningTests` (synthetic identities and profiles only),
+`SwiftCodeIDECoreTests/SigningBuildTests`.
 
-This is a Ycode design built from open-source swift-build and Apple's
+This is a SwiftCode design built from open-source swift-build and Apple's
 public documentation. Where Xcode's exact behaviour is not recorded in
-`specs/`, the rule is marked **Ycode decision** and, where it matters, an
+`specs/`, the rule is marked **SwiftCode decision** and, where it matters, an
 open question for the dirty room.
 
 ## 1. Who decides what
@@ -27,7 +27,7 @@ its client one question: given the target's provisioning source data
 identifier, `PROVISIONING_PROFILE_SPECIFIER`, `PROVISIONING_PROFILE`,
 whether a profile is required, the SDK, the product type's entitlements,
 the project's expanded entitlements, whether the product takes
-entitlements), which identity, profile and entitlements? Ycode answers it
+entitlements), which identity, profile and entitlements? SwiftCode answers it
 in `ProvisioningResolver.resolve`, with these outputs:
 
 | Output | Use by swift-build |
@@ -53,7 +53,7 @@ Application`, …) match only themselves.
 Identities come from `security find-identity -v -p codesigning` (hash and
 name) and the certificates from `security find-certificate -a -Z -p`
 (public parts only). The certificate's subject organizational unit (OID
-2.5.4.11) is the team, its validity end the expiry. Ycode never creates,
+2.5.4.11) is the team, its validity end the expiry. SwiftCode never creates,
 imports or exports an identity, and prints only names and hashes. With a
 team, only that team's identities are candidates; expired ones never are;
 the latest-expiring candidate is used unless a profile narrows the choice.
@@ -66,7 +66,7 @@ signing reports the missing certificate.
 
 Folders: `~/Library/Developer/Xcode/UserData/Provisioning Profiles`
 (Xcode 16 and later) and `~/Library/MobileDevice/Provisioning Profiles`
-(older); `YCODE_PROVISIONING_PROFILES` (folders separated by `:`)
+(older); `SWIFTCODE_PROVISIONING_PROFILES` (folders separated by `:`)
 replaces both (tests). Files `*.mobileprovision` and `*.provisionprofile`;
 the CMS envelope is opened with `security cms -D -i`; a file that is
 already a property list is read as it is (synthetic test profiles).
@@ -101,7 +101,7 @@ entitlement the project asks for (§4.3).
   entitlements signs without a profile (manual style) or with a matching
   one if installed (automatic).
 
-**Never created.** Ycode does not register devices, create App IDs or
+**Never created.** SwiftCode does not register devices, create App IDs or
 download profiles. Automatic signing that would need Apple's developer
 services reports the missing profile (§7) — remaining work (SIGN-2: an
 Accounts pane with an App Store Connect API key, public REST API).
@@ -120,7 +120,7 @@ UI test bundles (`com.apple.product-type.bundle.ui-testing`, the
 `ENTITLEMENTS_REQUIRED` for them and stops with "Entitlements are required
 for product type …" when the answer has none). They are composed like an
 executable's, from the table below (`SigningRequest.takesEntitlements`). "Debuggable" is true for builds and false for archives
-(`ycode-swb` request `debuggable`).
+(`swiftcode-swb` request `debuggable`).
 
 | Case | Signed (code signature) | Simulated (`__TEXT,__entitlements`) |
 |---|---|---|
@@ -139,7 +139,7 @@ reference answer (`swbuild`'s and the test suite's provisioning
 delegates) and its rule that simulator signatures carry only
 `get-task-allow`; the section is what the simulator honours
 (`specs/simulator/app-install-launch.md` §4.5, `host-libraries.md`). The
-derived `keychain-access-groups` in the simulator section is a **Ycode
+derived `keychain-access-groups` in the simulator section is a **SwiftCode
 decision**: without it a keychain call fails with -34018
 (`specs/simulator/snapshot.md` w9). OPEN QUESTION (dirty room): the exact
 keys Xcode 27.1 writes into `<product>-Simulated.xcent` with and without
@@ -150,7 +150,7 @@ a team, and into a development `.xcent` on the Mac and on devices.
 Restricted (need a profile): on the Mac everything except
 `com.apple.security.*` (App Sandbox and Hardened Runtime entitlements,
 `com.apple.security.application-groups`); on devices everything except
-`get-task-allow`; in simulators nothing. The identifiers Ycode derives
+`get-task-allow`; in simulators nothing. The identifiers SwiftCode derives
 (application identifier, team identifier, debugging) are checked
 separately.
 
@@ -182,8 +182,8 @@ are, except the bundle's own `CFBundleExecutable`; the bundle is last.
 
 ## 6. Build paths
 
-- **IDE and `ycode build --engine swift-build`**: `SwiftBuildEngine` runs
-  `ycode-swb build` (found through `YCODE_SWB`, next to `swbuild`, or on
+- **IDE and `swiftcode build --engine swift-build`**: `SwiftBuildEngine` runs
+  `swiftcode-swb build` (found through `SWIFTCODE_SWB`, next to `swbuild`, or on
   PATH) with the same PIF, the request `swbuild build` would make
   (`targetNames`, no implicit dependencies, hidden script environment,
   `cleanBuildFolder` for clean) and the build locations of `swbuild
@@ -193,27 +193,27 @@ are, except the bundle's own `CFBundleExecutable`; the bundle is last.
   the engine still uses `swbuild` with the old overrides (identity `-`,
   `ENTITLEMENTS_DESTINATION` empty: no entitlements) and says so in the
   build log.
-- **`ycodebuild`**: `ycode-swb build` as before (`build-actions.md` §4);
+- **`swiftcodebuild`**: `swiftcode-swb build` as before (`build-actions.md` §4);
   the delegate is now the same resolver, so identities, profiles and the
   simulator section apply there too. Sign to Run Locally builds are
   unchanged.
 - **Automatic style on the Mac without a team** signs to run locally
-  (**Ycode decision**, matching what the Signing & Capabilities editor
+  (**SwiftCode decision**, matching what the Signing & Capabilities editor
   shows for team None); on device SDKs it is the "requires a development
   team" error.
 
 ## 7. Diagnostics
 
-Ycode's wording (**Ycode decision**, modelled on the messages developers
+SwiftCode's wording (**SwiftCode decision**, modelled on the messages developers
 know; the reference's exact texts are an open question):
 
 | Situation | Message |
 |---|---|
 | identity, no team (devices; manual Mac with a profile) | `Signing for "<target>" requires a development team. Select a development team in the Signing & Capabilities editor.` |
-| no matching identity | `No signing certificate "<identity>" found: No "<identity>" signing certificate matching team ID "<team>" with a private key was found in the keychain. Ycode does not create certificates; add one to the keychain, or sign to run locally.` |
-| manual profile not installed | `No profile for team '<team>' matching '<specifier>' found: Ycode found no installed provisioning profile matching '<specifier>'. Install the profile, or choose another one in the Signing & Capabilities editor.` |
+| no matching identity | `No signing certificate "<identity>" found: No "<identity>" signing certificate matching team ID "<team>" with a private key was found in the keychain. SwiftCode does not create certificates; add one to the keychain, or sign to run locally.` |
+| manual profile not installed | `No profile for team '<team>' matching '<specifier>' found: SwiftCode found no installed provisioning profile matching '<specifier>'. Install the profile, or choose another one in the Signing & Capabilities editor.` |
 | manual style, profile needed, none named | `"<target>" requires a provisioning profile. Select a provisioning profile in the Signing & Capabilities editor.` |
-| automatic, no usable profile | `No profiles for '<bundle id>' were found: Ycode found no installed provisioning profile for team '<team>' matching '<bundle id>'[ with the entitlements the target needs]. Ycode does not create or download profiles (automatic provisioning through Apple's developer services is not supported); install a matching profile, or sign to run locally.` |
+| automatic, no usable profile | `No profiles for '<bundle id>' were found: SwiftCode found no installed provisioning profile for team '<team>' matching '<bundle id>'[ with the entitlements the target needs]. SwiftCode does not create or download profiles (automatic provisioning through Apple's developer services is not supported); install a matching profile, or sign to run locally.` |
 | profile expired / other team / other platform / app ID / certificate / kind | `Provisioning profile "<name>" expired on <ISO 8601 date>.` · `… belongs to team <ids>, not to the development team <team>.` · `… is for <platforms>, not for <platform>.` · `… has app ID "<id>", which does not match the bundle ID "<bundle id>".` · `… doesn't include a signing certificate "<identity>" from the keychain.` · `… is a <kind> profile; debugging needs a development profile.` |
 | entitlement not allowed | `Provisioning profile "<name>" doesn't include the <key> entitlement.` · `Provisioning profile "<name>" doesn't match the entitlements file's value for the <key> entitlement.` |
 | ad hoc Mac build with restricted entitlements (warning) | `"<target>" is signed to run locally, but "<key>"[, …] needs a provisioning profile; macOS may refuse to launch it. Select a development team to sign with a profile.` |
@@ -227,14 +227,14 @@ know; the reference's exact texts are an open question):
   material signs ad hoc; `--entitlements-xml-file <plist>` signs
   entitlements in. `CodesignCommand.rcodesignAdHoc` builds that command
   line (tested); nothing runs it yet, because swift-build on Linux does not
-  build Apple-platform products in Ycode today (simulator apps are built on
+  build Apple-platform products in SwiftCode today (simulator apps are built on
   the Mac, then installed on the Linux host's simulator, which reads the
   `__TEXT,__entitlements` section and needs no real signature).
 - Identity signing on Linux needs the certificate and private key as
-  files (`--p12-file` with a password from a file, or `--pem-file`). Ycode
+  files (`--p12-file` with a password from a file, or `--pem-file`). SwiftCode
   will take them from a user-chosen location, never copy them, and pass
   them only to rcodesign. Profiles are the same files (§3), opened with
-  rcodesign's or Ycode's own CMS reader (the content is a signed property
+  rcodesign's or SwiftCode's own CMS reader (the content is a signed property
   list; reading it needs no verification).
 - Notarization: the public Notary REST API (or `rcodesign
   notary-submit`) with an App Store Connect API key.
@@ -283,23 +283,23 @@ installing on physical devices.
 - Simulator entitlements in `__TEXT,__entitlements`, signature
   entitlements refused by the Mac simulator host:
   `specs/simulator/app-install-launch.md` §4.5 (level 3, from the spec).
-- Ycode runs (level 3, Ycode only): a template macOS app with App Sandbox,
+- SwiftCode runs (level 3, SwiftCode only): a template macOS app with App Sandbox,
   Outgoing Connections and an app group named with
   `$(PRODUCT_BUNDLE_IDENTIFIER)`, built through the IDE engine, signed ad
   hoc with all of them expanded and `com.apple.security.get-task-allow`
   (`SigningBuildTests`); `Samples/SigningSamples` `SandboxedMac` built
-  with `ycode build --engine swift-build` ran inside the App Sandbox
+  with `swiftcode build --engine swift-build` ran inside the App Sandbox
   with its app-group container; with a development identity of the Mac's
   keychain and `DEVELOPMENT_TEAM` the same app was signed by the team
   (no profile needed), passed `codesign --verify --strict` and launched;
   with `keychain-access-groups` added, the automatic-profile error of §7
   was reported (no matching profile was installed).
-- Ycode's simulator (level 3, Ycode only): `KeychainGroups`, built for
+- SwiftCode's simulator (level 3, SwiftCode only): `KeychainGroups`, built for
   `platform=iOS Simulator`, has only `get-task-allow` in its ad hoc
   signature and `application-identifier`, the app group and the keychain
   group in `__TEXT,__entitlements`; on an iPhone 18 Pro device (iOS 27.0
   runtime) on the arm64 Linux host it printed `keychain add=0 read=0
-  group=org.ycode.samples.signing.shared appGroupContainer=yes` (one cold
+  group=org.swiftcode.samples.signing.shared appGroupContainer=yes` (one cold
   boot, `ide-remote/signing/runs/kg1`).
-- Diagnostics wording and the rules marked **Ycode decision**: Ycode
+- Diagnostics wording and the rules marked **SwiftCode decision**: SwiftCode
   design (no level).

@@ -1,12 +1,12 @@
 # xcodebuild: -version, -list, -showsdks, -showdestinations, -showTestPlans
 
-Ycode: `YcodeXcodebuild` (`InfoCommands`, `SDKRegistry`, `Container`,
+SwiftCode: `SwiftCodeXcodebuild` (`InfoCommands`, `SDKRegistry`, `Container`,
 `AutocreatedScheme`, `PackageReport`, `Destinations`). Grammar and errors:
 `cli.md`. JSON output everywhere is pretty-printed with two-space
 indentation, `"key" : value` (space on both sides of the colon), keys sorted
 the way Foundation's `JSONSerialization` sorts them (`.sortedKeys`: case-
 insensitive, numeric-aware; `__ARCHS__` sorts before `ACTION`), `/` not
-escaped, followed by one newline. ycodebuild produces it with
+escaped, followed by one newline. swiftcodebuild produces it with
 `JSONSerialization` options `[.prettyPrinted, .sortedKeys,
 .withoutEscapingSlashes]`, which gives the same bytes on macOS.
 
@@ -18,8 +18,8 @@ Two lines on stdout, exit 0:
     Build version <build>
 
 The reference tool prints its own product name, marketing version and build
-number. **ycodebuild prints Ycode's** (`Ycode <version>` / `Build version
-<version>`, from `ycode/VERSION`) in the same two-line shape, so scripts that parse the shape keep
+number. **swiftcodebuild prints SwiftCode's** (`SwiftCode <version>` / `Build version
+<version>`, from `swiftcode/VERSION`) in the same two-line shape, so scripts that parse the shape keep
 working but can tell the tools apart. `-json` and info items are ignored
 without `-sdk`.
 
@@ -135,7 +135,7 @@ version for a remote package (or `branch (abcdef0)`, or a 7-digit
 revision), and the ` @ …` part is absent for a package added as a folder
 (also when the same folder is also a package reference).
 Order: the project's `packageReferences` order, then remaining pins.
-ycodebuild does not resolve packages: remote entries come from the
+swiftcodebuild does not resolve packages: remote entries come from the
 `Package.resolved` of the container (`…/project.xcworkspace/xcshareddata/
 swiftpm/Package.resolved` or `X.xcworkspace/xcshareddata/swiftpm/…`), and
 their names from the package manifests of an existing checkout under
@@ -157,7 +157,7 @@ except an unversioned name (no digit, e.g. `MacOSX.sdk`) when a versioned
 name (`MacOSX27.0.sdk`, `MacOSX27.sdk`) resolves to the same directory. So
 macOS appears twice when both `MacOSX27.0.sdk` and `MacOSX27.sdk` exist.
 The reference tool's order of such duplicates varies between runs;
-ycodebuild sorts by bundle name.
+swiftcodebuild sorts by bundle name.
 
 `-json`: an array of objects with `canonicalName`, `displayName`,
 `isBaseSdk` (boolean), `platform` (platform `Name`), `platformPath`,
@@ -218,7 +218,7 @@ devices` (read-only). Package schemes: `packages.md` §5.
   (level 3).
 - OPEN QUESTION: the test-target schemes the reference tool adds for some
   local packages (it listed two of three test targets of one package, and no
-  `<package>-Package` scheme); ycodebuild lists products only.
+  `<package>-Package` scheme); swiftcodebuild lists products only.
 - The package report's order beyond direct references is not fixed: two
   projects with the same packages list them in different orders, and the
   order varies between runs (level 3); the harness compares that block

@@ -1,6 +1,6 @@
 # Assist terminal / memory / planning tools — behaviour (Wave 4)
 
-Behaviour for the 34 Legacy Assist tools ported in Wave 4 onto Ycode's MCP
+Behaviour for the 34 Legacy Assist tools ported in Wave 4 onto SwiftCode's MCP
 host: 17 terminal / system tools, 9 memory / context tools, 8 planning /
 workflow / agent-control tools. See `assist-tool-catalogue.md` §86–§125 for
 each tool's ID, schema, capability / risk / permission, and gate. Legacy
@@ -50,7 +50,7 @@ Legacy's `registerAllTools()` order.
   `MCPChange`) before executing. Legacy's allow-list (Assist Settings >
   Terminal Command Approvals), Full Access, and Autopilot bypass machinery
   are deliberately **not** ported: the description still says allow-listed
-  commands run without a prompt, but in Ycode there is no allow-list and
+  commands run without a prompt, but in SwiftCode there is no allow-list and
   every run is approved. `use_system`'s single mutation
   (`user_defaults_write`) needs both Legacy's `confirm: true` and the
   approval gate. `take_screenshot`'s artifact save and `use_app`'s
@@ -72,7 +72,7 @@ Legacy's `registerAllTools()` order.
   saves a PNG artifact, so it is `readOnly: false, idempotent: true,
   openWorld: true`, `writes: true`.
 - **Honestly-failing tools.** A tool whose prerequisite does not exist in
-  Ycode is still registered (same ID, same schema) and validates its
+  SwiftCode is still registered (same ID, same schema) and validates its
   inputs first with Legacy-exact messages, then fails naming the exact
   prerequisite — never a fake success. This wave: `env_capture_logs`,
   `use_extension`, `use_composio`, `use_workers`, `take_screenrecord`
@@ -81,7 +81,7 @@ Legacy's `registerAllTools()` order.
   `take_screenrecord` → `screenRecording`; `use_app` → `accessibility`;
   `use_terminal` → `terminalExecution`; any mutating tool
   (`safeMutation` / `potentiallyDestructive`) → `fileSystem`; else `none`.
-  A Ycode permission requirement is documentation here: the MCP host has
+  A SwiftCode permission requirement is documentation here: the MCP host has
   no permission store, and macOS TCC prompts (Screen Recording,
   Accessibility, notifications) are the OS's, surfaced as errors when
   denied — never silently bypassed.
@@ -116,7 +116,7 @@ Legacy's `registerAllTools()` order.
   output data attached); non-zero exit → error `Terminal command failed
   with exit code <n> (<duration>):\n<stderr or stdout, last 1500 chars>`
   (with the full data attached). Approval refused →
-  `The change was rejected in Ycode's review; nothing was written.` and
+  `The change was rejected in SwiftCode's review; nothing was written.` and
   nothing runs.
 
 ## 3. `task_runner` — Run Task
@@ -143,10 +143,10 @@ Legacy's `registerAllTools()` order.
 - Input: `memoryKey` (string, optional).
 - Behaviour: none — the tool needs the Assist snapshot history
   (`AssistSnapshotFunctions`) and the Assist memory store, neither of
-  which exists in Ycode's MCP host.
+  which exists in SwiftCode's MCP host.
 - Errors: always `env_capture_logs needs the Assist snapshot history
   (AssistSnapshotFunctions) and the Assist memory store, neither of
-  which exists in Ycode's MCP host; no logs were captured.` The
+  which exists in SwiftCode's MCP host; no logs were captured.` The
   `memoryKey` argument is read and ignored, so a missing key is not an
   error.
 
@@ -154,7 +154,7 @@ Legacy's `registerAllTools()` order.
 
 - Input: none (beyond `workspace`).
 - Behaviour: reads `ProcessInfo` / `Locale` / `TimeZone` of the server
-  process. This schema is declared in Ycode; Legacy declares no
+  process. This schema is declared in SwiftCode; Legacy declares no
   `parametersSchema` for this tool.
 - Output (success): `Environment info retrieved` with data `os`
   (e.g. `macOS 26.1 (Build …)`), `locale`, `timezone`, `cpu_count`,
@@ -168,12 +168,12 @@ Legacy's `registerAllTools()` order.
 - Behaviour: the one branch Legacy answers without a server — the
   configured-server list — is answered honestly: `serverName` `"list"`
   (case-insensitive) or `toolName` `"list_servers"` returns the text
-  `No MCP servers are currently configured in Ycode.` Ycode has no
+  `No MCP servers are currently configured in SwiftCode.` SwiftCode has no
   external MCP client to configure servers in.
 - Errors: any other call fails with `use_mcp needs an external MCP
   client (configured MCP servers with a connection manager), which
-  Ycode's MCP host does not have yet: no external tool was called.
-  Ycode itself is the MCP server here; its own tools are listed by
+  SwiftCode's MCP host does not have yet: no external tool was called.
+  SwiftCode itself is the MCP server here; its own tools are listed by
   tools/list.` Missing required arguments fail first
   (`Missing required parameter: <name>`).
 
@@ -184,20 +184,20 @@ Legacy's `registerAllTools()` order.
   `endColumn`), `args` (object), `confirm` (boolean), `limit`
   (integer).
 - Behaviour: none — the tool needs the Extensions v2 platform
-  (`ExtV2Manager` + extension host with Node.js), which Ycode's MCP
+  (`ExtV2Manager` + extension host with Node.js), which SwiftCode's MCP
   host does not have yet.
 - Errors: an unknown or missing `action` fails first with `Unknown or
   missing action. Use one of: list, details, list_commands,
   list_xcode_commands, activate, deactivate, execute, run_xcode_command,
   enable, disable, diagnostics.` A known action then fails with
   `use_extension needs the Extensions v2 platform (ExtV2Manager +
-  extension host with Node.js), which Ycode's MCP host does not have
+  extension host with Node.js), which SwiftCode's MCP host does not have
   yet; no extension was listed, activated, or executed.` No extension
   was listed, activated, or executed in either case.
 
 **Wave 11 note (this section is Wave 4 history — the tool is now
 WIRED).** `use_extension` is implemented against the new
-`YcodeExtensions` target; see `specs/ide/extensions-platform.md`
+`SwiftCodeExtensions` target; see `specs/ide/extensions-platform.md`
 §7.2/§10 and `assist-tool-catalogue.md` §92. All 11 actions work;
 mutating actions require `confirm: true` and the Wave 2 approval
 gate; Node absent → honest failure naming the prerequisite.
@@ -208,10 +208,10 @@ gate; Node absent → honest failure naming the prerequisite.
   is a JSON-serialized object string).
 - Behaviour: none — the tool needs the Composio service
   (`ComposioService` with a Composio API key and connected
-  integrations), which Ycode's MCP host does not have yet.
+  integrations), which SwiftCode's MCP host does not have yet.
 - Errors: always `use_composio needs the Composio service
   (ComposioService with a Composio API key and connected integrations),
-  which Ycode's MCP host does not have yet; no external tool
+  which SwiftCode's MCP host does not have yet; no external tool
   '<toolSlug>' was executed.` Missing required arguments fail first.
 
 ## 9. `use_workers` — Create and Coordinate Assist Workers (honestly failing, after validation)
@@ -227,7 +227,7 @@ gate; Node absent → honest failure naming the prerequisite.
   dependencies must name workers in the same batch; at least one worker
   assignment is required. No worker is created or run — the tool needs
   the Assist worker runtime (`WorkerScheduler` +
-  `WorkerPersistenceStore` + subagent execution), which Ycode's MCP
+  `WorkerPersistenceStore` + subagent execution), which SwiftCode's MCP
   host does not have yet.
 - Errors: missing `workers` → `Invalid input: 'workers' argument is
   required and must contain worker assignments.`; missing task →
@@ -237,7 +237,7 @@ gate; Node absent → honest failure naming the prerequisite.
   depends on unknown worker '<dep>'. Dependencies must reference workers
   in the same batch.`; otherwise `use_workers needs the Assist worker
   runtime (WorkerScheduler + WorkerPersistenceStore + subagent
-  execution), which Ycode's MCP host does not have yet; no worker was
+  execution), which SwiftCode's MCP host does not have yet; no worker was
   created or run.` Scope / target-file overlap is not validated (the
   failure comes first, as in Legacy's ordering — validation, then the
   runtime prerequisite).
@@ -320,12 +320,12 @@ gate; Node absent → honest failure naming the prerequisite.
 
 ## 14. `system_notification_tool` — Post macOS System Notification
 
-- Input: `title` (default `"Ycode Assist"` — Legacy's default is
-  `"SwiftCode Assist"`; the product posting the notification is Ycode),
+- Input: `title` (default `"SwiftCode Assist"` — Legacy's default is
+  `"SwiftCode Assist"`; the product posting the notification is SwiftCode),
   `subtitle`, `message` (default `"Task completed."`), `body` (alias
   for `message`), `sound` (`"default"`, `"none"`, or a sound file name;
   default `"default"`), `critical` (boolean, default false). This
-  schema is declared in Ycode; Legacy declares no `parametersSchema`
+  schema is declared in SwiftCode; Legacy declares no `parametersSchema`
   for this tool.
 - Behaviour: posts a genuine macOS notification (`UNUserNotificationCenter`
   with an `osascript` fallback when UserNotifications is unavailable).
@@ -432,7 +432,7 @@ gate; Node absent → honest failure naming the prerequisite.
   payload, matching Legacy's data keys), `format` (`"png"`),
   `size_bytes`, plus `purpose` when given.
 - Errors: `capture_mode "region"` → `capture_mode "region" needs the
-  interactive region-selection overlay, which Ycode's MCP host does
+  interactive region-selection overlay, which SwiftCode's MCP host does
   not have; use capture_mode "fullscreen".` A capture that succeeds
   but cannot be saved fails with `Captured screenshot successfully but
   failed to save artifact: <reason>`. Screen Recording permission
@@ -445,14 +445,14 @@ gate; Node absent → honest failure naming the prerequisite.
   `"application_display"`), `include_audio` (boolean, default false),
   `output_format` (`"mov"` default, or `"mp4"`), `purpose` (optional).
 - Behaviour: none — the tool needs a ScreenCaptureKit stream-recording
-  engine (`SCStream` + video writer), which Ycode's MCP host does not
+  engine (`SCStream` + video writer), which SwiftCode's MCP host does not
   have yet.
 - Errors: missing `app_identifier` → `Missing required parameter
   'app_identifier'. Provide a bundle identifier or application name.`;
   out-of-range duration → `Requested recording duration (<n>s) is
   invalid. Duration must be between 1 and 60 seconds.`; otherwise
   `take_screenrecord needs a ScreenCaptureKit stream-recording engine
-  (SCStream + video writer), which Ycode's MCP host does not have yet;
+  (SCStream + video writer), which SwiftCode's MCP host does not have yet;
   no recording was made. Recording also requires Screen Recording
   permission in macOS System Settings > Privacy & Security > Screen
   Recording.` No recording was made in any case.
@@ -484,7 +484,7 @@ gate; Node absent → honest failure naming the prerequisite.
   `wait_for_element`, `wait_for_window`, `verify`,
   `verify_element_state`) fails per-action with `use_app action
   '<action>' needs the macOS Accessibility / app-interaction engine
-  (AssistAppInteractionEngine), which Ycode's MCP host does not have
+  (AssistAppInteractionEngine), which SwiftCode's MCP host does not have
   yet; no application was operated.`
 - Errors: missing `action` → `Missing required parameter 'action'.
   Call use_app with an action type.`; missing `app_identifier` (for
@@ -510,8 +510,8 @@ gate; Node absent → honest failure naming the prerequisite.
 | `use_terminal` unknown program | `Process execution failed: command '<program>' was not found (no executable on PATH or at that path).` |
 | `use_terminal` timeout (300 s) | Error `Terminal command timed out after 300s: <command>` with partial-output data |
 | `use_terminal` non-zero exit | Error `Terminal command failed with exit code <n> (<duration>):\n<stderr or stdout>` with full data |
-| Approval refused (any gated terminal/system operation) | `The change was rejected in Ycode's review; nothing was written.` and nothing runs |
-| Writes in `readOnly` server mode (any `writes: true` tool) | `<tool> changes files, and this Ycode MCP server is read-only. Start it with \`ycode mcp --allow-writes\`, or use agent mode in the Ycode IDE, where each change is reviewed as a proposal.` |
+| Approval refused (any gated terminal/system operation) | `The change was rejected in SwiftCode's review; nothing was written.` and nothing runs |
+| Writes in `readOnly` server mode (any `writes: true` tool) | `<tool> changes files, and this SwiftCode MCP server is read-only. Start it with \`swiftcode mcp --allow-writes\`, or use agent mode in the SwiftCode IDE, where each change is reviewed as a proposal.` |
 | Honestly-failing tool called | Failure naming the exact prerequisite; nothing faked, nothing executed (§§4, 7, 8, 9, 17; `use_mcp` §6, `use_app` §18) |
 | macOS-only behaviour off macOS | `<tool> is only available on macOS.` (clipboard, notifications, screenshot, `use_app`, `use_system` macOS ops, `config_read`) |
 | Screen Recording / Accessibility denied | The OS failure surfaces as the tool error; no fake image, no synthetic events |
@@ -524,7 +524,7 @@ gate; Node absent → honest failure naming the prerequisite.
   dedicated tool (`git_*`, `file_*`, `build`) is the answer to a
   command that "needs" pipes or redirects.
 - **Approval on every `use_terminal` run.** There is no allow-list, no
-  Full Access, and no Autopilot bypass in Ycode. The Legacy description
+  Full Access, and no Autopilot bypass in SwiftCode. The Legacy description
   text is kept verbatim; the behaviour is stricter.
 - **Never wait for a person.** Subprocess environments carry
   `GIT_TERMINAL_PROMPT=0`; nothing in this family prompts on stdin,
@@ -550,7 +550,7 @@ capability / risk / permission, and gate.
 ### Memory conventions
 
 - **Four stores, all per-workspace.** (A) The session memory graph:
-  an in-memory `NSLock` dictionary (`YcodeMemoryGraphStore`), one graph
+  an in-memory `NSLock` dictionary (`SwiftCodeMemoryGraphStore`), one graph
   per workspace root path, process-lifetime, never persisted — exactly
   like Legacy's `AssistMemoryGraph`, which is held per-`AssistManager`
   and never written to disk. "Long-term" in the Legacy descriptions
@@ -573,7 +573,7 @@ capability / risk / permission, and gate.
   `<uuid>.context.md` per conversation under Application Support; the
   MCP host has no conversation identity (`WorkspaceSession` carries
   none), so one file per workspace replaces it. The Application Support
-  conversation archive (`~/Library/Application Support/Ycode/
+  conversation archive (`~/Library/Application Support/SwiftCode/
   Conversations/`) was considered and rejected for memory: it belongs
   to the conversation archive, and tests would write into the real
   Application Support directory. No new database layer was invented
@@ -632,7 +632,7 @@ capability / risk / permission, and gate.
   is the protection, as in Legacy (which takes no `confirm` either).
 - Output (success): `Memory cleared.` with data `cleared` (boolean,
   always true), `entriesCleared` (integer — how many entries the
-  workspace's graph held; a Ycode addition, Legacy returns no data).
+  workspace's graph held; a SwiftCode addition, Legacy returns no data).
 
 ### 24. `mem_context_snapshot` — Context Snapshot
 
@@ -644,7 +644,7 @@ capability / risk / permission, and gate.
   session UUID is minted once per workspace per process (Legacy's
   `AssistContext.sessionId`, one per Assist session).
   `latest_snapshot` is always `"none"`: Legacy reads it from
-  `AssistSnapshotFunctions.listSnapshots()`, and Ycode has no snapshot
+  `AssistSnapshotFunctions.listSnapshots()`, and SwiftCode has no snapshot
   store, so there is never a latest snapshot to name. The stored marker
   is a real graph entry, retrievable with `mem_retrieve`; nothing is
   faked. Open files are not captured: the MCP host has no open-file
@@ -691,7 +691,7 @@ capability / risk / permission, and gate.
 - Errors: `Missing required parameter: key` (absent or blank key);
   `Missing required parameter: value` (absent or blank value).
   Legacy's failure branch ("Memory recording is currently disabled in
-  Assist Settings, or storage failed.") has no Ycode equivalent: there
+  Assist Settings, or storage failed.") has no SwiftCode equivalent: there
   is no enable/disable setting, so a storage failure surfaces as the
   write error itself.
 
@@ -763,9 +763,9 @@ capability / risk / permission, and gate.
 | `mem_retrieve` unknown key | `Key not found in memory: <key>` |
 | `manage_memory` delete of a missing key | `Memory entry '<key>' was not found in UserMemory.md.` |
 | `manage_memory` / `conversation_context_manager` unknown action | `Unknown action '<action>'. Supported actions: …` / `Unsupported action '<action>'. Use 'read' or 'update_summary'.` |
-| Approval refused (any file-writing memory tool) | `The change was rejected in Ycode's review; nothing was written.` and nothing is written |
-| Writes in `readOnly` server mode (any `writes: true` memory tool, including `mem_store` / `mem_clear` / `mem_context_snapshot` and the read actions of mixed tools) | `<tool> changes files, and this Ycode MCP server is read-only. Start it with \`ycode mcp --allow-writes\`, or use agent mode in the Ycode IDE, where each change is reviewed as a proposal.` |
-| `mem_context_snapshot` latest snapshot | Always `"none"` — Ycode has no snapshot store (§24); the stored marker is real |
+| Approval refused (any file-writing memory tool) | `The change was rejected in SwiftCode's review; nothing was written.` and nothing is written |
+| Writes in `readOnly` server mode (any `writes: true` memory tool, including `mem_store` / `mem_clear` / `mem_context_snapshot` and the read actions of mixed tools) | `<tool> changes files, and this SwiftCode MCP server is read-only. Start it with \`swiftcode mcp --allow-writes\`, or use agent mode in the SwiftCode IDE, where each change is reviewed as a proposal.` |
+| `mem_context_snapshot` latest snapshot | Always `"none"` — SwiftCode has no snapshot store (§24); the stored marker is real |
 
 ## Planning tools
 
@@ -787,7 +787,7 @@ capability / risk / permission, and gate.
 - **Plan storage is in-memory.** `intel_plan_task` /
   `intel_breakdown_task` store plans in a process-wide in-memory store
   (`PlanningPlanStore`, keys `plan:<uuid>` / `plan_breakdown:<uuid>`).
-  Legacy stores them in the session's `AssistContext.memory`; Ycode's
+  Legacy stores them in the session's `AssistContext.memory`; SwiftCode's
   MCP host has no session memory store. Plan IDs are UUIDs, so plans
   from different workspaces cannot collide; plans do not survive a
   server restart.
@@ -804,7 +804,7 @@ capability / risk / permission, and gate.
   through `commit()` — exactly like the Wave 2 file-writing tools.
   `MCPServer.run` already refuses `writes: true` tools when the server
   is read-only; the approval call is still required.
-- **Legacy parameter-name aliases are NOT supported.** Ycode's argument
+- **Legacy parameter-name aliases are NOT supported.** SwiftCode's argument
   validation rejects unknown arguments before the handler runs. Legacy
   registry aliases (`plan_askuser` / `plan_ask_user` / `ask_user` →
   `plan-AskUser`, `task_complete` / `task_completion` →
@@ -829,7 +829,7 @@ capability / risk / permission, and gate.
   Autopilot; the port honours the documented values. The mode only
   labels the plan document. There is no "Plan Generation Instructions"
   section: Legacy renders it only when the instruction text is
-  non-empty, and Ycode has no `WriteExecutionPlan.md` bundle resource
+  non-empty, and SwiftCode has no `WriteExecutionPlan.md` bundle resource
   to load it from. Worker assignments appear only when more than 8
   relevant files are found.
 - Output (success): `Execution Plan generated for: <objective>\nMode:
@@ -841,7 +841,7 @@ capability / risk / permission, and gate.
 - Errors: missing or blank `objective` → `Missing required argument:
   'objective' must be a non-empty string.` A refused write fails
   instead of writing: Legacy writes the file directly and still returns
-  success when the write fails; the Ycode behaviour is the correct one
+  success when the write fails; the SwiftCode behaviour is the correct one
   under the approval model (a write the reviewer refused must not land
   on disk).
 
@@ -876,11 +876,11 @@ capability / risk / permission, and gate.
 - Input: `path` (string, optional workspace-relative file or directory;
   default `"."`).
 - Behaviour: none — Legacy runs `lint_project` and then asks an OpenAI
-  LLM (stored API key) to rewrite the file, and Ycode's MCP host has
+  LLM (stored API key) to rewrite the file, and SwiftCode's MCP host has
   neither a lint engine nor an LLM provider wired for this tool.
 - Errors: always `intel_autofix needs an LLM provider and lint
   diagnostics: Legacy runs lint_project and then asks an OpenAI LLM
-  (stored API key) to rewrite the file, and Ycode's MCP host has
+  (stored API key) to rewrite the file, and SwiftCode's MCP host has
   neither a lint engine nor an LLM provider wired for this tool. No
   file was changed; use the build tool's issues and file_edit to fix
   errors.` No file is touched. (Wave 2 `code_refactor` / Wave 3
@@ -891,7 +891,7 @@ capability / risk / permission, and gate.
 - Input: `path` (string, required — workspace-relative file).
 - Behaviour: honest static analysis, not an LLM call. Legacy tries an
   OpenAI LLM first and falls back to a one-line static summary when the
-  LLM fails; Ycode's MCP host has no LLM provider wired for this tool,
+  LLM fails; SwiftCode's MCP host has no LLM provider wired for this tool,
   so the port always takes the static path — and says so in the result
   (`Static analysis for <path>`). The explanation is grounded in the
   file itself (line count, imports, declared types, functions); nothing
@@ -933,7 +933,7 @@ capability / risk / permission, and gate.
   returns immediately — it never blocks. Legacy presents a native
   macOS question UI (`PlanUserAskView`) and suspends execution for up
   to 300 seconds waiting for the user's answer, and is available only
-  in Plan mode. Ycode's MCP host is non-interactive and has no
+  in Plan mode. SwiftCode's MCP host is non-interactive and has no
   Plan / Autopilot execution mode, so the Legacy Plan-mode-only gate
   is unenforceable here and is not a failure case. The caller must
   present the question to the user and feed the answer back; the tool
@@ -952,7 +952,7 @@ capability / risk / permission, and gate.
   'question' must be a non-empty string.`; no choices and
   `userSpecification` false → `At least one choice is required when
   userSpecification is false.` (A missing `choices` argument fails
-  earlier, at Ycode's schema validation, because `choices` is
+  earlier, at SwiftCode's schema validation, because `choices` is
   required.)
 
 ### 37. `report_to_user` — Report Task Completion to User
@@ -966,14 +966,14 @@ capability / risk / permission, and gate.
   and a `**Verification:**` section when verification text is given
   and not already mentioned. There is no `AssistManager` to broadcast
   to — Legacy posts the rendered report as the assistant's last
-  message; in Ycode the tool result text **is** the report. There is
+  message; in SwiftCode the tool result text **is** the report. There is
   no side effect. The handler also reads `message` / `report` /
   `text` as fallbacks for `summary` (not in the schema).
 - Output (success): the rendered report as the summary, with data
   `status`, `filesCount`, `renderedLength` (character count of the
   rendered report).
 - Errors: none defined — a missing `summary` defaults to `Task
-  execution completed.` (the schema still requires it, so Ycode's
+  execution completed.` (the schema still requires it, so SwiftCode's
   argument validation rejects a missing `summary` first).
 
 ### 38. Plan-file format (`execution_plan` → `agent_notes.md`)
@@ -1007,7 +1007,7 @@ The rendered plan is Markdown with these sections, in order:
 ```
 
 No "Plan Generation Instructions" section: Legacy renders it only
-when the instruction text is non-empty, and Ycode has no
+when the instruction text is non-empty, and SwiftCode has no
 `WriteExecutionPlan.md` bundle resource to load it from. The mode
 section carries the canonical mode string (`Plan` / `Autopilot` —
 the capitalised `ExecutionMode` raw values). Relevant files are the
@@ -1023,8 +1023,8 @@ in Legacy's shape, only when the relevant-file count exceeds 8.
 | `intel_breakdown_task` unknown `planId` | `No stored plan found for planId: <planId>` |
 | `intel_autofix` (any call) | Failure naming the missing LLM provider + lint diagnostics; no file changed (§33) |
 | `plan-AskUser` with no choices and no free-form | `At least one choice is required when userSpecification is false.` |
-| Approval refused (`execution_plan`, `intel_generate_tests`) | `The change was rejected in Ycode's review; nothing was written.` and nothing is written |
-| Writes in `readOnly` server mode (any `writes: true` planning tool) | `<tool> changes files, and this Ycode MCP server is read-only. Start it with \`ycode mcp --allow-writes\`, or use agent mode in the Ycode IDE, where each change is reviewed as a proposal.` |
+| Approval refused (`execution_plan`, `intel_generate_tests`) | `The change was rejected in SwiftCode's review; nothing was written.` and nothing is written |
+| Writes in `readOnly` server mode (any `writes: true` planning tool) | `<tool> changes files, and this SwiftCode MCP server is read-only. Start it with \`swiftcode mcp --allow-writes\`, or use agent mode in the SwiftCode IDE, where each change is reviewed as a proposal.` |
 | `intel_explain_code` / `intel_generate_tests` unreadable file | `Failed to explain <path>: <reason>` / `Failed generating tests for <path>: <reason>` |
 
 ### Planning safety rules (non-negotiable)
@@ -1051,7 +1051,7 @@ in Legacy's shape, only when the relevant-file count exceeds 8.
 - **`use_extension`:** needs the Extensions v2 platform (`ExtV2Manager`
   + extension host with Node.js). Blocker: the extension host /
   marketplace wave. Registered and honestly failing. **(Wave 11:
-  UNBLOCKED — the `YcodeExtensions` host is implemented and the tool
+  UNBLOCKED — the `SwiftCodeExtensions` host is implemented and the tool
   is wired to it; see the Wave 11 note in §7.)**
 - **`use_composio`:** needs the Composio service (`ComposioService`
   with a Composio API key and connected integrations). Blocker: a
@@ -1089,10 +1089,10 @@ in Legacy's shape, only when the relevant-file count exceeds 8.
 | Claim | Level | Source |
 |---|---|---|
 | All 34 IDs, titles, descriptions, capabilities, risk levels, and input schemas | 1 | Legacy source, read directly: `SwiftCode/Backend/Assist/Tools/UseTermFunction.swift`, `AssistTaskRunnerTool.swift`, `AssistLogCaptureTool.swift`, `AssistEnvironmentInfoTool.swift`, `UseMCP.swift`, `UseExtensionTool.swift`, `AssistComposioTool.swift`, `Subagents/Tools/UseWorkersTool.swift`, `AssistEnvironmentVariableManagerTool.swift`, `AssistClipboardManagerTool.swift`, `AssistProcessMonitorTool.swift`, `AssistDiskSpaceAnalyzerTool.swift`, `AssistSystemNotificationTool.swift`, `AssistSystemTool.swift`, `AssistTakeScreenshotTool.swift`, `AssistTakeScreenrecordTool.swift`, `AssistUseAppTool.swift`, `AssistStoreMemoryTool.swift`, `AssistRetrieveMemoryTool.swift`, `AssistClearMemoryTool.swift`, `AssistContextSnapshotTool.swift`, `AssistContextPersistenceStore.swift`, `AssistSaveToMemoryTool.swift`, `AssistViewMemoryTool.swift`, `AssistManageMemoryTool.swift`, `AssistConversationContextTool.swift`, `ExecutionPlanTool.swift`, `AssistPlanTaskTool.swift`, `AssistBreakdownTaskTool.swift`, `AssistAutoFixErrorsTool.swift`, `AssistExplainCodeTool.swift`, `AssistGenerateTestsTool.swift`, `PlanAskUserTool.swift`, `ReportToUserTool.swift`, `AssistToolRegistry.swift` (register lines 104, 108–113, 116–120, 122–125, 135, 141–143, 147, 167–170, 207–211, 349, 393–395; alias table lines 430–556), `AssistTool.swift` (capability / risk / permission defaults, `isReadOnly` / `isMutating` / `isDestructive`) |
-| `use_terminal` tokenize-to-argv, shell-metacharacter rejection, 300 s timeout, stdout tail 3000 / stderr tail 2000 | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift` (`useTerminal`, `terminalTokenizeCommand`, `terminalRunFixed` in `YcodeTools+TerminalSupport.swift`); Legacy `UseTermFunction.swift`, `AgentTerminalService` |
-| `use_system` operations, sysctl allowlist, blocked global domain, read-back verification | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift` (`useSystem` and its sub-handlers); Legacy `Tools/AssistSystemTool.swift` |
-| Memory stores: in-memory graph, per-workspace `UserMemory.md` format, `.assist_context_store.json`, conversation file | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Memory.swift`, `YcodeTools+MemorySupport.swift` (`YcodeMemoryGraphStore`, `YcodeUserMemoryFormat`, `YcodeContextStoreFormat`); Legacy `AssistMemoryGraph.swift`, `UserMemoryManager.swift`, `AssistConversationHistory.swift`, `AssistSnapshotFunctions.swift` |
-| Planning: in-memory plan store, plan-file sections, `plan-AskUser` handoff, `intel_autofix` prerequisite | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Planning.swift`, `YcodeTools+PlanningSupport.swift` (`PlanningPlanStore`, `renderPlanMarkdown`); Legacy `ExecutionPlanTool.swift` (`renderPlanMarkdown`), `Functions/System Assets/ExecutionPlans.md`, `Resources/WriteExecutionPlan.md`, `PlanAskUserTool.swift`, `AssistAutoFixErrorsTool.swift` |
-| Ycode MCP annotation shape (`.read` preset; `writes` flag; `readOnlyHint`) and the write-policy gate | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPToolAnnotations`, `MCPServer.run`, `toolAliases`); `ycode/Sources/YcodeMCP/YcodeTools.swift` (`installTools`, `tool`) |
+| `use_terminal` tokenize-to-argv, shell-metacharacter rejection, 300 s timeout, stdout tail 3000 / stderr tail 2000 | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift` (`useTerminal`, `terminalTokenizeCommand`, `terminalRunFixed` in `SwiftCodeTools+TerminalSupport.swift`); Legacy `UseTermFunction.swift`, `AgentTerminalService` |
+| `use_system` operations, sysctl allowlist, blocked global domain, read-back verification | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift` (`useSystem` and its sub-handlers); Legacy `Tools/AssistSystemTool.swift` |
+| Memory stores: in-memory graph, per-workspace `UserMemory.md` format, `.assist_context_store.json`, conversation file | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Memory.swift`, `SwiftCodeTools+MemorySupport.swift` (`SwiftCodeMemoryGraphStore`, `SwiftCodeUserMemoryFormat`, `SwiftCodeContextStoreFormat`); Legacy `AssistMemoryGraph.swift`, `UserMemoryManager.swift`, `AssistConversationHistory.swift`, `AssistSnapshotFunctions.swift` |
+| Planning: in-memory plan store, plan-file sections, `plan-AskUser` handoff, `intel_autofix` prerequisite | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Planning.swift`, `SwiftCodeTools+PlanningSupport.swift` (`PlanningPlanStore`, `renderPlanMarkdown`); Legacy `ExecutionPlanTool.swift` (`renderPlanMarkdown`), `Functions/System Assets/ExecutionPlans.md`, `Resources/WriteExecutionPlan.md`, `PlanAskUserTool.swift`, `AssistAutoFixErrorsTool.swift` |
+| SwiftCode MCP annotation shape (`.read` preset; `writes` flag; `readOnlyHint`) and the write-policy gate | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPToolAnnotations`, `MCPServer.run`, `toolAliases`); `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools.swift` (`installTools`, `tool`) |
 | `plan-AskUser` hyphenated ID is the documented intentional exception to snake_case | 1 | Legacy `SwiftCode/Backend/Assist/Tools/validate_tools.py`; `AssistToolRegistry.swift` alias table (`plan_askuser` / `plan_ask_user` / `ask_user` → `plan-AskUser`) |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |

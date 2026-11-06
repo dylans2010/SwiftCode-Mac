@@ -3,11 +3,11 @@
 Status: **normative for SIM-VIEWER** (input part), 2026-10-19. Reference:
 Xcode 27.1, CoreSimulator 1174.9.2, iOS 27.1 runtime (24A94401). It answers
 how Xcode's Simulator gets mouse, keyboard, and button input into the guest,
-and specifies what Ycode builds instead. Raw observations:
+and specifies what SwiftCode builds instead. Raw observations:
 `research/notes/hid-input-observations.md`. Our probes and the prototype:
 `research/experiments/simulator/hid/` (Appendix A).
 
-Sections marked **Ycode decision** are design choices for Ycode's own two
+Sections marked **SwiftCode decision** are design choices for SwiftCode's own two
 ends (host and guest), not facts about Xcode. Everything else is observed or
 documented; the Evidence section gives the level of each claim.
 
@@ -21,7 +21,7 @@ Terms:
 - **The bundle**: the code bundle named by `SIMULATOR_HID_SYSTEM_MANAGER`.
 - **Normalized point**: x and y in 0…1, origin at the top-left corner of the
   display in its native (portrait) orientation.
-- `ticks`: guest `mach_absolute_time` units. Ycode's guest timebase is
+- `ticks`: guest `mach_absolute_time` units. SwiftCode's guest timebase is
   24 MHz.
 
 ## 1. How input reaches the guest in Xcode's Simulator
@@ -36,7 +36,7 @@ Terms:
    the **bundle directory**
    `…/CoreSimulator.framework/Resources/Platforms/iphoneos/Library/Frameworks/SimulatorHID.framework`
    (principal class `SimHIDSystem`). The runtime contains the loader
-   (`SimulatorClient.framework`) but no HID bundle. Ycode cannot ship
+   (`SimulatorClient.framework`) but no HID bundle. SwiftCode cannot ship
    Apple's bundle.
 3. **What the bundle does.** It creates virtual HID services inside the
    event system (gamepad, main-screen buttons, external keyboard, proximity
@@ -54,8 +54,8 @@ Terms:
    32-bit inner size (0xA0), a message type, and one or more 0xA0-byte
    payload records (kind, host `mach_absolute_time`, then a union of touch,
    button, wheel, pointer, force, game controller, and other events). The
-   layout is documented by Meta's idb; Appendix B summarizes what Ycode
-   needs to know of it. Ycode does **not** implement Indigo (§7 explains).
+   layout is documented by Meta's idb; Appendix B summarizes what SwiftCode
+   needs to know of it. SwiftCode does **not** implement Indigo (§7 explains).
 5. **A second, newer path.** CoreSimulator also ships a guest daemon
    `dtuhidd` (job `com.apple.coredevice.dtuhidd`, Mach services
    `com.apple.coredevice.feature.remote.hid.{digitizer,button,keyboard,vendordefined}`
@@ -63,24 +63,24 @@ Terms:
    events through client-side virtual services. While it is active it sets
    the notify state `com.apple.coredevice.dtuhidd.active`, and the bundle
    disconnects its own touch/button/keyboard services. This daemon is also
-   a CoreSimulator file; Ycode does not run it, so the notify state stays
+   a CoreSimulator file; SwiftCode does not run it, so the notify state stays
    unset.
 6. **Orientation and lock** have a separate legacy path: a GraphicsServices
    event Mach message to the guest's `PurpleWorkspacePort` (§10).
 
-## 2. What Ycode must provide
+## 2. What SwiftCode must provide
 
 | Piece | Where | Replaces |
 |---|---|---|
-| **Ycode HID bundle** (§3–§6) | guest; loaded by backboardd through `SIMULATOR_HID_SYSTEM_MANAGER` | `SimulatorHID.framework` |
-| **HID host service** (§7) | `ycode-simd` (VMM host task), one Mach name in the guest bootstrap | `IndigoHIDRegistrationPort` and SimulatorKit's client |
-| **Viewer input mapping** (§8) | the Ycode simulator window | Simulator.app's input view |
+| **SwiftCode HID bundle** (§3–§6) | guest; loaded by backboardd through `SIMULATOR_HID_SYSTEM_MANAGER` | `SimulatorHID.framework` |
+| **HID host service** (§7) | `swiftcode-simd` (VMM host task), one Mach name in the guest bootstrap | `IndigoHIDRegistrationPort` and SimulatorKit's client |
+| **Viewer input mapping** (§8) | the SwiftCode simulator window | Simulator.app's input view |
 
 The bundle uses only interfaces that the runtime's own IOKit exports (the
 virtual-service and event-creation functions of §4–§5). Nothing else in the
 runtime has to change; backboardd, SpringBoard, and UIKit do the rest.
 
-`ycode-simd` sets `SIMULATOR_HID_SYSTEM_MANAGER` to the guest path of the
+`swiftcode-simd` sets `SIMULATOR_HID_SYSTEM_MANAGER` to the guest path of the
 bundle **directory** (the framebuffer variable names the binary; this one
 names the directory). An empty or invalid value keeps today's behavior:
 backboardd logs "Failed to initialize HID services" and "BKHID: Unable to
@@ -88,13 +88,13 @@ open Indigo HID system" and continues without input (`simframebuffer.md` §8).
 
 ## 3. The bundle: loading contract
 
-1. **Layout.** A directory (Ycode decision: `SimHID.framework`) holding
+1. **Layout.** A directory (SwiftCode decision: `SimHID.framework`) holding
    `Info.plist` and the executable. Info.plist keys: `CFBundleExecutable`
-   (the executable's file name), `CFBundleIdentifier` (a Ycode identifier,
-   e.g. `dev.ycode.SimHID`), `CFBundlePackageType` `FMWK`,
+   (the executable's file name), `CFBundleIdentifier` (a SwiftCode identifier,
+   e.g. `dev.swiftcode.SimHID`), `CFBundlePackageType` `FMWK`,
    `CFBundleInfoDictionaryVersion` `6.0`, and **`NSPrincipalClass`** naming
    the class of item 2. The executable is an arm64 Mach-O dylib for the iOS
-   simulator platform (platform 7), like Ycode's framebuffer library.
+   simulator platform (platform 7), like SwiftCode's framebuffer library.
 2. **Principal class.** An Objective-C class, subclass of `NSObject`, that
    adopts a protocol named **`SimulatorClientHIDSystemManager`** and
    implements one instance method, **`initUsingHIDService:error:`**: argument
@@ -119,7 +119,7 @@ open Indigo HID system" and continues without input (`simframebuffer.md` §8).
    dispatch happens on that queue, one message at a time, in arrival order.
 6. **Failure.** If the host service cannot be found, the bundle still
    publishes its services and returns success; input simply never arrives.
-   It logs one line (os_log, subsystem of Ycode's choosing).
+   It logs one line (os_log, subsystem of SwiftCode's choosing).
 
 ## 4. Virtual services
 
@@ -138,7 +138,7 @@ in Apple's IOHIDFamily and IOKitUser open source):
 removing one (used only for §9).
 
 The **service ID is the sender ID** of every event the service dispatches
-(backboardd logs `senderID` equal to it). Ycode decision: IDs
+(backboardd logs `senderID` equal to it). SwiftCode decision: IDs
 `0x59434F4400000001` and up (ASCII "YCOD" in the high half), fixed per
 service kind so they are stable across boots: 1 buttons, 2 keyboard,
 3 built-in touch screen.
@@ -163,7 +163,7 @@ first. The bundle keeps one mutable property dictionary per service.
 Callbacks can run on backboardd threads other than the bundle's queue; the
 property dictionary must be locked.
 
-### 4.3 The services Ycode publishes
+### 4.3 The services SwiftCode publishes
 
 Property dictionaries (all keys are CF strings; numbers are CFNumbers;
 `DeviceUsagePairs` is an array of one dictionary with `DeviceUsagePage` and
@@ -178,9 +178,9 @@ Property dictionaries (all keys are CF strings; numbers are CFNumbers;
 Create buttons and keyboard in the initializer, and the touch screen once
 the display UUID is known (§6). The reference also publishes a gamepad
 (1/5), a proximity sensor (0xFF00/8), and three vendor-defined services
-(0xFF00/0x6F, 0x71, 0x72); Ycode does not need them for touch, keys, or
+(0xFF00/0x6F, 0x71, 0x72); SwiftCode does not need them for touch, keys, or
 buttons (the prototype ran without them, §12). One touch screen per display
-in the reference; Ycode has one display, so one touch screen.
+in the reference; SwiftCode has one display, so one touch screen.
 
 ## 5. Events
 
@@ -191,7 +191,7 @@ bundle releases each event after dispatch.
 ### 5.1 Timestamps and ordering
 
 - Every event carries a timestamp in **guest ticks**: the bundle reads the
-  guest's `mach_absolute_time` when it creates the event (Ycode: the 24 MHz
+  guest's `mach_absolute_time` when it creates the event (SwiftCode: the 24 MHz
   guest timebase that UIKit also reads). Host times are never passed
   through. A parent event and its children share one timestamp.
 - Timestamps from one service never decrease. Events are dispatched in the
@@ -226,7 +226,7 @@ children's masks; options 0. Set field **`kIOHIDEventFieldDigitizerIsDisplayInte
 | identity | a per-contact number the bundle assigns at the contact's start from a counter that starts at 1 and never repeats within a boot; constant until the contact ends |
 | x, y | normalized point (§5.3) |
 | z | 0 |
-| tip pressure | 0.5 while touching, 0 at the end (Ycode decision; any value in 0…1 worked) |
+| tip pressure | 0.5 while touching, 0 at the end (SwiftCode decision; any value in 0…1 worked) |
 | twist | 90 (the value the reference builder writes) |
 | range, touch | 1, 1 while down or moving; 0, 0 at end or cancel |
 | event mask | from the table below |
@@ -258,7 +258,7 @@ Center and Notification Center from the top, back-swipe from the left)
 depend on these bits, **not** on the coordinates: the same bottom-to-middle
 drag without them scrolls the app; with them it goes home.
 
-**Multi-touch.** Up to 5 contacts (Ycode decision; the viewer uses 2). All
+**Multi-touch.** Up to 5 contacts (SwiftCode decision; the viewer uses 2). All
 contacts that are down (and those ending in this message) appear as
 children of the same parent, each with its own index and identity. A
 contact's ended message is the last one that contains it.
@@ -300,7 +300,7 @@ page **0x0C** (Consumer) and:
 
 Down, then up. A long press is a longer hold (SpringBoard measures it);
 Apple Pay is a double side press. The reference dispatches volume from the
-touch-screen service, not the buttons service; Ycode sends all buttons from
+touch-screen service, not the buttons service; SwiftCode sends all buttons from
 the buttons service (§13).
 
 ## 6. Display association
@@ -310,8 +310,8 @@ the buttons service (§13).
   `uniqueId` of the main `CADisplay`, named `LCD`/`primary`). The bundle
   reads it on its own queue (it was available at once in the prototype),
   retrying every 50 ms for up to 10 s, and only then creates the touch
-  service. In Ycode this id comes from the framebuffer library's built-in
-  display UID (`simframebuffer.md` §3; Ycode's library returns the constant
+  service. In SwiftCode this id comes from the framebuffer library's built-in
+  display UID (`simframebuffer.md` §3; SwiftCode's library returns the constant
   `59434F44-4500-4000-8000-000000000001`); if the lookup fails, the bundle
   uses that constant.
 - **Without `displayUUID`**, backboardd still accepts the digitizer as the
@@ -321,14 +321,14 @@ the buttons service (§13).
 - `DisplayIntegrated` true and `Built-In` true make backboardd treat it as
   the built-in direct-touch screen ("touchScreen; builtin; displayIntegrated").
 
-## 7. Host → guest transport (Ycode decision)
+## 7. Host → guest transport (SwiftCode decision)
 
-Both ends are Ycode's, so Ycode uses its own small Mach protocol instead of
+Both ends are SwiftCode's, so SwiftCode uses its own small Mach protocol instead of
 Indigo. Reasons: Indigo payloads contain fields whose meaning is not known
-(Appendix B), its builders are Apple host code, and Ycode's VMM already
+(Appendix B), its builders are Apple host code, and SwiftCode's VMM already
 serves host Mach services (as for `com.apple.IOSurface.Remote`).
 
-1. **Name.** `ycode-simd` serves **`dev.ycode.simulator.hid`** from the VMM's
+1. **Name.** `swiftcode-simd` serves **`dev.swiftcode.simulator.hid`** from the VMM's
    host task and registers it in the guest bootstrap like its other host
    services (701 before jobs start). It does not offer
    `IndigoHIDRegistrationPort` (lookups keep answering 1102).
@@ -402,7 +402,7 @@ serves host Mach services (as for `com.apple.IOSurface.Remote`).
 ### 8.2 Edges
 
 A contact is an edge contact if its began point lies within **10 points**
-(30 pixels at scale 3) of a display edge (Ycode decision; Simulator.app's
+(30 pixels at scale 3) of a display edge (SwiftCode decision; Simulator.app's
 exact threshold is not known). Corners: the nearer edge wins, bottom before
 top on ties. The edge is fixed for the life of the contact.
 
@@ -440,7 +440,7 @@ press" control holds 1 s.
   process. With it attached, text fields show **no on-screen keyboard** and
   take typed keys (Spotlight test, §12). This is the reference's default:
   the keyboard is attached from boot.
-- "Connect Hardware Keyboard" off (viewer setting, Ycode default **on**): the
+- "Connect Hardware Keyboard" off (viewer setting, SwiftCode default **on**): the
   host sends keyboard attach 0; the bundle removes the keyboard service with
   `_IOHIDEventSystemRemoveService` and the host stops forwarding keys. On
   attach 1 the bundle adds it again (same ID). Whether removal flips the
@@ -457,7 +457,7 @@ guest's `PurpleWorkspacePort` (a SpringBoard Mach service): 108 bytes,
 changed) ORed with the host flag 0x20000 at body offset 0 (message offset
 0x18), record size 4 at message offset 0x48, and the UIDeviceOrientation
 (1 portrait, 2 upside down, 3 landscape right, 4 landscape left) at 0x4C.
-In Ycode the bundle can send it itself when it gets an orientation message
+In SwiftCode the bundle can send it itself when it gets an orientation message
 (§7 kind 5), after looking up `PurpleWorkspacePort` in the guest bootstrap.
 On the reference the message was accepted, but a visible rotation was not
 confirmed (§13). Rotation is not required for the first input milestone.
@@ -479,7 +479,7 @@ Prototype status: `hidproto.m` (Appendix A), written from this spec,
 replaced Apple's bundle on the Mac's simulator and passed items 1–4 and 6
 (touch, home, lock, key routing, edge swipe; Settings opened from a tap).
 
-On Ycode (Thor), after a full boot to the home screen:
+On SwiftCode (Thor), after a full boot to the home screen:
 
 1. **Load.** backboardd's log shows the three services added, "Hardware
    keyboard attached", and "digitizer attached (sender 0x59434F4400000003)"
@@ -507,9 +507,9 @@ On Ycode (Thor), after a full boot to the home screen:
 9. **Latency.** From host send to backboardd's "contact … touching" log line:
    under 20 ms on an idle guest.
 10. **Restart.** Kill backboardd in the guest; after it restarts, item 2
-    works again without restarting `ycode-simd`.
+    works again without restarting `swiftcode-simd`.
 
-A booted Ycode device stays awake (§13 item 8): no Home or Lock press is
+A booted SwiftCode device stays awake (§13 item 8): no Home or Lock press is
 needed before the first touch.
 
 ## 13. Open questions
@@ -538,20 +538,20 @@ needed before the first touch.
    there is no auto-dim and no auto-lock; Lock still locks. The first touch
    on the home screen is taken without a Home press.
 
-## 14. Implementation notes (Ycode, 2026-10-19)
+## 14. Implementation notes (SwiftCode, 2026-10-19)
 
 Implemented from this spec by SIM-VIEWER: the bundle
-`ycode/SimGuestFrameworks/SimHID` (C, Objective-C runtime functions; built by
+`swiftcode/SimGuestFrameworks/SimHID` (C, Objective-C runtime functions; built by
 `SimGuestFrameworks/build.sh` into `out/SimHID.framework`), the host service
-`YcodeHostServices/HIDHostService.swift`, the bridge from the display stream
-`ycode-simd/InputBridge.swift`, and the viewer `ycode-sim-viewer`
-(`display-stream.md`). `ycode-simd` copies the bundle to
-`DEV/ycode-frameworks/SimHID.framework` and sets the variable only with
+`SwiftCodeHostServices/HIDHostService.swift`, the bridge from the display stream
+`swiftcode-simd/InputBridge.swift`, and the viewer `swiftcode-sim-viewer`
+(`display-stream.md`). `swiftcode-simd` copies the bundle to
+`DEV/swiftcode-frameworks/SimHID.framework` and sets the variable only with
 `--display-server` (or `--hid-bundle <dir>`), so other boots are unchanged.
-The bundle appends diagnostics to `$YCODE_SIMHID_LOG`
-(`DEV/data/tmp/ycode-simhid.log`).
+The bundle appends diagnostics to `$SWIFTCODE_SIMHID_LOG`
+(`DEV/data/tmp/swiftcode-simhid.log`).
 
-Observed on the Thor (level 3, Ycode runs):
+Observed on the Thor (level 3, SwiftCode runs):
 
 - Loading: the class created by an image initializer (`__init_offsets`) was
   found as the principal class; backboardd called the initializer about
@@ -578,7 +578,7 @@ Observed on the Thor (level 3, Ycode runs):
 **The display stays awake (§13 item 8).** Guest logs (`log stream` one-shot,
 default level; subsystems `com.apple.SpringBoard` categories `IdleTimer`
 and `Backlight`, `com.apple.BackBoard`, `com.apple.BacklightServices`)
-of Ycode boots and of a reference boot (iPhone Duo, iOS 27.1, `simctl
+of SwiftCode boots and of a reference boot (iPhone Duo, iOS 27.1, `simctl
 boot`, `log show`) show the same sequence: backlight `ActiveOn` once
 SpringBoard's main scene connects, then "SBIdleTimerGlobalCoordinator -
 Idle timer disable assertion: Disabling idle timer for reason:
@@ -586,18 +586,18 @@ SBDisableAutoDim user default." and the idle-timer descriptor `mode:
 Disabled`; the auto-lock descriptor (`warn 40 s, total 60 s`,
 `MCFeatureAutoLockTime (60)`) is computed and "not applied". The value is
 not stored in any preference file of the device (neither on the Mac nor
-under Ycode); SpringBoard's default is on. On the reference, writing
+under SwiftCode); SpringBoard's default is on. On the reference, writing
 `SBDisableAutoDim = NO` to the `com.apple.springboard` domain and
 restarting SpringBoard made it apply the 60 s auto-lock ("applying updated
 idle timer descriptor … total: 60.0s"); removing the key restored the
-disabled timer. So no device setup is needed: Ycode's device behaves like
+disabled timer. So no device setup is needed: SwiftCode's device behaves like
 the reference without one. No backlight change to off was logged in any
-Ycode boot (up to 400 s) unless Lock was pressed.
+SwiftCode boot (up to 400 s) unless Lock was pressed.
 
 **Input right after the boot.** Two driver boots (a display-stream client
 on the simulator host; taps on the Settings icon every 20 s from 90 s, Home
 at 310 s and 350 s; a fresh copy of the pristine device, then a second boot
-of that copy) and 18 viewer sessions through `ycode-sim-try --script` (8
+of that copy) and 18 viewer sessions through `swiftcode-sim-try --script` (8
 cold boots, 10 restores; light and dark appearance): in every one the
 **first** tap on the home screen, with no Home press before it, launched
 Settings. The tap is taken at once (backboardd and
@@ -616,13 +616,13 @@ too (Settings opened from one at 90 s in the first driver boot).
 
 **Input after a restore (§7 item 6).** Implemented as the `hid` record.
 Measured through the viewer (§12.4 of `snapshot.md`): the restored device
-was live 0.9 s after `ycode-simd` started, "hid: the registration of the
+was live 0.9 s after `swiftcode-simd` started, "hid: the registration of the
 saved run is used again" was logged, and the first tap, sent right after
 the first frame, changed the screen 654 ms later.
 
 ### 14.2 Delivery timing (FPS-LATENCY, 2026-10-19)
 
-With `YCODE_DISPLAY_TIMING=1` (`display-stream.md` §10.1) the bundle logs,
+With `SWIFTCODE_DISPLAY_TIMING=1` (`display-stream.md` §10.1) the bundle logs,
 per event message, the host sequence number (body offset 8), the mach time
 it took the message from its port, and the mach time after
 `_IOHIDServiceDispatchEvent` returned. Measured on the Thor (load ≈ 34):
@@ -633,7 +633,7 @@ not return (inside `backboardd`'s event system). The 16 ms move
 coalescing of §7 item 4 was kept then (`display-stream.md` §10.4); §14.3
 replaced it.
 
-### 14.3 Input keeps its timing (B3-UIKITFEEL, 2026-11-05; `uikit-feel-ycode.md` §4.0)
+### 14.3 Input keeps its timing (B3-UIKITFEEL, 2026-11-05; `uikit-feel-swiftcode.md` §4.0)
 
 Measured with the UIKitFeel probe: a 60 Hz drag sent with even 16.7 ms
 spacing reached UIKit with gaps of 25–80 ms and samples missing. The display
@@ -644,7 +644,7 @@ but the last, each stamped with its arrival time. Since then:
 
 - The input bridge stamps every touch, key and button message when the
   display server receives it and hands it to one sender thread
-  (`ycode-hid-input`), which sends them in order. The receive thread never
+  (`swiftcode-hid-input`), which sends them in order. The receive thread never
   waits for the guest.
 - Each message carries its **age**, microseconds from receipt to send, in
   the reserved word of every touch record (offset 12 of the record) and of
@@ -658,29 +658,29 @@ but the last, each stamped with its arrival time. Since then:
   move dropped, and only when the next queued message is also a move
   received less than 8 ms later (above 120 Hz). Began, ended, cancelled,
   keys and buttons are never dropped. (§7 item 4's "one move per display
-  frame" no longer holds; `TouchPacing` in `YcodeHostServices`.)
+  frame" no longer holds; `TouchPacing` in `SwiftCodeHostServices`.)
 - A resting finger: a mouse or a script sends nothing while still, and the
   guest drops a report at the same device pixel, so UIKit keeps the last
-  drag velocity across a pause. `YCODE_HID_REST=pixel` makes the bridge
+  drag velocity across a pause. `SWIFTCODE_HID_REST=pixel` makes the bridge
   report every resting contact each 16.7 ms, one device pixel apart
   alternately (a digitizer's noise); UIKit then sees the finger stop. It is
   **off** by default: with it the rubber band returned faster than the
-  reference (`uikit-feel-ycode.md` §3.3), which matched only without it.
+  reference (`uikit-feel-swiftcode.md` §3.3), which matched only without it.
 
 Result: the touch timestamps UIKit logs keep the sender's spacing
 (16.7 ms ± 1), and the gesture timings of `uikit-feel.md` §4 match from the
-window's receipt (`uikit-feel-ycode.md` §4).
+window's receipt (`uikit-feel-swiftcode.md` §4).
 
 ## 15. Foldable devices (FOLD-IMPL, 2026-10-27; `foldable.md` §8.2, §10)
 
-- **Services.** A foldable device type (`YCODE_SIMHID_DEVICE_MOTION=1`)
+- **Services.** A foldable device type (`SWIFTCODE_SIMHID_DEVICE_MOTION=1`)
   gets a fourth service at initialization: **device motion**, ID
   `0x59434F4400000004`, `PrimaryUsagePage` 0xFF61, `PrimaryUsage` 0x5B,
-  `DeviceUsagePairs` with that pair, `Product` "Ycode Device Motion",
+  `DeviceUsagePairs` with that pair, `Product` "SwiftCode Device Motion",
   `Transport` "Virtual". It never answers `copyEvent`. With a second
-  built-in display (`YCODE_FRAMEBUFFER_SECOND_DISPLAY`, its last word the
+  built-in display (`SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY`, its last word the
   display's unique id) a second touch screen, ID `0x59434F4400000005`,
-  `Product` "Ycode Touch Screen 2", with that `displayUUID`, is added right
+  `Product` "SwiftCode Touch Screen 2", with that `displayUUID`, is added right
   after the first.
 - **Transport (§7.3) additions.** Touch: the display field is 0 for the
   main display, 1 for the second. New kinds, body size 24:
@@ -700,11 +700,11 @@ window's receipt (`uikit-feel-ycode.md` §4).
 
 ## 16. Watches (WATCH-W3B, 2026-10-30; `watchos.md` §5.1, §12)
 
-- **Service.** A watch device type (`YCODE_SIMHID_DIGITAL_CROWN=1`, set for
+- **Service.** A watch device type (`SWIFTCODE_SIMHID_DIGITAL_CROWN=1`, set for
   types with the feature `com.apple.hid.digital-crown`) gets a further
   service at initialization: **Digital Crown**, ID `0x59434F4400000006`,
   `PrimaryUsagePage` 0xFF0B, `PrimaryUsage` 1, `DeviceUsagePairs` with
-  that pair, `Built-In` true, `Product` "Ycode Digital Crown".
+  that pair, `Built-In` true, `Product` "SwiftCode Digital Crown".
 - **Transport (§7.3) additions.** **8 crown rotation**, body size 32: 8 the
   signed delta (IEEE double), 4 axis (0: the bundle's own, y; 1 x, 2 y,
   3 z: diagnostics), 4 reserved. **9 watch gesture**, body size 24: 4 the
@@ -718,7 +718,7 @@ window's receipt (`uikit-feel-ycode.md` §4).
 
 ## 17. Vision Pro (VISIONOS-R9, 2026-10-31; `visionos.md` §5.3, §5.5)
 
-- **Services.** A visionOS device (`YCODE_SIMHID_VISION=1`, set for the
+- **Services.** A visionOS device (`SWIFTCODE_SIMHID_VISION=1`, set for the
   visionOS platform) gets four further services at initialization, each
   `Built-In`, with `DeviceUsagePairs` equal to the primary pair and a
   `Product`: **DigitalDial** `0x59434F4400000008` (page 1, usage 0x37),
@@ -729,7 +729,7 @@ window's receipt (`uikit-feel-ycode.md` §4).
   frame, `visionos.md` §5.5.1). **11 selection**, body size 216: u32 flags
   (bit 0: hands present), u32 0, ray origin 3 doubles, ray direction 3
   doubles, then the left and the right hand, 72 bytes each: u32 pinching,
-  u32 allowDirect, u32 extra (`visionos.md` §5.5.2's 16-bit value; Ycode
+  u32 allowDirect, u32 extra (`visionos.md` §5.5.2's 16-bit value; SwiftCode
   sends 0), u32 0, translation 3 doubles, quaternion w, x, y, z. On a
   Vision Pro **kind 8** (the crown) turns the Digital Crown. Non-finite
   values are sent as 0.
@@ -817,20 +817,20 @@ for arbitrary usages the usage page. Mapping seen in the guest: source 0 →
 | Siri 0xCF, Play/Pause 0xCD, Apple Pay = double side press (§5.5) | 1 | idb `Indigo.h`, `SimulatorDigitizerHIDTransport.swift` |
 | `displayUUID` required; behavior without it (§6) | 3 | prototype boots with and without the key |
 | Display UUID = QuartzCore display unique id, per boot (§6) | 3 | backboardd log `<CADisplay:LCD primary> <UUID>`, "main display is now"; prototype read |
-| Ycode display UID constant (§6) | — | Ycode source `SimGuestFrameworks/SimFramebuffer/simframebuffer.c` |
+| SwiftCode display UID constant (§6) | — | SwiftCode source `SimGuestFrameworks/SimFramebuffer/simframebuffer.c` |
 | Hardware keyboard attached from service presence; GS state 1 (§9) | 3 | backboardd Keyboard log; `hidmon kbstate`; prototype boot |
 | Orientation GSEvent layout (§10) | 1, 3 | idb `GSEvent.h`, `SimulatorPurpleHID.swift`; our send accepted (kr 0); effect not confirmed |
 | Simulator.app Option / Shift-Option gestures (§8.3) | 1 | Apple's archived *iOS Simulator User Guide*, "Interacting with iOS and watchOS" (retired document) |
 | Simulator.app menu shortcuts (§8.4) | 1 | Simulator's Device menu as publicly documented; not re-checked in this session |
 | HID usage values (Appendix C) | 1 | USB HID Usage Tables, keyboard page 7, consumer page 0x0C |
-| §2 split, §7 wire, IDs, thresholds, defaults | — | Ycode decisions |
-| Implementation observations (§14) | 3 | Ycode runs on the Thor: the bundle's log, ycode-simd's log, viewer script logs and screenshots |
-| The idle timer is disabled at startup by SpringBoard's `SBDisableAutoDim` default, not by a stored preference; a stored `NO` brings back the 60 s auto-lock (§13 item 8, §14.1) | 2, 3 | guest `log stream`/`log show` of Ycode and reference boots; the reference device's preference files (`plutil -p`, `grep`) and `simctl spawn defaults read/write/delete` with a SpringBoard restart |
+| §2 split, §7 wire, IDs, thresholds, defaults | — | SwiftCode decisions |
+| Implementation observations (§14) | 3 | SwiftCode runs on the Thor: the bundle's log, swiftcode-simd's log, viewer script logs and screenshots |
+| The idle timer is disabled at startup by SpringBoard's `SBDisableAutoDim` default, not by a stored preference; a stored `NO` brings back the 60 s auto-lock (§13 item 8, §14.1) | 2, 3 | guest `log stream`/`log show` of SwiftCode and reference boots; the reference device's preference files (`plutil -p`, `grep`) and `simctl spawn defaults read/write/delete` with a SpringBoard restart |
 | First tap taken without a Home press; app-launch and Home timings (§14.1) | 3 | driver boots (`ydrive.py` over the display socket) and viewer `--script` sessions on the Thor |
-| The registration is a host-task right whose name a snapshot keeps (§7 item 6) | — | Ycode design (`snapshot.md` §2.6); `HIDHostServiceTests.registrationSurvivesRestore`; restores through the viewer |
-| Delivery timing (§14.2) | 3 | the bundle's event timing log and the display server's trace in Ycode runs on the Thor |
-| Device-motion service and its events reach the guest's relay (§15) | 1, 3 | IOHIDFamily `IOHIDEvent.h` (vendor-defined constructor), IOKitUser `IOCFSerialize.h`; Ycode boots on the Thor (`foldable.md` §10.2) |
-| Digital Crown service, kinds 8 and 9, the crown's scroll event (§16) | 1, 3 | IOHIDFamily (APSL 2.0) `IOHIDEvent.h` and `HIDEventAccessors.h` (the scroll and generic-gesture constructors, `IOHIDFloat` a double); Ycode's run a1 on the Thor (`watchos.md` §12.3) |
+| The registration is a host-task right whose name a snapshot keeps (§7 item 6) | — | SwiftCode design (`snapshot.md` §2.6); `HIDHostServiceTests.registrationSurvivesRestore`; restores through the viewer |
+| Delivery timing (§14.2) | 3 | the bundle's event timing log and the display server's trace in SwiftCode runs on the Thor |
+| Device-motion service and its events reach the guest's relay (§15) | 1, 3 | IOHIDFamily `IOHIDEvent.h` (vendor-defined constructor), IOKitUser `IOCFSerialize.h`; SwiftCode boots on the Thor (`foldable.md` §10.2) |
+| Digital Crown service, kinds 8 and 9, the crown's scroll event (§16) | 1, 3 | IOHIDFamily (APSL 2.0) `IOHIDEvent.h` and `HIDEventAccessors.h` (the scroll and generic-gesture constructors, `IOHIDFloat` a double); SwiftCode's run a1 on the Thor (`watchos.md` §12.3) |
 | Vision Pro services, kinds 10 and 11, the pose, selection, hand, gaze and dial events (§17) | 1, 3 | IOHIDFamily (APSL 2.0) `IOHIDEventTypes.h` (event types, `kIOHIDOrientationTypeQuaternion` = 3, option bits) and `IOHIDEventFieldDefs.h` (field numbers), as redistributed by the Darling project; `visionos.md` §5.5.2 for the events; VISIONOS-R9 runs r1, r2 on the Thor (`visionos.md` §10.25) |
 
 Level 5 (disassembly, decompilation) was not used. No Apple binary was

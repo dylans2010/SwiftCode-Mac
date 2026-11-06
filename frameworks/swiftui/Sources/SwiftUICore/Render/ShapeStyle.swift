@@ -185,7 +185,7 @@ extension EnvironmentValues {
     }
 
     /// Opacity of each hierarchical level of a custom foreground style.
-    /// Ycode's choice: 1 and the alphas of the reference's secondary and
+    /// SwiftCode's choice: 1 and the alphas of the reference's secondary and
     /// tertiary label colours (0.6, 0.3, 07 §4), then 0.18 and 0.08.
     package static let hierarchyOpacity: [Double] = [1, 0.6, 0.3, 0.18, 0.08]
 

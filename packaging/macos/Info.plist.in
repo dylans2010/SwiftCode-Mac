@@ -5,17 +5,17 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ycode</string>
+	<string>SwiftCode</string>
 	<key>CFBundleExecutable</key>
-	<string>Ycode</string>
+	<string>SwiftCode</string>
 	<key>CFBundleIconFile</key>
-	<string>Ycode</string>
+	<string>SwiftCode</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.MarcoDotIO.Ycode</string>
+	<string>com.dylans2010.SwiftCode-Mac</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Ycode</string>
+	<string>SwiftCode</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,7 +27,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>@MINIMUM_SYSTEM@</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (c) 2026 MarcoDotIO and the Ycode contributors. MIT License.</string>
+	<string>Copyright (c) 2026 MarcoDotIO and the @@SWIFTCODE_CONTRIBUTORS@@. MIT License.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSHighResolutionCapable</key>
@@ -36,7 +36,7 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Ycode Workspace</string>
+			<string>SwiftCode Workspace</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -48,7 +48,7 @@
 				<string>public.folder</string>
 			</array>
 			<key>NSDocumentClass</key>
-			<string>YcodeUI.WorkspaceDocument</string>
+			<string>SwiftCodeUI.WorkspaceDocument</string>
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
@@ -66,7 +66,7 @@
 				<string>com.apple.property-list</string>
 			</array>
 			<key>NSDocumentClass</key>
-			<string>YcodeUI.SourceFileDocument</string>
+			<string>SwiftCodeUI.SourceFileDocument</string>
 		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>
@@ -110,7 +110,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.github.MarcoDotIO.Ycode.appwrite-callback</string>
+			<string>com.dylans2010.SwiftCode-Mac.appwrite-callback</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>appwrite-callback-6a670d0b0022e5f964b4</string>
@@ -118,7 +118,7 @@
 		</dict>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.github.MarcoDotIO.Ycode.swiftcode</string>
+			<string>com.dylans2010.SwiftCode-Mac.swiftcode</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>swiftcode</string>

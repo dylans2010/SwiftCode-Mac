@@ -1,6 +1,6 @@
 // Default characteristic definitions for the in-memory test accessory.
 //
-// Ycode-original table (open-design.md §5 "Characteristic metadata defaults
+// @@SWIFTCODE_ORIGINAL@@ table (open-design.md §5 "Characteristic metadata defaults
 // per type": HomeKit's own defaults resource is Apple's and must not be used).
 // The formats, permissions, ranges and units follow the HAP conventions of
 // Apple's HomeKit ADK catalog (Apache-2.0, level 1); they were written from
@@ -11,29 +11,29 @@
 
 import Foundation
 
-public struct YcodeCharacteristicTemplate: Hashable, Sendable {
+public struct SwiftCodeCharacteristicTemplate: Hashable, Sendable {
     public var type: String
-    public var permissions: [YcodeHAPPermission]
-    public var metadata: YcodeCharacteristicMetadata
-    public var initialValue: YcodeHomeValue?
+    public var permissions: [SwiftCodeHAPPermission]
+    public var metadata: SwiftCodeCharacteristicMetadata
+    public var initialValue: SwiftCodeHomeValue?
 
-    public init(type: String, permissions: [YcodeHAPPermission], metadata: YcodeCharacteristicMetadata,
-                initialValue: YcodeHomeValue?) {
-        self.type = YcodeHomeCatalog.normalizedTypeUUID(type) ?? type
+    public init(type: String, permissions: [SwiftCodeHAPPermission], metadata: SwiftCodeCharacteristicMetadata,
+                initialValue: SwiftCodeHomeValue?) {
+        self.type = SwiftCodeHomeCatalog.normalizedTypeUUID(type) ?? type
         self.permissions = permissions
         self.metadata = metadata
         self.initialValue = initialValue
     }
 }
 
-public enum YcodeCharacteristicDefaults {
-    private typealias M = YcodeCharacteristicMetadata
-    private static let rw: [YcodeHAPPermission] = [.pairedRead, .pairedWrite, .events]
-    private static let ro: [YcodeHAPPermission] = [.pairedRead, .events]
+public enum SwiftCodeCharacteristicDefaults {
+    private typealias M = SwiftCodeCharacteristicMetadata
+    private static let rw: [SwiftCodeHAPPermission] = [.pairedRead, .pairedWrite, .events]
+    private static let ro: [SwiftCodeHAPPermission] = [.pairedRead, .events]
 
-    private static func t(_ type: String, _ perms: [YcodeHAPPermission], _ m: YcodeCharacteristicMetadata,
-                          _ v: YcodeHomeValue?) -> YcodeCharacteristicTemplate {
-        YcodeCharacteristicTemplate(type: type, permissions: perms, metadata: m, initialValue: v)
+    private static func t(_ type: String, _ perms: [SwiftCodeHAPPermission], _ m: SwiftCodeCharacteristicMetadata,
+                          _ v: SwiftCodeHomeValue?) -> SwiftCodeCharacteristicTemplate {
+        SwiftCodeCharacteristicTemplate(type: type, permissions: perms, metadata: m, initialValue: v)
     }
 
     private static func u8(_ lo: Double, _ hi: Double, valid: [Int]? = nil) -> M {
@@ -46,10 +46,10 @@ public enum YcodeCharacteristicDefaults {
                                    minimumValue: 0, maximumValue: 100, stepValue: 1)
 
     /// Templates by full type UUID.
-    public static let templates: [String: YcodeCharacteristicTemplate] = {
-        let list: [YcodeCharacteristicTemplate] = [
+    public static let templates: [String: SwiftCodeCharacteristicTemplate] = {
+        let list: [SwiftCodeCharacteristicTemplate] = [
             t(HMCharacteristicTypeIdentify, [.pairedWrite], bool, nil),
-            t(HMCharacteristicTypeManufacturer, [.pairedRead], string, .string("Ycode")),
+            t(HMCharacteristicTypeManufacturer, [.pairedRead], string, .string("SwiftCode")),
             t(HMCharacteristicTypeModel, [.pairedRead], string, .string("Test Accessory")),
             t(HMCharacteristicTypeName, [.pairedRead], string, .string("Accessory")),
             t(HMCharacteristicTypeSerialNumber, [.pairedRead], string, .string("0001")),
@@ -96,7 +96,7 @@ public enum YcodeCharacteristicDefaults {
         return Dictionary(uniqueKeysWithValues: list.map { ($0.type, $0) })
     }()
 
-    public static func template(_ type: String) -> YcodeCharacteristicTemplate? {
-        templates[YcodeHomeCatalog.normalizedTypeUUID(type) ?? type]
+    public static func template(_ type: String) -> SwiftCodeCharacteristicTemplate? {
+        templates[SwiftCodeHomeCatalog.normalizedTypeUUID(type) ?? type]
     }
 }

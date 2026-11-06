@@ -29,6 +29,6 @@ deduped names are restored.
 ## Relationship to the notices generator
 
 These texts are license *templates* a user can add to their own project;
-they are not third-party components Ycode ships or links, so they are not
+they are not third-party components SwiftCode ships or links, so they are not
 entries in `packaging/generate-notices.py` (`COMPONENTS`) and do not change
 `THIRD_PARTY_NOTICES.md`. Do not add them to the generator's inputs.

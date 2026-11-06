@@ -5,14 +5,14 @@ Status: **reference for stage 4b** of `docs/SIMULATOR-LINUX.md` and
 task ports, Mach IPC between processes, the host bootstrap port"). Stage 4c
 (`launchd_sim` with a minimal job set) depends on it.
 
-It states the user-visible semantics that Ycode's VMM (and Ycode's own
+It states the user-visible semantics that SwiftCode's VMM (and SwiftCode's own
 `libsystem_kernel`) must reproduce so that `launchd_sim`, `xpcproxy_sim`,
 and the daemons they start can create, watch, signal, and reap each other,
 pass Mach rights between processes, and talk over AF_UNIX sockets.
 
 Sources: Apple's open-source xnu only (evidence level 1, see Evidence),
-plus the facts already recorded in sibling specs. Ycode's own design
-decisions are marked **Ycode** and are not observations.
+plus the facts already recorded in sibling specs. SwiftCode's own design
+decisions are marked **SwiftCode** and are not observations.
 
 Related specs (read together):
 
@@ -22,7 +22,7 @@ Related specs (read together):
 | `mach-ipc.md` | Port, right, message, and notification rules for one space. §4 here gives only the multi-task deltas |
 | `threads-and-events.md` | kevent, `EVFILT_PROC` basics, signals, workqueue masks |
 | `launchd-sim.md` | Which calls `launchd_sim`/`xpcproxy_sim` use, and the domain model |
-| `host-libraries.md` §10 | Ycode-private Mach-routine traps (`x16 = 0x7963_2000 + n`) |
+| `host-libraries.md` §10 | SwiftCode-private Mach-routine traps (`x16 = 0x7963_2000 + n`) |
 | `darwin-trap-tables.md` + `data/*.json` | Trap numbers |
 
 Conventions: arm64 user space, little-endian. Offsets and sizes in bytes.
@@ -54,11 +54,11 @@ Mach traps: task_name_for_pid −44, task_for_pid −45, pid_for_task −46.
 
 ---
 
-## 0. The library/kernel boundary in Ycode (read first)
+## 0. The library/kernel boundary in SwiftCode (read first)
 
-Ycode supplies the guest's `libsystem_kernel` (`ycode/SimHostLibs`). Every
+SwiftCode supplies the guest's `libsystem_kernel` (`swiftcode/SimHostLibs`). Every
 `posix_spawnattr_*`, `posix_spawn_file_actions_*`, libproc (`proc_*`), and
-`mach_ports_*` function that simulator code imports is therefore Ycode's own
+`mach_ports_*` function that simulator code imports is therefore SwiftCode's own
 code. Only two things are fixed by the guest:
 
 1. the **public C API** of those functions (signatures, return values,
@@ -66,9 +66,9 @@ code. Only two things are fixed by the guest:
 2. the **kernel ABI of real traps** that guest code issues without going
    through these functions. No simulator image imports `___posix_spawn`
    (0 importers in `data/host-lib-surface-kernel.json`), so the BSD 244
-   argument block is in practice private to Ycode's library and VMM.
+   argument block is in practice private to SwiftCode's library and VMM.
 
-**Ycode (normative):** keep xnu's layout for BSD 244 (§1.2–§1.9) anyway.
+**SwiftCode (normative):** keep xnu's layout for BSD 244 (§1.2–§1.9) anyway.
 It costs nothing, matches `__proc_info` and the other wrappers, and keeps
 the door open to running Apple's own libraries. `posix_spawnattr_t` and
 `posix_spawn_file_actions_t` are opaque pointers to heap blocks with the
@@ -168,7 +168,7 @@ carried but never interpreted.
 | 8 | 4 | `psa_sigmask` | 0 | `SETSIGMASK`: the child's main-thread mask = this value minus SIGKILL/SIGSTOP |
 | 12 | 4 | `psa_pgroup` (pid) | 0 | `SETPGROUP` (§1.10 step 12) |
 | 16 | 16 | `psa_binprefs[4]` (cpu_type) | all 0 | Architecture preference (§1.6) |
-| 32 | 4 | `psa_pcontrol` | 0 | Resource-starvation action 0–3 (none/throttle/suspend/kill). Reported in `pbi_flags` (§2.11). Ycode: record only |
+| 32 | 4 | `psa_pcontrol` | 0 | Resource-starvation action 0–3 (none/throttle/suspend/kill). Reported in `pbi_flags` (§2.11). SwiftCode: record only |
 | 36 | 4 | `psa_apptype` | 0 | Process type (§1.6) |
 | 40 | 8 | `psa_cpumonitor_percent` | 0 | CPU monitor (ignorable) |
 | 48 | 8 | `psa_cpumonitor_interval` (s) | 0 | ignorable |
@@ -186,9 +186,9 @@ carried but never interpreted.
 | 105 | 1 | `psa_4k` (bool) | 0 | adds `vm_force_4k_pages=1` to `apple[]` on mixed-page macOS only |
 | 106 | 1 | `psa_tecs` (bool) | 0 | ignorable |
 | 107 | 1 | padding | | |
-| 108 | 4 | `psa_platform` | 0 | macOS only: an iOS binary needs platform = iOS here. Ycode: ignore |
+| 108 | 4 | `psa_platform` | 0 | macOS only: an iOS binary needs platform = iOS here. SwiftCode: ignore |
 | 112 | 16 | `psa_subcpuprefs[4]` (cpu_subtype) | all **0xFFFFFFFF** (`CPU_SUBTYPE_ANY`) | §1.6 |
-| 128 | 4 | `psa_options` | 0 | bits: 0x1 disable PAC A-keys for plug-in hosts, 0x2 alternate Rosetta, 0x4 dataless I/O policy valid, 0x8 page-in telemetry. Ycode: ignore except 0x4 bookkeeping |
+| 128 | 4 | `psa_options` | 0 | bits: 0x1 disable PAC A-keys for plug-in hosts, 0x2 alternate Rosetta, 0x4 dataless I/O policy valid, 0x8 page-in telemetry. SwiftCode: ignore except 0x4 bookkeeping |
 | 132 | 4 | `psa_port_soft_limit` | 0 | port-space limits (ignorable) |
 | 136 | 4 | `psa_port_hard_limit` | 0 | |
 | 140 | 4 | `psa_filedesc_soft_limit` | 0 | fd limits (ignorable) |
@@ -228,11 +228,11 @@ The kernel does not reject unknown bits; it ignores them.
 | 0x0100 | `_POSIX_SPAWN_DISABLE_ASLR` | No ASLR for the child (and its descendants) |
 | 0x0200 | `_POSIX_SPAWN_NANO_ALLOCATOR` | Adds `MallocNanoZone=1` to `apple[]` (`darwin-process-start.md` §1.4 #2) |
 | 0x0400 | `POSIX_SPAWN_SETSID` | `setsid()` in the child after image activation; EPERM fails the spawn |
-| 0x0800 | `_POSIX_SPAWN_RESLIDE` | Re-slide the shared region (arm64e). Ycode: ignore |
+| 0x0800 | `_POSIX_SPAWN_RESLIDE` | Re-slide the shared region (arm64e). SwiftCode: ignore |
 | 0x1000 | `_POSIX_SPAWN_FORCE_4K_PAGES` | As `psa_4k` |
-| 0x2000 | `_POSIX_SPAWN_ALLOW_DATA_EXEC` | Ycode: ignore |
+| 0x2000 | `_POSIX_SPAWN_ALLOW_DATA_EXEC` | SwiftCode: ignore |
 | 0x4000 | `POSIX_SPAWN_CLOEXEC_DEFAULT` | Every descriptor not explicitly produced or marked by a file action is closed at exec (§1.7) |
-| 0x8000 | `_POSIX_SPAWN_HIGH_BITS_ASLR` | Ycode: ignore |
+| 0x8000 | `_POSIX_SPAWN_HIGH_BITS_ASLR` | SwiftCode: ignore |
 
 ### 1.6 Value sets
 
@@ -248,7 +248,7 @@ and `xpcproxy_sim` with `BinaryOrderPreference = arm64`):
 3. For a **thin** file, its cputype/subtype must match one slot (with the
    same 0 and −1 rules), else EBADARCH (86).
 
-Ycode only runs arm64 (`CPU_TYPE_ARM64` = 0x0100000C); it must still
+SwiftCode only runs arm64 (`CPU_TYPE_ARM64` = 0x0100000C); it must still
 reject a non-matching thin file with EBADARCH and pick the arm64 slice of
 a fat file.
 
@@ -257,7 +257,7 @@ a fat file.
 0x300 daemon standard, 0x400 daemon interactive, 0x500 daemon background,
 0x600 daemon adaptive, 0x700 driver (needs entitlement
 `com.apple.private.spawn-driver`, else EPERM). Other values are accepted
-and ignored. Ycode: record per process. The scheduling policy uses it:
+and ignored. SwiftCode: record per process. The scheduling policy uses it:
 darwin-bg, importance, the start hold, the main thread's QoS
 (`scheduling-policy.md`). An exec keeps the type unless its attributes name
 one.
@@ -265,7 +265,7 @@ one.
 **QoS clamp** (`set_qos_clamp_np` rejects ≥ 4 with EINVAL): 0 none,
 1 utility, 2 background, 3 maintenance. **Darwin role**
 (`set_darwin_role_np`): 0 none, 1 UI focal, 2 UI, 3 non-UI, 4 UI non-focal,
-5 TAL launch, 6 darwin-BG, 7 user-init. Ycode: recorded. With the
+5 TAL launch, 6 darwin-BG, 7 user-init. SwiftCode: recorded. With the
 scheduling policy, a clamp caps thread QoS; a background or maintenance
 clamp, or role 6, makes the process darwin-bg (`scheduling-policy.md` §4.4).
 
@@ -273,7 +273,7 @@ clamp, or role 6, makes the process darwin-bg (`scheduling-policy.md` §4.4).
 0x01 use effective priority, 0x02 hi-water background (legacy), 0x04
 active-limit fatal, 0x08 inactive-limit fatal, 0x10 realtime audio,
 0x30 relaunch-behavior mask (0x10 low, 0x20 medium, 0x30 high, from
-`set_jetsam_ttr_np`). Ycode: store priority and limits for
+`set_jetsam_ttr_np`). SwiftCode: store priority and limits for
 `memorystatus_control` queries; never kill for memory.
 
 ### 1.7 File actions
@@ -340,7 +340,7 @@ Block: `{i32 pspa_alloc @0, i32 pspa_count @4, actions @8}`; each action is
 | 0 | SPECIAL | `setspecialport_np(port, which)` | `task_set_special_port(child, which, port)` (§3.2). Failure (e.g. `which` = 1 or 2 → `KERN_NO_ACCESS`) → spawn EINVAL | — |
 | 1 | EXCEPTION | `setexceptionports_np(mask, port, behavior, flavor)` | `task_set_exception_ports(child, mask, port, behavior, flavor)`, applied late (step 10 of §1.10). Failure → EINVAL | 14 per spawn |
 | 2 | AU_SESSION | `setauditsessionport_np(port)` | Child joins that audit session | — |
-| 3 | IMP_WATCHPORTS | `set_importancewatch_port_np(count, ports)` (count ≤ 128) | Importance boost bookkeeping. Ycode: the rights are dropped. With the scheduling policy, each port is bound to an Adaptive child, and the importance already queued boosts it (`scheduling-policy.md` §4.3) | 128 |
+| 3 | IMP_WATCHPORTS | `set_importancewatch_port_np(count, ports)` (count ≤ 128) | Importance boost bookkeeping. SwiftCode: the rights are dropped. With the scheduling policy, each port is bound to an Adaptive child, and the importance already queued boosts it (`scheduling-policy.md` §4.3) | 128 |
 | 4 | REGISTERED_PORTS | `set_registered_ports_np(ports, count)` (count ≤ 3, else EINVAL) | `mach_ports_register(child, …)` with the ports **in action order**; missing slots become NULL (§3.4) | 3 |
 | 5 | PTRAUTH_TASK_PORT | `set_ptrauth_task_port_np(port)` | Development kernels only; else the right is just released | 1 |
 | other | | | EINVAL | |
@@ -364,7 +364,7 @@ Rules:
 
 ### 1.9 Other attribute blocks
 
-| Block | Layout | Kernel behavior | Ycode |
+| Block | Layout | Kernel behavior | SwiftCode |
 |---|---|---|---|
 | MAC policy extensions | header `{i32 alloc, i32 count}`, then per entry 144 bytes: `char policyname[128]` @0, `u64 data` (user pointer) @128, `u64 datalen` @136 | Passed to MAC policies (sandbox etc.) | Ignore (accept) |
 | Coalition info (48) | 2 entries × 24: `u64 id` @0, `u32 role` @8, `u32` @12, `u64` @16. Index 0 = resource, 1 = jetsam | Spawn into the given coalitions; needs a privileged coalition or the entitlement `com.apple.private.coalition-spawn` (EPERM); unknown id → ESRCH; if any type is given, the resource one is required (EINVAL) | Ignore (accept); one implicit coalition |
@@ -417,7 +417,7 @@ Rules:
 | pid version (audit token `val[7]`) | fresh | **changes** on every exec; always differs from the previous value |
 | unique id (`p_uniqueid`) | fresh, increasing | unchanged |
 | address space, threads | new, one thread | new, one thread; other threads of the old image are gone |
-| **Mach port names** | empty space except the self names Ycode installs | **new empty space**: every right of the old image is released as on task termination (§4.6). Only special, registered, and exception ports carry over |
+| **Mach port names** | empty space except the self names SwiftCode installs | **new empty space**: every right of the old image is released as on task termination (§4.6). Only special, registered, and exception ports carry over |
 | Task special ports (host, bootstrap, task-access) | send-right copies of the **caller's** | copies of the old task's |
 | Registered ports (3 slots) | copies of the caller's | copies of the old task's |
 | Exception ports (types 1–13) | copies of the caller's (port, behavior, flavor) | copies of the old task's; dropped if the image is set-id |
@@ -463,7 +463,7 @@ Rules:
 | ENOEXEC, EACCES, ENOENT, ENAMETOOLONG, E2BIG, EFAULT, ENOMEM, ETXTBSY, EBADEXEC (85), EBADMACHO (88) | image activation, as `execve` |
 | EAGAIN | process limit reached |
 
-### 1.14 Library API rules (Ycode's `libsystem_kernel`)
+### 1.14 Library API rules (SwiftCode's `libsystem_kernel`)
 
 - `posix_spawnattr_init` allocates 248 bytes and sets the defaults of
   §1.4 (note `psa_reserved` = 1, jetsam −1s, subcpu prefs 0xFFFFFFFF).
@@ -501,7 +501,7 @@ Rules:
   process and per exec, never equal to the previous value on exec) and a
   64-bit **unique id** (incremented per new process, kept across exec).
   Both appear in `proc_uniqidentifierinfo` and the audit token.
-- **Ycode:** pid 1 is a VMM-owned pseudo-init that never runs guest code
+- **SwiftCode:** pid 1 is a VMM-owned pseudo-init that never runs guest code
   (on the Mac, pid 1 is the host's launchd). It adopts orphans (§2.5).
   `launchd_sim` gets an ordinary pid (it is not pid 1 on the Mac either,
   `launchd-sim.md` §1).
@@ -509,7 +509,7 @@ Rules:
 ### 2.2 Process states (`pbi_status`)
 
 1 `SIDL` (being created), 2 `SRUN`, 3 `SSLEEP`, 4 `SSTOP` (stopped or
-start-suspended), 5 `SZOMB` (exited, not yet reaped). **Ycode:** report
+start-suspended), 5 `SZOMB` (exited, not yet reaped). **SwiftCode:** report
 SRUN for a running process, SSTOP while stopped, SZOMB for zombies.
 
 ### 2.3 Exit status encoding (`p_xstat`)
@@ -528,7 +528,7 @@ Macros: `WIFEXITED` = low 7 bits 0; `WEXITSTATUS` = bits 8–15;
 
 Fatal signals produced by the VMM for guest faults (SIGSEGV, SIGBUS,
 SIGILL, SIGTRAP, SIGABRT from `abort`, SIGKILL from `terminate_with_payload`)
-use the "killed by signal" form. **Ycode:** never set `WCOREFLAG` (no
+use the "killed by signal" form. **SwiftCode:** never set `WCOREFLAG` (no
 cores).
 
 #### 2.3.1 Which signal a fatal hardware exception gives
@@ -536,7 +536,7 @@ cores).
 A guest thread that takes a synchronous exception the VMM does not resolve
 ends the process "killed by signal". The arm64 Darwin kernel turns the
 exception into a Mach exception, and `ux_exception` turns that into the
-signal (with no handler run, Ycode uses the default action, which ends the
+signal (with no handler run, SwiftCode uses the default action, which ends the
 process). launchd reports it as "exited due to SIG…" and counts it as a
 crash.
 
@@ -548,11 +548,11 @@ crash.
 | 0x20/0x21/0x24/0x25 abort with DFSC/IFSC translation (0x04–0x07), access flag (0x08–0x0B) or address size (0x00–0x03) | `EXC_BAD_ACCESS`, `KERN_INVALID_ADDRESS` | SIGSEGV (11) |
 | same, permission fault (0x0C–0x0F) | `EXC_BAD_ACCESS`, `KERN_PROTECTION_FAILURE` | SIGBUS (10) |
 | same, alignment fault (0x21); 0x22 PC alignment; 0x26 SP alignment | `EXC_BAD_ACCESS` (alignment code) | SIGBUS (10) |
-| anything else | — | SIGSEGV (11) (**Ycode** default) |
+| anything else | — | SIGSEGV (11) (**SwiftCode** default) |
 
 A Swift runtime trap (`fatalError`, a failed precondition, an overflow) and
 `__builtin_trap` are BRK, so they end with SIGTRAP, as on a Mac
-("EXC_BREAKPOINT (SIGTRAP)" in crash reports). Before 2026-10-17 Ycode
+("EXC_BREAKPOINT (SIGTRAP)" in crash reports). Before 2026-10-17 SwiftCode
 reported SIGSEGV for every exception (`service-fidelity.md` §3).
 
 ### 2.4 Exit sequence (normative order)
@@ -566,7 +566,7 @@ When the last thread exits, `exit` is called, or a fatal signal is taken:
    port-destroyed) are queued now.
 3. Descriptors are closed (sockets disconnect, peers see EOF/EPIPE).
 4. If the process is a session leader with a controlling terminal, the
-   terminal's foreground group gets SIGHUP. (Ycode: no terminals.)
+   terminal's foreground group gets SIGHUP. (SwiftCode: no terminals.)
 5. Children: zombie children are reaped by the kernel; live children are
    **reparented to pid 1** and marked "parent died" (they will be reaped by
    the kernel when they exit; `getppid()` returns 1 from now on).
@@ -583,7 +583,7 @@ When the last thread exits, `exit` is called, or a fatal signal is taken:
      in `wait4`/`waitid` in the parent are woken.
    - If the parent is pid 1 (orphan), the kernel reaps it immediately.
 
-**Ycode:** make the zombie (step 7) visible **before** posting `NOTE_EXIT`
+**SwiftCode:** make the zombie (step 7) visible **before** posting `NOTE_EXIT`
 (step 6) to watchers that are the parent, so a parent that calls
 `wait4(pid, WNOHANG)` on receiving `NOTE_EXIT` always finds the zombie.
 xnu posts the note first and sets the state immediately after; the
@@ -674,7 +674,7 @@ Supplements `threads-and-events.md` §3.7.5.
   0x0400_0000 requested: `data` = status word (`p_xstat & 0xFFFFF`, the
   wait-style status). With `NOTE_EXIT_DETAIL` 0x0200_0000: OR of 0x10000
   decrypt failure, 0x20000 memory (jetsam; plus a reason bit in
-  0xFE000000), 0x40000 code-signing kill. **Ycode:** never sets detail
+  0xFE000000), 0x40000 code-signing kill. **SwiftCode:** never sets detail
   bits.
 - `NOTE_EXIT` is delivered **even if the parent ignores SIGCHLD** (the
   child is then reaped at once, §2.4). launchd-class software relies on
@@ -700,13 +700,13 @@ Group/broadcast result: 0 if at least one target was permitted, else EPERM
 **Permission (`cansignal`)**, in order: self → yes; pid 1 → **no** (even
 for root); root → yes; SIGCONT within the same session → yes; otherwise
 yes iff the sender's real or effective uid equals the target's real or
-saved uid. **Ycode:** all guest processes share one uid, so everything
+saved uid. **SwiftCode:** all guest processes share one uid, so everything
 except pid 1 may be signalled.
 
 **`terminate_with_payload(pid, namespace, code, payload, size, string,
 flags)` (BSD 520).** pid ≤ 0 → EINVAL; not found → ESRCH; permission as
 for SIGKILL (EPERM). Posts SIGKILL with an exit reason (namespace, code,
-string). Ycode: deliver SIGKILL; keep the reason for
+string). SwiftCode: deliver SIGKILL; keep the reason for
 `PROC_PIDEXITREASON*INFO` (optional).
 
 **`proc_terminate(pid, &sig)`** (proc_info call 7): the caller may not
@@ -729,7 +729,7 @@ unless the parent set `SA_NOCLDSTOP`.
 | `setpgid(pid, pgid)` (82) | target = caller if pid 0 or own pid; otherwise the target must be a **child** of the caller (ESRCH), in the same session (EPERM), and must not have exec'd since it was created (EACCES). Target is a session leader → EPERM. pgid < 0 → EINVAL. pgid 0 → the target's pid. A pgid ≠ target pid must name an existing group in the caller's session (EPERM) |
 
 Initial values: a spawned child is in its parent's group and session.
-**Ycode:** at boot, `launchd_sim` is the leader of its own session and
+**SwiftCode:** at boot, `launchd_sim` is the leader of its own session and
 group (the host starts it that way); daemons call `setsid` themselves
 (`xpcproxy_sim` imports it).
 
@@ -780,8 +780,8 @@ unknown flavor → EINVAL; result = bytes written):
 | 30 | PLATFORMINFO | 4 | yes | **no** |
 
 pid not found (or a zombie where not allowed) → ESRCH. "Same-user" denials
-→ EPERM (Ycode: never denies, one uid). pid 0 is the kernel process: on a
-real system it exists; **Ycode:** ESRCH for pid 0 except LISTPIDS
+→ EPERM (SwiftCode: never denies, one uid). pid 0 is the kernel process: on a
+real system it exists; **SwiftCode:** ESRCH for pid 0 except LISTPIDS
 counting.
 
 `struct proc_bsdinfo` (136): `pbi_flags` @0, `pbi_status` @4,
@@ -816,13 +816,13 @@ LC_UUID), u64 `uniqueid` @16, u64 `puniqueid` @24 (parent's), i32
 0x800/0x1000 currently throttled/suspended, 0x2000 set-id since exec,
 **0x4000 has exec'd** (set after the first image activation — true for
 every spawned process), 0x8000/0x10000 darwin background, plus private
-bits ≥ 0x20000. **Ycode:** report 0x10 | 0x4000, plus 0x20 for session
+bits ≥ 0x20000. **SwiftCode:** report 0x10 | 0x4000, plus 0x20 for session
 leaders.
 
 **PATHINFO (11):** writes the executable's absolute path (NUL-terminated,
 zero-padded to `buffersize`), result 0; libproc `proc_pidpath` returns
 `strlen`. `proc_pidpath` itself returns ENOMEM-style 0 for a buffer
-< 1024 and EOVERFLOW for > 4096. No executable → ESRCH. **Ycode:** the
+< 1024 and EOVERFLOW for > 4096. No executable → ESRCH. **SwiftCode:** the
 guest path of the image (for rooted jobs, the host-style path as given).
 
 **`proc_name(pid, buf, size)`** (library): size < 32 → errno ENOMEM,
@@ -831,7 +831,7 @@ returns its length.
 
 **PIDRUSAGE (9):** `flavor` = `RUSAGE_INFO_V0…V6`; the struct is written
 to the buffer (no size check by the kernel; V4 296 bytes, V5 304, V6
-464). Zombies allowed. **Ycode:** zero-filled except `ri_proc_start_abstime`
+464). Zombies allowed. **SwiftCode:** zero-filled except `ri_proc_start_abstime`
 and, for zombies, `ri_proc_exit_abstime`; or ENOTSUP until needed.
 
 **DIRTYCONTROL (8)** (`flavor`: 1 TRACK, 2 SET, 3 GET, 4 CLEAR; `arg` =
@@ -841,7 +841,7 @@ need SIGKILL permission; GET returns the state bits in `x0` (0x1 tracked,
 zombies. Track flags in: 0x1 track, 0x2 allow idle exit, 0x4 defer,
 0x8 launch in progress, 0x10 defer always, 0x20 shutdown on clean.
 libproc `proc_get_dirty` returns 0 and stores the bits; `proc_set_dirty`,
-`proc_track_dirty`, `proc_clear_dirty` return 0 or the errno. **Ycode:**
+`proc_track_dirty`, `proc_clear_dirty` return 0 or the errno. **SwiftCode:**
 keep the per-process bits exactly; `proc_terminate` uses them.
 
 **TERMINATE (7):** §2.9. libproc `proc_terminate(pid, &sig)`.
@@ -865,7 +865,7 @@ The kernel resolves an incoming request by the port's kernel object, so
 any task holding a send right to another task's control port can operate on
 that task (§4.3). On exit the ports stop working (§2.4 step 2); they become
 dead names in other spaces no later than when the zombie is reaped.
-**Ycode:** destroy them at exit (step 2).
+**SwiftCode:** destroy them at exit (step 2).
 
 ### 3.2 Special ports
 
@@ -904,7 +904,7 @@ slot takes the new right and the old one is released.
 | 3, 5, 6, other | `KERN_INVALID_ARGUMENT` |
 | immovable send right offered | `KERN_INVALID_RIGHT` |
 
-**Ycode change from `host-libraries.md` §10:** private traps n = 5 and 6
+**SwiftCode change from `host-libraries.md` §10:** private traps n = 5 and 6
 must act on **the task named by the `task` argument** (any task control
 port the caller holds, normally its own), keep the slots per task, and
 follow the tables above. The fixed bootstrap name `0x0503` stays the name
@@ -927,7 +927,7 @@ At task creation (spawn: parent = the caller's task; exec/SETEXEC: parent
 6. A set-id exec drops non-privileged exception ports and the
    debug-control port and makes new task ports.
 
-**Ycode (normative):** when a task's address space is created, the VMM
+**SwiftCode (normative):** when a task's address space is created, the VMM
 installs in its new space a send right for each nonnull inherited host and
 bootstrap slot (bootstrap under name `0x0503`, `stage4a-contract.md` §6),
 so that `task_get_special_port(…, 4, …)` and the `bootstrap_port` global
@@ -954,7 +954,7 @@ is the bootstrap special port of `launchd_sim` (`launchd-sim.md` §2.4,
 - This answers `launchd-sim.md` open question 5 in part: the send right in
   slot 0 of every guest process is whatever `launchd_sim`/`xpcproxy_sim`
   passed with `set_registered_ports_np`.
-- **Ycode:** expose as two private traps (register3, lookup3) with the
+- **SwiftCode:** expose as two private traps (register3, lookup3) with the
   three-port form; the library does the padding and the allocation.
 
 ### 3.5 Task ports by pid
@@ -969,7 +969,7 @@ is the bootstrap special port of `launchd_sim` (`launchd-sim.md` §2.4,
 `task_for_pid` and `task_name_for_pid` return a **send right** copied out
 into the caller's space (merging with an existing entry for that port).
 
-**Ycode (normative):** `task_name_for_pid` and `pid_for_task` follow the
+**SwiftCode (normative):** `task_name_for_pid` and `pid_for_task` follow the
 rules above (all guest processes match on uid). `task_for_pid` on another
 process returns `KERN_FAILURE` by default (the simulator's daemons are not
 debuggable by each other on the Mac); a VMM debug option may allow it.
@@ -979,7 +979,7 @@ Self always succeeds. See open question 2.
 
 `task_threads(task)` on another task's control port returns send rights to
 its thread ports. Only diagnostic tools (`sample`, `heap`, …) use this; no
-boot-path component does. **Ycode:** support for self; `KERN_FAILURE` for
+boot-path component does. **SwiftCode:** support for self; `KERN_FAILURE` for
 other tasks until needed.
 
 ---
@@ -992,7 +992,7 @@ This section lists what is new with several tasks.
 ### 4.1 Spaces and ports
 
 1. **Ports are global objects; names are per task.** Each task has its own
-   name table with its own allocator (`mach-ipc.md` §1.4: Ycode's
+   name table with its own allocator (`mach-ipc.md` §1.4: SwiftCode's
    deterministic sequential allocation, per task). The same port usually
    has different names in different tasks.
 2. Entry rule §1.2.1 (one name per port per space for send/receive rights)
@@ -1001,7 +1001,7 @@ This section lists what is new with several tasks.
 3. A port's "receiver" is (space, name), in transit, or dead. `srights`,
    `mscount`, `sorights`, queue, seqno, requests, and context belong to the
    port, not to a space, and are shared by all tasks.
-4. **Ycode design note:** all guest processes' spaces, ports, and process
+4. **SwiftCode design note:** all guest processes' spaces, ports, and process
    records must live in one kernel-state object shared by the VMs (one
    lock, as in `stage4a-contract.md` §2, now global), or in a broker that
    owns them. Message transfer between processes is then a move of kernel
@@ -1044,9 +1044,9 @@ space (`mach_port_insert_right`, `extract_right`, `allocate`,
 `poly` argument (insert_right) still come from the caller's own space;
 `extract_right` results are copied out into the caller.
 
-**Ycode (normative):** the real port traps (`mach-ipc.md` §1.8) keep
+**SwiftCode (normative):** the real port traps (`mach-ipc.md` §1.8) keep
 returning `MACH_SEND_INVALID_DEST` when `target` is not the caller's own
-task (Apple's library falls back to MIG; Ycode's library must then call a
+task (Apple's library falls back to MIG; SwiftCode's library must then call a
 private trap with the target). The VMM resolves `target` as a task control
 port held by the caller; a name port, a dead task, or a non-task right →
 `KERN_INVALID_TASK` (16) / `MACH_SEND_INVALID_DEST`. Which of these
@@ -1070,7 +1070,7 @@ routines the boot path uses on other tasks is open question 4.
 - OOL **port** arrays: the names are copied in from the sender's space and
   out into the receiver's; the receiver gets a fresh `count × 4`-byte
   region (§2.5 of `mach-ipc.md`).
-- **Ycode:** each process is its own KVM VM, so the VMM copies the bytes
+- **SwiftCode:** each process is its own KVM VM, so the VMM copies the bytes
   from the sender's guest memory into kernel-held buffers at send time
   (or snapshots host pages with copy-on-write mappings, for large
   regions), and maps fresh anonymous pages in the receiver at copyout. The
@@ -1097,7 +1097,7 @@ by `LOCAL_PEERTOKEN` on Unix sockets (§5.6), and are what
 compare. Kernel-originated messages carry `{0, 1}` and an all-zero token
 (already in `mach-ipc.md`).
 
-**Ycode (normative):** auid = the guest uid, asid = one fixed session id
+**SwiftCode (normative):** auid = the guest uid, asid = one fixed session id
 per simulator instance (see open question 5 for the Mac's real values).
 A message sent before an exec and received after it carries the **old**
 pid version; consumers detect stale tokens that way.
@@ -1150,7 +1150,7 @@ task. Therefore `xpcproxy_sim` must transfer every right the job needs via
 port actions (`setspecialport_np`, `set_registered_ports_np`) or by having
 the job look them up again through its bootstrap port. The new image's
 `mach_task_self()` is a new port; holders of the old task port see a dead
-name. **Ycode:** `task_for_pid`-style holders must not survive exec.
+name. **SwiftCode:** `task_for_pid`-style holders must not survive exec.
 
 ### 4.8 Exception ports (enough to ignore them safely)
 
@@ -1164,7 +1164,7 @@ name. **Ycode:** `task_for_pid`-style holders must not survive exec.
   preferred).
 - There are task, thread, and host levels; tasks inherit task-level slots
   (§3.3).
-- **Ycode (normative):** store and return exception ports faithfully per
+- **SwiftCode (normative):** store and return exception ports faithfully per
   task and thread (`task_set/get/swap_exception_ports`,
   `thread_set/get_exception_ports`; `host_get_exception_ports` returns
   none), validate masks (`KERN_INVALID_ARGUMENT` outside 0x3FFE) and
@@ -1189,7 +1189,7 @@ file description; libxpc uses it to send descriptors in Mach messages, and
 | spawn FILEPORT_DUP2 | §1.7 type 4; the resulting fd has close-on-exec clear |
 
 The port lives while send rights exist (in any task or in transit); when
-the last one goes, the file reference is dropped. **Ycode:** a VMM kernel
+the last one goes, the file reference is dropped. **SwiftCode:** a VMM kernel
 object kind `fileport` holding a host file-description reference.
 
 ---
@@ -1213,7 +1213,7 @@ object kind `fileport` holding a host file-description reference.
 | `SOMAXCONN` | 128 | |
 | `struct xucred` (`LOCAL_PEERCRED`) | 76 bytes: `u32 cr_version` (0) @0, `uid cr_uid` @4, `i16 cr_ngroups` @8, `gid cr_groups[16]` @12 | |
 
-**Ycode:** translate every one of these at the trap boundary; never pass a
+**SwiftCode:** translate every one of these at the trap boundary; never pass a
 guest `msghdr`/`cmsghdr`/`sockaddr_un` to Linux unchanged.
 
 ### 5.2 `socket` (97) and `socketpair` (135)
@@ -1289,7 +1289,7 @@ with; not with `MSG_PEEK`, which returns the cmsg with zeroed fd slots):
    queued) drop their file references; a garbage collector resolves
    cycles of sockets passed inside each other.
 
-**Ycode:** reproduce rules 1–2 exactly for the normal case; for the
+**SwiftCode:** reproduce rules 1–2 exactly for the normal case; for the
 truncation/NULL cases, closing the excess descriptors instead is
 acceptable (it only changes fd-number consumption) — record the choice in
 the implementation.
@@ -1306,7 +1306,7 @@ the implementation.
 | any other `SOL_LOCAL` option, or any set | EOPNOTSUPP | |
 
 "Last process that used" is updated by socket operations; for a socket
-passed between processes it follows the latest user. **Ycode:** track the
+passed between processes it follows the latest user. **SwiftCode:** track the
 pid of the last process that performed a send/receive/connect/accept on
 each socket.
 
@@ -1320,7 +1320,7 @@ descriptor is left open across `xpcproxy_sim`'s exec, typically via
 `addinherit_np` with `CLOEXEC_DEFAULT`) or via fileports in XPC messages.
 Clients `connect` to the path; host tools connect from outside the guest.
 
-### 5.8 Ycode implementation note (design, not observation)
+### 5.8 SwiftCode implementation note (design, not observation)
 
 Map guest AF_UNIX sockets onto real Linux AF_UNIX sockets owned by the VMM
 host process, with guest paths translated through the guest VFS to host
@@ -1340,7 +1340,7 @@ binding in a short per-device host directory). Then:
 
 ---
 
-## 6. Implementation checklist for Ycode
+## 6. Implementation checklist for SwiftCode
 
 Ordered by what `launchd_sim` and `xpcproxy_sim` need first.
 
@@ -1407,7 +1407,7 @@ AF_UNIX listen in parent, connect in child, SCM_RIGHTS of a pipe.
    and `getaudit_addr`.
 2. **`task_for_pid` between simulator processes.** Does it succeed on the
    Mac for same-user simulator daemons (AMFI on simulator binaries)? Test
-   with a probe against `launchd_sim`'s child; until then Ycode returns
+   with a probe against `launchd_sim`'s child; until then SwiftCode returns
    `KERN_FAILURE` for others.
 3. **Subsystem root path.** `xpcproxy_sim` imports
    `posix_spawnattr_set_subsystem_root_path_np`. Whether the job then sees
@@ -1416,27 +1416,27 @@ AF_UNIX listen in parent, connect in child, SCM_RIGHTS of a pipe.
    daemon (level 3). Default: ignore the attribute.
 4. **Which `mach_port_*` routines `launchd_sim` applies to other tasks**
    (§4.3), e.g. inserting rights into a child's space. Needs a trace of
-   private-trap targets under Ycode.
+   private-trap targets under SwiftCode.
 5. **pid and session of `launchd_sim`, and pid-1 behavior.** On the Mac,
    orphans of the simulator go to the host's launchd. Confirm no guest
    component calls `getppid()` expecting a specific value, or signals
    pid 1.
 6. **`posix_spawnattr_set_use_sanitizers_np`** is imported by the runtime
    (`libsystem_sim_kernel_host`) but is not in xnu-12377.121.6's
-   `posix_spawn.c`. Ycode: return 0 and store nothing until its effect is
+   `posix_spawn.c`. SwiftCode: return 0 and store nothing until its effect is
    specified from a newer source.
 7. **Mach exception delivery.** Whether any boot-path component (e.g. a
    JIT or crash-reporting helper) depends on receiving exception messages
    instead of signals (§4.8).
 8. **OOL in-page offset.** Whether any simulator code depends on the
-   received OOL address keeping the sender's in-page offset (§4.4). Ycode
+   received OOL address keeping the sender's in-page offset (§4.4). SwiftCode
    may page-align; a probe can show what the Mac does for small vs. large
    regions.
 9. **Stream SCM_RIGHTS boundaries.** Exactly which `recvmsg` call on a
    STREAM socket delivers rights attached to data that the receiver reads
    in pieces, and whether data after a rights-carrying record is merged
    into the same read. Test with a probe on the Mac (level 3).
-10. **`NOTE_EXIT` vs. zombie ordering** (§2.4 Ycode note) — confirm no
+10. **`NOTE_EXIT` vs. zombie ordering** (§2.4 SwiftCode note) — confirm no
     component expects `wait4(WNOHANG)` to return 0 right after `NOTE_EXIT`.
 
 ---
@@ -1477,4 +1477,4 @@ level 5 was not used.
 | Struct offsets for `proc_bsdinfo`, `proc_bsdshortinfo`, `proc_taskinfo`, `siginfo_t`, `msghdr`, `cmsghdr`, `sockaddr_un`, `xucred`; socket/MSG/SO constants; errno and kern_return values | 1 | public macOS SDK headers (`sys/proc_info.h`, `sys/socket.h`, `sys/un.h`, `sys/ucred.h`, `signal.h`, `errno.h`, `mach/kern_return.h`), measured with our own probe |
 | Which spawn/libproc/socket functions simulator images import, and by whom | 4 | `specs/simulator/data/host-lib-surface-kernel.json` (existing repository data) |
 | launchd_sim spawn model, domains, sockets | 3 | `specs/simulator/launchd-sim.md` |
-| Ycode decisions (marked **Ycode**) | — | design, this document |
+| SwiftCode decisions (marked **SwiftCode**) | — | design, this document |

@@ -1,9 +1,9 @@
 # xcodebuild: -showBuildSettings
 
-Ycode: `YcodeXcodebuild` (`Plan`, `ShowBuildSettings`, `PackageBuildSettings`, `XcodePIF`,
+SwiftCode: `SwiftCodeXcodebuild` (`Plan`, `ShowBuildSettings`, `PackageBuildSettings`, `XcodePIF`,
 `SwiftBuildSettingsProvider`, `Arena`, `DerivedDataName`, `Destinations`),
-plus the helper `ycode/Tools/ycode-swb`. The settings themselves are
-evaluated by swift-build (open source), from a PIF that Ycode generates; no
+plus the helper `swiftcode/Tools/swiftcode-swb`. The settings themselves are
+evaluated by swift-build (open source), from a PIF that SwiftCode generates; no
 part of the reference tool is involved.
 
 ## 1. Output
@@ -59,19 +59,19 @@ test actions evaluate with swift-build's `build` action (§7.2).
 
 ## 3. Evaluation through swift-build
 
-ycodebuild writes the container's PIF and asks swift-build's build service
+swiftcodebuild writes the container's PIF and asks swift-build's build service
 for the exported settings of each target
 (`SWBBuildServiceSession.allExportedMacroNamesAndValues(level: .target(guid),
 buildParameters:)` in the open-source `SwiftBuild` library), through the
-helper `ycode-swb settings <request.json>`:
+helper `swiftcode-swb settings <request.json>`:
 
     request: {"pif": path, "parameters": <SWBBuildParameters JSON>, "levels": [{"target": guid}, …]}
     reply:   {"settings": [{NAME: value}, …], "diagnostics": […]}
 
 The helper loads the PIF as the session's workspace, then sets system and
 user info from the current process (user, group, home, environment; host OS
-version and architecture). It is found through `YCODE_SWB`, then `PATH`,
-then next to the `ycodebuild` executable. It pins swift-build to the head
+version and architecture). It is found through `SWIFTCODE_SWB`, then `PATH`,
+then next to the `swiftcodebuild` executable. It pins swift-build to the head
 of its `release/6.4.x` branch (§6).
 
 On macOS swift-build finds the active developer directory itself. On other
@@ -81,9 +81,9 @@ hosts its own search takes the real path of `swift` on `PATH` and requires a
 host's, so that search fails and the session cannot be created ("Could not
 initialize build system"). The helper therefore names the toolchain
 (`SWBBuildService.createSession(name:swiftToolchainPath:…)`), found by
-`YcodeRelease.SwiftToolchain` in this order:
+`SwiftCodeRelease.SwiftToolchain` in this order:
 
-1. `YCODE_SWIFT_TOOLCHAIN`, the folder that holds `usr/bin/swift`;
+1. `SWIFTCODE_SWIFT_TOOLCHAIN`, the folder that holds `usr/bin/swift`;
 2. `SWIFT_EXEC`, then each `swift` on `PATH`, whose real path is in a
    `usr/bin` or `usr/local/bin` folder (`/usr/bin/swift` → `/`);
 3. the first `swift` on `PATH`, asked with `-print-target-info`: the folder
@@ -96,7 +96,7 @@ Without one, the helper fails with swift-build's session diagnostics and
 says how to name a toolchain. The toolchain gives `DEVELOPER_DIR`,
 `TOOLCHAIN_DIR` and `SYSTEM_DEVELOPER_DIR`.
 
-### PIF (Ycode's generator, `XcodePIF`)
+### PIF (SwiftCode's generator, `XcodePIF`)
 
 Same object model as `specs/ide/build-pif.md`, with these rules that the
 reference tool's PIF follows (black box, `xcodebuild -dumpPIF`):
@@ -109,7 +109,7 @@ reference tool's PIF follows (black box, `xcodebuild -dumpPIF`):
 | root group | type `group`, name = project name, empty path |
 | product references | left out of the group tree (the Products group stays, empty) |
 | files | `fileType` from `lastKnownFileType`/`explicitFileType`; `fileTextEncoding` `utf-8` for source and text types; `regionVariantName` for variant-group children |
-| synchronized folders (`PBXFileSystemSynchronizedRootGroup`) | expanded from disk: a group named like the folder; sub-folders become groups, bundle-like folders (`.xcassets`, `.xcdatamodeld`, `.lproj`, …) and files become file references, sorted Finder-like. Their files join the target's phases by type and exception sets, as `specs/ide/build-pif.md` §Synchronized folders describes (sources, frameworks, headers, resources; `.lproj` files as variant groups; build-phase exception sets; files of folders the target does not list). GUIDs: project GUID + MD5 of `<group id>/<relative path>` (Ycode's own scheme) |
+| synchronized folders (`PBXFileSystemSynchronizedRootGroup`) | expanded from disk: a group named like the folder; sub-folders become groups, bundle-like folders (`.xcassets`, `.xcdatamodeld`, `.lproj`, …) and files become file references, sorted Finder-like. Their files join the target's phases by type and exception sets, as `specs/ide/build-pif.md` §Synchronized folders describes (sources, frameworks, headers, resources; `.lproj` files as variant groups; build-phase exception sets; files of folders the target does not list). GUIDs: project GUID + MD5 of `<group id>/<relative path>` (SwiftCode's own scheme) |
 | base configuration | `baseConfigurationFileReference` = the file's GUID; for `baseConfigurationReferenceAnchor` + relative path, the synchronized file's GUID |
 | targets | `standard` (native), `aggregate`, `external` (legacy: `toolPath`, `arguments`, `workingDirectory`, `passBuildSettingsInEnvironment`); `customTasks` []; `dependencies` [{guid, platformFilters []}] from `PBXTargetDependency` (same project or through a `PBXContainerItemProxy` into a referenced project) |
 | native target extras | `productReference` {guid, name = product file path, type `product`}; `predominantSourceCodeLanguage` `Xcode.SourceCodeLanguage.<Swift|C|Objective-C|Objective-C-Plus-Plus|C-Plus-Plus>` by majority of sources; `provisioningSourceData` per configuration {`configurationName`, `provisioningStyle` 0 when `CODE_SIGN_STYLE` (target, else project) or `TargetAttributes.ProvisioningStyle` is `Automatic`, else 1; `bundleIdentifierFromInfoPlist` = `CFBundleIdentifier` of the target's `INFOPLIST_FILE`, else ""} |
@@ -175,15 +175,15 @@ Scheme runs:
 
 ## 5. Without swift-build
 
-If no helper is found, ycodebuild warns on stderr (`ycodebuild: warning:
-the ycode-swb helper was not found …`) and evaluates with Ycode's own
+If no helper is found, swiftcodebuild warns on stderr (`swiftcodebuild: warning:
+the swiftcode-swb helper was not found …`) and evaluates with SwiftCode's own
 resolver (`specs/build-settings.md`): only the levels a project defines and
 a few built-ins, no specification defaults, no `-xcconfig`.
 
 ### 5.1 Apple SDKs that are not installed (Linux)
 
 Apple's platforms and SDKs exist only in a Mac's developer directory, and
-Ycode ships none (no SDK files and no platform definitions of its own). On
+SwiftCode ships none (no SDK files and no platform definitions of its own). On
 Linux swift-build still evaluates every target of an Apple-platform project
 from its open-source specifications, the project's levels, xcconfig files
 and the command line, so the output has the format of §1. What the SDK and
@@ -201,7 +201,7 @@ its platform would define is not known, and is not made up:
 
 These are swift-build's values; the reference tool also prints
 `EFFECTIVE_PLATFORM_NAME = -unknown` for an SDKROOT it cannot resolve
-(`specs/build-settings.md`, open questions). Measured with Ycode's
+(`specs/build-settings.md`, open questions). Measured with SwiftCode's
 macOS App template (Release, legacy): 604 settings on macOS, 446 on Linux;
 315 names have the same value, 127 differ (paths, user, toolchain, version
 placeholders), 162 are only on macOS and 4 only on Linux
@@ -209,17 +209,17 @@ placeholders), 162 are only on macOS and 4 only on Linux
 macOS, `SWIFT_DEVELOPMENT_TOOLCHAIN`, `SWIFT_USE_DEVELOPMENT_TOOLCHAIN_RUNTIME`,
 `TOOLCHAIN_VERSION`).
 
-ycodebuild says so on stderr, also with `-json`: one warning per `SDKROOT`
+swiftcodebuild says so on stderr, also with `-json`: one warning per `SDKROOT`
 that stayed a name with no `SDK_NAME`, and one when
 `XCODE_PRODUCT_BUILD_VERSION` is the placeholder:
 
-    ycodebuild: warning: the SDK "iphoneos" is not installed on this computer. Settings that come from the SDK and its platform (ARCHS, SDK_NAME, SDK_VERSION, PLATFORM_NAME, the bundle layout such as EXECUTABLE_PATH and WRAPPER_EXTENSION, and the SDK's defaults) are left out, and build folders end in "-unknown".
-    ycodebuild: warning: there is no Xcode on this computer: XCODE_VERSION_ACTUAL, XCODE_VERSION_MAJOR, XCODE_VERSION_MINOR and XCODE_PRODUCT_BUILD_VERSION are swift-build's placeholders (99T999).
+    swiftcodebuild: warning: the SDK "iphoneos" is not installed on this computer. Settings that come from the SDK and its platform (ARCHS, SDK_NAME, SDK_VERSION, PLATFORM_NAME, the bundle layout such as EXECUTABLE_PATH and WRAPPER_EXTENSION, and the SDK's defaults) are left out, and build folders end in "-unknown".
+    swiftcodebuild: warning: there is no Xcode on this computer: XCODE_VERSION_ACTUAL, XCODE_VERSION_MAJOR, XCODE_VERSION_MINOR and XCODE_PRODUCT_BUILD_VERSION are swift-build's placeholders (99T999).
 
 The warnings are not printed on macOS. Building such a project on Linux
 still fails: it needs the SDK.
 
-Ycode decision: no stand-in platform or SDK definitions. swift-build would
+SwiftCode decision: no stand-in platform or SDK definitions. swift-build would
 load them (`XCODE_EXTRA_PLATFORM_FOLDERS`), but their contents (the
 platform's and SDK's default settings, versions, architectures) would be
 guesses presented as facts.
@@ -245,8 +245,8 @@ command-line and configuration-file sections, then one
 target; `-json` gives one object per target, `{"action", "buildSettings",
 "target"}`, and `-quiet` drops the header sections as for projects.
 
-Ycode decision: the reference tool prints no settings for package schemes
-(nothing after the package report, `[]` with `-json`). ycodebuild prints
+SwiftCode decision: the reference tool prints no settings for package schemes
+(nothing after the package report, `[]` with `-json`). swiftcodebuild prints
 what a build of the scheme would evaluate, because scripts that read
 `BUILT_PRODUCTS_DIR`, `EXECUTABLE_PATH` or `TARGET_BUILD_DIR` need them for
 packages as much as for projects.
@@ -299,9 +299,9 @@ given. This holds for projects too (§2).
 
 ### 7.3 Without swift-build
 
-Ycode's own resolver reads projects only. Without the helper the query
-fails: `Showing a Swift package's build settings needs the ycode-swb helper
-(swift-build), which was not found. It ships with Ycode; set YCODE_SWB to
+SwiftCode's own resolver reads projects only. Without the helper the query
+fails: `Showing a Swift package's build settings needs the swiftcode-swb helper
+(swift-build), which was not found. It ships with SwiftCode; set SWIFTCODE_SWB to
 its path.`, exit 70.
 
 ## Evidence
@@ -322,7 +322,7 @@ its path.`, exit 70.
 - Toolchain discovery on Linux (`swift` real path rule, fallback developer
   directory, `createSession(swiftToolchainPath:)`) and the values for an SDK
   that is not found: open-source swift-build (level 1), checked by running
-  the helper on x86-64 Linux with swiftly and in the Flatpak (level 3, Ycode
+  the helper on x86-64 Linux with swiftly and in the Flatpak (level 3, SwiftCode
   only).
 - OPEN QUESTION: `MacFamily20,1` was observed on one Apple-silicon Mac; how
   it varies across Macs is unknown.
@@ -332,12 +332,12 @@ its path.`, exit 70.
   SwiftPM's package projects); targets that depend on package products
   evaluate without them.
 - Package schemes (§7): the reference tool's empty output is black-box
-  (level 3, `packages.md`); what ycodebuild prints instead is a Ycode
+  (level 3, `packages.md`); what swiftcodebuild prints instead is a SwiftCode
   decision. Target GUIDs and names, product and test-bundle targets: the
   PIF of open-source SwiftPM's `dump-pif` (level 1). The `linux` platform
   and SDK, the Linux architecture names, and the build actions swift-build
   knows (`BuildAction`: no test action): open-source swift-build (level 1),
   checked by running the helper on macOS and on x86-64 Linux (level 3,
-  Ycode only).
+  SwiftCode only).
 - OPEN QUESTION: `IDECustomDerivedDataLocation` and other user defaults that
   move DerivedData are not read.

@@ -58,7 +58,7 @@ struct QueryTests {
             for: fixtureLocation, including: .alerts, .hourly, .availability)
         #expect(backend.requests.count == 2)
         #expect(products(backend) == [request(.weatherAlerts), request(.forecastHourly), request(.availability)])
-        #expect(alerts?.first?.source == "Ycode Fixture Weather Office")
+        #expect(alerts?.first?.source == "SwiftCode Fixture Weather Office")
         #expect(hourly.first?.date == fixtureAnchor)
         #expect(availability.minuteAvailability == .available)
     }

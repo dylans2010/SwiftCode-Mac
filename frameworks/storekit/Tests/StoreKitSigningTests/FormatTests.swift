@@ -24,11 +24,11 @@ struct PayloadTests {
         let (_, _, store) = makeStore()
         let r = try store.purchase(productID: ID.coins).transaction!
         #expect(JSONWriter.compact(Payloads.transaction(r, context: context)) == """
-            {"appTransactionId":"0","bundleId":"dev.ycode.skprobe","currency":"USD",\
+            {"appTransactionId":"0","bundleId":"dev.swiftcode.skprobe","currency":"USD",\
             "deviceVerification":"r2Se63VFZB4JeyQXiXbLCveA0+my/Ecg2Fddgw1dkqPVAVX7BIEpwdnH9gih6QdY",\
             "deviceVerificationNonce":"3f2504e0-4f89-41d3-9a0c-0305e82c3301","environment":"Xcode",\
             "inAppOwnershipType":"PURCHASED","originalPurchaseDate":1792411200000,"originalTransactionId":"0","price":990,\
-            "productId":"dev.ycode.skprobe.coins100","purchaseDate":1792411200000,"quantity":1,"signedDate":1792411201000,\
+            "productId":"dev.swiftcode.skprobe.coins100","purchaseDate":1792411200000,"quantity":1,"signedDate":1792411201000,\
             "storeType":"CONSUMER","storefront":"USA","storefrontId":"143441","transactionId":"0","transactionReason":"PURCHASE",\
             "type":"Consumable","webOrderLineItemId":"0"}
             """)
@@ -103,7 +103,7 @@ struct PayloadTests {
     func appTransaction() {
         let p = Payloads.appTransaction(applicationVersion: "12", context: context)
         #expect(JSONWriter.compact(p) == """
-            {"appTransactionId":"0","applicationVersion":"12","bundleId":"dev.ycode.skprobe",\
+            {"appTransactionId":"0","applicationVersion":"12","bundleId":"dev.swiftcode.skprobe",\
             "deviceVerification":"r2Se63VFZB4JeyQXiXbLCveA0+my/Ecg2Fddgw1dkqPVAVX7BIEpwdnH9gih6QdY",\
             "deviceVerificationNonce":"3f2504e0-4f89-41d3-9a0c-0305e82c3301","originalApplicationVersion":"12",\
             "originalPlatform":"iOS","originalPurchaseDate":0,"receiptCreationDate":1792411201000,"receiptType":"Xcode",\
@@ -141,7 +141,7 @@ struct ProductJSONTests {
         let coins = catalog.product(ID.coins)!
         #expect(String(decoding: ProductJSON.data(coins, catalog: catalog, locale: "en_US", storefront: Storefront.named("USA")), as: UTF8.self) == """
             {"attributes":{"description":{"standard":"A pile of coins."},"icuLocale":"en_US@currency=USD","isFamilyShareable":0,\
-            "kind":"Consumable","name":"100 Probe Coins","offerName":"dev.ycode.skprobe.coins100",\
+            "kind":"Consumable","name":"100 Probe Coins","offerName":"dev.swiftcode.skprobe.coins100",\
             "offers":[{"currencyCode":"USD","priceFormatted":"$0.99","priceString":"0.99"}]},"id":"100000001","type":"in-apps"}
             """)
     }
@@ -153,7 +153,7 @@ struct ProductJSONTests {
         let json = ProductJSON.value(catalog.product(ID.monthly)!, catalog: catalog, locale: "en_US", storefront: Storefront.named("USA"))
         let a = json["attributes"]!
         #expect(json["id"] == .string("100000011") && a["kind"] == .string("Auto-Renewable Subscription"))
-        #expect(a["subscriptionFamilyId"] == .string(ID.plus) && a["subscriptionFamilyName"] == .string("Ycode Plus"))
+        #expect(a["subscriptionFamilyId"] == .string(ID.plus) && a["subscriptionFamilyName"] == .string("SwiftCode Plus"))
         #expect(a["subscriptionFamilyRank"] == .int(1))
         let offer = a["offers"]!.arrayValue![0]
         #expect(offer["type"] == .string("buy") && offer["billingPeriod"] == .string("P1M"))
@@ -241,7 +241,7 @@ struct ReceiptTests {
         #expect(c.notBefore == Date(timeIntervalSince1970: 1_585_699_200) && c.notAfter == Date(timeIntervalSince1970: 2_216_419_200))
         // Change one byte of the payload (the first bundle id).
         var tampered = Array(data)
-        let needle = Array("dev.ycode".utf8)
+        let needle = Array("dev.swiftcode".utf8)
         let at = try #require((0..<tampered.count - needle.count).first { Array(tampered[$0..<$0 + needle.count]) == needle })
         tampered[at] ^= 0x01
         #expect(throws: (any Error).self) { try DecodedReceipt(data: Data(tampered)) }
@@ -278,7 +278,7 @@ struct PromotionalOfferTests {
         let offer = try PromotionalOfferSignature.sign(
             offerID: "plus.promo3", keyID: "KEY1", nonce: fixedNonce, timestamp: 1_792_411_200_000, context: ctx, key: key)
         #expect(String(decoding: PromotionalOfferSignature.message(offer, context: ctx), as: UTF8.self)
-            == "dev.ycode.skprobe\u{2063}KEY1\u{2063}dev.ycode.skprobe.plus.monthly\u{2063}plus.promo3\u{2063}\u{2063}3f2504e0-4f89-41d3-9a0c-0305e82c3301\u{2063}1792411200000")
+            == "dev.swiftcode.skprobe\u{2063}KEY1\u{2063}dev.swiftcode.skprobe.plus.monthly\u{2063}plus.promo3\u{2063}\u{2063}3f2504e0-4f89-41d3-9a0c-0305e82c3301\u{2063}1792411200000")
         // Accepted (the intro offer applies first while eligible, §5 item 3).
         #expect(try store.purchase(productID: ID.monthly, options: PurchaseOptions(signedPromotionalOffer: offer)).transaction?.offer?.type == .introductory)
         var wrongKey = offer

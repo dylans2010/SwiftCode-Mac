@@ -3,7 +3,7 @@
 Status: **draft, round 0** (agent KIT-REALITYKIT, 2026-10-19). This set
 starts the specification of Apple's RealityKit framework for the
 open-frameworks goal of `docs/FUTURE.md`: a RealityKit-compatible library
-that builds on Linux, and the RealityKit behaviour the Ycode iOS simulator
+that builds on Linux, and the RealityKit behaviour the SwiftCode iOS simulator
 must reproduce for AR apps. Clean-room implementers read only this
 directory, public documentation and the open-source projects named in
 `09-open-design.md`.
@@ -23,8 +23,8 @@ runtime accepts on this Mac).
 | `05-animation-audio.md` | Animation definitions and playback, skeletons, blend shapes, IK, entity actions, animation graphs, audio |
 | `06-views-anchoring-input.md` | `RealityView` (iOS), `ARView`, `RealityRenderer`, anchoring, spatial tracking, gestures and input targets, attachments, synchronization |
 | `07-assets.md` | USD/USDZ as interop (schemas RealityKit reads), USDKit, export, `.reality` and Reality Composer Pro as black boxes |
-| `08-simulator-baseline.md` | What Apple's iOS simulator does with RealityKit today (black-box runs of our probe app) — the first target for Ycode |
-| `09-open-design.md` | **Ycode-original design note**: building blocks for an open implementation, with verified licences |
+| `08-simulator-baseline.md` | What Apple's iOS simulator does with RealityKit today (black-box runs of our probe app) — the first target for SwiftCode |
+| `09-open-design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: building blocks for an open implementation, with verified licences |
 | `10-plan.md` | Implementation rounds (one agent each) and the conformance-test plan |
 | `api-inventory.md` | Name-only inventory of the public API surface (types, member names, availability), generated from SDK module metadata |
 

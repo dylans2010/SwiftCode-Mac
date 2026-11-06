@@ -3,7 +3,7 @@
 Spec for Wave 13 of the SwiftCode Legacy → Mac migration. Legacy is
 Dylan's own SwiftCode codebase (main `d51a8f0d`); direct porting was
 authorised by Dylan under MIT, spec-first where it costs nothing.
-Destination is the Ycode base (main `8d369050`).
+Destination is the SwiftCode base (main `8d369050`).
 
 This spec covers three related but distinct Legacy surfaces:
 
@@ -147,7 +147,7 @@ Do not confuse the three entitlement concepts:
 | Concept | Lives in | Meaning |
 |---|---|---|
 | Pro entitlement (this spec) | New runtime target (§8) | Whether the user bought SwiftCode Pro |
-| App entitlements plist values | `YcodeSigning.EntitlementValue` / `Entitlements` (`ycode/Sources/YcodeSigning/EntitlementValue.swift`) | One value of a project's `.entitlements` plist; `EntitlementPolicy` decides whether a provisioning profile allows it |
+| App entitlements plist values | `SwiftCodeSigning.EntitlementValue` / `Entitlements` (`swiftcode/Sources/SwiftCodeSigning/EntitlementValue.swift`) | One value of a project's `.entitlements` plist; `EntitlementPolicy` decides whether a provisioning profile allows it |
 | SDK developer-key entitlements | `SDKEntitlement.swift` | Key-bound grants for third-party SDK use — §9, deferred |
 
 The entitlements *editor* (§7) edits plist values of the second kind;
@@ -269,7 +269,7 @@ wired into the IDE's own purchase flow. The editor's simulator
 - **Styling debt to drop by design:** orange accent, crown, and the
   liquid-glass card are Legacy styling. Per the migration prompt
   (§8 rebrand / Mac-style UI), the destination paywall is rebuilt
-  in Mac style: Ycode's blue accent (`ShellColors.accent`,
+  in Mac style: SwiftCode's blue accent (`ShellColors.accent`,
   `52/120/246`), sentence-case section titles, no orange, no
   capitalised headers. Content (title, subtitle, six features,
   product rows, restore) is preserved.
@@ -314,9 +314,9 @@ that never touches Apple's StoreKit.
   render.
 
 Destination note: rebuild this as a Mac-style editor window on the
-Ycode pattern (AppKit window controller in `YcodeUI`, portable
-session model in the new target, SwiftUI views in `ycode-ide` /
-`YcodeIDEShell` view model). The Legacy title string
+SwiftCode pattern (AppKit window controller in `SwiftCodeUI`, portable
+session model in the new target, SwiftUI views in `swiftcode-ide` /
+`SwiftCodeIDEShell` view model). The Legacy title string
 "Xcode Grade Editor" / "Xcode Grade IDE Suite" (sidebar subtitle)
 must be dropped — it names Apple's product; the destination uses
 its own naming.
@@ -499,7 +499,7 @@ single JSON representing an SKProduct…" and decodes the reply as
 (`com.app.<first 14 chars of prompt, spaces → _>`, type
 `NonConsumable`, price 4.99, placeholder description "AI Synthesized
 description placeholder."). The destination equivalent is the
-YcodeAssistant provider selected in settings (Wave 9 providers), not
+SwiftCodeAssistant provider selected in settings (Wave 9 providers), not
 Legacy's `LLMService`. The fallback synthesiser is legitimate
 behaviour to keep, labelled as a fallback. This is the only place the
 StoreKit editor touches an LLM; nothing else in the editor is AI.
@@ -736,9 +736,9 @@ and `Views/Utilities/XcodeProjTabs.swift:818`.
   `EntitlementAvailability`.
 
 Destination mapping: the manager's plist I/O maps onto
-`YcodeSigning.EntitlementValue` / `Entitlements.fromPropertyList`
+`SwiftCodeSigning.EntitlementValue` / `Entitlements.fromPropertyList`
 / `xmlPropertyList()` (same semantics: plist → typed values → XML,
-sorted keys) plus `YcodePlist` where it fits; the metadata catalog
+sorted keys) plus `SwiftCodePlist` where it fits; the metadata catalog
 (`EntitlementsCatalog.all`, 17 entries) ports as data. The
 validation rules port as pure functions over `Entitlements`.
 
@@ -820,7 +820,7 @@ a dropped definition silently removes a capability from the editor.
 
 ### 8.1 Reuse surface (verified live in the destination)
 
-**`frameworks/storekit/Package.swift`** — package `ycode-storekit`,
+**`frameworks/storekit/Package.swift`** — package `swiftcode-storekit`,
 5 library products, each a target of the same name:
 
 | Product | Contents | Key API names |
@@ -828,14 +828,14 @@ a dropped definition silently removes a capability from the editor.
 | `StoreKitConfiguration` | `.storekit` file model | `StoreConfiguration` (`identifier`, `version: Version { major, minor }`, `products` / `nonRenewingSubscriptions: [ConfiguredProduct]?`, `subscriptionGroups: [SubscriptionGroup]?`, `settings: Settings?`, `appPolicies`, `appName`, `extra: [String: JSONValue]`, `allProducts`, `isSynchronized`); `ConfiguredProduct` (`type: ProductKind`, `productID`, `referenceName`, `internalID`, `displayPrice: String?`, `familyShareable`, `localizations: [Localization]?`, `subscriptionGroupID`, `groupNumber`, `recurringSubscriptionPeriod`, `introductoryOffer: Offer?`, `adHocOffers`, `codeOffers`, `winbackOffers: [JSONValue]?`); `SubscriptionGroup` (`id`, `name`, `localizations`, `subscriptions`); `Offer` (`internalID`, `offerID`, `referenceName`, `paymentMode: PaymentMode`, `subscriptionPeriod`, `numberOfPeriods`, `displayPrice`, `eligibility`, `isStackable`); `Settings` (`storefront`, `locale`, `timeRate: Int?`, `askToBuyEnabled`, `billingIssuesEnabled`, `renewalBillingIssuesEnabled`, `billingGracePeriodEnabled`, `disableDialogs`, `failTransactionsEnabled`, `storeKitErrors`); `StoreConfigurationFile` (`init(contentsOf:)`, `init(data:)`, `data()`, `write(to:)`); `JSONValue.parse`, `JSONWriter`; `validate() -> [ValidationIssue]`, `isDecimalPrice(_:)` |
 | `StoreKitEngine` | Open local store | `Catalog` (`init(_ configuration:)`, `product(_:)`, `group(_:)`, `CatalogProduct` / `CatalogGroup` / `CatalogSubscription` / `CatalogOffer` / `CatalogLocalization`, `ProductType`, `OfferPaymentMode`, `OfferType`, `Storefront`, `PriceFormatter`); `AppTestStore` (`installConfiguration(_:appName:)`, `removeConfiguration`, `installedConfiguration`, `catalog`, `settings: EffectiveSettings`, `overrideSettings` / `updateSettings`, `setSimulatedError(_:for:)`, `advance()`, `nextEventDate()`, `products(for:)`, `isEligibleForIntroOffer`, `purchase(productID:options:) -> PurchaseOutcome`, `buyProduct(productID:options:) -> TransactionRecord`, `finish`, `allTransactions()`, `transactionHistory()`, `unfinishedTransactions()`, `latestTransaction(for:)`, `currentEntitlements()`, `subscriptionStatuses(groupID:)`, `checkAppTransaction()`, `sync()`, `restoreCompletedTransactions()`, `clearTransactions()`, `deleteTransaction`, `refundTransaction`, `expireSubscription`, `forceRenewal`, `disableAutoRenew`) |
 | `StoreKitSigning` | P-256 identity, X.509, JWS, receipt | `JWS.sign` / `JWS.decode` / `JWSVerifier.verify`, `SigningIdentity`, `Receipt.build` / `Receipt.payload` / `Receipt.signedData` / `DecodedReceipt`, `ProductJSON.value` / `.data`, `Base64URL` |
-| `StoreKit` | Client API over the engine (Apple module name) | `Product.products(for:)`, `Product.purchase(options:) -> PurchaseResult`, `Product.ProductType` (consumable / nonConsumable / nonRenewable / autoRenewable), `Product.SubscriptionPeriod`, `Product.SubscriptionOffer`, `Transaction` (JWS-backed, `currentEntitlement(s)`), `AppStore.sync()`, `AppStore.canMakePayments`, `AppStore.Environment` (production / sandbox / xcode), `AppTransaction.shared` / `.refresh()`, `Storefront.current`, `YcodeStoreKit.shared` (`Runtime`) |
+| `StoreKit` | Client API over the engine (Apple module name) | `Product.products(for:)`, `Product.purchase(options:) -> PurchaseResult`, `Product.ProductType` (consumable / nonConsumable / nonRenewable / autoRenewable), `Product.SubscriptionPeriod`, `Product.SubscriptionOffer`, `Transaction` (JWS-backed, `currentEntitlement(s)`), `AppStore.sync()`, `AppStore.canMakePayments`, `AppStore.Environment` (production / sandbox / xcode), `AppTransaction.shared` / `.refresh()`, `Storefront.current`, `SwiftCodeStoreKit.shared` (`Runtime`) |
 | `StoreKitTest` | Test session | `SKTestSession` (`init(contentsOf:)`, `buyProduct(identifier:options:)`, `setSimulatedError(forAPI:)`, `TimeRate`, `SubscriptionRenewalBehavior`), `SKTestFailures` (LoadProducts, Purchase, Verification, AppStoreSync, SubscriptionStatus, AppTransaction, ManageSubscriptions, OfferCodeRedeem, RefundRequest) |
 
 `frameworks/storekit` pins swift-crypto `exact: "4.5.2"`, which lies
-inside the destination `ycode` range `"3.0.0"..<"5.0.0"` (pin 4.5.2)
+inside the destination `swiftcode` range `"3.0.0"..<"5.0.0"` (pin 4.5.2)
 — no version conflict.
 
-**`ycode/Sources/YcodeSigning/`** — `EntitlementValue`
+**`swiftcode/Sources/SwiftCodeSigning/`** — `EntitlementValue`
 (`string` / `bool` / `integer` / `real` / `date` / `data` /
 `array` / `dictionary`, `init?(propertyList:)`, `.propertyList`,
 `stringValue` / `boolValue` / `arrayValue` / `dictionaryValue` /
@@ -845,11 +845,11 @@ inside the destination `ycode` range `"3.0.0"..<"5.0.0"` (pin 4.5.2)
 `EntitlementPolicy` (`derivedKeys`, `isRestricted(_:on:)`,
 `pattern(_:matches:)`, `allows(_:_:)`,
 `mismatches(_:profile:platform:)`, `restrictedKeys(_:on:)`).
-`YcodeSigning` is Foundation-only (shared with `ycode-swb`); the
+`SwiftCodeSigning` is Foundation-only (shared with `swiftcode-swb`); the
 entitlements editor model may depend on it but must not add
 toolkit or StoreKit imports to it.
 
-**`ycode/Package.swift`** — today there is **no storekit
+**`swiftcode/Package.swift`** — today there is **no storekit
 dependency** (`grep -i storekit` → 0 hits). The precedent for a
 `frameworks/` path dependency is the SwiftUI one
 (lines ~287–320): a conditional
@@ -864,58 +864,58 @@ because Linux needs OpenViews, which does not apply here), e.g.:
 ```swift
 // As landed in Wave 13 (coordinator reconciliation — the block above
 // this note in an earlier draft used the wrong `package:` label
-// ("storekit" — the declared package name is "ycode-storekit") and
+// ("storekit" — the declared package name is "swiftcode-storekit") and
 // wrongly listed the package's `StoreKit` product as a dependency,
 // which would shadow Apple's real StoreKit framework):
 package.dependencies += [.package(path: "../frameworks/storekit")]
-package.products += [.library(name: "YcodePaywall", targets: ["YcodePaywall"])]
+package.products += [.library(name: "SwiftCodePaywall", targets: ["SwiftCodePaywall"])]
 package.targets += [
-    .target(name: "YcodePaywall"), // Apple StoreKit 2 only, no third-party dep
-    .testTarget(name: "YcodePaywallTests", dependencies: ["YcodePaywall"]),
+    .target(name: "SwiftCodePaywall"), // Apple StoreKit 2 only, no third-party dep
+    .testTarget(name: "SwiftCodePaywallTests", dependencies: ["SwiftCodePaywall"]),
 ]
 // StoreKitConfiguration (the .storekit file model) is added as a
-// dependency of YcodeIDECore, YcodeUI, ycode-ide and YcodeIDECoreTests:
-//   .product(name: "StoreKitConfiguration", package: "ycode-storekit")
-// YcodeSigning is added to YcodeIDECore and YcodeIDECoreTests (the
-// entitlements editor model). YcodePaywall is added to YcodeUI's deps
+// dependency of SwiftCodeIDECore, SwiftCodeUI, swiftcode-ide and SwiftCodeIDECoreTests:
+//   .product(name: "StoreKitConfiguration", package: "swiftcode-storekit")
+// SwiftCodeSigning is added to SwiftCodeIDECore and SwiftCodeIDECoreTests (the
+// entitlements editor model). SwiftCodePaywall is added to SwiftCodeUI's deps
 // so the shell can present the paywall.
 ```
 
 The implementation slices confirm the exact package name for the
-`.product(..., package:)` references (`ycode-storekit` is the
+`.product(..., package:)` references (`swiftcode-storekit` is the
 *package* name in `frameworks/storekit/Package.swift`; the
 dependency is referenced by path, so the `package:` label is the
-package's declared name). Wire the new target into `YcodeIDECore`
-and/or `YcodeUI` / `YcodeIDEShell` as the UI slices require, and
-into the `ycode` executable target via the existing post-hoc
+package's declared name). Wire the new target into `SwiftCodeIDECore`
+and/or `SwiftCodeUI` / `SwiftCodeIDEShell` as the UI slices require, and
+into the `swiftcode` executable target via the existing post-hoc
 `package.targets[i].dependencies +=` patch pattern if a CLI
 surface is needed. (No CLI surface is specified here.)
 
 ### 8.2 Recommended target layout (for the implementation slices)
 
-- **New portable target `YcodePaywall`** (model, no toolkit):
+- **New portable target `SwiftCodePaywall`** (model, no toolkit):
   Pro runtime (`StoreKitManager` / `EntitlementManager` ports,
   Apple StoreKit on macOS), product-ID configuration.
   `.storekit` editor session model (config state, undo, recents,
   templates, validation rules, health score, fixes) and the
-  simulator session live in `YcodeIDECore/Model`
+  simulator session live in `SwiftCodeIDECore/Model`
   (`StoreKitEditorModel`, `StoreKitSimulationSession`); the
   entitlements editor model (`EntitlementsEditorModel` +
   `EntitlementCapabilityCatalog`, 123 unique definitions) lives
   there too. (An earlier draft of this spec proposed one combined
-  `YcodeStoreKit` target; Wave 13 landed the split above instead —
+  `SwiftCodeStoreKit` target; Wave 13 landed the split above instead —
   it keeps the paywall runtime away from the frameworks/storekit
   `StoreKit` module name, which would shadow Apple's StoreKit.)
-- **macOS presentation in `YcodeUI`** (AppKit): StoreKit editor
+- **macOS presentation in `SwiftCodeUI`** (AppKit): StoreKit editor
   window controller + split view (following the
   `WorkspaceWindowController+<Area>` extension pattern and the
   Asset Catalog editor precedent: model in a shell target, AppKit
-  controller in `YcodeUI`), paywall sheet, entitlements editor
+  controller in `SwiftCodeUI`), paywall sheet, entitlements editor
   controller. Entry points: file-navigator receipt button for the
   StoreKit editor; Settings Pro section for the paywall;
   `.entitlements` file opening for the entitlements editor.
-- **SwiftUI presentation in `ycode-ide` + view model in
-  `YcodeIDEShell`** (following the `AssetCatalogEditorView` /
+- **SwiftUI presentation in `swiftcode-ide` + view model in
+  `SwiftCodeIDEShell`** (following the `AssetCatalogEditorView` /
   `AssetCatalogEditorModel` precedent): the same three surfaces
   for the Linux / SwiftUI shell where they apply. The paywall is
   macOS-only in practice (Apple StoreKit); the `.storekit` and
@@ -936,7 +936,7 @@ surface is needed. (No CLI surface is specified here.)
   `StoreKitSigning` — reuse for the simulator (§6.6b).
 - Test session: `StoreKitTest.SKTestSession` — reuse; Legacy has
   zero references to `SKTestSession`.
-- Entitlement plist values + profile policy: `YcodeSigning` — reuse
+- Entitlement plist values + profile policy: `SwiftCodeSigning` — reuse
   for the entitlements editor (§7.1).
 - `.storekit` format truth: `specs/frameworks/storekit/configuration-file.md`
   (levels 2–3) and `specs/frameworks/storekit/ide.md` §3 (reference
@@ -944,7 +944,7 @@ surface is needed. (No CLI surface is specified here.)
   these before writing code.
 - Verified absent (so this wave genuinely adds it): no StoreKit
   editor, no paywall, no Pro entitlement, no entitlements editor
-  in `YcodeUI` / `YcodeIDEShell` / `ycode-ide` (grep for
+  in `SwiftCodeUI` / `SwiftCodeIDEShell` / `swiftcode-ide` (grep for
   `paywall` / `isPro` / `StoreKitEditor` / `.storekit` over the
   destination sources returns only the framework files and
   unrelated hits).
@@ -1081,10 +1081,10 @@ Sources read live for this section (Legacy read-only, main
 (`proSection`), `SwiftCode/Backend/Store/EntitlementManager.swift`,
 `SwiftCode/Backend/Developer/FeatureFlags.swift` (the
 `bypass_paywall` key). Destination: Wave 13's
-`ycode/Sources/YcodePaywall/` (`PaywallStore`,
+`swiftcode/Sources/SwiftCodePaywall/` (`PaywallStore`,
 `PaywallEntitlementState`, `PaywallView`, `PaywallBypass`),
-`ycode/Sources/YcodeUI/App/SettingsPanes.swift`
-(`GeneralSettingsPane`), `ycode/Sources/ycode-ide/SettingsPanes.swift`
+`swiftcode/Sources/SwiftCodeUI/App/SettingsPanes.swift`
+(`GeneralSettingsPane`), `swiftcode/Sources/swiftcode-ide/SettingsPanes.swift`
 (Linux/SwiftUI shell — see §12.3).
 
 ### 12.1 What landed
@@ -1095,7 +1095,7 @@ Settings (macOS):
 
 - **General pane, "SwiftCode Pro" section**
   (`GeneralSettingsPane.proSection`, at the end of
-  `build()`, after "Reset Ycode"): the row title is
+  `build()`, after "Reset SwiftCode"): the row title is
   `"SwiftCode Pro"` in both states, so the pane's structure
   never depends on entitlement. Pro members see
   "SwiftCode Pro Member!" + "Active" (green); everyone else
@@ -1103,7 +1103,7 @@ Settings (macOS):
   `PaywallView` as a sheet (`NSHostingController`). The note
   under the row states the rule honestly: "Pro status comes
   from a verified App Store purchase, or the developer bypass
-  flag." Ycode style throughout: no orange accent (Legacy's
+  flag." SwiftCode style throughout: no orange accent (Legacy's
   `.orange` crown row), sentence case.
 - **Refresh, once.** Building the section refreshes
   entitlements and re-reads the bypass flag through
@@ -1116,11 +1116,11 @@ Settings (macOS):
   reopened (the store's transaction listener also updates
   the entitlement live; the pane re-reads it on its next
   build).
-- **Pure state + SwiftUI view** (`ycode/Sources/YcodePaywall/ProSettingsSection.swift`):
+- **Pure state + SwiftUI view** (`swiftcode/Sources/SwiftCodePaywall/ProSettingsSection.swift`):
   `ProSectionState` derives the section from
   `PaywallEntitlementState` (member title, status text,
   upgrade title, `showsUpgradeButton`) and is covered by
-  `ycode/Tests/YcodePaywallTests/ProSettingsSectionTests.swift`
+  `swiftcode/Tests/SwiftCodePaywallTests/ProSettingsSectionTests.swift`
   (not-Pro → upgrade; Pro via entitlements / bypass /
   debug override → member + "Active"; debug override off →
   upgrade; any verified entitlement grants Pro — Legacy's
@@ -1149,11 +1149,11 @@ trial, no usage counter, and no "Pro required" alert.
 ### 12.3 What is still pending
 
 - **Linux/SwiftUI Settings — WIRED by the Wave 15 coordinator.**
-  `"YcodePaywall"` was added to the `ycode-ide` executable
-  target's dependencies in `ycode/Package.swift` (both the Linux
+  `"SwiftCodePaywall"` was added to the `swiftcode-ide` executable
+  target's dependencies in `swiftcode/Package.swift` (both the Linux
   and macOS branches), and a "SwiftCode Pro" section using the
   already-built `ProSettingsSection` view was added at the end of
-  the SwiftUI General pane (`ycode/Sources/ycode-ide/
+  the SwiftUI General pane (`swiftcode/Sources/swiftcode-ide/
   SettingsPanes.swift`). On Linux the section shows the upgrade
   button and a paywall that cannot load products (every StoreKit
   operation fails honestly with
@@ -1201,8 +1201,8 @@ file was edited; no commit or push was made.
 | Entitlements view behaviour (UI-only, search/filter, save/revert, dirty, sub-editors, opened from EditorView/XcodeProjTabs) | `EntitlementsEditorView.swift` (1,625) — structure + save/revert + sub-editor list, level 2 |
 | `SDKEntitlement` deferred: key-bound, two v1 IDs, application-flow grant only | `SDKEntitlement.swift` (72), read directly, level 2 |
 | `frameworks/storekit` products/targets and key API names | `frameworks/storekit/Package.swift` + `grep public` over `Sources/StoreKitConfiguration/`, `Sources/StoreKitEngine/`, `Sources/StoreKit/`, `Sources/StoreKitSigning/`, `Sources/StoreKitTest/`, level 1 (destination's own clean-room source) |
-| `YcodeSigning` entitlement value/policy API | `ycode/Sources/YcodeSigning/EntitlementPolicy.swift`, `EntitlementValue.swift`, read directly, level 1 |
-| No storekit dependency in `ycode/Package.swift` today; swiftui path-dependency precedent (lines ~287–320) | `grep -i storekit ycode/Package.swift` (0 hits); `sed -n '270,330p' ycode/Package.swift`, level 1 |
+| `SwiftCodeSigning` entitlement value/policy API | `swiftcode/Sources/SwiftCodeSigning/EntitlementPolicy.swift`, `EntitlementValue.swift`, read directly, level 1 |
+| No storekit dependency in `swiftcode/Package.swift` today; swiftui path-dependency precedent (lines ~287–320) | `grep -i storekit swiftcode/Package.swift` (0 hits); `sed -n '270,330p' swiftcode/Package.swift`, level 1 |
 | No StoreKit editor / paywall / Pro entitlement in the destination | `grep -rniE 'paywall\|isPro\|StoreKitEditor\|\.storekit'` over destination sources/specs (only framework files + unrelated hits), level 1 |
 | Canonical `.storekit` format (identifier, version object, `displayPrice` string, `RecurringSubscription`, settings keys, synchronized-file keys) | `specs/frameworks/storekit/configuration-file.md` + `specs/frameworks/storekit/ide.md` §3, levels 2–3 |
 | No `.storekit` file exists in Legacy; `SKTestSession` has zero Legacy references | `find -name '*.storekit'` (0 files); `grep -rn SKTestSession` (0 hits), level 2 |
@@ -1218,10 +1218,10 @@ this spec slice.
 
 > **Wave 13 reconciliation note (coordinator):** the "Destination"
 > column below was corrected after implementation landed. The spec
-> originally recommended one combined `YcodeStoreKit` target; the wave
-> landed `YcodePaywall` for the Pro runtime and `YcodeIDECore/Model`
-> (+ `YcodeUI` controllers + `ycode-ide` views) for the editors, and
-> the StoreKit window chrome was not reproduced (the Ycode workspace
+> originally recommended one combined `SwiftCodeStoreKit` target; the wave
+> landed `SwiftCodePaywall` for the Pro runtime and `SwiftCodeIDECore/Model`
+> (+ `SwiftCodeUI` controllers + `swiftcode-ide` views) for the editors, and
+> the StoreKit window chrome was not reproduced (the SwiftCode workspace
 > window hosts the editor instead). The simulation service landed as
 > a local port (`StoreKitSimulationSession`), not re-implemented over
 > `AppTestStore` / `SKTestSession` as §6.6b recommended — that engine
@@ -1234,26 +1234,26 @@ this spec slice.
 
 | Legacy file | Lines | Disposition | Destination file / target (recommended) |
 |---|---|---|---|
-| `SwiftCode/Backend/Store/StoreKitManager.swift` | 98 | PORT | `YcodePaywall/PaywallStore.swift` (Apple StoreKit 2; product IDs as configuration in `PaywallProductCatalog.swift`) + `PaywallError.swift` |
-| `SwiftCode/Backend/Store/EntitlementManager.swift` | 22 | PORT | `YcodePaywall/PaywallEntitlement.swift` (Pro boolean; `bypass_paywall` OR preserved) + `PaywallBypass.swift` |
-| `SwiftCode/Backend/Store/AppStore.swift` | 34 | PORT | `YcodePaywall/PaywallAppStore.swift` (`sync()` → Apple `StoreKit.AppStore.sync()`; manage-subscriptions → subscriptions URL on macOS; iOS sheet not ported — no window scene in a library target) |
-| `SwiftCode/Views/Utilities/StoreKit/Models/StoreKitModels.swift` | 587 | ADAPT | Model shapes → `StoreKitConfiguration.StoreConfiguration` / `ConfiguredProduct` / `SubscriptionGroup` / `Offer` / `Settings` (framework, already exists — do not re-create). Legacy-only extras → `YcodeIDECore/Model/StoreKitEditorModel.swift` + `StoreKitSimulationSession.swift` as editor/simulator support types |
+| `SwiftCode/Backend/Store/StoreKitManager.swift` | 98 | PORT | `SwiftCodePaywall/PaywallStore.swift` (Apple StoreKit 2; product IDs as configuration in `PaywallProductCatalog.swift`) + `PaywallError.swift` |
+| `SwiftCode/Backend/Store/EntitlementManager.swift` | 22 | PORT | `SwiftCodePaywall/PaywallEntitlement.swift` (Pro boolean; `bypass_paywall` OR preserved) + `PaywallBypass.swift` |
+| `SwiftCode/Backend/Store/AppStore.swift` | 34 | PORT | `SwiftCodePaywall/PaywallAppStore.swift` (`sync()` → Apple `StoreKit.AppStore.sync()`; manage-subscriptions → subscriptions URL on macOS; iOS sheet not ported — no window scene in a library target) |
+| `SwiftCode/Views/Utilities/StoreKit/Models/StoreKitModels.swift` | 587 | ADAPT | Model shapes → `StoreKitConfiguration.StoreConfiguration` / `ConfiguredProduct` / `SubscriptionGroup` / `Offer` / `Settings` (framework, already exists — do not re-create). Legacy-only extras → `SwiftCodeIDECore/Model/StoreKitEditorModel.swift` + `StoreKitSimulationSession.swift` as editor/simulator support types |
 | `SwiftCode/Views/Utilities/StoreKit/Parsers/StoreKitParser.swift` | 24 | DROP — superseded | `StoreKitConfiguration.StoreConfigurationFile.init(contentsOf:)` / `init(data:)` (framework). Preserve the parse-from-data/URL/string contract, not the code |
 | `SwiftCode/Views/Utilities/StoreKit/Encoders/StoreKitEncoder.swift` | 26 | DROP — superseded | `StoreKitConfigurationFile.data()` / `.write(to:)` (framework, canonical `"key" : value` form). Preserve the atomic-write contract, not the `JSONEncoder` output |
-| `SwiftCode/Views/Utilities/StoreKit/Protocols/StoreKitProtocols.swift` | 128 | DROP — 22 near-empty singletons | Nothing. Session/service seams live in `YcodePaywall` / `YcodeIDECore` models |
-| `SwiftCode/Views/Utilities/StoreKit/Managers/StoreKitWorkspaceManager.swift` | 239 | PORT | `YcodeIDECore/Model/StoreKitEditorModel.swift` (session, 50-deep whole-config undo/redo, recents, 5 templates, default workspace) |
-| `SwiftCode/Views/Utilities/StoreKit/Services/StoreKitSimulationService.swift` | 352 | ADAPT | `YcodeIDECore/Model/StoreKitSimulationSession.swift` — DEVIATION: landed as a local port of Legacy's service, NOT re-implemented over `AppTestStore` / `SKTestSession` as §6.6b recommended; engine mapping is a follow-up. Log/activity API, profiles, favorites, filters kept |
-| `SwiftCode/Views/Utilities/StoreKit/Services/StoreKitValidationService.swift` | 334 | PORT | Validation inside `YcodeIDECore/Model/StoreKitEditorModel.swift` (rules + health score + fixes). Legacy's always-`true` capability checks are not reproduced (§6.7 — they never fired) |
-| `SwiftCode/Views/Utilities/StoreKit/Editors/StoreKitEditors.swift` | 2,060 | PORT (with the §10.2 cuts) | Model `YcodeIDECore/Model/StoreKitEditorModel.swift`; AppKit `YcodeUI/Editor/StoreKitEditorController.swift`; SwiftUI `ycode-ide/StoreKitEditorView.swift` (views bind the model directly — no separate YcodeIDEShell view model landed). 21 sections; the fake asset scan, fake version-history seeds, unwired palette actions, constant-baseline compare, and local-only storefront table are dropped as specified; AI generator via YcodeAssistant provider, not `LLMService` |
-| `SwiftCode/Views/Utilities/StoreKit/Sidebar/StoreKitSidebarView.swift` | 202 | PORT | Folded into `ycode-ide/StoreKitEditorView.swift` + `YcodeUI/Editor/StoreKitEditorController.swift` (no separate sidebar file); section names are an enum; Favorites, recents, live validation badges kept |
-| `SwiftCode/Views/Utilities/StoreKit/Inspector/StoreKitInspectorView.swift` | 281 | PORT | Folded into `ycode-ide/StoreKitEditorView.swift` + `YcodeUI/Editor/StoreKitEditorController.swift` (no separate inspector file); product picker + identity/pricing/review-metadata sections; edits push undo snapshots; hardcoded fake review notes / mock screenshot rows dropped |
-| `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowController.swift` | 173 | PORT | NOT reproduced — Legacy's standalone StoreKit window chrome has no destination; the Ycode workspace window hosts the editor instead |
-| `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowManager.swift` | 43 | PORT | NOT reproduced — same as above; window management is the Ycode workspace's |
-| `SwiftCode/Views/Utilities/StoreKit/Workspace/StoreKitSplitViewController.swift` | 212 | PORT | NOT reproduced as a standalone split view — the editor lives in the Ycode workspace window; the editor view itself carries the sidebar/inspector layout |
-| `SwiftCode/Views/Paywall/PaywallView.swift` | 143 | PORT | `YcodePaywall/PaywallView.swift` (SwiftUI, Ycode style, no orange/crown/liquid-glass Legacy styling); model `YcodePaywall/PaywallStore.swift`. Presented from the AppKit Settings Pro section (Wave 15, §12) and the debug view — the Linux/SwiftUI Settings hook is NOT yet wired (needs a `Package.swift` dependency, §12.3) |
-| `SwiftCode/Views/Developer/PaywallDebug/PaywallDebugView.swift` | 41 | PORT | `YcodePaywall/PaywallDebugViews.swift` (developer surface; grant/revoke + force-show paywall, honestly labelled local-only overrides) |
-| `SwiftCode/Views/Developer/StoreKitDebug/StoreKitDebugView.swift` | 38 | PORT | `YcodePaywall/PaywallDebugViews.swift` (4 simulations, honestly labelled local-only overrides — they never create transactions) |
-| `SwiftCode/Core/Editor/EntitlementsEditorManager.swift` | 725 | PORT | `YcodeIDECore/Model/EntitlementsEditorModel.swift` (plist I/O via `YcodeSigning.EntitlementValue`, sorted-key XML write, validation + cross-entitlement rules, raw-XML generation); 17-entry manager catalog subsumed (verified). The 4 empty stub structs are dropped |
-| `SwiftCode/Views/Editor/EntitlementsEditorCatalog.swift` | 1,374 | PORT | `YcodeIDECore/Model/EntitlementsCatalog.swift` (`EntitlementCapabilityCatalog`, 9 sections, `CapabilityPayloadKind`, 123 unique `CapabilityDefinition`s — 5 duplicate raw keys deduped, first kept) |
-| `SwiftCode/Views/Editor/EntitlementsEditorView.swift` | 1,625 | PORT | AppKit `YcodeUI/Editor/EntitlementsEditorController.swift` + SwiftUI `ycode-ide/EntitlementsEditorView.swift` (views bind the model directly — no separate YcodeIDEShell view model landed): UI-only `.entitlements` editor (search, section filter, capability toggles writing real keys, sub-editors, save/revert, dirty tracking, live validation). `.entitlements` file-open wiring is a follow-up |
+| `SwiftCode/Views/Utilities/StoreKit/Protocols/StoreKitProtocols.swift` | 128 | DROP — 22 near-empty singletons | Nothing. Session/service seams live in `SwiftCodePaywall` / `SwiftCodeIDECore` models |
+| `SwiftCode/Views/Utilities/StoreKit/Managers/StoreKitWorkspaceManager.swift` | 239 | PORT | `SwiftCodeIDECore/Model/StoreKitEditorModel.swift` (session, 50-deep whole-config undo/redo, recents, 5 templates, default workspace) |
+| `SwiftCode/Views/Utilities/StoreKit/Services/StoreKitSimulationService.swift` | 352 | ADAPT | `SwiftCodeIDECore/Model/StoreKitSimulationSession.swift` — DEVIATION: landed as a local port of Legacy's service, NOT re-implemented over `AppTestStore` / `SKTestSession` as §6.6b recommended; engine mapping is a follow-up. Log/activity API, profiles, favorites, filters kept |
+| `SwiftCode/Views/Utilities/StoreKit/Services/StoreKitValidationService.swift` | 334 | PORT | Validation inside `SwiftCodeIDECore/Model/StoreKitEditorModel.swift` (rules + health score + fixes). Legacy's always-`true` capability checks are not reproduced (§6.7 — they never fired) |
+| `SwiftCode/Views/Utilities/StoreKit/Editors/StoreKitEditors.swift` | 2,060 | PORT (with the §10.2 cuts) | Model `SwiftCodeIDECore/Model/StoreKitEditorModel.swift`; AppKit `SwiftCodeUI/Editor/StoreKitEditorController.swift`; SwiftUI `swiftcode-ide/StoreKitEditorView.swift` (views bind the model directly — no separate SwiftCodeIDEShell view model landed). 21 sections; the fake asset scan, fake version-history seeds, unwired palette actions, constant-baseline compare, and local-only storefront table are dropped as specified; AI generator via SwiftCodeAssistant provider, not `LLMService` |
+| `SwiftCode/Views/Utilities/StoreKit/Sidebar/StoreKitSidebarView.swift` | 202 | PORT | Folded into `swiftcode-ide/StoreKitEditorView.swift` + `SwiftCodeUI/Editor/StoreKitEditorController.swift` (no separate sidebar file); section names are an enum; Favorites, recents, live validation badges kept |
+| `SwiftCode/Views/Utilities/StoreKit/Inspector/StoreKitInspectorView.swift` | 281 | PORT | Folded into `swiftcode-ide/StoreKitEditorView.swift` + `SwiftCodeUI/Editor/StoreKitEditorController.swift` (no separate inspector file); product picker + identity/pricing/review-metadata sections; edits push undo snapshots; hardcoded fake review notes / mock screenshot rows dropped |
+| `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowController.swift` | 173 | PORT | NOT reproduced — Legacy's standalone StoreKit window chrome has no destination; the SwiftCode workspace window hosts the editor instead |
+| `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowManager.swift` | 43 | PORT | NOT reproduced — same as above; window management is the SwiftCode workspace's |
+| `SwiftCode/Views/Utilities/StoreKit/Workspace/StoreKitSplitViewController.swift` | 212 | PORT | NOT reproduced as a standalone split view — the editor lives in the SwiftCode workspace window; the editor view itself carries the sidebar/inspector layout |
+| `SwiftCode/Views/Paywall/PaywallView.swift` | 143 | PORT | `SwiftCodePaywall/PaywallView.swift` (SwiftUI, SwiftCode style, no orange/crown/liquid-glass Legacy styling); model `SwiftCodePaywall/PaywallStore.swift`. Presented from the AppKit Settings Pro section (Wave 15, §12) and the debug view — the Linux/SwiftUI Settings hook is NOT yet wired (needs a `Package.swift` dependency, §12.3) |
+| `SwiftCode/Views/Developer/PaywallDebug/PaywallDebugView.swift` | 41 | PORT | `SwiftCodePaywall/PaywallDebugViews.swift` (developer surface; grant/revoke + force-show paywall, honestly labelled local-only overrides) |
+| `SwiftCode/Views/Developer/StoreKitDebug/StoreKitDebugView.swift` | 38 | PORT | `SwiftCodePaywall/PaywallDebugViews.swift` (4 simulations, honestly labelled local-only overrides — they never create transactions) |
+| `SwiftCode/Core/Editor/EntitlementsEditorManager.swift` | 725 | PORT | `SwiftCodeIDECore/Model/EntitlementsEditorModel.swift` (plist I/O via `SwiftCodeSigning.EntitlementValue`, sorted-key XML write, validation + cross-entitlement rules, raw-XML generation); 17-entry manager catalog subsumed (verified). The 4 empty stub structs are dropped |
+| `SwiftCode/Views/Editor/EntitlementsEditorCatalog.swift` | 1,374 | PORT | `SwiftCodeIDECore/Model/EntitlementsCatalog.swift` (`EntitlementCapabilityCatalog`, 9 sections, `CapabilityPayloadKind`, 123 unique `CapabilityDefinition`s — 5 duplicate raw keys deduped, first kept) |
+| `SwiftCode/Views/Editor/EntitlementsEditorView.swift` | 1,625 | PORT | AppKit `SwiftCodeUI/Editor/EntitlementsEditorController.swift` + SwiftUI `swiftcode-ide/EntitlementsEditorView.swift` (views bind the model directly — no separate SwiftCodeIDEShell view model landed): UI-only `.entitlements` editor (search, section filter, capability toggles writing real keys, sub-editors, save/revert, dirty tracking, live validation). `.entitlements` file-open wiring is a follow-up |
 | `SwiftCode/SDK/Host/APIKeys/SDKEntitlement.swift` | 72 | DEFER — SDK-platform wave | Later SDK wave (capability broker / API keys / Assist access application flow). Not StoreKit, not the paywall, not the entitlements editor (§9) |

@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/weatherkit/`. A weather app needs a coordinate.
 This file covers the Core Location behavior such apps rely on and the
-simulated-location machinery Ycode's simulator must reproduce. It is not a
+simulated-location machinery SwiftCode's simulator must reproduce. It is not a
 full Core Location spec. Statements are level 3 (WKProbe in the reference
 simulator) unless marked; API names are interop facts.
 
@@ -91,14 +91,14 @@ its own reverse geocoding in-process before each uncached weather request
 (`simulator-baseline.md` §2), so GEO access is needed even by apps that never
 geocode.
 
-## 6. What Ycode's simulator must provide
+## 6. What SwiftCode's simulator must provide
 
 | Need | Notes |
 |---|---|
-| locationd running, with its simulation service fed from the host | Ycode's equivalent of `simctl location set/start/run/clear/list`, including interpolation along waypoints at a given speed with interval or distance spacing, and course/speed values as §4 |
-| The built-in scenarios | Ycode must ship **its own** recorded tracks (the reference scenarios are Apple resources); keep the names only if they are needed for script compatibility, with Ycode-made data |
+| locationd running, with its simulation service fed from the host | SwiftCode's equivalent of `simctl location set/start/run/clear/list`, including interpolation along waypoints at a given speed with interval or distance spacing, and course/speed values as §4 |
+| The built-in scenarios | SwiftCode must ship **its own** recorded tracks (the reference scenarios are Apple resources); keep the names only if they are needed for script compatibility, with SwiftCode-made data |
 | tccd privacy database and `simctl privacy grant/revoke/reset location[-always]` | grant/revoke without prompting; reset brings the prompt back |
-| SpringBoard's location authorization alert | shown over the app; Ycode's input path must be able to press its buttons (HID taps) |
+| SpringBoard's location authorization alert | shown over the app; SwiftCode's input path must be able to press its buttons (HID taps) |
 | GEO services and network | reverse geocoding by apps and by WeatherKit |
 | Location marked as simulated | `sourceInformation.isSimulatedBySoftware` YES, as in the reference |
 
@@ -112,7 +112,7 @@ All with `WKProbe -mode location -wait N` (golden = reference simulator).
 | L-NOPLIST | `WKProbeNoLoc` | no prompt; missing-key console message; code 1 errors |
 | L-FIXED | `privacy grant`, `location set` | one fix with the §4 values; no repeats while stationary |
 | L-ROUTE | `location start --speed=20 --interval=1` with three waypoints | ~1 update/s, speed 20, course ≈ segment bearing |
-| L-SCENARIO | `location run "City Run"` with Ycode's own track | per-fix accuracies, speed and floor shaped as §4 (values from Ycode's track) |
+| L-SCENARIO | `location run "City Run"` with SwiftCode's own track | per-fix accuracies, speed and floor shaped as §4 (values from SwiftCode's track) |
 | L-CLEAR | `location clear` after a scenario | stale last fix, then code 0; live update "location unavailable" |
 | L-DENIED | `privacy revoke` | status denied/reduced; immediate code 1; live update "denied" |
 | L-LIVE | granted | first live update empty, then fixes |

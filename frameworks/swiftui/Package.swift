@@ -1,6 +1,6 @@
 // swift-tools-version: 6.0
 //
-// ycode-swiftui ("OpenViews"): a clean-room, Linux-buildable implementation of
+// swiftcode-swiftui ("OpenViews"): a clean-room, Linux-buildable implementation of
 // SwiftUI's value types and layout system, written from
 // specs/frameworks/swiftui/ (see README.md in this directory).
 //
@@ -25,7 +25,7 @@ let renamed: [SwiftSetting] = []
 #endif
 
 let package = Package(
-    name: "ycode-swiftui",
+    name: "swiftcode-swiftui",
     platforms: [.macOS(.v15)],
     products: [
         .library(name: uiModule, targets: [uiModule]),

@@ -1,10 +1,10 @@
 # Spec: the host camera layer
 
 Status: **implemented** (agent CAMERA-HOST, 2026-10-27). Code:
-`ycode/Sources/YcodeHostServices/Camera/`, `ycode/Sources/CYcodeCamera/`,
+`swiftcode/Sources/SwiftCodeHostServices/Camera/`, `swiftcode/Sources/CSwiftCodeCamera/`,
 `IOSurfaceHostService.makeHostSurface` and friends, and
-`ycode/Sources/ycode-simd/CameraCommand.swift`. Tests:
-`ycode/Tests/YcodeHostServicesTests/Camera*Tests.swift`.
+`swiftcode/Sources/swiftcode-simd/CameraCommand.swift`. Tests:
+`swiftcode/Tests/SwiftCodeHostServicesTests/Camera*Tests.swift`.
 
 This spec covers what the host does with a camera: find it, negotiate a
 format, stream it, convert each frame into a pixel format an iOS guest
@@ -17,11 +17,11 @@ another agent). §9 lists what that round must add.
 Everything here comes from public documentation (the Linux V4L2 API,
 ITU-T T.81, ITU-R BT.601/BT.709, ISO/IEC 23001-8, Apple's public
 CoreVideo and IOSurface headers for interop constants) and from runs of
-Ycode's own code against a USB webcam on the Thor. No Apple binary,
+SwiftCode's own code against a USB webcam on the Thor. No Apple binary,
 simulator or Xcode was run or read for this work.
 
 Terms: **source format**, a pixel layout a camera sends (V4L2 FourCC,
-first character in the low byte); **output format**, a pixel layout Ycode
+first character in the low byte); **output format**, a pixel layout SwiftCode
 hands the guest (CoreVideo OSType, first character in the high byte);
 **ring**, the surfaces of one stream.
 
@@ -36,7 +36,7 @@ hands the guest (CoreVideo OSType, first character in the high byte);
 | `CameraConverter`, `convert.c`, `jpeg.c` | Source frame → surface pixels (§4). |
 | `CameraSurfaceLayout`, `CameraSurfaceRing` | Surface geometry and the ring (§5). |
 | `CameraHostService` | Device selection, the capture thread, frame delivery, absence handling (§5, §6). |
-| `ycode-simd --camera-list / --camera-probe` | Diagnostics (§8). |
+| `swiftcode-simd --camera-list / --camera-probe` | Diagnostics (§8). |
 
 `CameraCapture` is the one interface both sources implement: `device`,
 `format` (what the open stream delivers), `next(timeoutMilliseconds:)` (a
@@ -71,7 +71,7 @@ kept fastest first.
 
 ### 2.3 Selection
 
-`YCODE_CAMERA` (or the `selection` argument): `auto` (default) the first
+`SWIFTCODE_CAMERA` (or the `selection` argument): `auto` (default) the first
 V4L2 capture device, else the synthetic camera; `synthetic`; `none` (no
 camera: `start` fails with `noDevice`); a node path (`/dev/video0`); or a
 device ID. A named device that is absent is an error, not a fallback.
@@ -99,12 +99,12 @@ DRI (restart intervals). The driver timestamps buffers on
 (`'420v'` by default), ring size (4), whether delivered frames stay held
 until released (§5.3), whether synthetic frames stand in while the device
 is absent (§6), and optionally one source format to restrict negotiation
-to (diagnostics). Ycode does not scale: **the output has the negotiated
+to (diagnostics). SwiftCode does not scale: **the output has the negotiated
 size**, which the stream reports.
 
 ### 3.2 Negotiation
 
-Among the formats Ycode converts (`NV12`, `YUYV`, `UYVY`, `YU12`, `YV12`,
+Among the formats SwiftCode converts (`NV12`, `YUYV`, `UYVY`, `YU12`, `YV12`,
 `MJPG`; others such as `H264` are skipped), each (format, size) is ranked by,
 in order:
 
@@ -123,7 +123,7 @@ the fastest one when none does. With the C615: 1280x720 at 30 → MJPEG
 1. `open(O_RDWR | O_NONBLOCK | O_CLOEXEC)`.
 2. `VIDIOC_S_FMT` (capture, the chosen size and format, `V4L2_FIELD_NONE`).
    The driver's answer is used (size, `bytesperline`, colorimetry); a
-   driver that answers with a format Ycode does not convert fails the open.
+   driver that answers with a format SwiftCode does not convert fails the open.
 3. `VIDIOC_G_PARM` / `VIDIOC_S_PARM` with the interval when the driver has
    `V4L2_CAP_TIMEPERFRAME`; the driver's interval is reported.
 4. `VIDIOC_REQBUFS` (4, `V4L2_MEMORY_MMAP`), `VIDIOC_QUERYBUF` and `mmap`
@@ -197,7 +197,7 @@ range. Examples (tested): video BT.601 `(16,128,128)` → black,
 
 ### 4.3 Motion-JPEG
 
-Ycode's own baseline decoder (`jpeg.c`, from ITU-T T.81): sequential DCT,
+SwiftCode's own baseline decoder (`jpeg.c`, from ITU-T T.81): sequential DCT,
 Huffman coding, 8-bit samples, 1 or 3 components, sampling factors 1 or 2,
 interleaved or single-component scans, restart intervals (DC predictions
 reset at each `RSTn`), 8- or 16-bit quantization tables, byte stuffing.
@@ -253,7 +253,7 @@ alignments of `Limits`, `iosurface-remote.md` §4.4).
 
 ### 5.3 The ring (`CameraSurfaceRing`) and delivery
 
-A stream has `ringSize` surfaces named `ycode-camera <i>`. For each frame
+A stream has `ringSize` surfaces named `swiftcode-camera <i>`. For each frame
 the next slot after the last written one is taken that is not being
 written, not held by the consumer, and has use count and lock count 0
 (the guest is not reading it). With none free the frame is dropped and
@@ -263,7 +263,7 @@ callback gets a `CameraFrame`:
 
 | Field | Meaning |
 |---|---|
-| `sequence` | Ycode's counter for the stream, from 0, no gaps |
+| `sequence` | SwiftCode's counter for the stream, from 0, no gaps |
 | `deviceSequence` | V4L2 `sequence` (synthetic: frame number) |
 | `surfaceID`, `surfacePort`, `seed`, `slot` | the surface (ID for Method 2 `LookupID`; port: host-task name of its Method-14 port) |
 | `format`, `width`, `height` | output format and size |
@@ -271,7 +271,7 @@ callback gets a `CameraFrame`:
 | `droppedBefore` | frames dropped since the previous delivery |
 | `synthetic` | a synthetic frame (synthetic device or stand-in) |
 
-The callback runs on the capture thread (`ycode-camera`). With
+The callback runs on the capture thread (`swiftcode-camera`). With
 `holdFramesUntilReleased` a delivered slot is not reused until
 `release(frame)`; otherwise it is free once the callback returns (the
 guest's use count still protects a surface it is reading). `stop()` ends
@@ -295,7 +295,7 @@ Counters: `delivered`, `dropped`, `conversionTotal`, `conversionMax`.
 
 ## 7. The synthetic camera
 
-Device ID `synthetic`, name "Ycode Synthetic Camera", one format `YUYV`
+Device ID `synthetic`, name "SwiftCode Synthetic Camera", one format `YUYV`
 (video range, BT.601: the same conversion path as a webcam), any even size
 of at least 64 x 48 (the list offers 320x240 … 1920x1080 at 60/30/15). It
 paces itself to the interval (or not, for tests: frames return at once with
@@ -323,10 +323,10 @@ Chroma under the square, digits and strip is 128.
 
 ## 8. Diagnostics
 
-`ycode-simd --camera-list`: every camera (V4L2, then synthetic) with its
+`swiftcode-simd --camera-list`: every camera (V4L2, then synthetic) with its
 formats (unconverted ones marked), sizes and rates, and open problems.
 
-`ycode-simd --camera-probe [--camera SEL] [--frames N] [--size WxH]
+`swiftcode-simd --camera-probe [--camera SEL] [--frames N] [--size WxH]
 [--fps F] [--pixel-format 420v|420f|BGRA] [--source-format FOURCC]
 [--out file.png] [--scale K]` (defaults: auto, 30, 1280x720, 30,
 `'420v'`): streams through `CameraHostService` into host-made surfaces of
@@ -342,14 +342,14 @@ camera only, off Linux).
 ## 9. For the guest-facing round
 
 The guest-facing round is done (agent CAMERA-GUEST, 2026-10-28):
-`camera.md` §9 ("Ycode implementation") describes the endpoint
-`dev.ycode.camera` (`CameraGuestService`, on top of this layer), the
-per-device opt-in, and Ycode's guest capture layer. How it uses this
+`camera.md` §9 ("SwiftCode implementation") describes the endpoint
+`dev.swiftcode.camera` (`CameraGuestService`, on top of this layer), the
+per-device opt-in, and SwiftCode's guest capture layer. How it uses this
 layer:
 
 - `CameraHostService.devices()` / `resolve(_:)` give the one device it
   presents (camera.md §9.2: an iPhone's back or front camera, an iPad's
-  external camera), with the sizes Ycode converts and their rate ranges.
+  external camera), with the sizes SwiftCode converts and their rate ranges.
 - A stream opens with `holdFramesUntilReleased` and no synthetic stand-in;
   each frame goes to the guest by surface ID (the guest maps it through
   `IOSurfaceLookup`, `iosurface-remote.md`), and the guest's release
@@ -370,10 +370,10 @@ camera (not designed or tested: the camera runs were cold boots).
 | Claim | Level |
 |---|---|
 | V4L2 ioctls, structures, capability and buffer flags, timestamp flags, colorimetry enums, `EBUSY`/`ENODEV` semantics, metadata nodes (§2, §3) | 1 (Linux kernel media API documentation, `linux/videodev2.h`) |
-| The C615's nodes, formats, sizes, rates, missing DHT, DRI, monotonic timestamps; costs and rates (§2.4, §4.3) | 3 (Ycode's own `--camera-list`/`--camera-probe` and opt-in hardware test on the Thor, 2026-10-27; one frame's markers listed with ffmpeg's stream copy) |
+| The C615's nodes, formats, sizes, rates, missing DHT, DRI, monotonic timestamps; costs and rates (§2.4, §4.3) | 3 (SwiftCode's own `--camera-list`/`--camera-probe` and opt-in hardware test on the Thor, 2026-10-27; one frame's markers listed with ffmpeg's stream copy) |
 | JPEG decoding, Annex K tables, restart handling (§4.3) | 1 (ITU-T T.81 / ISO/IEC 10918-1); the scaled IDCT from Arai, Agui and Nakajima (1988), checked against a direct 8 x 8 IDCT |
 | Matrices, ranges (§4.2) | 1 (ITU-R BT.601, BT.709) |
 | Output pixel format codes `'420v'`, `'420f'`, `'BGRA'` | 1 (public `CVPixelBuffer.h`) |
 | IOSurface creation and plane keys, attachment keys, alignments (§5) | 1 (public `IOSurfaceRef.h`); `iosurface-remote.md` §3.2, §4.4, §5.2 |
 | Attachment code points (§5.1) | 1 (ISO/IEC 23001-8); values seen in boots in `iosurface-remote.md` §3.2 |
-| Layout choices, ring policy, negotiation order, synthetic pattern, events (§3.2, §5–§7) | Ycode design (no reference behaviour claimed) |
+| Layout choices, ring policy, negotiation order, synthetic pattern, events (§3.2, §5–§7) | SwiftCode design (no reference behaviour claimed) |

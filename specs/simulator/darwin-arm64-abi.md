@@ -1,6 +1,6 @@
 # Spec: the Darwin arm64 user/kernel boundary (as seen by simulator code)
 
-Status: reference for the Ycode Linux simulator host (`docs/SIMULATOR-LINUX.md`).
+Status: reference for the SwiftCode Linux simulator host (`docs/SIMULATOR-LINUX.md`).
 Facts are from Apple's open-source `xnu` (level 1), read through the GitHub
 API on 2026-10-11. This spec restates them; it does not copy code.
 
@@ -35,7 +35,7 @@ API on 2026-10-11. This spec restates them; it does not copy code.
   `machine_thread_set_tsd_base`.
 - Darwin code reads the base directly with `mrs xN, TPIDRRO_EL0`. Linux
   keeps that register for its own use and gives user space no way to set
-  it. That is the main reason Ycode runs guest code in a VM (see the design
+  it. That is the main reason SwiftCode runs guest code in a VM (see the design
   doc).
 
 ## 4. Commpage
@@ -44,7 +44,7 @@ API on 2026-10-11. This spec restates them; it does not copy code.
   processes, in the TTBR0/user range) and a read-only area at
   **`0x0000000FFFFF4000`**. libsystem reads time bases, CPU capabilities,
   and similar values from fixed offsets in it.
-- The offset map is in `osfmk/arm/cpu_capabilities.h`. Ycode's host must
+- The offset map is in `osfmk/arm/cpu_capabilities.h`. SwiftCode's host must
   provide the commpage with the fields the runtime reads, so that table is
   the next thing to write into this spec.
 
@@ -66,7 +66,7 @@ API on 2026-10-11. This spec restates them; it does not copy code.
   (carry convention), `osfmk/arm/cpu_capabilities.h` (commpage addresses),
   and `bsd/kern/syscalls.master`.
 - Level 4: page alignment and the shared-cache base, read from the iOS 27.1
-  runtime with `ycode macho`/`ycode dsc`.
+  runtime with `swiftcode macho`/`swiftcode dsc`.
 
 ## Open questions
 

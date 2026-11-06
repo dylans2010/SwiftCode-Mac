@@ -14,7 +14,7 @@ package") model. Reality Composer Pro 3 does not author timelines:
 animation and logic are **state-machine node graphs**, stored as
 *Animation Graph* and *Behavior Tree* assets (§7, and
 `project-format.md` §4.7.7). RCP 3 only meets §1–§5 when it migrates or
-imports legacy USD. Ycode keeps §1–§5 because its native format is the
+imports legacy USD. SwiftCode keeps §1–§5 because its native format is the
 legacy package, which Xcode still compiles.
 
 Notation: "loaded as" means what RealityKit produced when our file was
@@ -232,7 +232,7 @@ scene animation as an audio track (`particles-audio.md` §5).
   `StateTransitionDefinition`, `BT…NodeDefinition`, `…ParameterDefinition`)
   match the runtime schema's type set.
 
-## 8. Requirements for Ycode
+## 8. Requirements for SwiftCode
 
 1. **Write** timelines, tracks, actions and behaviors exactly as §2–§4
    (prim types, property names and types, `actionKind` strings, UUID

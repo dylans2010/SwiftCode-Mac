@@ -1,19 +1,19 @@
 // `SKTestFailures` and the failable API markers (testing-session.md §9).
 import Foundation
-@_spi(Ycode) import StoreKit
+@_spi(SwiftCode) import StoreKit
 import StoreKitEngine
 
 /// A simulated error of one API.
 public protocol SKTestFailure: Sendable {
     /// The engine's form.
-    var ycodeFailure: SimulatedFailure { get }
-    init?(ycode: SimulatedFailure)
+    var swiftcodeFailure: SimulatedFailure { get }
+    init?(swiftcode: SimulatedFailure)
 }
 
 /// An API that accepts a simulated error.
 public protocol FailableStoreKitAPI: Sendable {
     associatedtype Failure: SKTestFailure
-    var ycodeAPI: StoreAPI { get }
+    var swiftcodeAPI: StoreAPI { get }
 }
 
 func generic(_ e: StoreKitError) -> SimulatedFailure {
@@ -33,7 +33,7 @@ func storeKitError(_ g: GenericFailure) -> StoreKitError {
     case .unknown: return .unknown
     case .userCancelled: return .userCancelled
     case .networkError(let code): return .networkError(URLError(urlErrorCode(code)))
-    case .systemError: return .systemError(YcodeStoreSystemError.unknown)
+    case .systemError: return .systemError(SwiftCodeStoreSystemError.unknown)
     case .notAvailableInStorefront: return .notAvailableInStorefront
     case .notEntitled: return .notEntitled
     case .unsupported: return .unsupported
@@ -69,33 +69,33 @@ func purchaseError(_ r: PurchaseFailureReason) -> Product.PurchaseError {
 public enum SKTestFailures {
     public enum LoadProducts: SKTestFailure {
         case generic(StoreKitError)
-        public var ycodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
-        public init?(ycode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public var swiftcodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
+        public init?(swiftcode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum Purchase: SKTestFailure {
         case generic(StoreKitError)
         case purchase(Product.PurchaseError)
-        public var ycodeFailure: SimulatedFailure {
+        public var swiftcodeFailure: SimulatedFailure {
             switch self {
             case .generic(let e): return StoreKitTest.generic(e)
             case .purchase(let e): return .purchase(purchaseReason(e))
             }
         }
-        public init?(ycode f: SimulatedFailure) {
+        public init?(swiftcode f: SimulatedFailure) {
             switch f {
             case .generic(let g): self = .generic(storeKitError(g))
             case .purchase(let r): self = .purchase(purchaseError(r))
             default: return nil
             }
         }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum Verification: SKTestFailure {
         case verification(VerificationResult<Transaction>.VerificationError)
-        public var ycodeFailure: SimulatedFailure {
+        public var swiftcodeFailure: SimulatedFailure {
             guard case .verification(let e) = self else { return .verification(.invalidSignature) }
             switch e {
             case .revokedCertificate: return .verification(.revokedCertificate)
@@ -106,7 +106,7 @@ public enum SKTestFailures {
             case .missingRequiredProperties: return .verification(.missingRequiredProperties)
             }
         }
-        public init?(ycode f: SimulatedFailure) {
+        public init?(swiftcode f: SimulatedFailure) {
             guard case .verification(let r) = f else { return nil }
             switch r {
             case .revokedCertificate: self = .verification(.revokedCertificate)
@@ -117,116 +117,116 @@ public enum SKTestFailures {
             case .missingRequiredProperties: self = .verification(.missingRequiredProperties)
             }
         }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum AppStoreSync: SKTestFailure {
         case generic(StoreKitError)
-        public var ycodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
-        public init?(ycode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public var swiftcodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
+        public init?(swiftcode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum SubscriptionStatus: SKTestFailure {
         case generic(StoreKitError)
-        public var ycodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
-        public init?(ycode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public var swiftcodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
+        public init?(swiftcode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum AppTransaction: SKTestFailure {
         case generic(StoreKitError)
-        public var ycodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
-        public init?(ycode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public var swiftcodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
+        public init?(swiftcode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum ManageSubscriptions: SKTestFailure {
         case generic(StoreKitError)
-        public var ycodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
-        public init?(ycode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public var swiftcodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
+        public init?(swiftcode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum OfferCodeRedeem: SKTestFailure {
         case generic(StoreKitError)
-        public var ycodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
-        public init?(ycode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public var swiftcodeFailure: SimulatedFailure { if case .generic(let e) = self { return StoreKitTest.generic(e) }; return .generic(.unknown) }
+        public init?(swiftcode f: SimulatedFailure) { guard case .generic(let g) = f else { return nil }; self = .generic(storeKitError(g)) }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 
     public enum RefundRequest: SKTestFailure {
         case generic(StoreKitError)
         case refundRequest(Transaction.RefundRequestError)
-        public var ycodeFailure: SimulatedFailure {
+        public var swiftcodeFailure: SimulatedFailure {
             switch self {
             case .generic(let e): return StoreKitTest.generic(e)
             case .refundRequest(let e): return .refundRequest(e == .duplicateRequest ? .duplicateRequest : .failed)
             }
         }
-        public init?(ycode f: SimulatedFailure) {
+        public init?(swiftcode f: SimulatedFailure) {
             switch f {
             case .generic(let g): self = .generic(storeKitError(g))
             case .refundRequest(let r): self = .refundRequest(r == .duplicateRequest ? .duplicateRequest : .failed)
             default: return nil
             }
         }
-        public static func == (a: Self, b: Self) -> Bool { a.ycodeFailure == b.ycodeFailure }
+        public static func == (a: Self, b: Self) -> Bool { a.swiftcodeFailure == b.swiftcodeFailure }
     }
 }
 
 public struct StoreKitLoadProductsAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.LoadProducts
     public init() {}
-    public var ycodeAPI: StoreAPI { .loadProducts }
+    public var swiftcodeAPI: StoreAPI { .loadProducts }
 }
 
 public struct StoreKitPurchaseAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.Purchase
     public init() {}
-    public var ycodeAPI: StoreAPI { .purchase }
+    public var swiftcodeAPI: StoreAPI { .purchase }
 }
 
 public struct StoreKitVerificationAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.Verification
     public init() {}
-    public var ycodeAPI: StoreAPI { .verification }
+    public var swiftcodeAPI: StoreAPI { .verification }
 }
 
 public struct StoreKitAppStoreSyncAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.AppStoreSync
     public init() {}
-    public var ycodeAPI: StoreAPI { .appStoreSync }
+    public var swiftcodeAPI: StoreAPI { .appStoreSync }
 }
 
 public struct StoreKitSubscriptionStatusAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.SubscriptionStatus
     public init() {}
-    public var ycodeAPI: StoreAPI { .subscriptionStatus }
+    public var swiftcodeAPI: StoreAPI { .subscriptionStatus }
 }
 
 public struct StoreKitAppTransactionAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.AppTransaction
     public init() {}
-    public var ycodeAPI: StoreAPI { .appTransaction }
+    public var swiftcodeAPI: StoreAPI { .appTransaction }
 }
 
 public struct StoreKitManageSubscriptionsAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.ManageSubscriptions
     public init() {}
-    public var ycodeAPI: StoreAPI { .manageSubscriptions }
+    public var swiftcodeAPI: StoreAPI { .manageSubscriptions }
 }
 
 public struct StoreKitOfferCodeRedeemAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.OfferCodeRedeem
     public init() {}
-    public var ycodeAPI: StoreAPI { .offerCodeRedeem }
+    public var swiftcodeAPI: StoreAPI { .offerCodeRedeem }
 }
 
 public struct StoreKitRefundRequestAPI: FailableStoreKitAPI {
     public typealias Failure = SKTestFailures.RefundRequest
     public init() {}
-    public var ycodeAPI: StoreAPI { .refundRequest }
+    public var swiftcodeAPI: StoreAPI { .refundRequest }
 }
 
 extension FailableStoreKitAPI where Self == StoreKitLoadProductsAPI { public static var loadProducts: Self { .init() } }

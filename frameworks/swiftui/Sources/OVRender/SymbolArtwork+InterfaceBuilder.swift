@@ -1,6 +1,6 @@
 // The Linux IDE's Interface Builder symbols (the Identity and Size
 // inspector tabs, outline rows for views and constraints, the Library's
-// Objects, Color and Symbols tabs), drawn for Ycode
+// Objects, Color and Symbols tabs), drawn for SwiftCode
 // in the same plain style as SymbolArtwork.swift: outlines on the 24 × 24
 // grid, stroke 1.5 to 1.75. Licence: the repository's (MIT).
 

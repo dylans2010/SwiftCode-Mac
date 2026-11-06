@@ -40,7 +40,7 @@ struct DescriptorTests {
         let g = try await Golden.make()
         var d = HKStatisticsCollectionQueryDescriptor(predicate: .quantitySample(type: T.steps), options: .cumulativeSum,
                                                       anchorDate: T.d0, intervalComponents: DateComponents(day: 1))
-        d.ycodeCalendar = T.utc
+        d.swiftcodeCalendar = T.utc
         let c = try await d.result(for: g.a)
         #expect(c.statistics(for: T.at(0, 1))?.sumQuantity()?.doubleValue(for: .count()) == 4800)
         #expect(c.statistics(for: T.at(1, 1))?.sumQuantity()?.doubleValue(for: .count()) == 2300)
@@ -76,6 +76,6 @@ struct DescriptorTests {
     func sources() async throws {
         let g = try await Golden.make(withB: true)
         let s = try await HKSourceQueryDescriptor(predicate: .quantitySample(type: T.steps)).result(for: g.a)
-        #expect(s.map(\.bundleIdentifier) == ["dev.ycode.healthprobe", "dev.ycode.healthprobe.b"])
+        #expect(s.map(\.bundleIdentifier) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])
     }
 }

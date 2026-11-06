@@ -1,6 +1,6 @@
 # Framework specifications (open-frameworks track)
 
-Clean-room specifications of Apple frameworks that Ycode reimplements as open
+Clean-room specifications of Apple frameworks that SwiftCode reimplements as open
 source, buildable on Linux (see `docs/FUTURE.md`), written under the
 clean-room protocol of `AGENTS.md`. Each framework has its own directory:
 

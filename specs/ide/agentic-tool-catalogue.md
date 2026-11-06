@@ -1,9 +1,9 @@
 # Agentic tool catalogue — Wave 8
 
-Ycode module: `YcodeMCP` (the MCP server and its tools).
+SwiftCode module: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the catalogue for the 141 Legacy Agentic tools ported in
-Wave 8 from SwiftCode Legacy into Ycode. It is the single source of
+Wave 8 from SwiftCode Legacy into SwiftCode. It is the single source of
 truth for each tool's ID, Legacy class, disposition, description,
 input schema, output shape, capability, risk level, permission, and
 read/write classification. The companion spec `agentic-tools.md`
@@ -15,15 +15,15 @@ Scope: exactly these 141 tools, verified live from the Legacy Agentic
 registry (`SwiftCode/Tools/Agentic/ListTools.swift`, 141 entries).
 No tool may be invented, renamed, or merged with another.
 
-Implementation: `ycode/Sources/YcodeMCP/YcodeTools+AgenticFiles.swift`
-(`agenticFilesTools`, 6 tools), `YcodeTools+AgenticExecution.swift`
+Implementation: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AgenticFiles.swift`
+(`agenticFilesTools`, 6 tools), `SwiftCodeTools+AgenticExecution.swift`
 (`agenticExecutionTools`, 9 tools),
-`YcodeTools+AgenticGit.swift` (`agenticGitTools`, 19 tools),
-`YcodeTools+AgenticNetwork.swift` (`agenticNetworkTools`, 19 tools),
-`YcodeTools+AgenticCLI.swift` (`agenticCLITools`, 21 tools),
-`YcodeTools+AgenticCode.swift` (`agenticCodeTools`, 16 tools),
-`YcodeTools+AgenticData.swift` (`agenticDataTools`, 19 tools),
-`YcodeTools+AgenticPlanning.swift` (`agenticPlanningTools`, 8 tools).
+`SwiftCodeTools+AgenticGit.swift` (`agenticGitTools`, 19 tools),
+`SwiftCodeTools+AgenticNetwork.swift` (`agenticNetworkTools`, 19 tools),
+`SwiftCodeTools+AgenticCLI.swift` (`agenticCLITools`, 21 tools),
+`SwiftCodeTools+AgenticCode.swift` (`agenticCodeTools`, 16 tools),
+`SwiftCodeTools+AgenticData.swift` (`agenticDataTools`, 19 tools),
+`SwiftCodeTools+AgenticPlanning.swift` (`agenticPlanningTools`, 8 tools).
 117 tools are registered across those eight files. The other 24 are
 not registered: 6 are exact-ID duplicates of already-registered
 tools and 18 are already served through `MCPServer.toolAliases`.
@@ -48,13 +48,13 @@ Three facts about the Agentic registry shape every disposition below:
 - The `AgentTool` protocol declares only `name`, `description`,
   `schema`, and `execute(arguments:)`. It has **no capability, risk
   level, or permission** field. Capability / risk / permission in
-  this catalogue are therefore the Ycode port's own derivation,
+  this catalogue are therefore the SwiftCode port's own derivation,
   following the Assist catalogue §1.2 rule (read-only → `safeRead` /
   `none`; file-writing → `safeMutation` / `fileSystem`; deleting →
   `potentiallyDestructive` in the target's annotations), not a
   Legacy declaration.
 - The Agentic registry has **no aliases**: `AgentToolRegistry.execute`
-  is an exact-name dictionary lookup. The Ycode aliases that serve
+  is an exact-name dictionary lookup. The SwiftCode aliases that serve
   Agentic IDs come from the *Assist* registry's alias table
   (`MCPServer.toolAliases`), not from anything Agentic. An Agentic
   caller using Agentic parameter names therefore does not
@@ -80,7 +80,7 @@ Legacy Agentic tools declare none of these, so the port derives them
 from behaviour, using the Assist catalogue §1.3 risk → annotation
 table:
 
-| Risk | Ycode `MCPToolAnnotations` | `writes` |
+| Risk | SwiftCode `MCPToolAnnotations` | `writes` |
 |---|---|---|
 | `safeRead` | `readOnly: true, idempotent: true` | `false` |
 | `safeMutation` | `readOnly: false, idempotent: true` | `true` |
@@ -93,10 +93,10 @@ table:
 Each tool section below transcribes its Legacy schema verbatim as a
 JSON Schema code block: every property, its type, and the `required`
 list, exactly as declared, plus the `workspace` parameter Wave 1 adds
-to every Ycode tool. Where Legacy declares no per-property
-description, none is transcribed; the short descriptions on Ycode
-schema properties are Ycode additions. `additionalProperties` is
-`false` on Ycode schemas: aliases pass arguments through unchanged,
+to every SwiftCode tool. Where Legacy declares no per-property
+description, none is transcribed; the short descriptions on SwiftCode
+schema properties are SwiftCode additions. `additionalProperties` is
+`false` on SwiftCode schemas: aliases pass arguments through unchanged,
 so an Agentic argument unknown to the alias target is rejected by
 validation before the handler runs.
 
@@ -122,7 +122,7 @@ ALREADY-SERVED 18 = 141. (Wave 10: the 7 GitHub tools §§65–71 plus
 git_pull/git_push/git_clone §§43–45 moved from HONESTLY-FAILING to
 PORTED; see the Wave 10 notes in those sections.) Registered (PORTED + HONESTLY-FAILING) =
 117, verified live by counting `tool("…")` calls in the eight
-`YcodeTools+Agentic*.swift` files (Files 6, Execution 9, Git 19,
+`SwiftCodeTools+Agentic*.swift` files (Files 6, Execution 9, Git 19,
 Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 ## Disposition summary
@@ -193,13 +193,13 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 | 62 | `install_dependencies` | `InstallDependenciesTool` | PORTED | — |
 | 63 | `update_dependencies` | `UpdateDependenciesTool` | PORTED | — |
 | 64 | `remove_dependencies` | `RemoveDependenciesTool` | PORTED | — |
-| 65 | `create_pull_request` | `CreatePullRequestTool` | PORTED | Wave 10: real `POST /pulls` via YcodeGitHub (see §65) |
-| 66 | `review_pull_request` | `ReviewPullRequestTool` | PORTED | Wave 10: real PR + reviews read via YcodeGitHub (see §66) |
-| 67 | `read_pull_request` | `ReadPullRequestTool` | PORTED | Wave 10: real PR + files read via YcodeGitHub (see §67) |
-| 68 | `read_issues` | `ReadIssuesTool` | PORTED | Wave 10: real `GET /issues` via YcodeGitHub (see §68) |
-| 69 | `create_issue` | `CreateIssueTool` | PORTED | Wave 10: real `POST /issues` via YcodeGitHub (see §69) |
-| 70 | `update_issue` | `UpdateIssueTool` | PORTED | Wave 10: real `PATCH /issues` via YcodeGitHub (see §70) |
-| 71 | `search_issues` | `SearchIssuesTool` | PORTED | Wave 10: real `GET /search/issues` via YcodeGitHub (see §71) |
+| 65 | `create_pull_request` | `CreatePullRequestTool` | PORTED | Wave 10: real `POST /pulls` via SwiftCodeGitHub (see §65) |
+| 66 | `review_pull_request` | `ReviewPullRequestTool` | PORTED | Wave 10: real PR + reviews read via SwiftCodeGitHub (see §66) |
+| 67 | `read_pull_request` | `ReadPullRequestTool` | PORTED | Wave 10: real PR + files read via SwiftCodeGitHub (see §67) |
+| 68 | `read_issues` | `ReadIssuesTool` | PORTED | Wave 10: real `GET /issues` via SwiftCodeGitHub (see §68) |
+| 69 | `create_issue` | `CreateIssueTool` | PORTED | Wave 10: real `POST /issues` via SwiftCodeGitHub (see §69) |
+| 70 | `update_issue` | `UpdateIssueTool` | PORTED | Wave 10: real `PATCH /issues` via SwiftCodeGitHub (see §70) |
+| 71 | `search_issues` | `SearchIssuesTool` | PORTED | Wave 10: real `GET /search/issues` via SwiftCodeGitHub (see §71) |
 | 72 | `cocoapods` | `CocoaPodsTool` | PORTED | — |
 | 73 | `carthage` | `CarthageTool` | PORTED | — |
 | 74 | `android_build` | `AndroidBuildTool` | PORTED | — |
@@ -339,7 +339,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 - **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **MCP annotations:** as the target. **`writes`:** `true`.
 - **Parameters (Agentic, from the slice table):** `sourcePath` (string, required), `destinationPath` (string, required). Target `file_copy` params: `source`, `destination`. Param-compatible: **no**.
 
-**Caveat.** Agentic takes `sourcePath` / `destinationPath`; the alias target takes `source` / `destination`. An Agentic-schema call fails validation (unknown keys). The same name denotes two different schemas in the two Legacy registries, and one Ycode alias can only point one way — it currently points at the Assist shape.
+**Caveat.** Agentic takes `sourcePath` / `destinationPath`; the alias target takes `source` / `destination`. An Agentic-schema call fails validation (unknown keys). The same name denotes two different schemas in the two Legacy registries, and one SwiftCode alias can only point one way — it currently points at the Assist shape.
 
 ## 8. `move_file` — Move File
 
@@ -384,7 +384,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 12. `read_multiple_files` — Read Multiple Files
 
 - **Legacy class:** `ReadMultipleFilesTool`.
-- **Disposition:** PORTED as `read_multiple_files` in `YcodeTools+AgenticFiles.swift` (`agenticFilesTools`).
+- **Disposition:** PORTED as `read_multiple_files` in `SwiftCodeTools+AgenticFiles.swift` (`agenticFilesTools`).
 - **Description (verbatim):** "Reads the content of multiple files."
 - **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -413,7 +413,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 14. `search_files` — Search Files
 
 - **Legacy class:** `SearchFilesTool`.
-- **Disposition:** PORTED as `search_files` in `YcodeTools+AgenticFiles.swift`.
+- **Disposition:** PORTED as `search_files` in `SwiftCodeTools+AgenticFiles.swift`.
 - **Description (verbatim):** "Searches for files matching a pattern in a directory."
 - **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -430,7 +430,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 15. `find_text` — Find Text
 
 - **Legacy class:** `FindTextTool`.
-- **Disposition:** PORTED as `find_text` in `YcodeTools+AgenticFiles.swift`.
+- **Disposition:** PORTED as `find_text` in `SwiftCodeTools+AgenticFiles.swift`.
 - **Description (verbatim):** "Searches for text in a directory."
 - **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -447,7 +447,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 16. `replace_text` — Replace Text
 
 - **Legacy class:** `ReplaceTextTool`.
-- **Disposition:** PORTED as `replace_text` in `YcodeTools+AgenticFiles.swift`.
+- **Disposition:** PORTED as `replace_text` in `SwiftCodeTools+AgenticFiles.swift`.
 - **Description (verbatim):** "Replaces text in a file."
 - **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `commit()` (full before/after text shown to the reviewer) **before** the file is written; `MCPServer.run` already refuses `writes: true` tools when the server is read-only. There is no Autopilot bypass.
 
@@ -467,7 +467,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 17. `grep` — Grep
 
 - **Legacy class:** `GrepTool`.
-- **Disposition:** PORTED as `grep` in `YcodeTools+AgenticFiles.swift`.
+- **Disposition:** PORTED as `grep` in `SwiftCodeTools+AgenticFiles.swift`.
 - **Description (verbatim):** "Searches for a pattern in a directory using grep."
 - **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -486,7 +486,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 18. `glob_search` — Glob Search
 
 - **Legacy class:** `GlobSearchTool`.
-- **Disposition:** PORTED as `glob_search` in `YcodeTools+AgenticFiles.swift`.
+- **Disposition:** PORTED as `glob_search` in `SwiftCodeTools+AgenticFiles.swift`.
 - **Description (verbatim):** "Searches for files matching a glob pattern."
 - **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -549,7 +549,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 22. `run_linter` — Run Linter
 
 - **Legacy class:** `RunLinterTool`.
-- **Disposition:** PORTED as `run_linter` in `YcodeTools+AgenticExecution.swift` (`agenticExecutionTools`).
+- **Disposition:** PORTED as `run_linter` in `SwiftCodeTools+AgenticExecution.swift` (`agenticExecutionTools`).
 - **Description (verbatim):** "Runs a linter (SwiftLint) on a given path."
 - **Capability:** `diagnostics`. **Risk:** `execution` (`readOnly: false, idempotent: false`, `writes: false` — a lint run modifies nothing).
 
@@ -566,7 +566,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 23. `run_formatter` — Run Formatter
 
 - **Legacy class:** `RunFormatterTool`.
-- **Disposition:** PORTED as `run_formatter` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `run_formatter` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Runs a formatter (SwiftFormat) on a given path."
 - **Capability:** `fileModification`. **Risk:** `safeMutation` (`readOnly: false, idempotent: true`, `writes: true`). **Gate:** explicit `MCPChange` + `approve()` before running (in read-only mode the server refuses before the handler runs).
 
@@ -578,12 +578,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Exit 0 → structured `exitCode` + `outputTail`; non-zero → failure with the exit code and tail.
 
-**Notes.** Legacy behaviour: runs `/usr/bin/swiftformat <path>` with the path itself as the working directory; returns stdout + stderr. Why not an alias of `code_format`: `code_format` applies Ycode's built-in `fileWritingSimpleFormat` and never invokes SwiftFormat. Same parameter shape (`path`), different behaviour — ported as distinct. Port behaviour: resolves `swiftformat` on `PATH` and runs `swiftformat <resolved-absolute-path>` as a fixed argv vector via `terminalRunFixed`, bounded at 300 s. This is a file mutation, so the tool is `writes: true` with `safeMutation` annotations. SwiftFormat absent → honest failure naming the missing binary. Deviations: same path-resolution and 300 s bound as `run_linter` (§22).
+**Notes.** Legacy behaviour: runs `/usr/bin/swiftformat <path>` with the path itself as the working directory; returns stdout + stderr. Why not an alias of `code_format`: `code_format` applies SwiftCode's built-in `fileWritingSimpleFormat` and never invokes SwiftFormat. Same parameter shape (`path`), different behaviour — ported as distinct. Port behaviour: resolves `swiftformat` on `PATH` and runs `swiftformat <resolved-absolute-path>` as a fixed argv vector via `terminalRunFixed`, bounded at 300 s. This is a file mutation, so the tool is `writes: true` with `safeMutation` annotations. SwiftFormat absent → honest failure naming the missing binary. Deviations: same path-resolution and 300 s bound as `run_linter` (§22).
 
 ## 24. `run_type_checker` — Run Type Checker
 
 - **Legacy class:** `RunTypeCheckerTool`.
-- **Disposition:** PORTED as `run_type_checker` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `run_type_checker` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Runs the Swift type checker on a project."
 - **Capability:** `compilation`. **Risk:** `execution` (`readOnly: false, idempotent: false`, `writes: false`).
 
@@ -595,12 +595,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Exit 0 → structured `exitCode` + `outputTail`; non-zero → failure with the exit code and tail.
 
-**Notes.** Legacy behaviour: runs `/usr/bin/swift build --build-tests` in `projectPath`; returns stdout + stderr. Why not an alias of `project_build`: `project_build` runs the session build for the scheme's build configuration; it has no build-tests action, so it cannot express "build including the test targets" (the type-check). Param shape matches (`projectPath`), behaviour does not. Port behaviour: resolves `projectPath` with `resolveFileReadingPath` (must be an existing directory inside the workspace; unlike `project_build` it need not be the open workspace itself, so a nested package works) and runs `swift build --build-tests` as a fixed argv vector via `terminalRunFixed`, bounded at 300 s. The session build seam was not used because it exposes no build-tests action — the only `--build-tests` use in `YcodeBuild` is inside the test runner, which also executes the tests. Swift toolchain absent → honest failure.
+**Notes.** Legacy behaviour: runs `/usr/bin/swift build --build-tests` in `projectPath`; returns stdout + stderr. Why not an alias of `project_build`: `project_build` runs the session build for the scheme's build configuration; it has no build-tests action, so it cannot express "build including the test targets" (the type-check). Param shape matches (`projectPath`), behaviour does not. Port behaviour: resolves `projectPath` with `resolveFileReadingPath` (must be an existing directory inside the workspace; unlike `project_build` it need not be the open workspace itself, so a nested package works) and runs `swift build --build-tests` as a fixed argv vector via `terminalRunFixed`, bounded at 300 s. The session build seam was not used because it exposes no build-tests action — the only `--build-tests` use in `SwiftCodeBuild` is inside the test runner, which also executes the tests. Swift toolchain absent → honest failure.
 
 ## 25. `run_static_analysis` — Run Static Analysis
 
 - **Legacy class:** `RunStaticAnalysisTool`.
-- **Disposition:** PORTED as `run_static_analysis` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `run_static_analysis` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Runs static analysis on a Swift project."
 - **Capability:** `compilation`. **Risk:** `execution` (`readOnly: false, idempotent: false`, `writes: false`).
 
@@ -617,7 +617,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 26. `run_benchmark` — Run Benchmark
 
 - **Legacy class:** `RunBenchmarkTool`.
-- **Disposition:** PORTED as `run_benchmark` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `run_benchmark` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Runs benchmarks on a Swift project."
 - **Capability:** `testing`. **Risk:** `execution` (`readOnly: false, idempotent: false`, `writes: false`).
 
@@ -634,7 +634,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 27. `run_application` — Run Application
 
 - **Legacy class:** `RunApplicationTool`.
-- **Disposition:** PORTED as `run_application` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `run_application` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Runs a Swift application target."
 - **Capability:** `systemExecution`. **Risk:** `execution` (`readOnly: false, idempotent: false`, `writes: false`).
 
@@ -652,7 +652,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 28. `stop_running_process` — Stop Running Process
 
 - **Legacy class:** `StopRunningProcessTool`.
-- **Disposition:** PORTED as `stop_running_process` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `stop_running_process` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Stops a running process using its PID."
 - **Capability:** `systemExecution`. **Risk:** `potentiallyDestructive` (`readOnly: false, destructive: true`, `writes: true`). **Gate:** explicit `MCPChange` + `approve()` (read-only mode refuses before the handler runs).
 
@@ -664,12 +664,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Legacy's exact message: `"Process <pid> terminated."`
 
-**Notes.** Legacy behaviour: calls `kill(pid, SIGTERM)` directly; returns `"Process <pid> terminated."`. Why not an alias of `stop`: the `stop` tool stops a host-managed run by `runId`; it has no `pid` parameter, so the Agentic tool's required `pid` is not a subset of its params and the alias would be rejected. Different behaviour (terminates an arbitrary OS process) — ported as distinct. Port behaviour: refuses PID ≤ 1 and Ycode's own PID, then gates through approval, then runs `/bin/kill -TERM <pid>` as a fixed argv vector (bounded at 30 s). A non-zero `kill` exit (e.g. no such process) is a failure carrying the exit code and `kill`'s message. Deviations: Legacy called `kill()` with no guard and no approval; the port adds both guards and the approval gate, and goes through `/bin/kill` instead of the C API so no Darwin/Glibc import is needed.
+**Notes.** Legacy behaviour: calls `kill(pid, SIGTERM)` directly; returns `"Process <pid> terminated."`. Why not an alias of `stop`: the `stop` tool stops a host-managed run by `runId`; it has no `pid` parameter, so the Agentic tool's required `pid` is not a subset of its params and the alias would be rejected. Different behaviour (terminates an arbitrary OS process) — ported as distinct. Port behaviour: refuses PID ≤ 1 and SwiftCode's own PID, then gates through approval, then runs `/bin/kill -TERM <pid>` as a fixed argv vector (bounded at 30 s). A non-zero `kill` exit (e.g. no such process) is a failure carrying the exit code and `kill`'s message. Deviations: Legacy called `kill()` with no guard and no approval; the port adds both guards and the approval gate, and goes through `/bin/kill` instead of the C API so no Darwin/Glibc import is needed.
 
 ## 29. `get_process_logs` — Get Process Logs
 
 - **Legacy class:** `GetProcessLogsTool`.
-- **Disposition:** HONESTLY-FAILING — registered as `get_process_logs` with Legacy's full schema in `YcodeTools+AgenticExecution.swift`; the handler validates `pid`, then always fails. The placeholder is NOT reproduced: inventing log text would be fake behaviour.
+- **Disposition:** HONESTLY-FAILING — registered as `get_process_logs` with Legacy's full schema in `SwiftCodeTools+AgenticExecution.swift`; the handler validates `pid`, then always fails. The placeholder is NOT reproduced: inventing log text would be fake behaviour.
 - **Description (verbatim):** "Retrieves logs for a running process."
 - **Capability:** `diagnostics`. **Risk:** `safeRead` (it would be a pure read if the store existed).
 
@@ -679,14 +679,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
  "required": ["pid"]}
 ```
 
-**Missing prerequisite (exact).** A per-process log buffer (stdout/stderr stored keyed by PID for processes the host started). Ycode's MCP host keeps run output keyed by run ID (`run_output`), never by PID, and tracks no child-process log store. The failure message names this.
+**Missing prerequisite (exact).** A per-process log buffer (stdout/stderr stored keyed by PID for processes the host started). SwiftCode's MCP host keeps run output keyed by run ID (`run_output`), never by PID, and tracks no child-process log store. The failure message names this.
 
 **Notes.** Legacy behaviour: `run()` returns the placeholder string `"Log data for process <pid>"` — there is no real log source behind it (the file's own comment: "Implementation would normally retrieve from a log buffer").
 
 ## 30. `read_build_logs` — Read Build Logs
 
 - **Legacy class:** `ReadBuildLogsTool`.
-- **Disposition:** PORTED as `read_build_logs` in `YcodeTools+AgenticExecution.swift`.
+- **Disposition:** PORTED as `read_build_logs` in `SwiftCodeTools+AgenticExecution.swift`.
 - **Description (verbatim):** "Reads build logs from a project directory."
 - **Capability:** `diagnostics`. **Risk:** `safeRead` (`.read` annotations, pure read).
 
@@ -719,7 +719,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 32. `swift_package_manager` — Swift Package Manager
 
 - **Legacy class:** `SwiftPackageManagerTool`.
-- **Disposition:** DUPLICATE-OF `swift_package_manager` — the ID is already a registered MCP tool (`YcodeTools+SPMDocs.swift`, Wave 7 slice C, the Assist tool of the same ID). No code was written for this ID in Wave 8.
+- **Disposition:** DUPLICATE-OF `swift_package_manager` — the ID is already a registered MCP tool (`SwiftCodeTools+SPMDocs.swift`, Wave 7 slice C, the Assist tool of the same ID). No code was written for this ID in Wave 8.
 - **Description (verbatim):** "Runs Swift Package Manager commands."
 - **Capability:** `compilation`. **Risk:** `execution`. **MCP annotations:** as the registered tool.
 
@@ -735,7 +735,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 33. `git_status` — Git Status
 
 - **Legacy class:** `GitStatusTool`.
-- **Disposition:** PORTED as `git_status` in `YcodeTools+AgenticGit.swift` (`agenticGitTools`). The Agentic tool owns this name in Wave 8: the former alias `git_status` → `version_control_operator` was **removed** in Wave 8 (the operator tool remains callable by its own name).
+- **Disposition:** PORTED as `git_status` in `SwiftCodeTools+AgenticGit.swift` (`agenticGitTools`). The Agentic tool owns this name in Wave 8: the former alias `git_status` → `version_control_operator` was **removed** in Wave 8 (the operator tool remains callable by its own name).
 - **Description (verbatim):** "Returns the status of the git repository."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -745,12 +745,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git status --porcelain` in `repositoryPath`; returns stdout. Empty output → "Working tree clean."
 
-**Notes.** Legacy behaviour: `git status --porcelain` in `repositoryPath`; returns stdout (unchecked). Port notes: non-zero exit throws git's message (Legacy would return an empty string on failure — see the deviations in `agentic-tools.md`). Why the operator tool does not cover it: `version_control_operator`'s `status` is `git status --short` with no file scope, it requires `action`, and it has no `repositoryPath` — parameter-incompatible. Ycode schema shape: Legacy's schema verbatim, plus the `workspace` parameter, with `repositoryPath` **optional** in the Ycode schema (Legacy requires it); omitted, the tool operates on the session workspace root.
+**Notes.** Legacy behaviour: `git status --porcelain` in `repositoryPath`; returns stdout (unchecked). Port notes: non-zero exit throws git's message (Legacy would return an empty string on failure — see the deviations in `agentic-tools.md`). Why the operator tool does not cover it: `version_control_operator`'s `status` is `git status --short` with no file scope, it requires `action`, and it has no `repositoryPath` — parameter-incompatible. SwiftCode schema shape: Legacy's schema verbatim, plus the `workspace` parameter, with `repositoryPath` **optional** in the SwiftCode schema (Legacy requires it); omitted, the tool operates on the session workspace root.
 
 ## 34. `git_diff` — Git Diff
 
 - **Legacy class:** `GitDiffTool`.
-- **Disposition:** PORTED as `git_diff` in `YcodeTools+AgenticGit.swift`. The former alias `git_diff` → `version_control_operator` was **removed** in Wave 8; the Agentic tool owns this name.
+- **Disposition:** PORTED as `git_diff` in `SwiftCodeTools+AgenticGit.swift`. The former alias `git_diff` → `version_control_operator` was **removed** in Wave 8; the Agentic tool owns this name.
 - **Description (verbatim):** "Returns the diff of changes in the repository."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -760,12 +760,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git diff` plus `file` when given, in `repositoryPath`; returns stdout. Empty output → "No changes."
 
-**Notes.** Legacy behaviour: `git diff` plus `file` when given, in `repositoryPath`; returns stdout (unchecked). Port notes: `file` is validated as a repository-relative path (leading `-` rejected); non-zero exit throws git's message. Why the operator tool does not cover it: the target's `diff` is whole-workspace `git diff -- .` with no `file` param and requires `action` — parameter-incompatible. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git diff` plus `file` when given, in `repositoryPath`; returns stdout (unchecked). Port notes: `file` is validated as a repository-relative path (leading `-` rejected); non-zero exit throws git's message. Why the operator tool does not cover it: the target's `diff` is whole-workspace `git diff -- .` with no `file` param and requires `action` — parameter-incompatible. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 35. `git_add` — Git Add
 
 - **Legacy class:** `GitAddTool`.
-- **Disposition:** PORTED as `git_add` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_add` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Adds files to the git staging area."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -775,12 +775,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Files added successfully" (git's output when non-empty, else Legacy's success string).
 
-**Notes.** Legacy behaviour: `git add <files...>` in `repositoryPath`; non-zero exit throws stderr; success returns "Files added successfully". Port notes: each file validated as repository-relative; empty `files` keeps Legacy's "Missing repositoryPath or files" error. No alias existed; `version_control_operator` commit stages everything internally (`git add -A`) but exposes no standalone add. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git add <files...>` in `repositoryPath`; non-zero exit throws stderr; success returns "Files added successfully". Port notes: each file validated as repository-relative; empty `files` keeps Legacy's "Missing repositoryPath or files" error. No alias existed; `version_control_operator` commit stages everything internally (`git add -A`) but exposes no standalone add. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 36. `git_commit` — Git Commit
 
 - **Legacy class:** `GitCommitTool`.
-- **Disposition:** PORTED as `git_commit` in `YcodeTools+AgenticGit.swift`. The former alias `git_commit` → `version_control_operator` was **removed** in Wave 8; the Agentic tool owns this name.
+- **Disposition:** PORTED as `git_commit` in `SwiftCodeTools+AgenticGit.swift`. The former alias `git_commit` → `version_control_operator` was **removed** in Wave 8; the Agentic tool owns this name.
 - **Description (verbatim):** "Commits staged changes to the git repository."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -790,12 +790,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Git's output when non-empty, else Legacy's "Changes committed successfully".
 
-**Notes.** Legacy behaviour: `git commit -m <message>` in `repositoryPath`; non-zero exit throws stderr; success returns "Changes committed successfully". Stages nothing — commits what is already staged. Why the operator tool does not cover it: the target runs `git add -A` first and commits with a default message, and requires `action` — behaviour and params differ. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git commit -m <message>` in `repositoryPath`; non-zero exit throws stderr; success returns "Changes committed successfully". Stages nothing — commits what is already staged. Why the operator tool does not cover it: the target runs `git add -A` first and commits with a default message, and requires `action` — behaviour and params differ. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 37. `git_checkout` — Git Checkout
 
 - **Legacy class:** `GitCheckoutTool`.
-- **Disposition:** PORTED as `git_checkout` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_checkout` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Checks out a Git branch."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -805,12 +805,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Successfully checked out branch \(branch)".
 
-**Notes.** Legacy behaviour: `git checkout <branch>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully checked out branch \(branch)". Port notes: `branch` validated with Wave 3's strict allow-list. Nearest ported tool is `git_branch_manager` `switch` (same git command), but its params (`action` + `branchName`) are incompatible with `branch` — an alias cannot remap them. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git checkout <branch>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully checked out branch \(branch)". Port notes: `branch` validated with Wave 3's strict allow-list. Nearest ported tool is `git_branch_manager` `switch` (same git command), but its params (`action` + `branchName`) are incompatible with `branch` — an alias cannot remap them. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 38. `git_branch` — Git Branch
 
 - **Legacy class:** `GitBranchTool`.
-- **Disposition:** PORTED as `git_branch` in `YcodeTools+AgenticGit.swift`. The former alias `git_branch` → `version_control_operator` was **removed** in Wave 8; the Agentic tool owns this name.
+- **Disposition:** PORTED as `git_branch` in `SwiftCodeTools+AgenticGit.swift`. The former alias `git_branch` → `version_control_operator` was **removed** in Wave 8; the Agentic tool owns this name.
 - **Description (verbatim):** "Lists Git branches."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -820,12 +820,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git branch --format=%(refname:short)` in `repositoryPath`; returns the lines joined by `\n`. Empty output → "No branches in the repository."
 
-**Notes.** Legacy behaviour: as above, returns the lines joined by `\n`. Why the operator tool does not cover it: the target's `branch` action creates/checks out a branch; it does not list — behaviour not covered. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: as above, returns the lines joined by `\n`. Why the operator tool does not cover it: the target's `branch` action creates/checks out a branch; it does not list — behaviour not covered. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 39. `git_merge` — Git Merge
 
 - **Legacy class:** `GitMergeTool`.
-- **Disposition:** PORTED as `git_merge` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_merge` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Merges a Git branch."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -835,12 +835,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Successfully merged branch \(branch)".
 
-**Notes.** Legacy behaviour: `git merge <branch>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully merged branch \(branch)". Port notes: `branch` validated with the strict allow-list. On failure with conflicted files, the error names them and the `git merge --abort` escape (Wave 3 cherry-pick shape). No alias, no target. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git merge <branch>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully merged branch \(branch)". Port notes: `branch` validated with the strict allow-list. On failure with conflicted files, the error names them and the `git merge --abort` escape (Wave 3 cherry-pick shape). No alias, no target. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 40. `git_rebase` — Git Rebase
 
 - **Legacy class:** `GitRebaseTool`.
-- **Disposition:** PORTED as `git_rebase` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_rebase` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Rebases the current branch onto another branch."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -850,12 +850,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Successfully rebased onto \(branch)".
 
-**Notes.** Legacy behaviour: `git rebase <branch>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully rebased onto \(branch)". Port notes: `branch` validated with the strict allow-list. On failure with conflicted files, the error names them and the `git rebase --abort` escape. No alias, no target. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git rebase <branch>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully rebased onto \(branch)". Port notes: `branch` validated with the strict allow-list. On failure with conflicted files, the error names them and the `git rebase --abort` escape. No alias, no target. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 41. `git_reset` — Git Reset
 
 - **Legacy class:** `GitResetTool`.
-- **Disposition:** PORTED as `git_reset` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_reset` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Resets the current HEAD to a specified state."
 - **Capability:** `gitOperations`. **Risk:** `potentiallyDestructive` (the Legacy default `--hard` discards uncommitted changes and moves HEAD). **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, destructive: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -865,12 +865,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Successfully reset to \(target) with mode \(mode)".
 
-**Notes.** Legacy behaviour: `git reset <mode> <target>` in `repositoryPath`, with Legacy defaults `mode` = `"--hard"`, `target` = `"HEAD"`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully reset to \(target) with mode \(mode)". Port notes: `mode` validated against `--soft/--mixed/--hard/--merge/--keep`; `target` validated with `gitIsValidRef`. Nearest ported tool is `version_control_operator` `rollback` (`git reset --hard` only), but its params (`ref`) are incompatible with `mode`/`target`. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git reset <mode> <target>` in `repositoryPath`, with Legacy defaults `mode` = `"--hard"`, `target` = `"HEAD"`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully reset to \(target) with mode \(mode)". Port notes: `mode` validated against `--soft/--mixed/--hard/--merge/--keep`; `target` validated with `gitIsValidRef`. Nearest ported tool is `version_control_operator` `rollback` (`git reset --hard` only), but its params (`ref`) are incompatible with `mode`/`target`. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 42. `git_stash` — Git Stash
 
 - **Legacy class:** `GitStashTool`.
-- **Disposition:** PORTED as `git_stash` in `YcodeTools+AgenticGit.swift`. The former alias `git_stash` → `git_stash_operator` was **removed** in Wave 8; the Agentic tool owns this name.
+- **Disposition:** PORTED as `git_stash` in `SwiftCodeTools+AgenticGit.swift`. The former alias `git_stash` → `git_stash_operator` was **removed** in Wave 8; the Agentic tool owns this name.
 - **Description (verbatim):** "Stashes changes in the working directory."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git for every action except `list` and `show` (which only report, but are still refused in `readOnly` mode because the tool is `writes: true`).
 
@@ -880,12 +880,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Successfully executed git stash \(action)".
 
-**Notes.** Legacy behaviour: `git stash <action>` in `repositoryPath`, with Legacy default `action` = `"push"`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully executed git stash \(action)". Port notes: `action` validated against `push/pop/list/show/drop/apply/clear` (Legacy passed it through unchecked). `show` keeps Legacy's plain form (no `-p`); Wave 3's `git_stash_operator` shows with `-p`. Why the operator tool does not cover it: params are incompatible (`repositoryPath` required in Agentic, absent in the target; Agentic passes `action` through raw, the target maps actions and adds `stashIndex`/`message`). `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git stash <action>` in `repositoryPath`, with Legacy default `action` = `"push"`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully executed git stash \(action)". Port notes: `action` validated against `push/pop/list/show/drop/apply/clear` (Legacy passed it through unchecked). `show` keeps Legacy's plain form (no `-p`); Wave 3's `git_stash_operator` shows with `-p`. Why the operator tool does not cover it: params are incompatible (`repositoryPath` required in Agentic, absent in the target; Agentic passes `action` through raw, the target maps actions and adds `stashIndex`/`message`). `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 43. `git_pull` — Git Pull
 
 - **Legacy class:** `GitPullTool`.
-- **Disposition:** HONESTLY-FAILING — registered as `git_pull` with full Legacy schema in `YcodeTools+AgenticGit.swift`; the handler always fails naming the missing prerequisite: remote access is out of scope for this wave; remote operations (push/pull/fetch/clone) are a later wave. No remote data is fetched and none is faked.
+- **Disposition:** HONESTLY-FAILING — registered as `git_pull` with full Legacy schema in `SwiftCodeTools+AgenticGit.swift`; the handler always fails naming the missing prerequisite: remote access is out of scope for this wave; remote operations (push/pull/fetch/clone) are a later wave. No remote data is fetched and none is faked.
 - **Description (verbatim):** "Pulls changes from a remote repository."
 - **Capability:** `gitOperations`. **Risk:** not applicable — the handler always fails (a real pull would be a remote mutation). **Required permission:** `none` (never runs). **Read-only:** yes as registered (github_repo precedent). **`writes`:** `false`.
 
@@ -900,7 +900,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 44. `git_push` — Git Push
 
 - **Legacy class:** `GitPushTool`.
-- **Disposition:** HONESTLY-FAILING — registered as `git_push` with full Legacy schema in `YcodeTools+AgenticGit.swift`; the handler always fails naming the later-wave remote prerequisite (as §43).
+- **Disposition:** HONESTLY-FAILING — registered as `git_push` with full Legacy schema in `SwiftCodeTools+AgenticGit.swift`; the handler always fails naming the later-wave remote prerequisite (as §43).
 - **Description (verbatim):** "Pushes committed changes to the remote repository."
 - **Capability:** `gitOperations`. **Risk:** not applicable — the handler always fails (a real push would be a remote mutation). **Required permission:** `none` (never runs). **Read-only:** yes as registered (github_repo precedent). **`writes`:** `false`.
 
@@ -915,7 +915,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 45. `git_clone` — Git Clone
 
 - **Legacy class:** `GitCloneTool`.
-- **Disposition:** HONESTLY-FAILING — registered as `git_clone` with full Legacy schema in `YcodeTools+AgenticGit.swift`; the handler always fails naming the later-wave remote prerequisite (as §43). This also covers local-path clones: the tool never runs git in this wave.
+- **Disposition:** HONESTLY-FAILING — registered as `git_clone` with full Legacy schema in `SwiftCodeTools+AgenticGit.swift`; the handler always fails naming the later-wave remote prerequisite (as §43). This also covers local-path clones: the tool never runs git in this wave.
 - **Description (verbatim):** "Clones a Git repository."
 - **Capability:** `gitOperations`. **Risk:** not applicable — the handler always fails (a real clone would be a remote fetch). **Required permission:** `none` (never runs). **Read-only:** yes as registered (github_repo precedent). **`writes`:** `false`.
 
@@ -923,14 +923,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"remoteURL": {"type": "string"}, "destinationPath": {"type": "string"}}, "required": ["remoteURL", "destinationPath"]}
 ```
 
-**Notes.** Legacy behaviour: `git clone <remoteURL> <destinationPath>` (no working directory); non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully cloned \(remoteURL) to \(destinationPath)". `git_clone` has no `repositoryPath` in Legacy and keeps both of its params required (unlike the other git tools, whose `repositoryPath` is optional in the Ycode schema).
+**Notes.** Legacy behaviour: `git clone <remoteURL> <destinationPath>` (no working directory); non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully cloned \(remoteURL) to \(destinationPath)". `git_clone` has no `repositoryPath` in Legacy and keeps both of its params required (unlike the other git tools, whose `repositoryPath` is optional in the SwiftCode schema).
 
 **Wave 10 note.** Now real: `git clone <remoteURL> <destinationPath>` (no working directory), URL-checked by the §3.3 policy (https://, SCP-like SSH, or a local path inside the workspace; other schemes, embedded credentials, and leading `-` rejected), approval-gated, registered `writes: true` with `annotations: safeMutation`. Success keeps Legacy's message; failure is `git_clone: git clone failed: <stderr>`. Same credential seeding as `git_pull` (`github-service.md` §3).
 
 ## 46. `git_blame` — Git Blame
 
 - **Legacy class:** `GitBlameTool`.
-- **Disposition:** PORTED as `git_blame` in `YcodeTools+AgenticGit.swift`. The former alias `git_blame` → `git_blame_inspector` was **removed** in Wave 8; the Agentic tool owns this name.
+- **Disposition:** PORTED as `git_blame` in `SwiftCodeTools+AgenticGit.swift`. The former alias `git_blame` → `git_blame_inspector` was **removed** in Wave 8; the Agentic tool owns this name.
 - **Description (verbatim):** "Shows Git blame for a file."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -940,12 +940,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git blame <file>` in `repositoryPath`; returns stdout.
 
-**Notes.** Legacy behaviour: `git blame <file>` in `repositoryPath`; returns stdout (unchecked). Port notes: `file` validated as repository-relative; non-zero exit throws git's message (Legacy would return an empty string). Why the inspector does not cover it: params are incompatible (`file` vs `path`, `repositoryPath` extra) and output differs (plain `git blame` vs porcelain + `blame -s`). `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git blame <file>` in `repositoryPath`; returns stdout (unchecked). Port notes: `file` validated as repository-relative; non-zero exit throws git's message (Legacy would return an empty string). Why the inspector does not cover it: params are incompatible (`file` vs `path`, `repositoryPath` extra) and output differs (plain `git blame` vs porcelain + `blame -s`). `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 47. `git_log` — Git Log
 
 - **Legacy class:** `GitLogTool`.
-- **Disposition:** PORTED as `git_log` in `YcodeTools+AgenticGit.swift`. The former alias `git_log` → `git_log_viewer` was **removed** in Wave 8; the Agentic tool owns this name.
+- **Disposition:** PORTED as `git_log` in `SwiftCodeTools+AgenticGit.swift`. The former alias `git_log` → `git_log_viewer` was **removed** in Wave 8; the Agentic tool owns this name.
 - **Description (verbatim):** "Shows Git log for a repository."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -955,12 +955,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git log --oneline -n 20` in `repositoryPath`; returns stdout. Empty output → "No commits found in the repository history."
 
-**Notes.** Legacy behaviour: `git log --oneline -n 20` in `repositoryPath`; returns stdout (unchecked). Port notes: fixed `-n 20` kept verbatim. Why the viewer does not cover it: params are incompatible (`repositoryPath` extra) and behaviour differs (fixed `-n 20` vs `maxCount` default 15 + optional `path`). `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git log --oneline -n 20` in `repositoryPath`; returns stdout (unchecked). Port notes: fixed `-n 20` kept verbatim. Why the viewer does not cover it: params are incompatible (`repositoryPath` extra) and behaviour differs (fixed `-n 20` vs `maxCount` default 15 + optional `path`). `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 48. `git_show` — Git Show
 
 - **Legacy class:** `GitShowTool`.
-- **Disposition:** PORTED as `git_show` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_show` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Shows details of a Git commit."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -970,12 +970,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git show <hash>` in `repositoryPath`; returns stdout.
 
-**Notes.** Legacy behaviour: `git show <hash>` in `repositoryPath`; returns stdout (unchecked). Port notes: `hash` validated with `gitIsValidCommit`; non-zero exit throws git's message. No alias, no target. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git show <hash>` in `repositoryPath`; returns stdout (unchecked). Port notes: `hash` validated with `gitIsValidCommit`; non-zero exit throws git's message. No alias, no target. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 49. `git_tag` — Git Tag
 
 - **Legacy class:** `GitTagTool`.
-- **Disposition:** PORTED as `git_tag` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_tag` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Lists Git tags."
 - **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -985,12 +985,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git tag` in `repositoryPath`; returns the lines joined by `\n`. Empty output → "No tags in the repository."
 
-**Notes.** Legacy behaviour: `git tag` in `repositoryPath`; returns the lines joined by `\n`. List only — Legacy has no create/delete form. No alias, no target. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git tag` in `repositoryPath`; returns the lines joined by `\n`. List only — Legacy has no create/delete form. No alias, no target. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 50. `git_cherry_pick` — Git Cherry-Pick
 
 - **Legacy class:** `GitCherryPickTool`.
-- **Disposition:** DUPLICATE-OF `git_cherry_pick` — the ID is already a registered MCP tool (the Wave 3 Assist tool in `YcodeTools+Git.swift`), so no second registration exists in `YcodeTools+AgenticGit.swift`. The one registration was **aligned in place** in Wave 8 to accept Agentic spellings: optional `hash` + `repositoryPath` properties were added, `required` changed from `["commit"]` to `[]`, and the handler uses `commit ?? hash`, with the repo resolved from `repositoryPath` or the workspace root. `noCommit` keeps Legacy's **string** schema.
+- **Disposition:** DUPLICATE-OF `git_cherry_pick` — the ID is already a registered MCP tool (the Wave 3 Assist tool in `SwiftCodeTools+Git.swift`), so no second registration exists in `SwiftCodeTools+AgenticGit.swift`. The one registration was **aligned in place** in Wave 8 to accept Agentic spellings: optional `hash` + `repositoryPath` properties were added, `required` changed from `["commit"]` to `[]`, and the handler uses `commit ?? hash`, with the repo resolved from `repositoryPath` or the workspace root. `noCommit` keeps Legacy's **string** schema.
 - **Description (verbatim):** "Cherry-picks a Git commit."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -1003,7 +1003,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 51. `git_revert` — Git Revert
 
 - **Legacy class:** `GitRevertTool`.
-- **Disposition:** PORTED as `git_revert` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_revert` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Reverts a Git commit."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git.
 
@@ -1013,12 +1013,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** "Successfully reverted \(hash)".
 
-**Notes.** Legacy behaviour: `git revert --no-edit <hash>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully reverted \(hash)". Port notes: `hash` validated with `gitIsValidCommit`; `--no-edit` kept verbatim (never waits for an editor). No alias, no target. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: `git revert --no-edit <hash>` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully reverted \(hash)". Port notes: `hash` validated with `gitIsValidCommit`; `--no-edit` kept verbatim (never waits for an editor). No alias, no target. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 52. `git_worktree` — Git Worktree
 
 - **Legacy class:** `GitWorktreeTool`.
-- **Disposition:** PORTED as `git_worktree` in `YcodeTools+AgenticGit.swift`.
+- **Disposition:** PORTED as `git_worktree` in `SwiftCodeTools+AgenticGit.swift`.
 - **Description (verbatim):** "Manages Git worktrees."
 - **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `gitApproveChange` before running git for every action except `list` and `prune` (which only report, but are still refused in `readOnly` mode because the tool is `writes: true`).
 
@@ -1028,12 +1028,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `git worktree <action>` in `repositoryPath` (the action passed through as a single argv token); returns stdout.
 
-**Notes.** Legacy behaviour: as above, returns stdout (unchecked). Port notes: `action` validated against `list/add/remove/move/lock/unlock/prune/repair`. `add`, `remove` and `move` need extra arguments Legacy's schema does not provide, so git reports its usage error for them — the Legacy limitation, preserved honestly rather than papered over with an invented schema. No alias, no target. `repositoryPath` optional in the Ycode schema (see §33).
+**Notes.** Legacy behaviour: as above, returns stdout (unchecked). Port notes: `action` validated against `list/add/remove/move/lock/unlock/prune/repair`. `add`, `remove` and `move` need extra arguments Legacy's schema does not provide, so git reports its usage error for them — the Legacy limitation, preserved honestly rather than papered over with an invented schema. No alias, no target. `repositoryPath` optional in the SwiftCode schema (see §33).
 
 ## 53. `fetch_url` — Fetch URL
 
 - **Legacy class:** `FetchURLTool` (`FetchURL.swift`).
-- **Disposition:** PORTED as `fetch_url` in `YcodeTools+AgenticNetwork.swift` (`agenticNetworkTools`).
+- **Disposition:** PORTED as `fetch_url` in `SwiftCodeTools+AgenticNetwork.swift` (`agenticNetworkTools`).
 - **Description (verbatim):** "Fetches the content of a URL."
 - **Capability:** external read. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `readOnly: true, idempotent: true, openWorld: true`. **`writes`:** `false`.
 
@@ -1043,12 +1043,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Structured `{status_code, content}`.
 
-**Notes.** Legacy behaviour: `URLSession.shared.data(from:)` on any URL string; returns the body as UTF-8 text (empty string when undecodable). Missing `url` → `AgentError.toolError("Missing url")`; unparseable URL → `AppError.commonError("Invalid URL")`. Port behaviour: HTTPS-only URL (scheme + host checked); `YcodeAssistant.HTTP.send` (the codebase's proven one-shot request helper, 30 s timeout); non-2xx is a failure; body capped at 2,000,000 bytes; returns structured `{status_code, content}`. Why not `external_resource_gateway`: that tool requires the body to be valid JSON and returns it pretty-printed; `fetch_url` returns raw text for any content type.
+**Notes.** Legacy behaviour: `URLSession.shared.data(from:)` on any URL string; returns the body as UTF-8 text (empty string when undecodable). Missing `url` → `AgentError.toolError("Missing url")`; unparseable URL → `AppError.commonError("Invalid URL")`. Port behaviour: HTTPS-only URL (scheme + host checked); `SwiftCodeAssistant.HTTP.send` (the codebase's proven one-shot request helper, 30 s timeout); non-2xx is a failure; body capped at 2,000,000 bytes; returns structured `{status_code, content}`. Why not `external_resource_gateway`: that tool requires the body to be valid JSON and returns it pretty-printed; `fetch_url` returns raw text for any content type.
 
 ## 54. `download_file` — Download File
 
 - **Legacy class:** `DownloadFileTool` (`DownloadFile.swift`).
-- **Disposition:** PORTED as `download_file` in `YcodeTools+AgenticNetwork.swift`.
+- **Disposition:** PORTED as `download_file` in `SwiftCodeTools+AgenticNetwork.swift`.
 - **Description (verbatim):** "Downloads a file from a URL."
 - **Capability:** external write. **Risk:** `externalSideEffect`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`. **Gate:** approval gate (`approveFileWritingChange`) before the fetch and the write.
 
@@ -1063,7 +1063,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 55. `upload_file` — Upload File
 
 - **Legacy class:** `UploadFileTool` (`UploadFile.swift`).
-- **Disposition:** PORTED as `upload_file` in `YcodeTools+AgenticNetwork.swift`.
+- **Disposition:** PORTED as `upload_file` in `SwiftCodeTools+AgenticNetwork.swift`.
 - **Description (verbatim):** "Uploads a file to a URL."
 - **Capability:** external write. **Risk:** `externalSideEffect`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`. **Gate:** approval gate before the file leaves the workspace (an upload is an external side effect carrying workspace data).
 
@@ -1073,12 +1073,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Structured `{status_code, content}`.
 
-**Notes.** Legacy behaviour: `URLSession.shared.upload(for:fromFile:)` with an HTTP POST; returns the response body as UTF-8 text. Port behaviour: HTTPS-only URL; source resolved with `resolveFileReadingPath` (workspace-confined, must exist); file capped at 10,000,000 bytes; POST via `YcodeAssistant.HTTP.send`; non-2xx is a failure; response body capped at 2,000,000 bytes.
+**Notes.** Legacy behaviour: `URLSession.shared.upload(for:fromFile:)` with an HTTP POST; returns the response body as UTF-8 text. Port behaviour: HTTPS-only URL; source resolved with `resolveFileReadingPath` (workspace-confined, must exist); file capped at 10,000,000 bytes; POST via `SwiftCodeAssistant.HTTP.send`; non-2xx is a failure; response body capped at 2,000,000 bytes.
 
 ## 56. `http_request` — HTTP Request
 
 - **Legacy class:** `HTTPRequestTool` (`HTTPRequest.swift`).
-- **Disposition:** PORTED as `http_request` in `YcodeTools+AgenticNetwork.swift`.
+- **Disposition:** PORTED as `http_request` in `SwiftCodeTools+AgenticNetwork.swift`.
 - **Description (verbatim):** "Performs an HTTP request."
 - **Capability:** external write (the method may mutate). **Risk:** `externalSideEffect`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`. **Gate:** mutating methods (POST/PUT/PATCH/DELETE) go through the approval gate and therefore need an open workspace; safe methods (GET/HEAD/OPTIONS) do not.
 
@@ -1093,7 +1093,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 57. `web_search` — Web Search
 
 - **Legacy class:** `WebSearchTool` (`WebSearch.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `web_search` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing prerequisite. No search was performed and no results were invented.
+- **Disposition:** HONESTLY-FAILING — registered as `web_search` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing prerequisite. No search was performed and no results were invented.
 - **Description (verbatim):** "Performs a web search."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** default (read-only); no network call is made.
 
@@ -1101,14 +1101,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
 ```
 
-**Missing prerequisite (exact).** A web search provider/backend in Ycode MCP.
+**Missing prerequisite (exact).** A web search provider/backend in SwiftCode MCP.
 
-**Notes.** Legacy behaviour: GETs `https://ddg-api.herokuapp.com/search?q=<percent-encoded query>` and returns the body, or `"No results"` when undecodable. Missing `query` → `"Missing query"`. Why honestly failing: Legacy's endpoint is an unofficial DuckDuckGo proxy, not a supported search backend. Ycode's MCP host has no web search provider at all. Wiring the tool to that proxy would depend on a defunct third-party endpoint; inventing results would be fake behaviour. Failure message: "web_search needs a web search provider, which Ycode's MCP host does not have yet: no search was performed. Legacy called an unofficial DuckDuckGo proxy (ddg-api.herokuapp.com) that is not a supported search backend; no request was sent to it and no results were invented."
+**Notes.** Legacy behaviour: GETs `https://ddg-api.herokuapp.com/search?q=<percent-encoded query>` and returns the body, or `"No results"` when undecodable. Missing `query` → `"Missing query"`. Why honestly failing: Legacy's endpoint is an unofficial DuckDuckGo proxy, not a supported search backend. SwiftCode's MCP host has no web search provider at all. Wiring the tool to that proxy would depend on a defunct third-party endpoint; inventing results would be fake behaviour. Failure message: "web_search needs a web search provider, which SwiftCode's MCP host does not have yet: no search was performed. Legacy called an unofficial DuckDuckGo proxy (ddg-api.herokuapp.com) that is not a supported search backend; no request was sent to it and no results were invented."
 
 ## 58. `documentation_search` — Documentation Search
 
 - **Legacy class:** `DocumentationSearchTool` (`DocumentationSearch.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `documentation_search` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing backend and pointing at `fetch_documentation`.
+- **Disposition:** HONESTLY-FAILING — registered as `documentation_search` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing backend and pointing at `fetch_documentation`.
 - **Description (verbatim):** "Searches for documentation."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1116,14 +1116,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
 ```
 
-**Missing prerequisite (exact).** A documentation search index/backend in Ycode MCP.
+**Missing prerequisite (exact).** A documentation search index/backend in SwiftCode MCP.
 
-**Notes.** Legacy behaviour: a stub. `run(query:)` returns the canned string `"Documentation for: \(query)"` without searching anything. Why honestly failing: returning that string would be fake behaviour. Ycode has no documentation search backend: `fetch_documentation` fetches a known Apple documentation page, it does not search.
+**Notes.** Legacy behaviour: a stub. `run(query:)` returns the canned string `"Documentation for: \(query)"` without searching anything. Why honestly failing: returning that string would be fake behaviour. SwiftCode has no documentation search backend: `fetch_documentation` fetches a known Apple documentation page, it does not search.
 
 ## 59. `api_reference_search` — API Reference Search
 
 - **Legacy class:** `APIReferenceSearchTool` (`APIReferenceSearch.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `api_reference_search` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing backend.
+- **Disposition:** HONESTLY-FAILING — registered as `api_reference_search` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing backend.
 - **Description (verbatim):** "Searches for API references."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1131,14 +1131,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
 ```
 
-**Missing prerequisite (exact).** A documentation search index/backend in Ycode MCP.
+**Missing prerequisite (exact).** A documentation search index/backend in SwiftCode MCP.
 
-**Notes.** Legacy behaviour: a stub. `run(query:)` returns the canned string `"API Reference for: \(query)"` without searching anything. Why honestly failing: same as `documentation_search` (§58) — the canned string is fake behaviour, and Ycode has no API-reference search backend (`fetch_documentation` fetches known pages only).
+**Notes.** Legacy behaviour: a stub. `run(query:)` returns the canned string `"API Reference for: \(query)"` without searching anything. Why honestly failing: same as `documentation_search` (§58) — the canned string is fake behaviour, and SwiftCode has no API-reference search backend (`fetch_documentation` fetches known pages only).
 
 ## 60. `package_search` — Package Search
 
 - **Legacy class:** `PackageSearchTool` (`PackageSearch.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `package_search` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing backend.
+- **Disposition:** HONESTLY-FAILING — registered as `package_search` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing backend.
 - **Description (verbatim):** "Searches for packages."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1146,14 +1146,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
 ```
 
-**Missing prerequisite (exact).** A package-index search backend in Ycode MCP (for example the Swift Package Index API).
+**Missing prerequisite (exact).** A package-index search backend in SwiftCode MCP (for example the Swift Package Index API).
 
-**Notes.** Legacy behaviour: a stub. `run(query:)` returns the canned string `"Package search results for: \(query)"` without searching anything. Why honestly failing: the canned string is fake behaviour, and Ycode has no package-index search backend.
+**Notes.** Legacy behaviour: a stub. `run(query:)` returns the canned string `"Package search results for: \(query)"` without searching anything. Why honestly failing: the canned string is fake behaviour, and SwiftCode has no package-index search backend.
 
 ## 61. `dependency_audit` — Dependency Audit
 
 - **Legacy class:** `DependencyAuditTool` (`DependencyAudit.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `dependency_audit` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `projectPath`, then fails naming the missing prerequisite.
+- **Disposition:** HONESTLY-FAILING — registered as `dependency_audit` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `projectPath`, then fails naming the missing prerequisite.
 - **Description (verbatim):** "Audits project dependencies for vulnerabilities."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call, no filesystem read.
 
@@ -1161,14 +1161,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"projectPath": {"type": "string"}}, "required": ["projectPath"]}
 ```
 
-**Missing prerequisite (exact).** A vulnerability/advisory data source in Ycode MCP.
+**Missing prerequisite (exact).** A vulnerability/advisory data source in SwiftCode MCP.
 
-**Notes.** Legacy behaviour: a stub. `run(projectPath:)` returns the canned string `"No vulnerabilities found in dependencies at \(projectPath)"` without checking anything — a clean bill of health invented out of nothing. Why honestly failing: no vulnerability check is possible without a vulnerability/advisory data source, and Ycode MCP has none. Returning Legacy's string would assert a security claim nobody verified. Not a duplicate of `package_dependency_audit`: that ported tool audits pins (declared vs. `Package.resolved`), not vulnerabilities. Different behaviour; no alias.
+**Notes.** Legacy behaviour: a stub. `run(projectPath:)` returns the canned string `"No vulnerabilities found in dependencies at \(projectPath)"` without checking anything — a clean bill of health invented out of nothing. Why honestly failing: no vulnerability check is possible without a vulnerability/advisory data source, and SwiftCode MCP has none. Returning Legacy's string would assert a security claim nobody verified. Not a duplicate of `package_dependency_audit`: that ported tool audits pins (declared vs. `Package.resolved`), not vulnerabilities. Different behaviour; no alias.
 
 ## 62. `install_dependencies` — Install Dependencies
 
 - **Legacy class:** `InstallDependenciesTool` (`InstallDependencies.swift`).
-- **Disposition:** PORTED as `install_dependencies` in `YcodeTools+AgenticNetwork.swift`.
+- **Disposition:** PORTED as `install_dependencies` in `SwiftCodeTools+AgenticNetwork.swift`.
 - **Description (verbatim):** "Installs project dependencies."
 - **Capability:** `execution`. **Risk:** `execution`. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true` (resolving fetches packages and writes into the package cache / `.build`). **Gate:** approval gate (`terminalApproveChange`).
 
@@ -1183,7 +1183,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 63. `update_dependencies` — Update Dependencies
 
 - **Legacy class:** `UpdateDependenciesTool` (`UpdateDependencies.swift`).
-- **Disposition:** PORTED as `update_dependencies` in `YcodeTools+AgenticNetwork.swift`.
+- **Disposition:** PORTED as `update_dependencies` in `SwiftCodeTools+AgenticNetwork.swift`.
 - **Description (verbatim):** "Updates project dependencies."
 - **Capability:** `execution`. **Risk:** `execution`. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** approval gate (`terminalApproveChange`).
 
@@ -1198,7 +1198,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 64. `remove_dependencies` — Remove Dependencies
 
 - **Legacy class:** `RemoveDependenciesTool` (`RemoveDependencies.swift`).
-- **Disposition:** PORTED as `remove_dependencies` in `YcodeTools+AgenticNetwork.swift`.
+- **Disposition:** PORTED as `remove_dependencies` in `SwiftCodeTools+AgenticNetwork.swift`.
 - **Description (verbatim):** "Removes a package dependency from the project."
 - **Capability:** `safeMutation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** the edited manifest goes through `commit()` (approval gate).
 
@@ -1213,7 +1213,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 65. `create_pull_request` — Create Pull Request
 
 - **Legacy class:** `CreatePullRequestTool` (`CreatePullRequest.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `create_pull_request` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates all four arguments, then fails naming the missing prerequisite.
+- **Disposition:** HONESTLY-FAILING — registered as `create_pull_request` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates all four arguments, then fails naming the missing prerequisite.
 - **Description (verbatim):** "Creates a pull request."
 - **Capability:** read-only (registered, never executes). **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1221,16 +1221,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"title": {"type": "string"}, "body": {"type": "string"}, "head": {"type": "string"}, "base": {"type": "string"}}, "required": ["title", "body", "head", "base"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
-**Notes.** Legacy behaviour: a stub. Returns `"PR created: \(title)"` with no API call behind it. Note: Legacy's schema carries no owner/repo — the tool could not have addressed a repository even if it had called an API. Why honestly failing: the Wave 3 `github_repo` precedent — Ycode's MCP host has no GitHub API client and no GitHub credential flow. This cannot be implemented purely on local git data: creating a PR is a GitHub-side write. Failure message: "<tool> needs a GitHub API client with authentication, which Ycode's MCP host does not have yet: no GitHub data was read or written. Remote and GitHub access is a later wave; use the workspace's local git tools (git_log_viewer, git_branch_compare, git_pr_summary) for local repository information."for local repository information."
+**Notes.** Legacy behaviour: a stub. Returns `"PR created: \(title)"` with no API call behind it. Note: Legacy's schema carries no owner/repo — the tool could not have addressed a repository even if it had called an API. Why honestly failing: the Wave 3 `github_repo` precedent — SwiftCode's MCP host has no GitHub API client and no GitHub credential flow. This cannot be implemented purely on local git data: creating a PR is a GitHub-side write. Failure message: "<tool> needs a GitHub API client with authentication, which SwiftCode's MCP host does not have yet: no GitHub data was read or written. Remote and GitHub access is a later wave; use the workspace's local git tools (git_log_viewer, git_branch_compare, git_pr_summary) for local repository information."for local repository information."
 
-**Wave 10 note.** Now real: `POST /repos/{owner}/{repo}/pulls` via `YcodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote (Legacy had no repo parameter at all). Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Success: `PR #<number> created: <title> (<html_url>)`. See `github-service.md` §2.1.
+**Wave 10 note.** Now real: `POST /repos/{owner}/{repo}/pulls` via `SwiftCodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote (Legacy had no repo parameter at all). Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Success: `PR #<number> created: <title> (<html_url>)`. See `github-service.md` §2.1.
 
 ## 66. `review_pull_request` — Review Pull Request
 
 - **Legacy class:** `ReviewPullRequestTool` (`ReviewPullRequest.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `review_pull_request` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `prNumber`, then fails naming the missing prerequisite (as §65).
+- **Disposition:** HONESTLY-FAILING — registered as `review_pull_request` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `prNumber`, then fails naming the missing prerequisite (as §65).
 - **Description (verbatim):** "Reviews a pull request."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1238,16 +1238,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"prNumber": {"type": "integer"}}, "required": ["prNumber"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"Reviewing PR #\(prNumber)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Reviewing a PR needs the PR's diff and review API, which live on GitHub, not in the local checkout. (The local `git_pr_summary` tool only summarises already-fetched local refs.)(The local `git_pr_summary` tool only summarises already-fetched local refs.)
 
-**Wave 10 note.** Now real as a read-only summary: the PR plus its reviews, via `YcodeGitHub`; no token required for a public repo. Legacy has no `body`/`event` parameter, so there is no submit-a-review path — no parameter was invented. See `github-service.md` §2.2.
+**Wave 10 note.** Now real as a read-only summary: the PR plus its reviews, via `SwiftCodeGitHub`; no token required for a public repo. Legacy has no `body`/`event` parameter, so there is no submit-a-review path — no parameter was invented. See `github-service.md` §2.2.
 
 ## 67. `read_pull_request` — Read Pull Request
 
 - **Legacy class:** `ReadPullRequestTool` (`ReadPullRequest.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `read_pull_request` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `prNumber`, then fails naming the missing prerequisite (as §65).
+- **Disposition:** HONESTLY-FAILING — registered as `read_pull_request` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `prNumber`, then fails naming the missing prerequisite (as §65).
 - **Description (verbatim):** "Reads content of a pull request."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1255,16 +1255,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"prNumber": {"type": "integer"}}, "required": ["prNumber"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"Content of PR #\(prNumber)"` with no API call behind it. Why honestly failing: same prerequisite as §65. PR content lives on GitHub; it is not in local git data (unless the `refs/pull/…` ref was explicitly fetched, which the tool cannot assume and which Legacy never did).which Legacy never did).
 
-**Wave 10 note.** Now real: the PR plus its changed files, via `YcodeGitHub`; no token required for a public repo. The file list is capped at 30 entries. See `github-service.md` §2.3.
+**Wave 10 note.** Now real: the PR plus its changed files, via `SwiftCodeGitHub`; no token required for a public repo. The file list is capped at 30 entries. See `github-service.md` §2.3.
 
 ## 68. `read_issues` — Read Issues
 
 - **Legacy class:** `ReadIssuesTool` (`ReadIssues.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `read_issues` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `repository`, then fails naming the missing prerequisite (as §65).
+- **Disposition:** HONESTLY-FAILING — registered as `read_issues` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `repository`, then fails naming the missing prerequisite (as §65).
 - **Description (verbatim):** "Reads issues for a repository."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1272,16 +1272,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"repository": {"type": "string"}}, "required": ["repository"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"List of issues for \(repository)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Issues live on GitHub, not in the local checkout.Issues live on GitHub, not in the local checkout.
 
-**Wave 10 note.** Now real: `GET /repos/{owner}/{repo}/issues?state=open`, PRs excluded, via `YcodeGitHub`; no token required for a public repo. See `github-service.md` §2.4.
+**Wave 10 note.** Now real: `GET /repos/{owner}/{repo}/issues?state=open`, PRs excluded, via `SwiftCodeGitHub`; no token required for a public repo. See `github-service.md` §2.4.
 
 ## 69. `create_issue` — Create Issue
 
 - **Legacy class:** `CreateIssueTool` (`CreateIssue.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `create_issue` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `title` and `body`, then fails naming the missing prerequisite (as §65).
+- **Disposition:** HONESTLY-FAILING — registered as `create_issue` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `title` and `body`, then fails naming the missing prerequisite (as §65).
 - **Description (verbatim):** "Creates an issue."
 - **Capability:** read-only (registered, never executes). **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1289,16 +1289,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"title": {"type": "string"}, "body": {"type": "string"}}, "required": ["title", "body"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"Issue created: \(title)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Creating an issue is a GitHub-side write.Creating an issue is a GitHub-side write.
 
-**Wave 10 note.** Now real: `POST /repos/{owner}/{repo}/issues` via `YcodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote. Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Success: `Issue #<number> created: <title> (<html_url>)`. See `github-service.md` §2.5.
+**Wave 10 note.** Now real: `POST /repos/{owner}/{repo}/issues` via `SwiftCodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote. Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Success: `Issue #<number> created: <title> (<html_url>)`. See `github-service.md` §2.5.
 
 ## 70. `update_issue` — Update Issue
 
 - **Legacy class:** `UpdateIssueTool` (`UpdateIssue.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `update_issue` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `issueNumber`, then fails naming the missing prerequisite (as §65).
+- **Disposition:** HONESTLY-FAILING — registered as `update_issue` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `issueNumber`, then fails naming the missing prerequisite (as §65).
 - **Description (verbatim):** "Updates an issue."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1306,16 +1306,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"issueNumber": {"type": "integer"}, "title": {"type": "string"}, "body": {"type": "string"}}, "required": ["issueNumber"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"Issue #\(issueNumber) updated"` with no API call behind it. `title`/`body` are optional (only `issueNumber` is required). Why honestly failing: same prerequisite as §65.
 
-**Wave 10 note.** Now real: `PATCH /repos/{owner}/{repo}/issues/{number}` via `YcodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote. Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Fails when neither `title` nor `body` is supplied instead of sending an empty PATCH. See `github-service.md` §2.6.
+**Wave 10 note.** Now real: `PATCH /repos/{owner}/{repo}/issues/{number}` via `SwiftCodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote. Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Fails when neither `title` nor `body` is supplied instead of sending an empty PATCH. See `github-service.md` §2.6.
 
 ## 71. `search_issues` — Search Issues
 
 - **Legacy class:** `SearchIssuesTool` (`SearchIssues.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `search_issues` with Legacy's full schema in `YcodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing prerequisite (as §65).
+- **Disposition:** HONESTLY-FAILING — registered as `search_issues` with Legacy's full schema in `SwiftCodeTools+AgenticNetwork.swift`; the handler validates `query`, then fails naming the missing prerequisite (as §65).
 - **Description (verbatim):** "Searches for issues."
 - **Capability:** read-only. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** read-only; no network call.
 
@@ -1323,16 +1323,16 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
 ```
 
-**Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
+**Missing prerequisite (exact).** GitHub API client + credential flow in SwiftCode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"Search results for issues: \(query)"` with no API call behind it. Why honestly failing: same prerequisite as §65. GitHub issue search is a GitHub API operation, not local data.
 
-**Wave 10 note.** Now real: `GET /search/issues` via `YcodeGitHub`; no token required for a public search. The new optional `repository` argument appends `repo:<owner>/<repo>` to the query (Legacy's schema has no `repository` argument). See `github-service.md` §2.7.
+**Wave 10 note.** Now real: `GET /search/issues` via `SwiftCodeGitHub`; no token required for a public search. The new optional `repository` argument appends `repo:<owner>/<repo>` to the query (Legacy's schema has no `repository` argument). See `github-service.md` §2.7.
 
 ## 72. `cocoapods` — CocoaPods
 
 - **Legacy class:** `CocoaPodsTool`.
-- **Disposition:** PORTED as `cocoapods` in `YcodeTools+AgenticCLI.swift` (`agenticCLITools`).
+- **Disposition:** PORTED as `cocoapods` in `SwiftCodeTools+AgenticCLI.swift` (`agenticCLITools`).
 - **Description (verbatim):** "Runs CocoaPods commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1354,7 +1354,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 73. `carthage` — Carthage
 
 - **Legacy class:** `CarthageTool`.
-- **Disposition:** PORTED as `carthage` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `carthage` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs Carthage commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1376,7 +1376,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 74. `android_build` — Build Android Project
 
 - **Legacy class:** `AndroidBuildTool`.
-- **Disposition:** PORTED as `android_build` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `android_build` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Builds an Android project."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1397,7 +1397,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 75. `gradle` — Gradle
 
 - **Legacy class:** `GradleTool`.
-- **Disposition:** PORTED as `gradle` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `gradle` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs Gradle commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1419,7 +1419,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 76. `npm` — npm
 
 - **Legacy class:** `NpmTool`.
-- **Disposition:** PORTED as `npm` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `npm` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs npm commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1441,7 +1441,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 77. `pnpm` — pnpm
 
 - **Legacy class:** `PnpmTool`.
-- **Disposition:** PORTED as `pnpm` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `pnpm` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs pnpm commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1463,7 +1463,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 78. `yarn` — Yarn
 
 - **Legacy class:** `YarnTool`.
-- **Disposition:** PORTED as `yarn` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `yarn` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs yarn commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1485,7 +1485,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 79. `bun` — Bun
 
 - **Legacy class:** `BunTool`.
-- **Disposition:** PORTED as `bun` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `bun` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs bun commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1507,7 +1507,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 80. `cargo` — Cargo
 
 - **Legacy class:** `CargoTool`.
-- **Disposition:** PORTED as `cargo` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `cargo` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs cargo commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1529,7 +1529,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 81. `go_build` — Build Go Project
 
 - **Legacy class:** `GoBuildTool`.
-- **Disposition:** PORTED as `go_build` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `go_build` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Builds a Go project."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1550,7 +1550,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 82. `python_pip` — Python pip
 
 - **Legacy class:** `PythonPipTool`.
-- **Disposition:** PORTED as `python_pip` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `python_pip` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs pip commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1572,7 +1572,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 83. `java_maven` — Maven
 
 - **Legacy class:** `JavaMavenTool`.
-- **Disposition:** PORTED as `java_maven` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `java_maven` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs Maven commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1594,7 +1594,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 84. `dotnet_cli` — .NET CLI
 
 - **Legacy class:** `DotNetCLITool`.
-- **Disposition:** PORTED as `dotnet_cli` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `dotnet_cli` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs .NET CLI commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1616,7 +1616,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 85. `flutter` — Flutter
 
 - **Legacy class:** `FlutterTool`.
-- **Disposition:** PORTED as `flutter` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `flutter` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs Flutter commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1638,7 +1638,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 86. `react_native` — React Native
 
 - **Legacy class:** `ReactNativeTool`.
-- **Disposition:** PORTED as `react_native` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `react_native` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs React Native commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1660,7 +1660,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 87. `expo` — Expo
 
 - **Legacy class:** `ExpoTool`.
-- **Disposition:** PORTED as `expo` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `expo` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs Expo commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1682,7 +1682,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 88. `docker_build` — Build Docker Image
 
 - **Legacy class:** `DockerBuildTool`.
-- **Disposition:** PORTED as `docker_build` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `docker_build` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Builds a Docker image."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1704,7 +1704,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 89. `docker_run` — Run Docker Container
 
 - **Legacy class:** `DockerRunTool`.
-- **Disposition:** PORTED as `docker_run` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `docker_run` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs a Docker container."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1725,7 +1725,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 90. `docker_compose` — Docker Compose
 
 - **Legacy class:** `DockerComposeTool`.
-- **Disposition:** PORTED as `docker_compose` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `docker_compose` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Runs docker-compose commands."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1747,7 +1747,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 91. `kubernetes_apply` — Apply Kubernetes Configuration
 
 - **Legacy class:** `KubernetesApplyTool`.
-- **Disposition:** PORTED as `kubernetes_apply` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `kubernetes_apply` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Applies a Kubernetes configuration."
 - **Capability:** `execution`. **Risk:** `execution`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`. **Gate:** `terminalApproveChange` before running.
 
@@ -1768,7 +1768,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 92. `view_container_logs` — View Container Logs
 
 - **Legacy class:** `ViewContainerLogsTool`.
-- **Disposition:** PORTED as `view_container_logs` in `YcodeTools+AgenticCLI.swift`.
+- **Disposition:** PORTED as `view_container_logs` in `SwiftCodeTools+AgenticCLI.swift`.
 - **Description (verbatim):** "Views logs for a Docker container."
 - **Capability:** read. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read` (`readOnly: true, idempotent: true`). **`writes`:** `false`. **Gate:** none — no approval gate. The one pure read in this slice.
 
@@ -1789,7 +1789,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 93. `call_hierarchy` — Call Hierarchy
 
 - **Legacy class:** `CallHierarchyTool` (`CallHierarchy.swift`).
-- **Disposition:** DUPLICATE-OF `call_hierarchy` — the ID is already registered by the Wave 3 port of Assist's `AssistCallHierarchyTool` (`YcodeTools+Search.swift`), so no second registration exists. The registered tool is real behaviour serving the Agentic tool's purpose, and strictly more than the Agentic stub.
+- **Disposition:** DUPLICATE-OF `call_hierarchy` — the ID is already registered by the Wave 3 port of Assist's `AssistCallHierarchyTool` (`SwiftCodeTools+Search.swift`), so no second registration exists. The registered tool is real behaviour serving the Agentic tool's purpose, and strictly more than the Agentic stub.
 - **Description (verbatim, Agentic):** "Displays the call hierarchy of a symbol."
 - **Capability:** as the ported tool (`safeRead`). **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -1802,7 +1802,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 94. `dependency_graph` — Dependency Graph
 
 - **Legacy class:** `DependencyGraphTool` (`DependencyGraph.swift`).
-- **Disposition:** DUPLICATE-OF `dependency_graph` — the ID is already registered by the Wave 3 port of Assist's `AssistDependencyGraphTool` (`YcodeTools+Search.swift`), so no second registration exists. The registered tool is real behaviour serving the Agentic tool's purpose, and strictly more than the Agentic stub.
+- **Disposition:** DUPLICATE-OF `dependency_graph` — the ID is already registered by the Wave 3 port of Assist's `AssistDependencyGraphTool` (`SwiftCodeTools+Search.swift`), so no second registration exists. The registered tool is real behaviour serving the Agentic tool's purpose, and strictly more than the Agentic stub.
 - **Description (verbatim, Agentic):** "Generates a dependency graph for a project."
 - **Capability:** as the ported tool (`safeRead`). **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -1841,7 +1841,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 97. `generate_code` — Generate Code
 
 - **Legacy class:** `GenerateCodeTool` (`GenerateCode.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `generate_code` with the full Legacy schema in `YcodeTools+AgenticCode.swift` (`agenticCodeTools`); the handler always fails, naming the missing LLM provider (Wave 2 `code_refactor` / Wave 6 `code_review` precedent). Legacy itself returns a canned string — a fake in Legacy, not ported as real behaviour.
+- **Disposition:** HONESTLY-FAILING — registered as `generate_code` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift` (`agenticCodeTools`); the handler always fails, naming the missing LLM provider (Wave 2 `code_refactor` / Wave 6 `code_review` precedent). Legacy itself returns a canned string — a fake in Legacy, not ported as real behaviour.
 - **Description (verbatim):** "Generates code based on a prompt."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema (as with `code_refactor` / `code_review`).
 
@@ -1849,14 +1849,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"// Generated code based on: <prompt>\nfunc generated() {}"`. Failure message (verbatim): `generate_code is unavailable: generating code from a prompt needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned stub ("// Generated code based on: <prompt>"), so nothing is generated here.` Template / stub generation labelled as such was explicitly ruled out as a stand-in: the tool's real value is LLM generation. Each handler throws `MCPToolError` with its message; no workspace session is needed and nothing is written. Not a duplicate of `code_generate`: the ported tool renders one of four fixed file templates from a required `path` + `template`; the Agentic tool takes a free-form `prompt`. Different parameters and different behaviour.
+**Notes.** Legacy behaviour: returns `"// Generated code based on: <prompt>\nfunc generated() {}"`. Failure message (verbatim): `generate_code is unavailable: generating code from a prompt needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned stub ("// Generated code based on: <prompt>"), so nothing is generated here.` Template / stub generation labelled as such was explicitly ruled out as a stand-in: the tool's real value is LLM generation. Each handler throws `MCPToolError` with its message; no workspace session is needed and nothing is written. Not a duplicate of `code_generate`: the ported tool renders one of four fixed file templates from a required `path` + `template`; the Agentic tool takes a free-form `prompt`. Different parameters and different behaviour.
 
 ## 98. `refactor_code` — Refactor Code
 
 - **Legacy class:** `RefactorCodeTool` (`RefactorCode.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `refactor_code` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `refactor_code` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Refactors code based on instructions."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1864,14 +1864,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}, "instructions": {"type": "string"}}, "required": ["code", "instructions"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"// Refactored code\n\(code)"` — the input code unchanged with a comment. Failure message (verbatim): `refactor_code is unavailable: refactoring code from instructions needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns the input code unchanged with a comment, so nothing was changed.` Not a duplicate of `code_refactor`: the ported tool is itself honestly failing and takes `path` + `action`; the Agentic tool takes inline `code` + `instructions`. Not alias-compatible.
+**Notes.** Legacy behaviour: returns `"// Refactored code\n\(code)"` — the input code unchanged with a comment. Failure message (verbatim): `refactor_code is unavailable: refactoring code from instructions needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns the input code unchanged with a comment, so nothing was changed.` Not a duplicate of `code_refactor`: the ported tool is itself honestly failing and takes `path` + `action`; the Agentic tool takes inline `code` + `instructions`. Not alias-compatible.
 
 ## 99. `review_code` — Review Code
 
 - **Legacy class:** `ReviewCodeTool` (`ReviewCode.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `review_code` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `review_code` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Reviews code using AI."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1879,14 +1879,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"Review comments: LGTM!"`. Failure message (verbatim): `review_code is unavailable: reviewing code needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned "Review comments: LGTM!", so no review is performed and nothing was verified.` Not a duplicate of `code_review`: the ported tool is itself honestly failing and takes no parameters; the Agentic tool takes inline `code`. Not alias-compatible.
+**Notes.** Legacy behaviour: returns `"Review comments: LGTM!"`. Failure message (verbatim): `review_code is unavailable: reviewing code needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned "Review comments: LGTM!", so no review is performed and nothing was verified.` Not a duplicate of `code_review`: the ported tool is itself honestly failing and takes no parameters; the Agentic tool takes inline `code`. Not alias-compatible.
 
 ## 100. `fix_bugs` — Fix Bugs
 
 - **Legacy class:** `FixBugsTool` (`FixBugs.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `fix_bugs` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `fix_bugs` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Fixes bugs in Swift code."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1894,14 +1894,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}, "issue": {"type": "string"}}, "required": ["code", "issue"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"// Fixed code\n\(code)"` — the input code unchanged with a comment. Failure message (verbatim): `fix_bugs is unavailable: fixing a described bug needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns the input code unchanged with a comment, so nothing was changed.` Not a duplicate of `intel_autofix`: the ported tool is itself honestly failing and takes `path`; the Agentic tool takes inline `code` + `issue`. Not alias-compatible.
+**Notes.** Legacy behaviour: returns `"// Fixed code\n\(code)"` — the input code unchanged with a comment. Failure message (verbatim): `fix_bugs is unavailable: fixing a described bug needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns the input code unchanged with a comment, so nothing was changed.` Not a duplicate of `intel_autofix`: the ported tool is itself honestly failing and takes `path`; the Agentic tool takes inline `code` + `issue`. Not alias-compatible.
 
 ## 101. `generate_unit_tests` — Generate Unit Tests
 
 - **Legacy class:** `GenerateUnitTestsTool` (`GenerateUnitTests.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `generate_unit_tests` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `generate_unit_tests` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Generates unit tests for the provided code."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1909,14 +1909,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"import XCTest\nclass GeneratedTests: XCTestCase {}"` — a canned empty XCTestCase stub. Failure message (verbatim): `generate_unit_tests is unavailable: generating unit tests with meaningful assertions needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned empty XCTestCase stub, so nothing is generated.` Not a duplicate of `intel_generate_tests`: the ported tool generates test stubs from a file `path` and writes them through `commit()`; the Agentic tool takes inline `code` and returns text. Not alias-compatible, and stub generation labelled as such is not an acceptable stand-in for LLM test generation.
+**Notes.** Legacy behaviour: returns `"import XCTest\nclass GeneratedTests: XCTestCase {}"` — a canned empty XCTestCase stub. Failure message (verbatim): `generate_unit_tests is unavailable: generating unit tests with meaningful assertions needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned empty XCTestCase stub, so nothing is generated.` Not a duplicate of `intel_generate_tests`: the ported tool generates test stubs from a file `path` and writes them through `commit()`; the Agentic tool takes inline `code` and returns text. Not alias-compatible, and stub generation labelled as such is not an acceptable stand-in for LLM test generation.
 
 ## 102. `generate_integration_tests` — Generate Integration Tests
 
 - **Legacy class:** `GenerateIntegrationTestsTool` (`GenerateIntegrationTests.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `generate_integration_tests` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `generate_integration_tests` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Generates integration tests for the provided code."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1924,14 +1924,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"import XCTest\nclass GeneratedIntegrationTests: XCTestCase {}"` — a canned empty XCTestCase stub. Failure message (verbatim): `generate_integration_tests is unavailable: generating integration tests with meaningful assertions needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned empty XCTestCase stub, so nothing is generated.` Not a duplicate of `intel_generate_tests` (as §101).
+**Notes.** Legacy behaviour: returns `"import XCTest\nclass GeneratedIntegrationTests: XCTestCase {}"` — a canned empty XCTestCase stub. Failure message (verbatim): `generate_integration_tests is unavailable: generating integration tests with meaningful assertions needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned empty XCTestCase stub, so nothing is generated.` Not a duplicate of `intel_generate_tests` (as §101).
 
 ## 103. `generate_documentation` — Generate Documentation
 
 - **Legacy class:** `GenerateDocumentationTool` (`GenerateDocumentation.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `generate_documentation` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `generate_documentation` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Generates documentation for the provided code."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1939,14 +1939,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"/// Documentation for the provided code"`. Failure message (verbatim): `generate_documentation is unavailable: generating documentation for code needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned "/// Documentation for the provided code" line, so nothing is generated.` Not a duplicate of `docstring_generator`: the ported tool takes a `declaration` header (+ `summary`) and renders a DocC comment; the Agentic tool takes arbitrary `code`. Not alias-compatible.
+**Notes.** Legacy behaviour: returns `"/// Documentation for the provided code"`. Failure message (verbatim): `generate_documentation is unavailable: generating documentation for code needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned "/// Documentation for the provided code" line, so nothing is generated.` Not a duplicate of `docstring_generator`: the ported tool takes a `declaration` header (+ `summary`) and renders a DocC comment; the Agentic tool takes arbitrary `code`. Not alias-compatible.
 
 ## 104. `generate_comments` — Generate Comments
 
 - **Legacy class:** `GenerateCommentsTool` (`GenerateComments.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `generate_comments` with the full Legacy schema in `YcodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
+- **Disposition:** HONESTLY-FAILING — registered as `generate_comments` with the full Legacy schema in `SwiftCodeTools+AgenticCode.swift`; the handler always fails, naming the missing LLM provider (as §97).
 - **Description (verbatim):** "Generates comments for the provided code."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`. No output schema.
 
@@ -1954,14 +1954,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}
 ```
 
-**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in Ycode's MCP host.
+**Missing prerequisite (exact).** An LLM provider (OpenRouter / the configured Assist provider) wired for this tool in SwiftCode's MCP host.
 
-**Notes.** Legacy behaviour: returns `"// Comments for the provided code"`. Failure message (verbatim): `generate_comments is unavailable: generating comments for code needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned "// Comments for the provided code" line, so nothing is generated.`
+**Notes.** Legacy behaviour: returns `"// Comments for the provided code"`. Failure message (verbatim): `generate_comments is unavailable: generating comments for code needs an LLM provider (OpenRouter / the configured Assist provider), and SwiftCode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned "// Comments for the provided code" line, so nothing is generated.`
 
 ## 105. `detect_bugs` — Detect Bugs
 
 - **Legacy class:** `DetectBugsTool` (`DetectBugs.swift`).
-- **Disposition:** PORTED as `detect_bugs` in `YcodeTools+AgenticCode.swift` (deterministic subset).
+- **Disposition:** PORTED as `detect_bugs` in `SwiftCodeTools+AgenticCode.swift` (deterministic subset).
 - **Description (verbatim):** "Detects bugs in Swift code."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -1976,7 +1976,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 106. `explain_code` — Explain Code
 
 - **Legacy class:** `ExplainCodeTool` (`ExplainCode.swift`).
-- **Disposition:** PORTED as `explain_code` in `YcodeTools+AgenticCode.swift` (deterministic subset).
+- **Disposition:** PORTED as `explain_code` in `SwiftCodeTools+AgenticCode.swift` (deterministic subset).
 - **Description (verbatim):** "Explains code using AI."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -1986,12 +1986,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (structured).** `explanation` (string). The summary is the explanation itself.
 
-**Notes.** Legacy behaviour: the one tool in this slice that is genuinely LLM-backed — it streams a chat completion from OpenRouter (`openai/gpt-4o-mini`, "Explain this code:\n…") and returns the explanation. No LLM provider is wired in Ycode's MCP host, so the LLM path cannot be ported. Ported behaviour: the deterministic subset the project already accepted for `intel_explain_code` (`YcodeTools+Planning.swift`, `explainCode`): the static structural explanation from `PlanningSupport.staticExplanation(of:at:)` applied to the supplied code — line count, imports, declared types, function names — with the explicit header "Static analysis of supplied code (no LLM explanation is available in Ycode's MCP host)." It names the code's structure; it does not understand what the code does. Not a duplicate of `intel_explain_code`: same purpose, but the ported tool takes a required `path` and the Agentic tool takes a required inline `code` — different parameter names, so no alias is valid. Error cases: missing/blank `code` → `Missing code` (Legacy's message).
+**Notes.** Legacy behaviour: the one tool in this slice that is genuinely LLM-backed — it streams a chat completion from OpenRouter (`openai/gpt-4o-mini`, "Explain this code:\n…") and returns the explanation. No LLM provider is wired in SwiftCode's MCP host, so the LLM path cannot be ported. Ported behaviour: the deterministic subset the project already accepted for `intel_explain_code` (`SwiftCodeTools+Planning.swift`, `explainCode`): the static structural explanation from `PlanningSupport.staticExplanation(of:at:)` applied to the supplied code — line count, imports, declared types, function names — with the explicit header "Static analysis of supplied code (no LLM explanation is available in SwiftCode's MCP host)." It names the code's structure; it does not understand what the code does. Not a duplicate of `intel_explain_code`: same purpose, but the ported tool takes a required `path` and the Agentic tool takes a required inline `code` — different parameter names, so no alias is valid. Error cases: missing/blank `code` → `Missing code` (Legacy's message).
 
 ## 107. `code_analysis` — Code Analysis
 
 - **Legacy class:** `CodeAnalysisTool` (`CodeAnalysisTool.swift`).
-- **Disposition:** PORTED as `code_analysis` in `YcodeTools+AgenticCode.swift` (real aggregate analysis).
+- **Disposition:** PORTED as `code_analysis` in `SwiftCodeTools+AgenticCode.swift` (real aggregate analysis).
 - **Description (verbatim):** "Analyzes Swift code for potential issues, complexity, and architectural patterns."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -2006,7 +2006,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 108. `code_index` — Code Index
 
 - **Legacy class:** `CodeIndexTool` (`CodeIndex.swift`).
-- **Disposition:** PORTED as `code_index` in `YcodeTools+AgenticCode.swift` (real in-memory index).
+- **Disposition:** PORTED as `code_index` in `SwiftCodeTools+AgenticCode.swift` (real in-memory index).
 - **Description (verbatim):** "Indexes the code in a project."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -2021,7 +2021,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 109. `project_indexing` — Project Indexing
 
 - **Legacy class:** `ProjectIndexingTool` (`ProjectIndexingTool.swift`).
-- **Disposition:** PORTED as `project_indexing` in `YcodeTools+AgenticCode.swift` (real in-memory index).
+- **Disposition:** PORTED as `project_indexing` in `SwiftCodeTools+AgenticCode.swift` (real in-memory index).
 - **Description (verbatim):** "Indexes the project to allow for fast semantic searches and relationship mapping."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -2036,7 +2036,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 110. `security_scan` — Security Scan
 
 - **Legacy class:** `SecurityScanTool` (`SecurityScan.swift`).
-- **Disposition:** PORTED as `security_scan` in `YcodeTools+AgenticCode.swift` (real secrets + endpoint scan).
+- **Disposition:** PORTED as `security_scan` in `SwiftCodeTools+AgenticCode.swift` (real secrets + endpoint scan).
 - **Description (verbatim):** "Performs a security scan on the project."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -2051,7 +2051,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 111. `license_scan` — License Scan
 
 - **Legacy class:** `LicenseScanTool` (`LicenseScan.swift`).
-- **Disposition:** PORTED as `license_scan` in `YcodeTools+AgenticCode.swift` (real license-file + SPDX scan).
+- **Disposition:** PORTED as `license_scan` in `SwiftCodeTools+AgenticCode.swift` (real license-file + SPDX scan).
 - **Description (verbatim):** "Scans the project for dependency licenses."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -2066,7 +2066,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 112. `project_audit` — Project Audit
 
 - **Legacy class:** `ProjectAuditTool` (`ProjectAudit.swift`).
-- **Disposition:** PORTED as `project_audit` in `YcodeTools+AgenticCode.swift` (real aggregate audit).
+- **Disposition:** PORTED as `project_audit` in `SwiftCodeTools+AgenticCode.swift` (real aggregate audit).
 - **Description (verbatim):** "Performs a full audit of the project."
 - **Capability:** safeRead-equivalent. **Risk:** `safeRead`. **Required permission:** `none`. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
 
@@ -2081,7 +2081,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 113. `parse_json` — Parse JSON
 
 - **Legacy class:** `ParseJSONTool` (`ParseJSON.swift`).
-- **Disposition:** PORTED as `parse_json` in `YcodeTools+AgenticData.swift` (`agenticDataTools`).
+- **Disposition:** PORTED as `parse_json` in `SwiftCodeTools+AgenticData.swift` (`agenticDataTools`).
 - **Description (verbatim):** "Parses a JSON string."
 - **Capability:** general. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2096,7 +2096,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 114. `parse_yaml` — Parse YAML
 
 - **Legacy class:** `ParseYAMLTool` (`ParseYAML.swift`).
-- **Disposition:** PORTED as `parse_yaml` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `parse_yaml` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Parses a YAML string."
 - **Capability:** general. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2106,12 +2106,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Returns the parsed value as structured data (`parsed`, plus `topLevelKeys`).
 
-**Notes.** Legacy's `run` was a stub returning the hardcoded string "Parsed YAML (simulated)". Port: `agenticDataParseYAML`, backed by `AgenticDataYAMLParser`. A real YAML subset parser: block mappings and sequences by indentation, plain / single- / double-quoted scalars, `null` / booleans / integers / doubles, and flow collections (`[a, b]`, `{k: v}`). **Limits (honest, not silent):** anchors, aliases, tags, block scalars (`|`, `>`), tab indentation, and duplicate mapping keys are rejected with the line number and the exact construct. `yes` / `no` / `on` / `off` are strings (YAML 1.2 core schema), not booleans. Multi-document streams are not supported beyond skipping `---` / `...` separators. There is no full YAML parser in Ycode (Wave 5's `yaml_parser_tool` / `yaml_validate` are the same heuristic family, file-based). Not a duplicate of `yaml_parser_tool` / `yaml_validate`: the ported tools validate a YAML *file* (`path`); `parse_yaml` parses an inline YAML *string* (`yaml`).
+**Notes.** Legacy's `run` was a stub returning the hardcoded string "Parsed YAML (simulated)". Port: `agenticDataParseYAML`, backed by `AgenticDataYAMLParser`. A real YAML subset parser: block mappings and sequences by indentation, plain / single- / double-quoted scalars, `null` / booleans / integers / doubles, and flow collections (`[a, b]`, `{k: v}`). **Limits (honest, not silent):** anchors, aliases, tags, block scalars (`|`, `>`), tab indentation, and duplicate mapping keys are rejected with the line number and the exact construct. `yes` / `no` / `on` / `off` are strings (YAML 1.2 core schema), not booleans. Multi-document streams are not supported beyond skipping `---` / `...` separators. There is no full YAML parser in SwiftCode (Wave 5's `yaml_parser_tool` / `yaml_validate` are the same heuristic family, file-based). Not a duplicate of `yaml_parser_tool` / `yaml_validate`: the ported tools validate a YAML *file* (`path`); `parse_yaml` parses an inline YAML *string* (`yaml`).
 
 ## 115. `parse_xml` — Parse XML
 
 - **Legacy class:** `ParseXMLTool` (`ParseXML.swift`).
-- **Disposition:** PORTED as `parse_xml` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `parse_xml` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Parses an XML string."
 - **Capability:** general. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2126,7 +2126,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 116. `parse_markdown` — Parse Markdown
 
 - **Legacy class:** `ParseMarkdownTool` (`ParseMarkdown.swift`).
-- **Disposition:** PORTED as `parse_markdown` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `parse_markdown` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Parses a Markdown string."
 - **Capability:** general. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2141,7 +2141,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 117. `sql_query` — SQL Query
 
 - **Legacy class:** `SQLQueryTool` (`SQLQuery.swift`).
-- **Disposition:** PORTED as `sql_query` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `sql_query` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Executes an SQL query."
 - **Capability:** general. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2156,7 +2156,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 118. `database_schema_inspector` — Database Schema Inspector
 
 - **Legacy class:** `DatabaseSchemaInspectorTool` (`DatabaseSchemaInspector.swift`).
-- **Disposition:** PORTED as `database_schema_inspector` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `database_schema_inspector` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Inspects the schema of a database."
 - **Capability:** general. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2171,7 +2171,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 119. `database_migration` — Database Migration
 
 - **Legacy class:** `DatabaseMigrationTool` (`DatabaseMigrationTool.swift`).
-- **Disposition:** PORTED as `database_migration` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `database_migration` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Applies a database migration."
 - **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** approval-gated through `approveFileWritingChange` before anything runs; the changed database is reported with `noteFileWritingChanged`.
 
@@ -2186,7 +2186,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 120. `read_environment_variables` — Read Environment Variables
 
 - **Legacy class:** `ReadEnvironmentVariablesTool` (`ReadEnvironmentVariables.swift`).
-- **Disposition:** PORTED as `read_environment_variables` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `read_environment_variables` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Reads environment variables."
 - **Capability:** `systemExecution`. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2201,7 +2201,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 121. `update_environment_variables` — Update Environment Variables
 
 - **Legacy class:** `UpdateEnvironmentVariablesTool` (`UpdateEnvironmentVariables.swift`).
-- **Disposition:** PORTED as `update_environment_variables` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `update_environment_variables` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Updates environment variables."
 - **Capability:** `systemExecution`. **Risk:** `safeMutation`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `terminalApproveChange` (the Wave 4 shape for non-file operations).
 
@@ -2216,7 +2216,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 122. `manage_secrets` — Manage Secrets
 
 - **Legacy class:** `ManageSecretsTool` (`ManageSecrets.swift`).
-- **Disposition:** PORTED as `manage_secrets` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `manage_secrets` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Manages secrets in the keychain."
 - **Capability:** general. **Risk:** `safeMutation`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`. **Gate:** `save` is approval-gated.
 
@@ -2226,12 +2226,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** `save` reports "Secret saved"; `get` reports only whether a secret exists for the key.
 
-**Notes.** Legacy saved through `KeychainService.shared` and `get` returned the stored value. Port: `agenticDataManageSecrets`, backed by Ycode's `SecretStore` (`defaultSecretStore()`: login keychain on macOS, a 0600 file under `~/.config/ycode/secrets` on Linux). **Deliberate deviation (secrets):** `get` never returns the value — a secret value must never appear in tool output. `save` without a `value` fails in the port (Legacy silently reported "Secret saved" without saving anything). An unknown action keeps Legacy's "No result" answer. **Test seam:** `YcodeMCPHost.agenticDataTestSecretStore` (a `SecretStore?`, unset in production) lets tests use a `MemorySecretStore` so no real keychain or config file is touched.
+**Notes.** Legacy saved through `KeychainService.shared` and `get` returned the stored value. Port: `agenticDataManageSecrets`, backed by SwiftCode's `SecretStore` (`defaultSecretStore()`: login keychain on macOS, a 0600 file under `~/.config/swiftcode/secrets` on Linux). **Deliberate deviation (secrets):** `get` never returns the value — a secret value must never appear in tool output. `save` without a `value` fails in the port (Legacy silently reported "Secret saved" without saving anything). An unknown action keeps Legacy's "No result" answer. **Test seam:** `SwiftCodeMCPHost.agenticDataTestSecretStore` (a `SecretStore?`, unset in production) lets tests use a `MemorySecretStore` so no real keychain or config file is touched.
 
 ## 123. `open_browser` — Open Browser
 
 - **Legacy class:** `OpenBrowserTool` (`OpenBrowser.swift`).
-- **Disposition:** PORTED as `open_browser` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `open_browser` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Opens a URL in the default browser."
 - **Capability:** `systemExecution`. **Risk:** `externalSideEffect`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`. **Gate:** approval-gated through `terminalApproveChange`.
 
@@ -2246,7 +2246,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 124. `browser_automation` — Browser Automation
 
 - **Legacy class:** `BrowserAutomationTool` (`BrowserAutomation.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `browser_automation` with the full Legacy schema in `YcodeTools+AgenticData.swift`; the handler validates `script` and then always fails naming the missing prerequisite.
+- **Disposition:** HONESTLY-FAILING — registered as `browser_automation` with the full Legacy schema in `SwiftCodeTools+AgenticData.swift`; the handler validates `script` and then always fails naming the missing prerequisite.
 - **Description (verbatim):** "Executes a browser automation script."
 - **Capability:** `systemExecution`. **Risk:** `externalSideEffect`. **Required permission:** none. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`.
 
@@ -2254,14 +2254,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {"script": {"type": "string"}}, "required": ["script"]}
 ```
 
-**Missing prerequisite (exact).** A browser automation driver (a WebDriver or Playwright session driving a real browser) in Ycode's MCP host.
+**Missing prerequisite (exact).** A browser automation driver (a WebDriver or Playwright session driving a real browser) in SwiftCode's MCP host.
 
-**Notes.** Legacy's `run` was a stub returning the hardcoded string "Browser automation script executed". Failure message: "browser_automation needs a browser automation driver (a WebDriver or Playwright session driving a real browser), which Ycode's MCP host does not have; no script was executed." There is no automation driver to wire it to, and the Legacy stub never executed anything either, so nothing real was lost.
+**Notes.** Legacy's `run` was a stub returning the hardcoded string "Browser automation script executed". Failure message: "browser_automation needs a browser automation driver (a WebDriver or Playwright session driving a real browser), which SwiftCode's MCP host does not have; no script was executed." There is no automation driver to wire it to, and the Legacy stub never executed anything either, so nothing real was lost.
 
 ## 125. `ui_inspector` — UI Inspector
 
 - **Legacy class:** `UIInspectorTool` (`UIInspector.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `ui_inspector` with the full Legacy schema in `YcodeTools+AgenticData.swift`; the handler always fails naming the missing prerequisite.
+- **Disposition:** HONESTLY-FAILING — registered as `ui_inspector` with the full Legacy schema in `SwiftCodeTools+AgenticData.swift`; the handler always fails naming the missing prerequisite.
 - **Description (verbatim):** "Inspects the UI hierarchy."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** accessibility (would be required). **MCP annotations:** `.read`.
 
@@ -2269,14 +2269,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {}}
 ```
 
-**Missing prerequisite (exact).** A live target application with accessibility access to inspect its UI hierarchy, in Ycode's MCP host.
+**Missing prerequisite (exact).** A live target application with accessibility access to inspect its UI hierarchy, in SwiftCode's MCP host.
 
-**Notes.** Legacy's `run` was a stub returning the hardcoded string "UI Inspector data hierarchy". Failure message: "ui_inspector needs a live target application with accessibility access to inspect its UI hierarchy, which Ycode's MCP host does not have; no UI was inspected." The headless MCP host has no target application and no UI session; the Assist `accessibility_audit` / `accessibility_audit_scanner` tools (Wave 6) audit project source statically and are a different behaviour, not a substitute. Not servable by alias of `use_app`: the ported tool requires `app_identifier` + `action`; the Agentic tool takes no arguments and names no target application.
+**Notes.** Legacy's `run` was a stub returning the hardcoded string "UI Inspector data hierarchy". Failure message: "ui_inspector needs a live target application with accessibility access to inspect its UI hierarchy, which SwiftCode's MCP host does not have; no UI was inspected." The headless MCP host has no target application and no UI session; the Assist `accessibility_audit` / `accessibility_audit_scanner` tools (Wave 6) audit project source statically and are a different behaviour, not a substitute. Not servable by alias of `use_app`: the ported tool requires `app_identifier` + `action`; the Agentic tool takes no arguments and names no target application.
 
 ## 126. `accessibility_inspector` — Accessibility Inspector
 
 - **Legacy class:** `AccessibilityInspectorTool` (`AccessibilityInspector.swift`).
-- **Disposition:** HONESTLY-FAILING — registered as `accessibility_inspector` with the full Legacy schema in `YcodeTools+AgenticData.swift`; the handler always fails naming the missing prerequisite.
+- **Disposition:** HONESTLY-FAILING — registered as `accessibility_inspector` with the full Legacy schema in `SwiftCodeTools+AgenticData.swift`; the handler always fails naming the missing prerequisite.
 - **Description (verbatim):** "Inspects accessibility properties."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** accessibility (would be required). **MCP annotations:** `.read`.
 
@@ -2284,14 +2284,14 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 {"type": "object", "properties": {}}
 ```
 
-**Missing prerequisite (exact).** A live target application and accessibility permission to read its accessibility properties, in Ycode's MCP host.
+**Missing prerequisite (exact).** A live target application and accessibility permission to read its accessibility properties, in SwiftCode's MCP host.
 
-**Notes.** Legacy's `run` was a stub returning the hardcoded string "Accessibility properties for active window". Failure message: "accessibility_inspector needs a live target application and accessibility permission to read its accessibility properties, which Ycode's MCP host does not have; no accessibility properties were read." Same reasoning as `ui_inspector` (§125).
+**Notes.** Legacy's `run` was a stub returning the hardcoded string "Accessibility properties for active window". Failure message: "accessibility_inspector needs a live target application and accessibility permission to read its accessibility properties, which SwiftCode's MCP host does not have; no accessibility properties were read." Same reasoning as `ui_inspector` (§125).
 
 ## 127. `performance_profiler` — Performance Profiler
 
 - **Legacy class:** `PerformanceProfilerTool` (`PerformanceProfiler.swift`).
-- **Disposition:** PORTED as `performance_profiler` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `performance_profiler` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Profiles the performance of a process."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2301,12 +2301,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Returns `pid`, `cpuPercent`, `rssBytes`, `vszBytes`, `command` — a single snapshot, not a time series.
 
-**Notes.** Legacy's `run` was a stub returning the hardcoded string "Performance metrics for process …". Port: `agenticDataPerformanceProfiler`. Takes a single live snapshot with `/bin/ps -o pid=,%cpu=,rss=,vsz=,%mem=,comm= -p <pid>` (same columns on macOS and Linux; `rss` / `vsz` are KiB). A missing process, an invisible pid, or a missing `ps` fails honestly; the summary says it is a single snapshot, not a time series. This is real measurement, not Legacy's hardcoded string — but it is not a sampling profiler (no call tree, no time series); Ycode's `YcodeProfiler` / Gauge stack is a separate, deeper system and is not wired to this tool. Not a duplicate of `process_monitor_tool`: the ported tool takes an optional `filter` (process-name substring) and lists processes; the Agentic tool requires `pid` (integer), which the target does not accept.
+**Notes.** Legacy's `run` was a stub returning the hardcoded string "Performance metrics for process …". Port: `agenticDataPerformanceProfiler`. Takes a single live snapshot with `/bin/ps -o pid=,%cpu=,rss=,vsz=,%mem=,comm= -p <pid>` (same columns on macOS and Linux; `rss` / `vsz` are KiB). A missing process, an invisible pid, or a missing `ps` fails honestly; the summary says it is a single snapshot, not a time series. This is real measurement, not Legacy's hardcoded string — but it is not a sampling profiler (no call tree, no time series); SwiftCode's `SwiftCodeProfiler` / Gauge stack is a separate, deeper system and is not wired to this tool. Not a duplicate of `process_monitor_tool`: the ported tool takes an optional `filter` (process-name substring) and lists processes; the Agentic tool requires `pid` (integer), which the target does not accept.
 
 ## 128. `memory_profiler` — Memory Profiler
 
 - **Legacy class:** `MemoryProfilerTool` (`MemoryProfiler.swift`).
-- **Disposition:** PORTED as `memory_profiler` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `memory_profiler` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Profiles the memory usage of a process."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2321,7 +2321,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 129. `network_inspector` — Network Inspector
 
 - **Legacy class:** `NetworkInspectorTool` (`NetworkInspector.swift`).
-- **Disposition:** PORTED as `network_inspector` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `network_inspector` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Inspects network traffic."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2331,12 +2331,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (success).** Returns a snapshot of the active connection table as `connections` (`protocol`, `local`, `foreign`, `state`), `connectionCount`, and `source`, capped at 200 rows.
 
-**Notes.** Legacy's `run` was a stub returning the hardcoded string "Network traffic analysis". Port: `agenticDataNetworkInspector`. Returns a snapshot of the active connection table — `netstat -an` when present, else `ss -tan` (fixed argument vectors). The summary states plainly that this is a connection-table snapshot, not packet capture: live traffic content is not available in Ycode's MCP host (capture would need a privileged capture backend). When neither `netstat` nor `ss` is installed, the tool fails honestly naming both. Not a duplicate of `use_system` (`network_interfaces`, `listening_sockets`): `use_system` requires `operation` and reports interface/socket listings; `network_inspector` takes no arguments and its Legacy purpose is traffic inspection. Different parameters and different behaviour.
+**Notes.** Legacy's `run` was a stub returning the hardcoded string "Network traffic analysis". Port: `agenticDataNetworkInspector`. Returns a snapshot of the active connection table — `netstat -an` when present, else `ss -tan` (fixed argument vectors). The summary states plainly that this is a connection-table snapshot, not packet capture: live traffic content is not available in SwiftCode's MCP host (capture would need a privileged capture backend). When neither `netstat` nor `ss` is installed, the tool fails honestly naming both. Not a duplicate of `use_system` (`network_interfaces`, `listening_sockets`): `use_system` requires `operation` and reports interface/socket listings; `network_inspector` takes no arguments and its Legacy purpose is traffic inspection. Different parameters and different behaviour.
 
 ## 130. `crash_analyzer` — Crash Analyzer
 
 - **Legacy class:** `CrashAnalyzerTool` (`CrashAnalyzer.swift`).
-- **Disposition:** PORTED as `crash_analyzer` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `crash_analyzer` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Analyzes crash logs."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2351,7 +2351,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 131. `symbolicate_crash_logs` — Symbolicate Crash Logs
 
 - **Legacy class:** `SymbolicateCrashLogsTool` (`SymbolicateCrashLogs.swift`).
-- **Disposition:** PORTED as `symbolicate_crash_logs` in `YcodeTools+AgenticData.swift`.
+- **Disposition:** PORTED as `symbolicate_crash_logs` in `SwiftCodeTools+AgenticData.swift`.
 - **Description (verbatim):** "Symbolicates crash logs."
 - **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** none. **MCP annotations:** `.read`.
 
@@ -2366,7 +2366,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 132. `take_screenshot` — Take Screenshot
 
 - **Legacy class:** `TakeScreenshotTool` (`TakeScreenshot.swift`).
-- **Disposition:** DUPLICATE-OF `take_screenshot` — the ID is already a registered MCP tool (the Wave 4 port of Assist's `AssistTakeScreenshotTool` in `YcodeTools+Terminal.swift`), so no second registration exists. No code was written for the Agentic ID in this slice.
+- **Disposition:** DUPLICATE-OF `take_screenshot` — the ID is already a registered MCP tool (the Wave 4 port of Assist's `AssistTakeScreenshotTool` in `SwiftCodeTools+Terminal.swift`), so no second registration exists. No code was written for the Agentic ID in this slice.
 - **Description (verbatim, Agentic):** "Takes a screenshot and saves it to a path."
 - **Capability:** as the served tool. **Risk:** as the served tool (`writes: true`). **Required permission:** none. **MCP annotations:** as the served tool.
 
@@ -2379,7 +2379,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 133. `ai_context_memory` — AI Context Memory
 
 - **Legacy class:** `AIContextMemoryTool` (`AIContextMemory.swift`).
-- **Disposition:** PORTED as `ai_context_memory` in `YcodeTools+AgenticPlanning.swift` (`agenticPlanningTools`).
+- **Disposition:** PORTED as `ai_context_memory` in `SwiftCodeTools+AgenticPlanning.swift` (`agenticPlanningTools`).
 - **Description (verbatim):** "Manages AI context memory."
 - **Capability:** memory. **Risk:** `safeMutation` (in-memory graph mutation; `writes: true`, not idempotent — `store` appends). **Required permission:** none (no filesystem access; the graph is host memory). **Gate:** server-level read-only refusal only; no file change to propose, so no `commit()` / `approve()` call (the `mem_store` / `mem_context_snapshot` precedent).
 
@@ -2391,12 +2391,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (structured).** `{action, entries: [string], count}`.
 
-**Notes.** Legacy behaviour: `run(action:data:)` returns `"Memory \(action)ed"`; nothing is stored, retrieved, or cleared. Port: real behaviour backed by Wave 4's `YcodeMemoryGraphStore` (per-workspace, process-lifetime, never persisted), under the key `ai_context_memory`, holding a JSON array of entries. Actions: `store` (requires `data`; appends), `retrieve` / `list` (return the entries), `clear` (empties the list). Unknown actions fail with the supported list. Summaries keep Legacy's `"Memory \(action)ed"` shape: `"Memory stored"`, `"Memory retrieved"`, `"Memory listed"`, `"Memory cleared"`. Deviation: Legacy accepts any `action` string and echoes it without doing anything. The port defines the real vocabulary and fails unknown actions instead of echoing a fake result.
+**Notes.** Legacy behaviour: `run(action:data:)` returns `"Memory \(action)ed"`; nothing is stored, retrieved, or cleared. Port: real behaviour backed by Wave 4's `SwiftCodeMemoryGraphStore` (per-workspace, process-lifetime, never persisted), under the key `ai_context_memory`, holding a JSON array of entries. Actions: `store` (requires `data`; appends), `retrieve` / `list` (return the entries), `clear` (empties the list). Unknown actions fail with the supported list. Summaries keep Legacy's `"Memory \(action)ed"` shape: `"Memory stored"`, `"Memory retrieved"`, `"Memory listed"`, `"Memory cleared"`. Deviation: Legacy accepts any `action` string and echoes it without doing anything. The port defines the real vocabulary and fails unknown actions instead of echoing a fake result.
 
 ## 134. `task_planner` — Task Planner
 
 - **Legacy class:** `TaskPlannerTool` (`TaskPlanner.swift`).
-- **Disposition:** PORTED as `task_planner` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `task_planner` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Plans tasks to achieve a goal."
 - **Capability:** planning. **Risk:** `safeMutation` (`writes: true`, not idempotent — mints a fresh plan on every call). **Required permission:** none. **Gate:** server-level read-only refusal only; no file change to propose (the `intel_plan_task` precedent).
 
@@ -2413,7 +2413,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 135. `todo_manager` — Todo Manager
 
 - **Legacy class:** `TodoManagerTool` (`TodoManager.swift`).
-- **Disposition:** PORTED as `todo_manager` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `todo_manager` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Manages a todo list."
 - **Capability:** planning. **Risk:** `safeMutation` (`writes: true`, not idempotent — `add` appends). **Required permission:** `fileSystem` (workspace file write). **Gate:** `commit()` before every write.
 
@@ -2430,7 +2430,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 136. `progress_tracker` — Progress Tracker
 
 - **Legacy class:** `ProgressTrackerTool` (`ProgressTracker.swift`).
-- **Disposition:** PORTED as `progress_tracker` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `progress_tracker` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Tracks the progress of a task."
 - **Capability:** planning. **Risk:** `safeRead` (read-only, idempotent). **Required permission:** none.
 
@@ -2447,7 +2447,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 137. `checkpoint_creator` — Checkpoint Creator
 
 - **Legacy class:** `CheckpointCreatorTool` (`CheckpointCreator.swift`).
-- **Disposition:** PORTED as `checkpoint_creator` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `checkpoint_creator` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Creates a checkpoint of the current state."
 - **Capability:** planning. **Risk:** `safeMutation` (`writes: true`, not idempotent — mints a fresh checkpoint on every call). **Required permission:** `fileSystem` (writes outside the workspace, into Application Support). **Gate:** `approveChangeWithoutFile()` before copying (the Wave 7 snapshot precedent — `commit()` does not apply outside the workspace); the server-level read-only refusal applies first.
 
@@ -2459,12 +2459,12 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (structured).** `{checkpoint_id, description}`.
 
-**Notes.** Legacy behaviour: `run(description:)` returns `"Checkpoint '\(description)' created"`; nothing is captured. Port: a real checkpoint — a full-tree copy of the workspace into Application Support `YcodeCheckpoints/<uuid>/files` plus `metadata.json` (`id`, `timestamp`, `description`, `rootPath`), the Wave 7 `project_snapshot` layout in a directory of its own. A partial checkpoint is removed on failure. The summary is Legacy's verbatim: `"Checkpoint '<description>' created"`. Why not a duplicate of / alias to `project_snapshot`: the parameter names differ (`description`, required, vs `message`, optional), so an alias would fail validation — `description` is not a `project_snapshot` parameter and `Schema.object` rejects unknown keys. The stores are also separate by design, so a checkpoint can never be mistaken for a project snapshot (and `rollback_changes` refuses snapshot IDs). The behaviour is the same mechanism (full-tree copy) under a distinct, task-scoped identity: a checkpoint is a named restore point created during a task; a snapshot is a general project snapshot.
+**Notes.** Legacy behaviour: `run(description:)` returns `"Checkpoint '\(description)' created"`; nothing is captured. Port: a real checkpoint — a full-tree copy of the workspace into Application Support `SwiftCodeCheckpoints/<uuid>/files` plus `metadata.json` (`id`, `timestamp`, `description`, `rootPath`), the Wave 7 `project_snapshot` layout in a directory of its own. A partial checkpoint is removed on failure. The summary is Legacy's verbatim: `"Checkpoint '<description>' created"`. Why not a duplicate of / alias to `project_snapshot`: the parameter names differ (`description`, required, vs `message`, optional), so an alias would fail validation — `description` is not a `project_snapshot` parameter and `Schema.object` rejects unknown keys. The stores are also separate by design, so a checkpoint can never be mistaken for a project snapshot (and `rollback_changes` refuses snapshot IDs). The behaviour is the same mechanism (full-tree copy) under a distinct, task-scoped identity: a checkpoint is a named restore point created during a task; a snapshot is a general project snapshot.
 
 ## 138. `rollback_changes` — Rollback Changes
 
 - **Legacy class:** `RollbackChangesTool` (`RollbackChanges.swift`).
-- **Disposition:** PORTED as `rollback_changes` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `rollback_changes` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Rolls back changes to a specified checkpoint."
 - **Capability:** planning. **Risk:** `potentiallyDestructive` (`writes: true`, destructive — replaces all workspace files). **Required permission:** `fileSystem`. **Gate:** explicit `MCPChange` + `approve()` before any deletion; the server-level read-only refusal applies first.
 
@@ -2476,7 +2476,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Output (structured).** `{checkpoint_id}`.
 
-**Notes.** Legacy behaviour: `run(checkpointID:)` returns `"Changes rolled back to \(checkpointID)"`; nothing is restored. Port: restores a checkpoint from the slice's own `YcodeCheckpoints/` store: verifies the checkpoint exists and that its recorded `rootPath` matches the current workspace (a checkpoint from another workspace fails), then — after an explicit `MCPChange` + `approve()` (the Wave 7 `project_restore` shape) — replaces every file in the workspace with the checkpoint's copy. An unknown ID fails and names `project_restore` for `project_snapshot` snapshots. The summary is Legacy's verbatim: `"Changes rolled back to <checkpointID>"`. Why not a duplicate of / alias to `project_restore`: the parameter name differs (`checkpointID` vs `snapshot_id`), so an alias would fail validation. The stores are separate by design (see §137). This is also NOT Wave 6's `safe_undo`, which is honestly-failing because it needs a previous-snapshot store the host does not keep; `rollback_changes` has its own store (the checkpoints `checkpoint_creator` writes), so it can genuinely restore.
+**Notes.** Legacy behaviour: `run(checkpointID:)` returns `"Changes rolled back to \(checkpointID)"`; nothing is restored. Port: restores a checkpoint from the slice's own `SwiftCodeCheckpoints/` store: verifies the checkpoint exists and that its recorded `rootPath` matches the current workspace (a checkpoint from another workspace fails), then — after an explicit `MCPChange` + `approve()` (the Wave 7 `project_restore` shape) — replaces every file in the workspace with the checkpoint's copy. An unknown ID fails and names `project_restore` for `project_snapshot` snapshots. The summary is Legacy's verbatim: `"Changes rolled back to <checkpointID>"`. Why not a duplicate of / alias to `project_restore`: the parameter name differs (`checkpointID` vs `snapshot_id`), so an alias would fail validation. The stores are separate by design (see §137). This is also NOT Wave 6's `safe_undo`, which is honestly-failing because it needs a previous-snapshot store the host does not keep; `rollback_changes` has its own store (the checkpoints `checkpoint_creator` writes), so it can genuinely restore.
 
 ## 139. `ask_user` — Ask User
 
@@ -2499,7 +2499,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 140. `questions_handle` — Questions Handle
 
 - **Legacy class:** `QuestionHandlerTool` (`QuestionHandler.swift`).
-- **Disposition:** PORTED as `questions_handle` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `questions_handle` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Asks multiple clarifying questions before starting work."
 - **Capability:** planning. **Risk:** `safeRead` (read-only, idempotent). **Required permission:** none.
 
@@ -2524,7 +2524,7 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ## 141. `checklist_plan` — Checklist Plan
 
 - **Legacy class:** `ChecklistPlanTool` (`ChecklistPlan.swift`).
-- **Disposition:** PORTED as `checklist_plan` in `YcodeTools+AgenticPlanning.swift`.
+- **Disposition:** PORTED as `checklist_plan` in `SwiftCodeTools+AgenticPlanning.swift`.
 - **Description (verbatim):** "Updates the execution plan checklist."
 - **Capability:** planning. **Risk:** `safeMutation` (`writes: true`, idempotent — upserting the same tasks twice is a no-op). **Required permission:** none (in-memory plan store). **Gate:** server-level read-only refusal only; no file change to propose (the `intel_plan_task` precedent).
 
@@ -2552,13 +2552,13 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 |---|---|---|
 | All 141 IDs, Legacy class names, descriptions, and schemas | 1 | Legacy source, read directly (Dylan's own code, direct porting authorised under MIT): `SwiftCode/Tools/Agentic/` — the per-slice files named in each section above; registry membership in `SwiftCode/Tools/Agentic/ListTools.swift` (141 entries) |
 | Agentic registry is 141 tools, independent of the 291 Assist tools; `AgentTool` declares no capability/risk/permission; registry lookup is exact-name only, no aliases | 1 | Legacy `SwiftCode/Tools/Agentic/ListTools.swift` and `SwiftCode/Core/AI/Agent/AgentTool.swift` (`AgentTool` protocol) and `AgentToolRegistry.swift`, read directly |
-| Registered Agentic tools = 117 (Files 6, Execution 9, Git 19, Network 19, CLI 21, Code 16, Data 19, Planning 8) | 1 | Live count of `tool("…")` calls in `ycode/Sources/YcodeMCP/YcodeTools+Agentic*.swift`, verified 2026-11-06 |
-| 5 aliases added in Wave 8 (`list_directory` → `dir_read`, `execute_terminal_command` → `use_terminal`, `xcode_build` → `project_build`, `semantic_code_search` → `semantic_query_engine`, `cross_reference_search` → `symbol_reference_graph`); 7 git aliases removed in Wave 8 (`git_status`, `git_diff`, `git_commit`, `git_branch` → `version_control_operator`; `git_stash` → `git_stash_operator`; `git_blame` → `git_blame_inspector`; `git_log` → `git_log_viewer`) | 1 | `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases` and its Wave 8 comment), read directly |
-| 13 pre-existing Agentic alias keys in `toolAliases` besides the 5 added in Wave 8 (18 Agentic IDs served by alias in total) | 1 | `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`), enumerated live: `read_file`, `write_file`, `create_file`, `delete_file`, `move_file`, `copy_file`, `rename_file`, `create_directory`, `delete_directory`, `edit_file`, `run_build`, `run_tests`, `ask_user` |
-| Exact-ID duplicates (6): `tree_view`, `git_cherry_pick`, `swift_package_manager`, `take_screenshot`, `call_hierarchy`, `dependency_graph` | 1 | `tool("…")` registrations in `ycode/Sources/YcodeMCP/YcodeTools+*.swift` (the Assist/Wave 3–7 registrations of those IDs), read directly |
-| `git_cherry_pick` aligned in place (optional `hash` + `repositoryPath`, `required` `["commit"]` → `[]`, handler uses `commit ?? hash`) | 1 | `ycode/Sources/YcodeMCP/YcodeTools+Git.swift` (`git_cherry_pick` registration), read directly; `git_cherry_pick` is absent from `YcodeTools+AgenticGit.swift` (19 tools) |
-| Per-slice behaviour, port notes, deviations, and error cases | 1 | The eight Wave 8 slice specifications (merged here) and the Wave 8 implementation files `ycode/Sources/YcodeMCP/YcodeTools+Agentic*.swift`, read directly |
-| Ported targets' params and behaviour for alias/duplicate comparisons (`file_read`, `file_write`, `file_create`, `file_delete`, `file_move`, `file_copy`, `file_rename`, `dir_create`, `dir_delete`, `code_replace`, `code_multi_edit`, `tree_view`, `dir_read`, `use_terminal`, `project_build`, `project_test`, `semantic_query_engine`, `symbol_reference_graph`, `plan-AskUser`, `swift_package_manager`, `call_hierarchy`, `dependency_graph`, `take_screenshot`, `version_control_operator`, `git_stash_operator`, `git_blame_inspector`, `git_log_viewer`) | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+*.swift` and `MCPServer.swift`, read directly; `specs/ide/assist-tool-catalogue.md` and the Assist behaviour specs |
-| Gate shape (`commit()` per text write, approval before disk, read-only refusal in `run()`) | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run`, `readOnlyMessage`); `YcodeTools+Content.swift` (`commit`); `specs/ide/assist-approval-model.md` §6 |
+| Registered Agentic tools = 117 (Files 6, Execution 9, Git 19, Network 19, CLI 21, Code 16, Data 19, Planning 8) | 1 | Live count of `tool("…")` calls in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Agentic*.swift`, verified 2026-11-06 |
+| 5 aliases added in Wave 8 (`list_directory` → `dir_read`, `execute_terminal_command` → `use_terminal`, `xcode_build` → `project_build`, `semantic_code_search` → `semantic_query_engine`, `cross_reference_search` → `symbol_reference_graph`); 7 git aliases removed in Wave 8 (`git_status`, `git_diff`, `git_commit`, `git_branch` → `version_control_operator`; `git_stash` → `git_stash_operator`; `git_blame` → `git_blame_inspector`; `git_log` → `git_log_viewer`) | 1 | `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases` and its Wave 8 comment), read directly |
+| 13 pre-existing Agentic alias keys in `toolAliases` besides the 5 added in Wave 8 (18 Agentic IDs served by alias in total) | 1 | `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases`), enumerated live: `read_file`, `write_file`, `create_file`, `delete_file`, `move_file`, `copy_file`, `rename_file`, `create_directory`, `delete_directory`, `edit_file`, `run_build`, `run_tests`, `ask_user` |
+| Exact-ID duplicates (6): `tree_view`, `git_cherry_pick`, `swift_package_manager`, `take_screenshot`, `call_hierarchy`, `dependency_graph` | 1 | `tool("…")` registrations in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+*.swift` (the Assist/Wave 3–7 registrations of those IDs), read directly |
+| `git_cherry_pick` aligned in place (optional `hash` + `repositoryPath`, `required` `["commit"]` → `[]`, handler uses `commit ?? hash`) | 1 | `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Git.swift` (`git_cherry_pick` registration), read directly; `git_cherry_pick` is absent from `SwiftCodeTools+AgenticGit.swift` (19 tools) |
+| Per-slice behaviour, port notes, deviations, and error cases | 1 | The eight Wave 8 slice specifications (merged here) and the Wave 8 implementation files `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Agentic*.swift`, read directly |
+| Ported targets' params and behaviour for alias/duplicate comparisons (`file_read`, `file_write`, `file_create`, `file_delete`, `file_move`, `file_copy`, `file_rename`, `dir_create`, `dir_delete`, `code_replace`, `code_multi_edit`, `tree_view`, `dir_read`, `use_terminal`, `project_build`, `project_test`, `semantic_query_engine`, `symbol_reference_graph`, `plan-AskUser`, `swift_package_manager`, `call_hierarchy`, `dependency_graph`, `take_screenshot`, `version_control_operator`, `git_stash_operator`, `git_blame_inspector`, `git_log_viewer`) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+*.swift` and `MCPServer.swift`, read directly; `specs/ide/assist-tool-catalogue.md` and the Assist behaviour specs |
+| Gate shape (`commit()` per text write, approval before disk, read-only refusal in `run()`) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run`, `readOnlyMessage`); `SwiftCodeTools+Content.swift` (`commit`); `specs/ide/assist-approval-model.md` §6 |
 | Gaps recorded, not filled: the files slice records no verbatim Agentic description for its 12 non-ported tools (§§1–11, §13); the planning slice records no Legacy class name for `ask_user` (§139) | — | Absence in the source material for those slices; nothing was invented to fill them |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |

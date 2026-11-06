@@ -1,5 +1,5 @@
 # Tests known to fail occasionally under load, mirrored from "Tests in a full
-# run" in ycode/README.md. Keep the two lists in step.
+# run" in swiftcode/README.md. Keep the two lists in step.
 #
 # Format: <platform> <test>
 #   platform  *, macos, linux, linux-x86_64 or linux-aarch64

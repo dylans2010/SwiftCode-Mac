@@ -138,7 +138,7 @@ struct SettingsView: View {
                         .keyboardShortcut("s")
                     }
                 }
-                Link("About Ycode", destination: URL(string: "https://example.com/ycode")!)
+                Link("About SwiftCode", destination: URL(string: "https://example.com/swiftcode")!)
             }
         }
         .onChange(of: settings.name) { _, n in say("name \"\(n)\"") }

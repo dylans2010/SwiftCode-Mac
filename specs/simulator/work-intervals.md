@@ -1,10 +1,10 @@
 # Spec: work intervals (the kernel side of os_workgroup)
 
 Status: **implemented, minimal** (agent AUDIO-HOST, 2026-10-27). Written for
-the audio host service (`audio-host.md` §10, "Ycode implementation"): its
+the audio host service (`audio-host.md` §10, "SwiftCode implementation"): its
 message 59 hands a guest IO thread a *workgroup port*, which the guest's
 libdispatch turns into an `os_workgroup_t` and joins. In xnu a workgroup
-port is the port of a joinable *work interval*. This spec says what Ycode's
+port is the port of a joinable *work interval*. This spec says what SwiftCode's
 Darwin kernel models of work intervals and what it leaves out.
 
 Sources (level 1): xnu's open source — `bsd/kern/sys_work_interval.c`
@@ -25,12 +25,12 @@ and "leave" send.
   reached through a kernel-object port (`MachKernelObject.workInterval`,
   xnu `IKOT_WORK_INTERVAL`). Holders of send rights can pass them in
   messages like any right; the interval lives while a right does.
-- A **thread** has at most one joined work interval. Ycode's scheduler does
+- A **thread** has at most one joined work interval. SwiftCode's scheduler does
   not use it (no thread groups, no deadline hints): joining only records it.
 
 ## 2. `__work_interval_ctl(operation, work_interval_id, arg, len)` (BSD 499)
 
-| Operation | Value | Ycode |
+| Operation | Value | SwiftCode |
 |---|---|---|
 | CREATE | 1 | ENOTSUP (deprecated in xnu too) |
 | DESTROY | 2 | `arg` must be NULL and the ID non-zero; the thread must have joined the interval with that ID; it leaves it. Otherwise EINVAL |
@@ -55,13 +55,13 @@ notify (it is not the creator), as with a Mac's audio daemon.
 
 ## 3a. The guest library
 
-Ycode's guest `libsystem_kernel` (SimHostLibs `kernel/workinterval.c`)
+SwiftCode's guest `libsystem_kernel` (SimHostLibs `kernel/workinterval.c`)
 implements the work-interval library calls itself (creation, joins and
 notifications succeed and change nothing; `home-screen.md` §6 item 3), so
 guest processes never needed the kernel for the intervals they make.
 For ports handed over by someone else the library asks the kernel first:
 
-| Library call | Ycode |
+| Library call | SwiftCode |
 |---|---|
 | `work_interval_get_flags_from_port(port, &flags)` | GET_FLAGS on a valid port; on failure (not a kernel work interval, e.g. a port from the library's own `work_interval_copy_port`) flags 0 and success, as before |
 | `work_interval_join_port(port)` | JOIN on a valid port; success either way |
@@ -83,8 +83,8 @@ errno is left as it was when the kernel call fails.
 
 ## 5. Diagnostics
 
-`YCODE_DEBUG_WORK_INTERVALS=1`: one stderr line per call
-(`ycode-work-interval: pid … (process) thread … <operation> id=… -> <result>`).
+`SWIFTCODE_DEBUG_WORK_INTERVALS=1`: one stderr line per call
+(`swiftcode-work-interval: pid … (process) thread … <operation> id=… -> <result>`).
 
 ## Evidence
 
@@ -93,4 +93,4 @@ errno is left as it was when the kernel call fails.
 | Operations, argument checks, errors, records, flags | 1 | xnu `bsd/kern/sys_work_interval.c`, `osfmk/kern/work_interval.c`, `bsd/sys/work_interval.h` |
 | What a "workgroup from a port", join and leave send | 1 | xnu `libsyscall/wrappers/work_interval.c` (`work_interval_get_flags_from_port`, `work_interval_join_port`, `work_interval_leave`) |
 | A workgroup port may come from another process | 1 | macOS SDK `os/workgroup_object.h` |
-| Ycode behavior | — | `WorkInterval.swift`, `WorkIntervalTests`, SimHostLibs `kernel/workinterval.c` |
+| SwiftCode behavior | — | `WorkInterval.swift`, `WorkIntervalTests`, SimHostLibs `kernel/workinterval.c` |

@@ -14,7 +14,7 @@ final class Workspace {
     let dir: String
 
     init() throws {
-        dir = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-scene-\(UUID().uuidString)").path
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-scene-\(UUID().uuidString)").path
         try FileManager.default.createDirectory(atPath: dir + "/textures", withIntermediateDirectories: true)
         try """
         #usda 1.0

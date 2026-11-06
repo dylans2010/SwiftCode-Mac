@@ -1,9 +1,9 @@
 // swift-tools-version: 6.0
-// ycode-homekit: open, Linux-buildable HomeKit written from specs/frameworks/homekit/.
+// swiftcode-homekit: open, Linux-buildable HomeKit written from specs/frameworks/homekit/.
 import PackageDescription
 
 let package = Package(
-    name: "ycode-homekit",
+    name: "swiftcode-homekit",
     platforms: [.macOS(.v14)],
     products: [
         // The library module carries the Apple framework's module name (an

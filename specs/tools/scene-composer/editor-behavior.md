@@ -3,7 +3,7 @@
 Status: draft, OBS-RCP round 0 (2026-10-29). Reference: Reality Composer
 Pro 3.0 (build 75.0.14.500.1), a standalone download that needs Xcode 27
 or later only for the Xcode link. In this file, "the reference" means that
-app. Ycode's editor has its own name and must not use Apple's names,
+app. SwiftCode's editor has its own name and must not use Apple's names,
 artwork, icons or theme colours.
 
 Sources: Apple's public documentation for Reality Composer Pro 3 and four
@@ -68,7 +68,7 @@ RCP 3, this file says so.
    panel attached to a user-configured model provider (URL, optional API
    key, header name, description). It can answer questions about the
    app, generate assets and materials from prompts or images, and edit
-   the hierarchy through editor commands. Ycode may offer its own
+   the hierarchy through editor commands. SwiftCode may offer its own
    equivalent. Asset generation needs macOS 27 in the reference.
 5. **Settings.** There are two settings windows: application settings
    (themes, language, workspace templates, and window layouts stored per
@@ -94,7 +94,7 @@ and default materials.
 
 The reference is built on a command registry. Every action is a named
 command with an optional menu path, a shortcut and a description. Menus,
-context menus and the command palette are views of that registry. Ycode
+context menus and the command palette are views of that registry. SwiftCode
 should copy this design so that every action is reachable from the
 palette.
 
@@ -316,7 +316,7 @@ RealityComposerPro --headless --load-project <copy>.realitycomposerpro \
   move the app's state: a sandboxed app always uses its container. Headless
   runs update the real `settings.json` (recent files, last opened project),
   create a per-project settings file and write a log per run
-  (`project-format.md` §6). Ycode's tests of the reference must therefore
+  (`project-format.md` §6). SwiftCode's tests of the reference must therefore
   restore those entries afterwards (we did).
 - The copy of the project was byte-identical after every run: a headless
   export does not save the project.
@@ -477,9 +477,9 @@ Its contract, at the interface level:
 - Custom systems run inside the editor's simulation. Debug them by
   attaching a debugger to the editor process.
 
-Ycode's editor should load plug-ins written against this MIT interface
+SwiftCode's editor should load plug-ins written against this MIT interface
 unchanged. On Linux that means a `.so` that exports the same C symbol and
-links Ycode's open RealityKit (`frameworks/realitykit/09-open-design.md`).
+links SwiftCode's open RealityKit (`frameworks/realitykit/09-open-design.md`).
 
 ## 13. Preview, statistics and diagnostics
 
@@ -488,7 +488,7 @@ links Ycode's open RealityKit (`frameworks/realitykit/09-open-design.md`).
   it. Devices are discovered on the local network. Scene data streams on
   demand. The docs say live edits appear immediately. Some of this is
   "later this year" in the WWDC26 sessions. A Mac Virtual Display
-  workflow is suggested. Ycode equivalent: stream to the Ycode simulator
+  workflow is suggested. SwiftCode equivalent: stream to the SwiftCode simulator
   or a device agent. The wire protocol is not specified (level 5 would be
   needed; out of scope).
 - **Device panel**: a metrics view with record, baseline and reset
@@ -521,7 +521,7 @@ links Ycode's open RealityKit (`frameworks/realitykit/09-open-design.md`).
   set the same property to different values does it apply the policy
   (default `fail`; `newer` compares file modification times). Suggested
   setup: a `merge=rcpmerge` attribute on `*.realitycomposerpro/**`, with
-  the binary `*.tm_buffers/**` folders excluded from the driver. Ycode
+  the binary `*.tm_buffers/**` folders excluded from the driver. SwiftCode
   should ship an equivalent merge driver for the same format
   (`project-format.md`).
 - A version-control panel and git-LFS support exist behind a feature
@@ -554,7 +554,7 @@ plug-ins, new settings window, implicit overrides, on-demand buffer
 streaming, material de-duplication, the USD scene optimiser, and
 assistant scripting and material editing.
 
-**Ycode recommendation.** Give Ycode's editor a headless mode with
+**SwiftCode recommendation.** Give SwiftCode's editor a headless mode with
 equivalent `import`, `export` (to `.reality` via `compile.md`, and to USD)
 and `publish` subcommands. This lets CI and Linux hosts build content
 without a GUI.

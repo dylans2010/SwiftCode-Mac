@@ -2,8 +2,8 @@
 
 Status: evaluation, 2026-10-17. This document only evaluates and measures.
 No loader, syscall-interception, or rewriting code was written for it, and
-nothing under `ycode/` or `specs/` was changed. It answers one question from
-`specs/simulator/native-mode.md`: can Ycode adopt or learn from an existing
+nothing under `swiftcode/` or `specs/` was changed. It answers one question from
+`specs/simulator/native-mode.md`: can SwiftCode adopt or learn from an existing
 project that runs Darwin arm64 Mach-O binaries as plain arm64 Linux
 processes, instead of building native mode from nothing?
 
@@ -11,7 +11,7 @@ Host for all measurements: the Thor (arm64, Ubuntu 24.04, 6.8.12-tegra,
 4 KiB pages, 14 cores). The machine is shared and was heavily loaded during
 the run (load average about 22). Timed loops ran pinned to one core
 (`taskset -c 2`), and same-run repeats are given. All work was done as the
-normal user in a scratch directory under `$YCODE_DATA/work/`. Nothing was
+normal user in a scratch directory under `$SWIFTCODE_DATA/work/`. Nothing was
 installed system-wide and `sudo` was not used.
 
 ## 1. Summary
@@ -47,7 +47,7 @@ not in the repository. `evb` times the same three calls as `nt_probe`
 (library `getppid`, a raw in-binary `svc #0x80` `getppid` with `x16 = 39`,
 and `mach_absolute_time`), but without `nt_probe`'s contract checks, so
 that it can run on loaders that do not meet the contract. `nt_probe` itself
-was built unchanged from `ycode/Native/guest/nt_probe.c` against Ycode's
+was built unchanged from `swiftcode/Native/guest/nt_probe.c` against SwiftCode's
 Linux-built `libsystem_kernel.dylib`.
 
 ### 2.1 Per-call cost (ns per call, Thor, one pinned core)
@@ -78,13 +78,13 @@ Readings:
 - The iOS-simulator platform tag makes no difference to Kakehashi (it does
   not check `LC_BUILD_VERSION`).
 
-### 2.2 Against Ycode's KVM path
+### 2.2 Against SwiftCode's KVM path
 
 | Path | Cost per call | Source |
 |---|---|---|
 | Bare KVM MMIO doorbell exit | 2,754–2,767 ns | `native-mode.md` §8.2 |
 | Bare KVM forwarded-HVC exit | 2,521–2,532 ns | `native-mode.md` §8.2 |
-| Full `ycode-simd` trap (exit + dispatcher + global lock) | ≈ 32 µs at stage 2. In the boot profile, an average of ≈ 26.5 µs of lock hold per trap (370 s / 13.94 M traps) | `docs/SIMULATOR-LINUX.md`, `native-mode.md` §1 |
+| Full `swiftcode-simd` trap (exit + dispatcher + global lock) | ≈ 32 µs at stage 2. In the boot profile, an average of ≈ 26.5 µs of lock hold per trap (370 s / 13.94 M traps) | `docs/SIMULATOR-LINUX.md`, `native-mode.md` §1 |
 | In-process boundary (Kakehashi-style) | ≈ 60 ns + the real work | this document |
 | Signal-based stray-`svc` (Kakehashi `brk`/`SIGTRAP`) | ≈ 1,170 ns, including a 90 ns Linux syscall | this document |
 | Cross-process RPC over a Unix `SOCK_SEQPACKET` pair (a Darling-style or broker-style Mach trap), 64 bytes | 3,376 / 3,803 ns with both processes on one core; 20,741 / 19,870 ns across cores (loaded host, includes wake-up latency) | this document, `rpc_rt` |
@@ -166,7 +166,7 @@ It was not built or run, for the reasons in §1.
 | Model | `mldr` (an ELF program) loads Darling's own dyld and Mach-O into a Linux process. libSystem is rebuilt from Apple's open-source `libsyscall`/`Libc`/`libpthread`/`libdispatch`/`objc4`, with an "emulation" layer that makes Linux syscalls directly. There is no trap interception: the Darwin `svc` sites are replaced *at compile time*. On arm64 the BSD entry is a table call (`blr`) |
 | `TPIDRRO_EL0` | **Handled by recompilation**: the arm64 patch changes `os/tsd.h` so that Darwin TSD no longer comes from `TPIDRRO_EL0`. Only code that Darling compiles itself gets this. Apple-built binaries that inline the read are not covered |
 | `TPIDR_EL0` | Left to glibc/Linux and used as the thread identity |
-| 16 KiB pages / fixed layout | Its own libraries are built by its own toolchain. The arm64 PR forces Mach-O mappings **below 2^47**, because Linux arm64 returns 48-bit VAs and these collide with the Objective-C runtime's 47-bit pointer mask (a crash in `class_initialize`). This applies directly to Ycode's native-mode layout |
+| 16 KiB pages / fixed layout | Its own libraries are built by its own toolchain. The arm64 PR forces Mach-O mappings **below 2^47**, because Linux arm64 returns 48-bit VAs and these collide with the Objective-C runtime's 47-bit pointer mask (a crash in `class_initialize`). This applies directly to SwiftCode's native-mode layout |
 | `x18` | Nothing specific. One fix (`__pipe.S`) moves a value from `x9` to `x19`, because a Linux syscall wrapper clobbers caller-saved registers that a Darwin `svc` would keep |
 | Mach IPC / launchd | Real XNU `osfmk` code inside **one `darlingserver` process per prefix**, reached by RPC over a Unix socket. Apple's open-source `launchd` runs inside the prefix. This is the "broker process" option of `native-mode.md` §7 |
 | Threads / signals | 1:1 Linux threads. Signals are turned into Mach exception messages by a `sigexc` layer that converts Linux `ucontext` into `arm_thread_state64` and NEON state; the arm64 PR adds this |
@@ -185,7 +185,7 @@ was fetched or run. Disk use so far is 1.2 GB. Findings that do not need
 the build:
 
 - **The data volume is mounted `nosuid`.** A setuid-root `darling` placed
-  in a prefix on `$YCODE_DATA` would never gain root. The chosen run mode is
+  in a prefix on `$SWIFTCODE_DATA` would never gain root. The chosen run mode is
   therefore no setuid file at all: a person with sudo starts each session with
   `sudo <prefix>/bin/darling shell`. The launcher checks only that the
   effective uid is 0, and `nosuid` does not affect a process that is
@@ -230,7 +230,7 @@ recompiling with a different `tsd.h` therefore does not carry over.
 
 **Decision (2026-10-17): Darling is dropped.** The build was not
 pursued further. The measurements above already answer the question, and
-the license and the design rule Darling out as a basis for Ycode. The
+the license and the design rule Darling out as a basis for SwiftCode. The
 benchmark program and the root-only runner were left unused.
 
 ## 5. Other projects considered
@@ -244,7 +244,7 @@ rewriting for Apple's own simulator, macOS-only).
 
 ## 6. Recommendation
 
-**Do not adopt either project's code as Ycode's native-mode loader.
+**Do not adopt either project's code as SwiftCode's native-mode loader.
 Learn from Kakehashi's boundary design. Keep Darling as a reference for
 scope and failure modes only.**
 
@@ -254,8 +254,8 @@ scope and failure modes only.**
    layout, `dyld_sim`, and Mach IPC. Kakehashi and Darling both avoid the
    TLS problem by **replacing** the code that reads the register
    (Kakehashi with its own libSystem, Darling by recompiling Apple's open
-   source). For Ycode, the three host libraries are the only part we
-   replace (`ycode/SimHostLibs`), and the rest of the runtime is foreign
+   source). For SwiftCode, the three host libraries are the only part we
+   replace (`swiftcode/SimHostLibs`), and the rest of the runtime is foreign
    text. So `native-mode.md` §2.2 options (a) kernel prctl, (b) load-time
    rewrite, and (c) runtime-owned register remain our own decision, and
    neither project gives evidence on them. Kakehashi's load-time
@@ -272,9 +272,9 @@ scope and failure modes only.**
      `specs/` that describes behaviour (for example the boundary
      invariants), not through copied code.
    - *Darling, GPL-3.0* (plus APSL-2.0 parts). If its code is linked into
-     `ycode-simd`, `SimHostLibs`, or a native runtime that shares a process
+     `swiftcode-simd`, `SimHostLibs`, or a native runtime that shares a process
      with guests, the combined program must be distributed under GPL-3.0.
-     That is incompatible with releasing Ycode under MIT alone. Running an
+     That is incompatible with releasing SwiftCode under MIT alone. Running an
      unmodified Darling component as a **separate program** (for example
      `darlingserver` behind a socket) is usually treated as aggregation.
      But a private, intimate RPC protocol that passes Mach-internal

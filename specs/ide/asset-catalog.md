@@ -1,6 +1,6 @@
 # Asset catalog editor
 
-Ycode modules: `YcodeUI` (`AssetCatalog`, `AssetCatalogEditorController`).
+SwiftCode modules: `SwiftCodeUI` (`AssetCatalog`, `AssetCatalogEditorController`).
 
 Opening an `.xcassets` folder shows the asset catalog editor in the editor
 area: a list of sets on the left (with a + menu: Image Set, Color Set,
@@ -31,7 +31,7 @@ groups (shown as `Group/Name`).
   with three decimals.
 - **macOS app icon**: `images` with `idiom` `mac`, `size` 16x16, 32x32,
   128x128, 256x256, 512x512, each at `1x` and `2x`.
-- `info` = {`author`, `version` 1}; Ycode writes `"author" : "ycode"` in
+- `info` = {`author`, `version` 1}; SwiftCode writes `"author" : "swiftcode"` in
   files it creates and keeps the value of existing files.
 
 Files are written as JSON with two-space indentation, `"key" : value`,
@@ -43,7 +43,7 @@ and write back unchanged).
 - Image slots are drop targets for image files; a click opens a file
   picker. The file is copied into the set folder and named in the slot;
   a replaced file no other slot uses is deleted. Clearing a slot removes
-  its `filename` and file (Ycode: the Delete key on a selected slot, or
+  its `filename` and file (SwiftCode: the Delete key on a selected slot, or
   its context menu's Remove).
 - Color rows: a swatch, the color space (sRGB / Display P3) and Red,
   Green, Blue, Alpha fields (0–1); each edit writes the set.
@@ -52,15 +52,15 @@ and write back unchanged).
 - Removing a set or a folder ("−", Editor ▸ Delete Selected Items)
   moves it to the trash, never deletes it outright: the Finder's Trash on
   macOS, the freedesktop.org trash (`$XDG_DATA_HOME/Trash`) on Linux. This
-  is Ycode's choice, the rule its other destructive actions follow
+  is SwiftCode's choice, the rule its other destructive actions follow
   (`source-control.md` §Commit editor: "Nothing is deleted outright"); the
   reference's behavior is not observed (issue #3).
 
-## Linux IDE (Ycode, 1.0.0-beta.2)
+## Linux IDE (SwiftCode, 1.0.0-beta.2)
 
-`ycode-ide` opens `.xcassets` from the project navigator in an editor with
-the same parts (`YcodeIDEShell/AssetCatalogEditorModel.swift`,
-`ycode-ide/AssetCatalogEditorView.swift`): the outline with "+", "−" and
+`swiftcode-ide` opens `.xcassets` from the project navigator in an editor with
+the same parts (`SwiftCodeIDEShell/AssetCatalogEditorModel.swift`,
+`swiftcode-ide/AssetCatalogEditorView.swift`): the outline with "+", "−" and
 the filter, the set header, slots (a click on an empty slot or the slot's
 context menu chooses an image through the file dialog; Delete clears the
 selected slot), color rows (sRGB / Display P3, a hex field and the four
@@ -68,15 +68,15 @@ components), and the Attributes inspector tab (Name renames the set or
 folder; the Color Set and App Icon rows; Provides Namespace for folders).
 There is no drag-in: OpenViews has no drop targets yet.
 
-## Compiling (Ycode)
+## Compiling (SwiftCode)
 
-Ycode compiles catalogs itself with `ycode assets compile` (module
-`YcodeAssetCatalog`): image sets with PNG files, colour sets and app icon
+SwiftCode compiles catalogs itself with `swiftcode assets compile` (module
+`SwiftCodeAssetCatalog`): image sets with PNG files, colour sets and app icon
 sets, and `.icon` packages next to the catalog, into `Assets.car`, the loose
 iOS icon PNGs or the macOS `.icns`, and the partial `Info.plist`. The car
 format and the compiler's rules are in `specs/formats/assets-car.md` §I;
 `.icon` reading in `specs/formats/icon-format.md` §I. Builds use it in
-place of `actool` with `YCODE_ASSET_COMPILER=ycode` (the default off macOS).
+place of `actool` with `SWIFTCODE_ASSET_COMPILER=swiftcode` (the default off macOS).
 Not compiled yet: data, symbol, texture, AR, sticker and sprite-atlas sets,
 non-PNG images, high-contrast variants, template-rendering intents, asset
 symbols, and the layered `.icon` tier.

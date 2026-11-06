@@ -75,7 +75,7 @@ So the per-client names give the system shell and the compositor host
 processes of their own, apart from the one that serves apps. A crash of
 host A (our probe's zero-attachment render pass, §8.6) ended only our
 probe's connections; host C, serving `backboardd`, kept its process
-id. Why the names exist beyond this separation is not documented; a Ycode host may serve all names with one service (§12).
+id. Why the names exist beyond this separation is not documented; a SwiftCode host may serve all names with one service (§12).
 
 ### 1.3 Three connections per process
 
@@ -189,7 +189,7 @@ With our test server, the device was created and worked with any
 Message types 2–5 and 11 were never sent. Types 17 and 18 were added
 from visionos.md §10.6.5 (2026-10-27; RealityKit uses them in backboardd
 and datamigrator). Type 19 was added from visionos.md §10.9 (2026-10-27,
-Ycode's guest; wakeboardd's compositor uses it on visionOS); its reference
+SwiftCode's guest; wakeboardd's compositor uses it on visionOS); its reference
 reply and type 20 from visionos.md §10.10 (2026-10-27). Replies to requests that expect
 no data are empty dictionaries.
 
@@ -256,34 +256,34 @@ indirect command buffers (`newIndirectCommandBufferWithDescriptor:` aborts
 | 19 | argument-encoder set call | §4.3.4 (corrected by OBS-ARGBUF: the index is 24 bits, a count follows, range forms) | empty. **The host writes the members** into the argument buffer's shared memory at the offsets of op 16's description (§4.3.2, §4.3.5); the driver writes nothing |
 | 20 | `newHeapWithDescriptor:` | u32 0, u64 size, u16 resource options, u16 0 | u32 ref, u32 0 |
 | 21 | heap `newTextureWithDescriptor:` | u32 0, u32 heap ref, texture descriptor **words 1–8** (§5.2, without word 0), 12 bytes 0: 52 bytes (corrected 2026-10-27, see below) | u32 texture ref, u32 0 |
-| 22 | `heapTextureSizeAndAlignWithDescriptor:` | texture descriptor **words 1–8** (§5.2, without word 0): 32 bytes | u64 size, u64 alignment (352 768, 128 for 256×256 BGRA8 with mipmaps; the reference's answers follow the rule of visionos.md §10.8.3, which a Ycode host uses) |
+| 22 | `heapTextureSizeAndAlignWithDescriptor:` | texture descriptor **words 1–8** (§5.2, without word 0): 32 bytes | u64 size, u64 alignment (352 768, 128 for 256×256 BGRA8 with mipmaps; the reference's answers follow the rule of visionos.md §10.8.3, which a SwiftCode host uses) |
 | 23 | `heapBufferSizeAndAlignWithLength:options:` | u64 length, u16 options, u16 0 | u64 size, u64 alignment (1000 → 1000, 256) |
 | 24 | heap `newBufferWithLength:options:` | u32 0, u32 heap ref, u64 length, u64 0, u64 options | u32 buffer ref, u32 0 |
 | 25 | (heap resources; one u32 ref) | u32 ref | 1 byte (meaning open) |
 | 27 | texture view with swizzle (from a descriptor with `swizzle`) | as op 8, then u32 swizzle (one byte per channel r, g, b, a, `MTLTextureSwizzle` values) | u32 ref, u32 0 |
 | 28 | `newEvent`, `newSharedEvent` | u32 0 | u32 ref, u32 0 |
 | 30 | shared event `setSignaledValue:` (connection 0) | u32 ref, u64 value | empty |
-| 31 | heap size query | u32 heap ref | u64 size, u64 size, u64 used size (or 8 bytes; open). The reference's heap `size` and `currentAllocatedSize` are the requested size rounded up to a multiple of 16 384 (visionos.md §10.8.3); a Ycode host grants heaps (op 20) in those units |
+| 31 | heap size query | u32 heap ref | u64 size, u64 size, u64 used size (or 8 bytes; open). The reference's heap `size` and `currentAllocatedSize` are the requested size rounded up to a multiple of 16 384 (visionos.md §10.8.3); a SwiftCode host grants heaps (op 20) in those units |
 | 32 | `maxAvailableSizeWithAlignment:` | u32 heap ref, u64 alignment | u64 |
 | 33 | `minimumLinearTextureAlignmentForPixelFormat:` | u32 pixel format | u64 (16 for BGRA8) |
 | 34 | `minimumTextureBufferAlignmentForPixelFormat:` | u32 pixel format | u64 (16) |
 | 35 | `constantDataAtIndex:` | u32 encoder ref, u32 argument-buffer ref (the last kind-0 set call's), u32 argument index, u32 0 | u64: the member's byte offset from the start of the argument buffer (argument-buffer offset plus member offset; §4.3.6) |
-| 37 | limits (connection 0, once per process) | u32 0 | u64 max threads per threadgroup x, y, z, u64 max threadgroup memory (macOS: 1024, 1024, 1024, 32 768; a Ycode host answers its GPU's limits with z raised to at least 512, so the guest keeps its own cap of 512 as with the reference, visionos.md §10.6.1) |
+| 37 | limits (connection 0, once per process) | u32 0 | u64 max threads per threadgroup x, y, z, u64 max threadgroup memory (macOS: 1024, 1024, 1024, 32 768; a SwiftCode host answers its GPU's limits with z raised to at least 512, so the guest keeps its own cap of 512 as with the reference, visionos.md §10.6.1) |
 | 38 | buffer `gpuAddress` | u32 buffer ref | u64 address (host-chosen, e.g. `0x100000f8000`) |
 | 39 | sampler `gpuResourceID` (when `supportArgumentBuffers`) | u32 sampler ref, u32 8 | u64 resource ID |
 | 41 | shared event `signaledValue` (connection 0) | u32 ref | u64 value |
 
 **Heap texture descriptors (correction, 2026-10-27, level 3).** Ops 21
 and 22 carry the descriptor without its leading zero word. Captured from
-Ycode's own host during a visionOS 27.0 boot (backboardd's RealityKit
-renderer creates heap textures at start; `YCODE_METAL_DUMP_OPS`): op 22
+SwiftCode's own host during a visionOS 27.0 boot (backboardd's RealityKit
+renderer creates heap textures at start; `SWIFTCODE_METAL_DUMP_OPS`): op 22
 bodies were 32 bytes, for example word 1 `0x00460042` (2D, GPU-optimized,
 usage 0, RGBA8Unorm 70), then width, height, depth 1, levels and samples
 1, array length 1 with options `0x20`, and a zero u64; op 21 bodies were
 52 bytes (u32 0, u32 heap ref, the same 32 bytes, 12 zero bytes). Read
 with word 0, op 22 ran out of bytes (refused as malformed) and op 21 read
-pixel format 0. iOS boots under Ycode showed the same op-22 refusal. A
-Ycode host accepts both forms (32/36 and 52/56 bytes).
+pixel format 0. iOS boots under SwiftCode showed the same op-22 refusal. A
+SwiftCode host accepts both forms (32/36 and 52/56 bytes).
 
 **Op 37 is the only capability query.** The driver takes, for each of the
 four limits, the smaller of the reply and its own cap (512, 512, 512,
@@ -301,7 +301,7 @@ port. Their numbers are open.
 ### 4.3 Argument buffers (ops 16, 17, 19, 35; agent OBS-ARGBUF, 2026-10-30)
 
 Observed on this Mac with the iOS 27.0 runtime (24A434), throwaway device
-`ycode-test-argbuf-ios27` (iPhone 18 Pro), our probe `argprobe.m` run
+`swiftcode-test-argbuf-ios27` (iPhone 18 Pro), our probe `argprobe.m` run
 with `simctl spawn` under the recorder, and the recorder's test server for
 the "who writes" question. Level 3. The probe made 32 layouts: 25 from our
 own shader structs (`newArgumentEncoderWithBufferIndex:`) and 7 from
@@ -442,7 +442,7 @@ Rules, all consistent with every capture:
    size) rounded up to that alignment. The reflection's `bufferDataSize`
    (from the guest's compiler) is the same number.
 
-The id-to-position rule that a Ycode host has used (member *n* at 8 × *n*)
+The id-to-position rule that a SwiftCode host has used (member *n* at 8 × *n*)
 matches only dense layouts without inline data: for ids 200, 201, 230 and
 231 it gives 1600–1848 where the reference writes 0–24.
 
@@ -509,16 +509,16 @@ itself; the host is not told what was stored. The test server's answer
 - The reference's cold boot of iOS 27.0 did not create any argument
   encoder in `WeatherPoster` (both of its instances drew only RenderBox
   pipelines; recorder in `WeatherPoster` and `PosterBoard`, boot `w1`), so
-  the layout behind Ycode's ids 200, 201, 230 and 231 (`app-launch.md`
+  the layout behind SwiftCode's ids 200, 201, 230 and 231 (`app-launch.md`
   §3.9) was not captured from the process itself. The rule above places
   them by the description that op 16 carries, whatever the struct holds.
-  The function Ycode's hang report names (`fragment_skybox_texture1d`, in
+  The function SwiftCode's hang report names (`fragment_skybox_texture1d`, in
   the runtime's VFX library, opened by our probe with `newLibraryWithURL:`
   and given a render pipeline with reflection) binds a texture and a
   16-byte buffer and no argument buffer, so the encoder belongs to
   another function of that command buffer.
 
-#### 4.3.8 What a Ycode host must do
+#### 4.3.8 What a SwiftCode host must do
 
 1. Parse op 16's description (§4.3.1) into a table from argument index to
    (offset, kind, size): walk nested structs and arrays with the rules of
@@ -533,9 +533,9 @@ itself; the host is not told what was stored. The test server's answer
 4. Answer op 35 with the argument-buffer offset plus the member's offset.
 5. Read the u24 index and the count of op 19 (§4.3.4), not a u8 index.
 
-#### 4.3.9 Ycode implementation (agent ARGBUF-IMPL, 2026-10-30)
+#### 4.3.9 SwiftCode implementation (agent ARGBUF-IMPL, 2026-10-30)
 
-Clean-room work from §4.3.1–§4.3.8 only (`YcodeMetalHost`,
+Clean-room work from §4.3.1–§4.3.8 only (`SwiftCodeMetalHost`,
 `MetalArgumentLayout.swift` and `MetalHostCore.swift`).
 
 - **Op 16.** The record body is parsed with the grammar of §4.3.1 into a
@@ -552,7 +552,7 @@ Clean-room work from §4.3.1–§4.3.8 only (`YcodeMetalHost`,
   body. The reply is unchanged (`0xffff0001`, `0xffffffff`). A description
   that does not parse is refused (statistics key `12:16`) and logged with
   where it stopped; its encoders use the fallback below.
-- **Unreadable pointee structs (Ycode design).** Under Ycode, iOS 27.0's
+- **Unreadable pointee structs (SwiftCode design).** Under SwiftCode, iOS 27.0's
   WeatherPoster (below) sends descriptions (about 11 KB) in which the pointee
   struct of a top-level buffer member (index 10 at offset 8) holds a member
   with type code 11, which §4.3.1 does not describe (§13 item 9). The
@@ -574,9 +574,9 @@ Clean-room work from §4.3.1–§4.3.8 only (`YcodeMetalHost`,
   argument buffer and offset. Element *k* of kinds 1–3 is index first +
   *k*, written as 8 bytes at the argument-buffer offset plus that index's
   table offset: a buffer's GPU address plus the call's offset, a texture's
-  `gpuResourceID` (Ycode's heap slot; §4.3.5 leaves the handle to the
+  `gpuResourceID` (SwiftCode's heap slot; §4.3.5 leaves the handle to the
   host), a sampler's op-39 answer, and 0 for ref 0. An index that is not in
-  the table is logged and not written. `YCODE_METAL_ARGUMENT_ENCODER=0`
+  the table is logged and not written. `SWIFTCODE_METAL_ARGUMENT_ENCODER=0`
   still refuses the set calls.
 - **Op 35.** The answer is the encoder's argument-buffer offset plus the
   member's table offset. For an index that is not in the table, the host
@@ -611,7 +611,7 @@ Clean-room work from §4.3.1–§4.3.8 only (`YcodeMetalHost`,
   `SnapshotReplayTests.restoreKeepsSlotsAndRewritesArgumentMembers` cover
   the fallback.
 
-**Layouts seen under Ycode** (Thor, level 3 under Ycode, the guest's own
+**Layouts seen under SwiftCode** (Thor, level 3 under SwiftCode, the guest's own
 descriptions as parsed). visionOS 27.0 backboardd and its RealityKit
 clients: one layout of 15 buffers, indices 0–14 at 0, 8, …, 112, length
 120, alignment 8. This is the reference's layout in §4.3.2. iOS 27.0: in
@@ -731,7 +731,7 @@ surfaces.
 - **Rendering lands in the surface's memory.** After a clear and a
   compute write into such a texture, and the completion event, our probe
   read the expected pixels through `IOSurfaceGetBaseAddress` (guest memory
-  of the surface). A Ycode host must make GPU writes visible in the
+  of the surface). A SwiftCode host must make GPU writes visible in the
   surface's shared memory before it reports completion (§9).
 - Low half of word 1 seen: `0x0552` for QuartzCore's display buffers
   (usage render target + shader read, bit 4 set), `0x0142` for surfaces
@@ -790,7 +790,7 @@ is read through the other (op 41) and waited for by either. A handle with
 port 0 breaks the client later (command-buffer decoding failed in the
 reference), so a host must answer 17 with a real right.
 
-A Ycode host (`MetalHostCore`) makes one port per exported event (a
+A SwiftCode host (`MetalHostCore`) makes one port per exported event (a
 receive right of the host task that nothing receives on; replies carry
 MAKE_SEND rights), keeps a table port → event, and answers 18 by
 creating a backend alias of that event (`createEventAlias`; on Vulkan the
@@ -802,7 +802,7 @@ dictionary** (no `replyData`, no `error`) and `newSharedEventWithHandle:`
 returns nil; that is what the driver sends for a nil handle, and visionOS
 backboardd and wakeboardd send one right after each real 18 of a layer
 (visionos.md §10.12.2, level 3). A host must answer it that way, not with
-a fresh event. Ycode does so since VISIONOS-R4b (visionos.md §10.14):
+a fresh event. SwiftCode does so since VISIONOS-R4b (visionos.md §10.14):
 an 18 without a port, or with port 0, gets an empty dictionary, makes no
 event and is not counted as refused (it is counted on its own). While exported
 events exist the Metal service reports itself busy to snapshots (the
@@ -824,7 +824,7 @@ capture: completion (event 101) is the only synchronization point.
 
 Used by `newSharedTextureWithDescriptor:`. On visionOS, wakeboardd's
 compositor makes its presentation layers with it, 16 in one boot. Level
-3: the reference and Ycode's guest (visionos.md §10.9, §10.10).
+3: the reference and SwiftCode's guest (visionos.md §10.9, §10.10).
 
 **Request** (connection type 1):
 
@@ -874,13 +874,13 @@ present, neither in the creation properties nor in the values.
 surface. It reads the surface's `CreationProperties` and selects the
 Metal device whose `registryID` equals `kMetalRegistryID`, read as an
 unsigned 64-bit number. If that key is missing or does not match, no
-handle is made: our probe crashed, and under Ycode the handle was nil.
+handle is made: our probe crashed, and under SwiftCode the handle was nil.
 Making a handle sends no host message. A handle goes to another process
 only inside an NSXPC message, which carries its surface as an XPC object
 (a Mach send right). Keyed archiving of a handle fails ("may only be
 encoded by an NSXPCCoder").
 
-**Ycode** (visionos.md §10.11.3): the host makes the surface in its
+**SwiftCode** (visionos.md §10.11.3): the host makes the surface in its
 IOSurface service with exactly the values and creation properties above
 (`kMetalRegistryID` = its hand-shake `registryID`; `IOSurfaceName` is
 added by the service), so every process that looks it up by port or ID
@@ -920,7 +920,7 @@ reference replied with the descriptor taken from those properties (a
 `newSharedTextureWithHandle:` returned nil. The guest builds its texture
 object from the reply, so the descriptor words must be correct.
 
-**Ycode** (visionos.md §10.11.3): the host resolves `iosurface` through its
+**SwiftCode** (visionos.md §10.11.3): the host resolves `iosurface` through its
 IOSurface service (a Method-14 port), reads the surface's numeric
 creation properties and builds the descriptor from the `kMetalTexture…`
 keys (type, pixel format, width and height required; depth, array
@@ -1002,7 +1002,7 @@ unlabelled descriptor has a single NUL there).
 | 9 | `writeMask` |
 
 **Correction (2026-10-12).** Keys 1 and 2 were first recorded the other
-way round. Stage 8a-i runs on the Thor (level 3: the Ycode host service
+way round. Stage 8a-i runs on the Thor (level 3: the SwiftCode host service
 with its Vulkan back end, serving our probe's hello-triangle pipeline and
 a system process's pipelines) showed that key 1 carries the vertex
 function's ref and key 2 the fragment function's ref; with the original
@@ -1017,7 +1017,7 @@ key 0 buffer index, 1 `stepFunction`, 2 `stepRate`, 3 `stride`; the
 array had one layout element per attribute (duplicates for a shared
 buffer).
 
-**Ycode implementation (ARGBUF-IMPL, 2026-10-30).** A pipeline without
+**SwiftCode implementation (ARGBUF-IMPL, 2026-10-30).** A pipeline without
 key 2 (no fragment function) is rasterized for depth and stencil only,
 with colour writes off, when it has a depth or stencil format. Metal's
 `fragmentFunction` may be nil for depth-only rendering, and only
@@ -1119,7 +1119,7 @@ Payload: one field, key 0 = function ref. Reply in §4.2.
 | 132 | `setVisibilityResultMode:offset:` | u64 offset, u64 mode (0 disabled, 1 boolean, 2 counting) |
 | 134 | `useHeap:`, `useHeaps:count:` (render and compute) | u32 count, u32 heap ref × count |
 
-**Range forms** (Ycode's guest, visionos.md §10.11.3, level 3): the
+**Range forms** (SwiftCode's guest, visionos.md §10.11.3, level 3): the
 binding records 110/125 (buffers), 112/127 (samplers) and 114/129
 (textures) also come with a count above 1: u32 first index, u32 count,
 then one u32 ref per slot. **For buffers each slot is a pair, u32 ref
@@ -1140,7 +1140,7 @@ backboardd's `04 00 00 00 02 00 00 00` is fence 4, fragment stage. Fence
 refs come from `newFence` (op 13); visionOS backboardd creates and
 releases fences continuously, so the refs are reused.
 
-**Ycode** (visionos.md §10.14): the decoder turns every record of this
+**SwiftCode** (visionos.md §10.14): the decoder turns every record of this
 table, the range forms and the compute records of §8.4 into commands
 (none of them is left unknown). Deferred store actions (102, 105, 120)
 are also written into the open pass's descriptor, since a Vulkan render
@@ -1155,7 +1155,7 @@ kept, so a reused fence ref needs nothing either. Record 132 with mode 0
 needs nothing. A non-zero mode (1 boolean, 2 counting) makes the
 following draws count passing samples into the 8-byte slot at the offset
 of the render pass's visibility result buffer (descriptor offset 556);
-Ycode counts them with occlusion queries and writes each slot after the
+SwiftCode counts them with occlusion queries and writes each slot after the
 pass (visionos.md §10.20.8; visionOS backboardd uses boolean mode).
 
 **Inline bytes.** `setVertexBytes:length:atIndex:`,
@@ -1216,8 +1216,8 @@ Compute (kind 1):
 
 `computeCommandEncoderWithDispatchType:` concurrent produced no extra
 record. Record 203 has the range form of §8.3 too ((ref, u64 offset) per
-slot, visionos.md §10.12.5 item 2); Ycode reads 204 and 206 with a count
-above 1 as one ref per slot, like 112 and 114 (a Ycode choice by analogy,
+slot, visionos.md §10.12.5 item 2); SwiftCode reads 204 and 206 with a count
+above 1 as one ref per slot, like 112 and 114 (a SwiftCode choice by analogy,
 not observed), and 134 as in §8.3.
 
 Blit (kind 2):
@@ -1257,10 +1257,10 @@ For each submission the host sends two one-way messages on connection 0:
 | `error` | 1 | 1 |
 | `startTime`, `endTime` | GPU start and end, seconds of the host clock | same values |
 
-Under Ycode the guest's mach clock is not the host's uptime (they differ by
+Under SwiftCode the guest's mach clock is not the host's uptime (they differ by
 its offset, about 19 days on the Thor), and the guest compares these times
-with its own media time: Ycode's events carry the guest's mach time in seconds
-(`visionos.md` §10.28.1; `YCODE_METAL_EVENT_CLOCK=host`: the host's uptime).
+with its own media time: SwiftCode's events carry the guest's mach time in seconds
+(`visionos.md` §10.28.1; `SWIFTCODE_METAL_EVENT_CLOCK=host`: the host's uptime).
 
 With our test server:
 
@@ -1310,7 +1310,7 @@ abort in the host's GPU driver while it built a program for the pass);
 the client's three connections were interrupted and its command buffer
 never completed. `defaultRasterSampleCount` was not found in the record.
 
-### 8.7 GPU hangs: the watchdog and device recovery (Ycode; agent GPU-SIRI, 2026-11-01)
+### 8.7 GPU hangs: the watchdog and device recovery (SwiftCode; agent GPU-SIRI, 2026-11-01)
 
 What the protocol gives a host for a command buffer that cannot run is
 event 101 with `status` 5 (§8.5): the client's command buffer ends with
@@ -1329,7 +1329,7 @@ from the home view).** The Siri orb's kernel read unbound buffer slots
 (metal-shaders.md §4.11) and never completed. On the Thor a hung context
 is stopped by the driver only when another context needs the GPU and the
 hung one cannot be switched out (Xid 109, stage8-contract.md §15.1): here
-after 80 s. Ycode then saw `VK_ERROR_DEVICE_LOST`, failed every pending
+after 80 s. SwiftCode then saw `VK_ERROR_DEVICE_LOST`, failed every pending
 and held command buffer, backboardd aborted, and every later submission
 of the new backboardd failed too (the device stays lost): backboardd
 restarted every 50–70 s for the rest of the session.
@@ -1342,16 +1342,16 @@ colour attachment in one pass (`vertexShaderClearAll` and
 `fragmentShaderClearAll`, two instances, the vertex function writes
 `viewport_array_index`), then dispatch `immersivemask::precomputeMaskTransition`.
 The checkpoints put the GPU in the clear draw, not in the kernel (whose
-one buffer and one texture are bound). Ycode's render area was the first
+one buffer and one texture are bound). SwiftCode's render area was the first
 attachment's size; Vulkan requires it to lie inside every attachment, and
 the clear and draw wrote past the 16 × 16 image. On the Thor that write
 never completes: `GPURecoveryTests.attachmentsOfDifferentSizesStayInsideTheSmallest`
-with the old rule (`YCODE_GPU_MIXED_SIZE=first`) — two cleared attachments
-of those sizes, no draw — hung until the device was lost. **Rule (Ycode):**
+with the old rule (`SWIFTCODE_GPU_MIXED_SIZE=first`) — two cleared attachments
+of those sizes, no draw — hung until the device was lost. **Rule (SwiftCode):**
 a pass is rendered at the smallest attachment's size (and the
 `renderTargetWidth`/`Height` of the descriptor, when smaller); the stats
 line counts `passes of mixed sizes`. That Metal does the same (the render
-target is the smallest attachment) is Ycode's reading of the
+target is the smallest attachment) is SwiftCode's reading of the
 `renderTargetWidth` documentation, not an observation (§13 item 12). Both
 hangs had 32 × 16-thread threadgroups in the stuck command buffer, but
 neither was in a kernel's execution: the Siri kernel's loads of address 0
@@ -1368,18 +1368,18 @@ a word; level 3):
 | `vkDeviceWaitIdle` on the stuck device | returns `VK_ERROR_DEVICE_LOST` after **1.3 s** (Xid 109), for the address-0 read and the endless loop alike |
 | destroying the device, then creating a new one in the same process | the destroy returns (0.1 s after the wait above, 4.5 s without it); the new device runs work correctly |
 
-**The watchdog (Ycode).** The completion thread waits for each submission
+**The watchdog (SwiftCode).** The completion thread waits for each submission
 in slices (stage8-contract.md §14). A submission still running after
-`YCODE_GPU_WATCHDOG_S` seconds (default 10; 0 turns it off) is ended:
+`SWIFTCODE_GPU_WATCHDOG_S` seconds (default 10; 0 turns it off) is ended:
 the thread waits the device idle under the back end's lock (the wait
 needs the queue to itself), which returns `VK_ERROR_DEVICE_LOST` once the
 driver has stopped the work, and the loss is handled as any other.
 Before ending it, the hang report of stage8-contract.md §15.2 has
 described the command buffer (at 2 s).
 
-**Device recovery (Ycode; `VulkanDeviceReset.swift`).** After a loss
+**Device recovery (SwiftCode; `VulkanDeviceReset.swift`).** After a loss
 (seen by a wait, a counter read, a submission, or made by the watchdog),
-unless `YCODE_GPU_RECOVER=0`:
+unless `SWIFTCODE_GPU_RECOVER=0`:
 
 1. The device gate closes: no pipeline compile, timeline wait outside the
    lock or pipeline-cache save may use the device until the reset ends
@@ -1424,7 +1424,7 @@ unless `YCODE_GPU_RECOVER=0`:
    - the dummy resources, the pipeline cache, and the timeline (serials
      start again at 1); feedback-copy images, transient memory, query
      pools and library parts are made again when next needed. A frame
-     trace (`YCODE_METAL_TRACE`) stops.
+     trace (`SWIFTCODE_METAL_TRACE`) stops.
 5. The gate opens, the reset handler runs, and the kept command buffers
    are submitted again.
 
@@ -1433,7 +1433,7 @@ and the stats line counts `device resets`. If the device cannot be made
 again, every later command buffer fails as before.
 
 **In a boot (GPU-SIRI's `r1`, visionOS 27.0, the Siri fix turned off
-with `YCODE_GPU_UNBOUND_DUMMY=0`):** Siri's orb kernel hung; the watchdog
+with `SWIFTCODE_GPU_UNBOUND_DUMMY=0`):** Siri's orb kernel hung; the watchdog
 ended it at 10 s, and the device was made again in 2.9 s (gate 0 ms,
 idle 15, the old objects 780, destroy 160, create 1,689, rebuild 241):
 951 buffers and imports, **none at a new device address**, 499 images,
@@ -1446,16 +1446,16 @@ is the content of textures that only the GPU held: the room
 (environment maps and the ASTC-decoded textures RealityKit made at boot)
 and the icons' images stayed black until their owners draw them again.
 A client restart (the render server's, which restarts the shell) would
-bring them back; Ycode does not force one.
+bring them back; SwiftCode does not force one.
 
 **Open:** which `error` value (§8.5) the reference's event carries for a
 command buffer that timed out (Metal's `MTLCommandBufferErrorTimeout` is
-2; Ycode sends 1 as for every event, §13 item 1). Ycode does not run a
+2; SwiftCode sends 1 as for every event, §13 item 1). SwiftCode does not run a
 kept command buffer's parts that had already run before the loss only
 once: a command buffer split at an event wait whose first part completed
 runs that part again.
 
-### 8.8 One client's stuck submission and the others (Ycode; agent B3-GPU, 2026-11-05)
+### 8.8 One client's stuck submission and the others (SwiftCode; agent B3-GPU, 2026-11-05)
 
 Every Metal client process of a device shares one Vulkan device and one
 queue, and the completion thread completes submissions in their order
@@ -1483,21 +1483,21 @@ the driver end only the stuck client's context, but after the same 4 s,
 and at the cost of every object, pipeline and IOSurface link per client;
 not done.
 
-**What Ycode does (VulkanClientIsolation.swift):**
+**What SwiftCode does (VulkanClientIsolation.swift):**
 
 1. **The blocking watchdog.** A submission still running after
-   `YCODE_GPU_BLOCKING_WATCHDOG_S` seconds (default 2; 0 off) while command
+   `SWIFTCODE_GPU_BLOCKING_WATCHDOG_S` seconds (default 2; 0 off) while command
    buffers of *other* client processes wait behind it (queued, or refused
    while the device is lost) is ended. The plain watchdog (10 s, §8.7)
    stays for work that holds up only its own client. The limit is about
    100 times legitimate work: in a traced 700 s full boot
-   (`YCODE_METAL_TRACE`, run `f700`, 352 command buffers) the longest GPU
+   (`SWIFTCODE_METAL_TRACE`, run `f700`, 352 command buffers) the longest GPU
    time of a command buffer was 21.7 ms (mean 1.7 ms; submission to
    completion at most 53 ms); none of stage8-contract.md §14–§15's
    measurements had a frame's command buffer over 100 ms outside hangs.
 2. **The kick.** The watchdog runs an empty kernel on a second device of
    ours (made at the first hang without touching the function table other
-   threads use, then kept; `YCODE_GPU_KICK=0` turns it off), then waits the
+   threads use, then kept; `SWIFTCODE_GPU_KICK=0` turns it off), then waits the
    stuck device idle, which then fails at once. Measured stop: 4.3–4.5 s
    (12 hangs in the tests below), against 4–59 s for the wait alone.
 3. **Blame.** The hang line names the stuck client, its command buffer and
@@ -1506,15 +1506,15 @@ not done.
    4 command buffers of 1 other client waited behind it (process 7
    (iconservicesagent, guest pid 282)); ending it`. The hang report of
    stage8-contract.md §15.2 is written before the device is stopped, even
-   when the blocking limit is below `YCODE_GPU_HANG_REPORT_S`. Names come
-   from ycode-simd (`Options.describeProcess`: executable name and guest
+   when the blocking limit is below `SWIFTCODE_GPU_HANG_REPORT_S`. Names come
+   from swiftcode-simd (`Options.describeProcess`: executable name and guest
    pid).
 4. **Only its client fails.** The device reset (§8.7) fails the stuck
    command buffer **and every other command buffer of the same client
    process** still queued, held or refused meanwhile (status 5); the other
    clients' command buffers are recorded again and complete normally.
 5. **Access revoked.** A client process whose work had to be ended
-   `YCODE_GPU_REVOKE_AFTER` times (default 2; 0 never) loses GPU access:
+   `SWIFTCODE_GPU_REVOKE_AFTER` times (default 2; 0 never) loses GPU access:
    its later command buffers complete with status 5 without running, in
    order behind its earlier ones, as Metal's
    `MTLCommandBufferErrorAccessRevoked` describes ("the process was denied
@@ -1533,14 +1533,14 @@ not done.
    `/System/Library/CoreServices/SpringBoard.app/SpringBoard`; never by a
    pid (`MetalSystemUI`, `Options.exemptFromRevocation`).
 
-`YCODE_GPU_INJECT_HANG=<name>@<s>[x<n>]` (debugging) puts a kernel that
+`SWIFTCODE_GPU_INJECT_HANG=<name>@<s>[x<n>]` (debugging) puts a kernel that
 never ends in front of the first command buffer of a client whose name
 contains `<name>`, `<s>` seconds after the back end started, `<n>` times.
 
 **Tests** (`GPUClientIsolationTests`, the Thor, run alone: a shared back
 end in the same process makes the driver's stop slower).
 In a boot (`inj-bbd2`, the Thor shared, another agent's simulator
-running, `YCODE_GPU_INJECT_HANG=backboardd@20x3`, injections now at least
+running, `SWIFTCODE_GPU_INJECT_HANG=backboardd@20x3`, injections now at least
 15 s apart) the client was named `backboardd, guest pid 124, job
 com.apple.backboardd`; its three hangs were each ended (stopped in
 2.3–2.4 s), its access was kept after the second and the third, and the
@@ -1568,7 +1568,7 @@ workstation, 1 of 2 runs failed that way). Display planes
 (`VK_KHR_display`) were not usable as the signal: the Thor's GPU and the
 workstation's both report 4 planes and 0 displays. Over SSH the Thor has
 no session for the test user (0: the suites run); the workstation's GPU
-presents to its Wayland desktop (1: they skip). `YCODE_TEST_GPU_HANGS=1`
+presents to its Wayland desktop (1: they skip). `SWIFTCODE_TEST_GPU_HANGS=1`
 runs them anyway, `=0` never. Client 1's
 kernel never ends; clients 2 and 3 submit a frame every 50 ms (clear to a
 colour that changes per frame, draw a triangle), plain watchdog 30 s,
@@ -1583,7 +1583,7 @@ by the blocking limit.
 
 **In a boot** (iOS 27.1, iPhone 18 Pro copy of the golden device, the
 Thor shared with other agents' boots, load 40–60):
-`YCODE_GPU_INJECT_HANG=Poster@90x2` hung `MercuryPosterExtension` twice
+`SWIFTCODE_GPU_INJECT_HANG=Poster@90x2` hung `MercuryPosterExtension` twice
 (run `inj1`, before the kick): each hang was ended at 2.0 s with 4 and
 then 1 command buffers of `iconservicesagent` and `backboardd` waiting;
 the resets took 1.6 and 3.2 s (device creation 1.2 and 2.8 s); the
@@ -1632,7 +1632,7 @@ pixels in IOSurfaces:
   `SwapSubmit` → event 101 (101 sometimes came before `SwapSubmit`
   returned). So **`backboardd` presents after the command buffer is
   *scheduled*, not after it is completed**: on the Mac the host GPU orders
-  the display read after the render. A Ycode host that cannot give that
+  the display read after the render. A SwiftCode host that cannot give that
   guarantee must not send event 100 before the frame's pixels are in the
   surface memory; sending 100 together with 101 after completion (or only
   101, §8.5) delays `SwapSubmit` until then.
@@ -1656,7 +1656,7 @@ screen; their counts are not used here.)
 | `SpringBoard` | 1 | one render pass, blit 307 and 318 |
 | `PosterBoard`, `chronod` | 0 | device creation only (hand-shakes, op 37) |
 
-Union of what they used — **the minimum a Ycode host must translate for
+Union of what they used — **the minimum a SwiftCode host must translate for
 this boot**:
 
 - Messages: 0, 1, 6, 7, 8 (ops 1, 3, 4), 9 (op 2), 10 (op 5, 10 times),
@@ -1702,11 +1702,11 @@ The test server ran inside the client (anonymous XPC listener); it checks
 semantics, not the Mach wire, and `xpc_connection_enable_sim2host_4sim`
 was not applied to its connections.
 
-## 12. Requirements for a Ycode host (derived)
+## 12. Requirements for a SwiftCode host (derived)
 
 1. **Names.** Register `com.apple.metal.simulator` and the per-client
    names of `launchd-sim.md` §6.3 into the guest's `user/<uid>` domain
-   (control operation 701), all to one Ycode service or to several; serve
+   (control operation 701), all to one SwiftCode service or to several; serve
    the hand-shake on each connection, reply `!CPX`.
 2. **Hand-shake.** Reply `version` 10, `processRef` per client process,
    `registryID` any constant, `hostFeatureProfile` 10. Bind connections
@@ -1723,7 +1723,7 @@ was not applied to its connections.
    results from the same pages after event 101. Map XPC data that arrives
    by memory entry (segments, uploads). Write `getBytes` results into the
    message's shared region before replying.
-6. **IOSurface textures.** Resolve the `iosurface` port with Ycode's own
+6. **IOSurface textures.** Resolve the `iosurface` port with SwiftCode's own
    IOSurface service (`iosurface-remote.md` §8 item 9) and back the
    texture by the surface's memory (linear), or copy back to it before
    event 101.
@@ -1767,7 +1767,7 @@ was not applied to its connections.
    layout description, op 17's reply, op 19's set calls and what the host
    writes. Still open: how the macOS host chooses the 8-byte texture
    handles it writes, and the layout of WeatherPoster's encoder (not made
-   in the reference's cold boot; as Ycode receives it, §4.3.9).
+   in the reference's cold boot; as SwiftCode receives it, §4.3.9).
 7. Whether `defaultRasterSampleCount`-only passes ever occur in the boot
    (they crashed the macOS host).
 8. *(Answered, §5.10, §5.11, level 3.)* The reference's reply to `messageType` 19
@@ -1776,37 +1776,37 @@ was not applied to its connections.
    `MetalSharedTexture`; whether opening a handle in another process
    (`newSharedTextureWithHandle:`) sends a message, and which.
 9. *(New, ARGBUF-IMPL, 2026-10-30.)* Op 16's member type codes other
-   than 57, 1 and 2. Under Ycode, iOS 27.0 WeatherPoster's descriptions
+   than 57, 1 and 2. Under SwiftCode, iOS 27.0 WeatherPoster's descriptions
    (11 220 bytes) hold a member with type code 11 inside the pointee
    struct of a top-level buffer member. Type code 11 is `MTLDataTypeFloat3x3`
    as a data-type value, so this may be a plain-data member of a pointee
    struct. On the reference, with a probe whose argument buffer has a
    `constant S *` member and `S` holds a `float3x3` (and other matrix and
    vector types, and a nested struct): which type codes appear for the
-   members of a pointee struct, and what follows each code. Ycode skips
+   members of a pointee struct, and what follows each code. SwiftCode skips
    such pointee structs (§4.3.9) and needs nothing more for the layout. A
    full grammar would let the parser stop depending on that search.
    *(VISIONOS-R10b, 2026-10-31: no visionOS boot of round R10 logged a
    layout it did not parse; still open for the reference.)*
 10. *(New, ARGBUF-IMPL, 2026-10-30.)* Which op-14 key, if any, carries
    `rasterizationEnabled` NO, and whether a pipeline with it can have a
-   depth or stencil format. Ycode infers "not rasterized" from no fragment
+   depth or stencil format. SwiftCode infers "not rasterized" from no fragment
    function and no depth or stencil format (§7.2). *(VISIONOS-R10b,
    2026-10-31: the visionOS boots of round R10 logged no render-pipeline
-   key Ycode does not model, only compute-pipeline keys 1 and 2, as
+   key SwiftCode does not model, only compute-pipeline keys 1 and 2, as
    before; still open for the reference.)*
 11. *(New, GPU-SIRI, 2026-11-01.)* What the reference sends for a command
    buffer the host GPU stopped (a GPU timeout or fault): `status` 5 with
    which `error` value, and whether the driver turns it into
    `MTLCommandBufferErrorTimeout` (2) or `PageFault`; and what a client's
-   other in-flight command buffers get then. Ycode fails the stuck one and
+   other in-flight command buffers get then. SwiftCode fails the stuck one and
    the same client's other in-flight command buffers, with `error` 1, and
    after two hangs refuses the client's command buffers (§8.8). Also:
    after how many GPU errors the reference revokes a process's access
    (`MTLCommandBufferErrorAccessRevoked`), and whether the render server
    is exempt.
 12. *(New, GPU-SIRI.)* Which area the reference renders when a pass's
-   attachments differ in size (the smallest, Ycode's rule in §8.7, or each
+   attachments differ in size (the smallest, SwiftCode's rule in §8.7, or each
    attachment clipped to its own size); probe: a pass with a 64 × 64 and a
    16 × 16 attachment, both cleared, and a full-screen draw writing both.
 
@@ -1827,28 +1827,28 @@ was not applied to its connections.
 | Frame order in `backboardd` (§9) | 3 | `mslog.c` with `YC_MS_SFB`: swap functions wrapped at `dlsym` |
 | Host crash on a zero-attachment pass; host frame names | 3 | crash report of our own run (black-box output, frame names only) |
 | Boot usage (§10) | 3 | recorder logs (light mode) of every job of one boot, 107 s, home screen checked by screenshot against a boot without the recorder |
-| Heap ops 21/22 carry descriptor words 1–8 only (§4.2 correction) | 3 | request bodies logged by Ycode's own host (`YCODE_METAL_DUMP_OPS`) during Ycode boots of the visionOS 27.0 runtime on the Thor, 2026-10-27 |
+| Heap ops 21/22 carry descriptor words 1–8 only (§4.2 correction) | 3 | request bodies logged by SwiftCode's own host (`SWIFTCODE_METAL_DUMP_OPS`) during SwiftCode boots of the visionOS 27.0 runtime on the Thor, 2026-10-27 |
 | `messageType` 17 and 18 (§2.4, §5.8) | 3 | visionos.md §10.6.5 (reference observation with our probe and Metal message recorder) |
-| Ycode's handling of 17/18 and the op-37 z parity (§4.2, §5.8) | — | Ycode design; unit tests `CoreTests.sharedEventHandlesNameOneEventAcrossProcesses`, `MachServiceTests.sharedEventHandleTravelsAsARight` |
-| `messageType` 19: request body, the reply keys the driver reads, the `MetalSharedTexture` creation property the handle needs (§2.4, §5.10) | 3, 4 | Ycode's host log of the refused request; Ycode's `mtlrec.dylib` (XPC dictionary reads, IOSurface calls) in wakeboardd; our probe `shtex`; the key's value read from the exported constant `kIOSurfaceMetalSharedTexture` (level 4: a name) |
-| Ycode's op 22 rule, op 20/31 16 KiB heaps, its `messageType` 19 (§4.2, §5.10) | — | Ycode design from visionos.md §10.8.3; unit tests `CoreTests.heapSizesFollowTheReferenceRule`, `sharedTextureGetsAHostSurface` |
+| SwiftCode's handling of 17/18 and the op-37 z parity (§4.2, §5.8) | — | SwiftCode design; unit tests `CoreTests.sharedEventHandlesNameOneEventAcrossProcesses`, `MachServiceTests.sharedEventHandleTravelsAsARight` |
+| `messageType` 19: request body, the reply keys the driver reads, the `MetalSharedTexture` creation property the handle needs (§2.4, §5.10) | 3, 4 | SwiftCode's host log of the refused request; SwiftCode's `mtlrec.dylib` (XPC dictionary reads, IOSurface calls) in wakeboardd; our probe `shtex`; the key's value read from the exported constant `kIOSurfaceMetalSharedTexture` (level 4: a name) |
+| SwiftCode's op 22 rule, op 20/31 16 KiB heaps, its `messageType` 19 (§4.2, §5.10) | — | SwiftCode design from visionos.md §10.8.3; unit tests `CoreTests.heapSizesFollowTheReferenceRule`, `sharedTextureGetsAHostSurface` |
 | `messageType` 19 reply keys and `replyData`, the surface's values and creation properties, no `MetalSharedTexture`, what a handle needs, `messageType` 20 request and reply (§2.2, §2.4, §5.10, §5.11) | 3 | visionos.md §10.10.2: `mslog` in our probes (`shtex2`, `shtex3`, `shtex4`) and in backboardd and wakeboardd during a reference boot of the visionOS 27.0 runtime, 2026-10-27 |
-| Records 22, 24, 25, 27, 103, 105, 106, 118, 120, 121, 132, 134, 212, 213; corrections to 102, 209 and the buffer range form; inline-bytes records; calls without a record (§8.3, §8.4) | 3 | visionos.md §10.12.1: our probes `encprobe`, `encprobe2` with separator records under `mslog`, visionOS 27.0 runtime, 2026-10-27; backboardd's encoder calls (a copy of Ycode's recorder) matched to its records |
+| Records 22, 24, 25, 27, 103, 105, 106, 118, 120, 121, 132, 134, 212, 213; corrections to 102, 209 and the buffer range form; inline-bytes records; calls without a record (§8.3, §8.4) | 3 | visionos.md §10.12.1: our probes `encprobe`, `encprobe2` with separator records under `mslog`, visionOS 27.0 runtime, 2026-10-27; backboardd's encoder calls (a copy of SwiftCode's recorder) matched to its records |
 | Null-port 18 answered with an empty dictionary; nil event (§5.8) | 3 | visionos.md §10.12.2: `mslog` with port names in backboardd and wakeboardd; recorder copy in backboardd |
-| Ycode's decoding of those records, deferred store actions in the descriptor, fences satisfied by in-order execution, the null-port 18 reply (§5.8, §8.3, §8.4) | — | Ycode design (visionos.md §10.14.1); unit tests `CommandDecoderTests.fenceVisibilityAndDeferredStoreRecords`, `computeFencesAndRangeBindings`, `rangeBindingsAndViewportArrays`, `computeRecords`, `CoreTests.sharedEventHandlesNameOneEventAcrossProcesses`; no unknown record in visionOS boots r1–r3 |
+| SwiftCode's decoding of those records, deferred store actions in the descriptor, fences satisfied by in-order execution, the null-port 18 reply (§5.8, §8.3, §8.4) | — | SwiftCode design (visionos.md §10.14.1); unit tests `CommandDecoderTests.fenceVisibilityAndDeferredStoreRecords`, `computeFencesAndRangeBindings`, `rangeBindingsAndViewportArrays`, `computeRecords`, `CoreTests.sharedEventHandlesNameOneEventAcrossProcesses`; no unknown record in visionOS boots r1–r3 |
 | Argument buffers: op 16's layout description, the offset rule, op 17's reply order, op 19's index, count and range forms, what the host writes, op 35 (§4.3) | 3 | OBS-ARGBUF, 2026-10-30: our probe `argprobe.m` (32 layouts) under the recorder on the iOS 27.0 reference (24A434), the recorder's test server for the driver-writes check, `msargbuf.py` parsing every description exactly; visionOS 27.0 backboardd's one encoder in a reference boot (recorder in backboardd) |
-| Ycode's argument buffers: the op-16 parser, op 17's order, op 19's forms and writes, op 35, the 8 × *n* fallback, snapshots (§4.3.9) | — | Ycode design from §4.3.1–§4.3.8; unit tests `ArgumentLayoutTests` (11), `CoreTests.argumentEncoderSetCallsWriteTheirMembers`, `SnapshotReplayTests.restoreKeepsSlotsAndRewritesArgumentMembers` |
-| The search past an unreadable pointee struct (§4.3.9) | — | Ycode design; `ArgumentLayoutTests.anUnreadablePointeeIsSkipped` |
+| SwiftCode's argument buffers: the op-16 parser, op 17's order, op 19's forms and writes, op 35, the 8 × *n* fallback, snapshots (§4.3.9) | — | SwiftCode design from §4.3.1–§4.3.8; unit tests `ArgumentLayoutTests` (11), `CoreTests.argumentEncoderSetCallsWriteTheirMembers`, `SnapshotReplayTests.restoreKeepsSlotsAndRewritesArgumentMembers` |
+| The search past an unreadable pointee struct (§4.3.9) | — | SwiftCode design; `ArgumentLayoutTests.anUnreadablePointeeIsSkipped` |
 | Fragment-less pipelines rasterize depth and stencil (§7.2) | 1, 3 | Metal documentation (`fragmentFunction`, `rasterizationEnabled`); `visionos.md` §10.22.2 (boots `v6`, `v7`); `VulkanBackendTests.depthOnlyPipelinesRasterize` |
-| Layouts seen under Ycode: visionOS backboardd's 15 buffers; WeatherPoster's 17-, 3- and 12-member layouts; type code 11 in a pointee struct (§4.3.9, §13 item 9) | 3 (under Ycode) | ARGBUF-IMPL boots on the Thor (iOS 27.0 `c1a`–`c8a`, `c1b`, `d1a`–`d6a`, `e1a`–`e6a`; visionOS 27.0 `v1`–`v7`): the host's own "argument layout" and "did not parse" log lines |
+| Layouts seen under SwiftCode: visionOS backboardd's 15 buffers; WeatherPoster's 17-, 3- and 12-member layouts; type code 11 in a pointee struct (§4.3.9, §13 item 9) | 3 (under SwiftCode) | ARGBUF-IMPL boots on the Thor (iOS 27.0 `c1a`–`c8a`, `c1b`, `d1a`–`d6a`, `e1a`–`e6a`; visionOS 27.0 `v1`–`v7`): the host's own "argument layout" and "did not parse" log lines |
 | Op 29's stale high half ignored by the host (§8.3) | 3 | OBS-ARGBUF: `argprobe draw2` (a vertex function reports `base_instance`) on the iOS 27.0 reference; backboardd's op-29 records in a visionOS 27.0 reference boot |
 | What ends a hung submission on the Thor: a second device, `vkDeviceWaitIdle` (1.3 s, `VK_ERROR_DEVICE_LOST`), destroy and re-create; capture-replay addresses survive a new device (§8.7) | 3 | GPU-SIRI's probes `scripts/gpu-probes/hangkick.c`, `loop.comp`, `car.c` (our C and GLSL) on the Thor; the host kernel log (Xid 109); Vulkan specification (`bufferDeviceAddressCaptureReplay`, `vkDeviceWaitIdle`, device loss) level 1 |
-| The render server's abort on a failed command buffer; the loss loop of run `x7` (§8.7) | 3 | XR-VIEWER's run `ide-remote/xr-viewer/runs/x7` (host log, guest crash annotations), Ycode's own boots |
-| Ycode's watchdog and device recovery (§8.7) | — | Ycode design; `GPURecoveryTests` on the Thor's GPU; GPU-SIRI's boots |
+| The render server's abort on a failed command buffer; the loss loop of run `x7` (§8.7) | 3 | XR-VIEWER's run `ide-remote/xr-viewer/runs/x7` (host log, guest crash annotations), SwiftCode's own boots |
+| SwiftCode's watchdog and device recovery (§8.7) | — | SwiftCode design; `GPURecoveryTests` on the Thor's GPU; GPU-SIRI's boots |
 | A second queue of the device does not run while one submission is stuck; a second device does after 3.9–4.3 s; the device wait alone ends it in 4–59 s, after the second device's kernel in 10–20 ms (§8.8) | 3 | B3-GPU's probe `scripts/gpu-probes/queuekick.c` (our C and GLSL) on the Thor; Vulkan specification (queue submission order, device loss) level 1 |
 | The Thor's and the x86-64 workstation's GPUs both report 4 display planes and 0 displays; only the workstation's presents to a session of the test user (§8.8) | 3 | B3-GPU's probes (our C) with `VK_KHR_display` and `yvk_presents_to_session` on both machines |
-| Blocking watchdog, kick, blame, revocation (§8.8) | — | Ycode design; `GPUClientIsolationTests` on the Thor's GPU; B3-GPU's boots `inj1`, `inj2`; `MTLCommandBufferErrorAccessRevoked` (Metal documentation, level 1) |
-| Requirements (§12) | — | derived from the above; Ycode design |
+| Blocking watchdog, kick, blame, revocation (§8.8) | — | SwiftCode design; `GPUClientIsolationTests` on the Thor's GPU; B3-GPU's boots `inj1`, `inj2`; `MTLCommandBufferErrorAccessRevoked` (Metal documentation, level 1) |
+| Requirements (§12) | — | derived from the above; SwiftCode design |
 
 No disassembly or decompilation was used (level 5 not used). No
 `.claude/Xcode.app`, `research/dirty/`, or Ghidra project was opened. No

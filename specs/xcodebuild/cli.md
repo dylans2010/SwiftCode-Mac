@@ -1,8 +1,8 @@
 # xcodebuild: command-line grammar, errors and exit codes
 
-Ycode tool: `ycodebuild` (module `YcodeXcodebuild`; executable product
-`ycodebuild`, built from the executable target `ycodebuild-cli` in
-`ycode/Sources/ycodebuild-cli`). It accepts the same command lines as
+SwiftCode tool: `swiftcodebuild` (module `SwiftCodeXcodebuild`; executable product
+`swiftcodebuild`, built from the executable target `swiftcodebuild-cli` in
+`swiftcode/Sources/swiftcodebuild-cli`). It accepts the same command lines as
 `xcodebuild`, prints the same output formats and returns the same exit
 codes, so that scripts and CI jobs written for `xcodebuild` keep working.
 It never runs `xcodebuild` to do its work.
@@ -18,7 +18,7 @@ Every argument is classified, left to right, as one of:
 |---|---|
 | `-name` (one dash) | an option; options that take a value consume the next argument |
 | `-name=value` | the same as `-name value` for value options (`-scheme=Tool` works) |
-| `-userdefault=value` (not an option name) | a user default for this run only (documented in `xcodebuild(1)`); never an error, an empty name is ignored. ycodebuild uses `IDECustomDerivedDataLocation` (the folder that holds each container's DerivedData folder, instead of `~/Library/Developer/Xcode/DerivedData`) and ignores the others |
+| `-userdefault=value` (not an option name) | a user default for this run only (documented in `xcodebuild(1)`); never an error, an empty name is ignored. swiftcodebuild uses `IDECustomDerivedDataLocation` (the folder that holds each container's DerivedData folder, instead of `~/Library/Developer/Xcode/DerivedData`) and ignores the others |
 | `NAME=value` (contains `=`, does not start with `-`) | a build-setting override. The text before the first `=` is the name, the rest the value. An empty name (`=x`) is accepted and ignored. Names are case-sensitive (`foo=bar` is a different setting from `FOO`). |
 | anything else | a build action word |
 
@@ -37,7 +37,7 @@ word and no info option, the action is `build`. Any other word is an error
 `V` = takes one value. `M` = may be repeated. Options not marked `M` may
 appear only once.
 
-| Option | Arity | Effect in ycodebuild |
+| Option | Arity | Effect in swiftcodebuild |
 |---|---|---|
 | `-usage` | | brief usage (usage lines only) on stderr, exit 0 |
 | `-help` | | usage lines and the option table on stderr, exit 0 |
@@ -111,9 +111,9 @@ prefixed `Usage: ` and the rest indented to align (7 spaces):
 
 The usage lines are an interface grammar and are reproduced verbatim (the
 tool name in them is the interop command name). The option descriptions in
-ycodebuild's `-help` are Ycode's own wording: a line is
+swiftcodebuild's `-help` are SwiftCode's own wording: a line is
 `    -<option> <ARG>` padded to column 61, then the description. The
-`-exportOptionsPlist` key section is not reproduced; ycodebuild prints the
+`-exportOptionsPlist` key section is not reproduced; swiftcodebuild prints the
 key names only.
 
 ## 3. The "Command line invocation" header
@@ -137,7 +137,7 @@ quotes with `"` and `\` escaped by a backslash (`"kleinian hybrid.xcodeproj"`,
 `"J=a:b"`, `"Q=a\\b"`, `"C=q\"r"`). Characters observed to force quotes:
 space, tab, `$ " ' ; ( ) * : @ % ~ # ! \ { } [ ] ^ & | < > ?` and backquote.
 
-ycodebuild prints its own executable path here.
+swiftcodebuild prints its own executable path here.
 
 ## 4. Errors and exit codes
 
@@ -145,7 +145,7 @@ Exit codes follow BSD `sysexits.h`: 0 success, 64 `EX_USAGE`, 65
 `EX_DATAERR`, 66 `EX_NOINPUT`, 70 `EX_SOFTWARE`, 78 `EX_CONFIG`. A failed
 build action also exits 65.
 
-Error lines go to stderr as `xcodebuild: error: <message>`. ycodebuild
+Error lines go to stderr as `xcodebuild: error: <message>`. swiftcodebuild
 prints exactly this prefix (it is part of the interface scripts grep for).
 Errors marked *+usage* are followed by a blank line and the `-help` text
 without the export-options section. Messages (literal text, with
@@ -190,12 +190,12 @@ Warnings use the prefix `--- xcodebuild: WARNING: ` on stderr:
 | `-destination` without a scheme | `Ignoring provided run destination because no scheme was passed.` |
 
 `xcodebuild` itself also writes a time-stamped "Writing error result bundle
-to …" log line and some framework log lines to stderr. ycodebuild does not
+to …" log line and some framework log lines to stderr. swiftcodebuild does not
 print these.
 
-## 5. What ycodebuild does not support yet
+## 5. What swiftcodebuild does not support yet
 
-Each of these exits 70 (`EX_SOFTWARE`) with `xcodebuild: error: ycodebuild
+Each of these exits 70 (`EX_SOFTWARE`) with `xcodebuild: error: swiftcodebuild
 does not support <feature> yet.`: `-exportNotarizedApp`,
 `-create-xcframework`, `-find-executable`,
 `-find-library`, `-showBuildSettingsForIndex`,
@@ -203,12 +203,12 @@ Xcode installation management (`-license`, `-runFirstLaunch`,
 `-downloadPlatform` …), and the action `installsrc`.
 `-exportArchive` supports only ad hoc signed application archives with
 method `mac-application` (`archive.md` §4); `test` does not run
-application-hosted or UI tests (`test-actions.md`). Without the `ycode-swb` helper, build actions and swift-build
+application-hosted or UI tests (`test-actions.md`). Without the `swiftcode-swb` helper, build actions and swift-build
 evaluation are unavailable: build actions exit 70 naming the helper.
 Swift packages opened directly and `-resolvePackageDependencies`:
 `packages.md`.
 The difference in exit code (70, where `xcodebuild` would do the work) is
-deliberate: it lets a CI script tell a Ycode gap from a build failure.
+deliberate: it lets a CI script tell a SwiftCode gap from a build failure.
 
 ## Evidence
 
@@ -226,6 +226,6 @@ deliberate: it lets a CI script tell a Ycode gap from a build failure.
 - OPEN QUESTION: which options besides `-configuration` reject a second
   occurrence (only `-configuration` was probed).
 - OPEN QUESTION: messages for `-scheme` together with `-target`
-  (xcodebuild accepts it and uses the target; ycodebuild does the same).
+  (xcodebuild accepts it and uses the target; swiftcodebuild does the same).
 - OPEN QUESTION: the exact `-showComponent`/`-license` behaviors (out of
-  scope for Ycode).
+  scope for SwiftCode).

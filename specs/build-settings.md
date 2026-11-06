@@ -1,11 +1,11 @@
 # Spec: build settings, xcconfig files, and resolution
 
-Status: **implemented** in `ycode/Sources/YcodeSettings`. Conformance: see the
+Status: **implemented** in `swiftcode/Sources/SwiftCodeSettings`. Conformance: see the
 "Measured agreement" section at the end.
 
 Every claim is level 3 (black-box against `xcodebuild -showBuildSettings`,
 Xcode 27.1). The probes are in `research/experiments/settings/` and the
-regression tests are in `ycode/Tests/YcodeSettingsTests`.
+regression tests are in `swiftcode/Tests/SwiftCodeSettingsTests`.
 
 ## 1. xcconfig files
 

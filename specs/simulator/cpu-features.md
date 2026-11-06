@@ -1,6 +1,6 @@
 # CPU feature publication (sysctl `hw.*` / `machdep.cpu.*` and commpage capabilities)
 
-Status: implemented 2026-10-23 (§9; switch `YCODE_CPU_FEATURES`, default on). Dirty-room source: `research/notes/cpufeat-observations.md`
+Status: implemented 2026-10-23 (§9; switch `SWIFTCODE_CPU_FEATURES`, default on). Dirty-room source: `research/notes/cpufeat-observations.md`
 (lead L1 of a private note from an outside practitioner, kept off the public repository).
 Related: `stage3-contract.md` (sysctl table), `darwin-process-start.md` §3
 (commpage layout and guest CPU count N), `fast-traps.md` (timebase),
@@ -10,15 +10,15 @@ Related: `stage3-contract.md` (sysctl table), `darwin-process-start.md` §3
 
 Guest code finds out which optional CPU features it may use from three
 places: the `hw.optional.*` sysctls, the `hw.optional.arm.caps` bit vector,
-and the commpage capability words. Ycode currently reports almost nothing
+and the commpage capability words. SwiftCode currently reports almost nothing
 (`hw.optional.arm.caps` = 0, every other `hw.optional.*` name = 0, commpage
 capabilities = TLS, VFP, event, FMA, CPU count and cache-line size only).
 Feature-gated guest code then takes its slower generic paths.
 
 This spec says what Apple's simulator reports, which guest code reads the
-values, and what Ycode must report on the Thor. The rule: **report a feature
+values, and what SwiftCode must report on the Thor. The rule: **report a feature
 only if the guest vCPU really executes it, and never report a feature that
-Ycode does not handle (SME, MTE, pointer authentication, Apple-private
+SwiftCode does not handle (SME, MTE, pointer authentication, Apple-private
 bits)**. A false claim crashes the guest with an illegal instruction. A
 missing claim only costs speed.
 
@@ -181,7 +181,7 @@ value at 0x026. CPUFAMILY is a 32-bit value at 0x080.
 Reference words: capabilities64 = `0x87ffef97a70e7fc8`, capabilities32 =
 `0xa70e7fc8`, cache line (0x026) = 128, CPUFAMILY = `0x72015832`. The
 reference also sets bits **29, 36, 39 and 63**, which have no name in the
-public header. Ycode must leave them clear.
+public header. SwiftCode must leave them clear.
 
 ## 3. Which guest code reads these values
 
@@ -214,7 +214,7 @@ JavaScript, Accelerate/BNNS, audio/speech, WebRTC/media codecs and
 constant-time crypto helpers. Measure it (§7.3) before claiming a boot-wide
 effect. (Inference, level 4.)
 
-## 4. Ycode on the Thor: what to publish
+## 4. SwiftCode on the Thor: what to publish
 
 ### 4.1 Source of truth: the guest vCPU's ID registers
 
@@ -222,10 +222,10 @@ The Thor's Linux EL0 view (`/proc/cpuinfo`) is **not** what a guest sees.
 KVM gives each vCPU a sanitized copy of the ID registers, and hides features
 that the vCPU was not configured for (SVE without the SVE vCPU feature,
 pointer authentication without the ptrauth vCPU features, SME, MTE without
-the MTE capability, and others depending on the kernel version). Ycode
+the MTE capability, and others depending on the kernel version). SwiftCode
 initializes vCPUs with only the PSCI 0.2 feature.
 
-At VMM start, after the first vCPU is initialized, Ycode must:
+At VMM start, after the first vCPU is initialized, SwiftCode must:
 
 1. Read the guest-visible ID registers with `KVM_GET_ONE_REG` on that vCPU
    (system-register encodings `op0=3, op1=0, CRn=0`): `ID_AA64PFR0_EL1`,
@@ -240,7 +240,7 @@ At VMM start, after the first vCPU is initialized, Ycode must:
 5. Build the three outputs (caps bytes, per-feature names, commpage word)
    from **one** feature set, so they always agree.
 6. Allow an override for A/B tests and as a safety switch:
-   `YCODE_CPU_FEATURES=off` publishes the current minimal set; `on` (the
+   `SWIFTCODE_CPU_FEATURES=off` publishes the current minimal set; `on` (the
    default after verification) publishes the derived set.
 
 Do not hard-code the Thor table below. It is the **expected** result on the
@@ -297,9 +297,9 @@ derives its own bits in the same way (level 1).
 
 | Features | Why |
 |---|---|
-| SME and all SME_* bits, `sme_max_svl_b` | KVM does not give the guest SME. Streaming mode would need ZA/ZT0 context handling that Ycode does not have. |
-| MTE and all MTE_* bits | Ycode does not tag memory and does not enable the MTE capability. |
-| PAuth, PAuth2, FPAC, FPACCOMBINE, PACIMP (`armv8_gpi`, commpage kHasArmv8GPI and kHasFeatPAuth) | Ycode does not configure the pointer-authentication vCPU features, so non-hint PAC instructions are UNDEFINED in the guest. The runtime is arm64, not arm64e. The reference's `machdep.ptrauth_enabled` is 0 as well. |
+| SME and all SME_* bits, `sme_max_svl_b` | KVM does not give the guest SME. Streaming mode would need ZA/ZT0 context handling that SwiftCode does not have. |
+| MTE and all MTE_* bits | SwiftCode does not tag memory and does not enable the MTE capability. |
+| PAuth, PAuth2, FPAC, FPACCOMBINE, PACIMP (`armv8_gpi`, commpage kHasArmv8GPI and kHasFeatPAuth) | SwiftCode does not configure the pointer-authentication vCPU features, so non-hint PAC instructions are UNDEFINED in the guest. The runtime is arm64, not arm64e. The reference's `machdep.ptrauth_enabled` is 0 as well. |
 | WFxT | Reference reports 0. WFET/WFIT at EL0 could cause extra VM exits. No consumer in the runtime needs it. |
 | ECV (for now) | The only EL0 use is the self-synchronizing counter registers (CNTVCTSS_EL0/CNTPCTSS_EL0). With the default 24 MHz guest timebase the guest must not read the raw counter. Publish ECV only after the EL1 shim handles the CNTVCTSS/CNTPCTSS encodings in the same way as CNTVCT when EL0 counter access traps. |
 | SPECRES, SPECRES2 | Not on the Thor (no `predres`). Also needs SCTLR_EL1.EnRCTX. The reference reports 0. |
@@ -312,7 +312,7 @@ Inputs: Thor host hwcaps (observed) and KVM behaviour as described in
 §4.1. "verify" means the guest ID register must confirm the value. If it
 does not, the derived value (normally 0) wins.
 
-| Bit | Feature | Ref (M3 Max) | Thor host | Ycode publishes |
+| Bit | Feature | Ref (M3 Max) | Thor host | SwiftCode publishes |
 |---|---|---|---|---|
 | 0, 1 | FlagM, FlagM2 | 1, 1 | flagm, flagm2 | 1, 1 |
 | 2 | FHM | 1 | asimdfhm | 1 |
@@ -375,14 +375,14 @@ names in §2.4 (`FEAT_FP8`, …, `sme_max_svl_b`) return 0. Legacy names:
 `floatingpoint` 1, `neon` 1, `neon_hpfp` 1, `neon_fp16` 1, `armv8_crc32` 1,
 `armv8_1_atomics` 1, `armv8_2_fhm` 1, `armv8_2_sha512` 1, `armv8_2_sha3` 1,
 `armv8_3_compnum` 1, `ucnormal_mem` 1, `arm64` 1, `armv8_gpi` **0**,
-`watchpoint` 0 and `breakpoint` 0 (Ycode offers no hardware debug
+`watchpoint` 0 and `breakpoint` 0 (SwiftCode offers no hardware debug
 registers to the guest). Names not in the table keep reading 0, as
 today. The reference returns ENOENT for unknown names. Callers treat both
 as "absent", so this difference does not matter.
 
 ### 4.5 Other keys
 
-| Key | Ycode today | Publish | Why |
+| Key | SwiftCode today | Publish | Why |
 |---|---|---|---|
 | `hw.optional.arm.caps` | 0, 8 bytes | §4.4, **13 bytes** | Format of §2.3. A size query (no buffer) returns 13. If the caller's buffer is shorter, copy what fits and fail with ENOMEM (xnu `SYSCTL_OUT` behavior, level 1). dyld passes 16 bytes and compiler-rt passes 13 bytes; both work. |
 | `hw.cachelinesize` | 64 | **64** (from the guest `CTR_EL0` CWG, else DminLine; the Thor has 64) | The Thor's real coherency line. The reference's 128 is Apple's own value. Do not copy it: it is not the ZVA block on Apple either. |
@@ -395,12 +395,12 @@ as "absent", so this difference does not matter.
 | `hw.cpusubfamily` | missing | 0 (unknown) | read by Accelerate |
 | `hw.cputype` / `hw.cpusubtype` | `0x0100000C` / 0 | unchanged | Do not report 2 (arm64e) as the host does: loaders could prefer arm64e slices, which need pointer authentication. |
 | `hw.ncpu`, `activecpu`, `physicalcpu(_max)`, `logicalcpu(_max)`, `perflevel0.*cpu*`, `machdep.cpu.core_count`, `thread_count`, `cores_per_package`, `logical_per_package` | N (machdep missing) | N everywhere (`darwin-process-start.md` policy) | consistency with the commpage counts |
-| `hw.memsize`, `memsize_usable` | guest RAM | unchanged | Ycode policy |
+| `hw.memsize`, `memsize_usable` | guest RAM | unchanged | SwiftCode policy |
 | `hw.tbfrequency` | **1 000 000 000** | **`GuestTimebase.frequency(hostFrequency:)`**: 24 000 000 by default | Must agree with `mach_timebase_info` (125/3 at 24 MHz). Today it does not. |
-| `machdep.cpu.brand_string` | missing | a Ycode string that names no Apple product, for example `"Ycode VM (Arm Neoverse V3AE)"` derived from MIDR | read by CoreImage, Espresso and perfdata. No Apple trademarks (AGENTS.md rule 5). |
-| `machdep.virtual_address_size` | missing | the guest user VA width that Ycode's stage-1 configuration gives | hint. Low priority. |
+| `machdep.cpu.brand_string` | missing | a SwiftCode string that names no Apple product, for example `"SwiftCode VM (Arm Neoverse V3AE)"` derived from MIDR | read by CoreImage, Espresso and perfdata. No Apple trademarks (AGENTS.md rule 5). |
+| `machdep.virtual_address_size` | missing | the guest user VA width that SwiftCode's stage-1 configuration gives | hint. Low priority. |
 | `machdep.ptrauth_enabled` | missing | 0 | matches the reference |
-| `kern.osproductversion` | `"27.1"` | unchanged (Ycode decision) | The reference returns the host macOS version here. Not CPU-related. Recorded only. |
+| `kern.osproductversion` | `"27.1"` | unchanged (SwiftCode decision) | The reference returns the host macOS version here. Not CPU-related. Recorded only. |
 | `kern.grade_cputype` | ENOENT | unchanged in this spec | The reference has it (value 0). See `dyld-sim-handoff.md`. Recorded only. |
 
 ### 4.6 State the guest kernel must preserve once these features are published
@@ -430,7 +430,7 @@ as "absent", so this difference does not matter.
 
 | Risk | Result | Mitigation |
 |---|---|---|
-| A published feature is not executable in the guest (KVM hides it, or a kernel or firmware update changes it) | SIGILL / EXC_BAD_INSTRUCTION, possibly in a launch-critical daemon | Derive the features from the guest ID registers at every VMM start, never from a fixed table. Run the §7.1 probe. Keep `YCODE_CPU_FEATURES=off`. |
+| A published feature is not executable in the guest (KVM hides it, or a kernel or firmware update changes it) | SIGILL / EXC_BAD_INSTRUCTION, possibly in a launch-critical daemon | Derive the features from the guest ID registers at every VMM start, never from a fixed table. Run the §7.1 probe. Keep `SWIFTCODE_CPU_FEATURES=off`. |
 | PAuth published without the vCPU feature | crash on the first non-hint PAC instruction | denied (§4.3) |
 | SME or MTE published | crash, or state corruption | denied |
 | ECV published while counter reads trap to the shim | CNTVCTSS read is not decoded, so SIGILL | deferred until the shim handles it |
@@ -442,7 +442,7 @@ as "absent", so this difference does not matter.
 
 ## 7. Verification plan
 
-### 7.1 Guest feature probe (Ycode's own guest tool, built for the simulator)
+### 7.1 Guest feature probe (SwiftCode's own guest tool, built for the simulator)
 
 For each feature, run one representative instruction in a guest process
 under a SIGILL guard, and record executed / SIGILL:
@@ -474,7 +474,7 @@ under a SIGILL guard, and record executed / SIGILL:
 Run a full cold boot (all services; see `parity-means-full-boot.md`) and
 launch the stock apps and a test app with the new values. Zero new
 crash logs, zero EXC_BAD_INSTRUCTION. Compare the crash count with an
-`YCODE_CPU_FEATURES=off` boot on the same build.
+`SWIFTCODE_CPU_FEATURES=off` boot on the same build.
 
 ### 7.3 Speed measurement (A/B, same build, interleaved runs)
 
@@ -500,12 +500,12 @@ boot time moves outside the run-to-run noise.
 - Q2. Should ECV be published once the shim decodes CNTVCTSS/CNTPCTSS? It
   is only useful if the guest reads the counter directly, which the
   default timebase mode does not allow.
-- Q3. Should Ycode report `hw.cachelinesize` 128 for parity with Apple
+- Q3. Should SwiftCode report `hw.cachelinesize` 128 for parity with Apple
   hosts? This spec chooses 64, which is true on the Thor, the same as the
   ZVA block, and has no known consumer that needs 128. Revisit only if a
   parity test shows a difference.
 - Q4. kHasUCNormalMemory / `ucnormal_mem`: set for parity (as here) or clear
-  because Ycode does not support uncached normal mappings? No EL0
+  because SwiftCode does not support uncached normal mappings? No EL0
   instruction depends on it.
 - Q5. Which closed libraries read the commpage inline (without
   `__get_cpu_capabilities`)? This cannot be found at levels 1–4. The A/B
@@ -518,14 +518,14 @@ boot time moves outside the run-to-run noise.
 
 ### 9.1 Where
 
-- `YcodeDarwinKernel/CPUFeatures.swift`: the register model, the §4.2
+- `SwiftCodeDarwinKernel/CPUFeatures.swift`: the register model, the §4.2
   derivation, the deny list, the caps bytes, the commpage bits, the
   profile (`GuestCPUProfile`) and the sysctl entries it adds. The
   sysctl table (`SysctlTable.standard`) and `CommpageBuilder` read the
   installed profile, so all three outputs come from one feature set.
-- `ycode-simd/CPUFeatureSetup.swift` and `CKVM/ckvm_cpufeat.c`: at the start
+- `swiftcode-simd/CPUFeatureSetup.swift` and `CKVM/ckvm_cpufeat.c`: at the start
   of `--exec`/`--device` runs, before the first VM, a scratch VM with one
-  vCPU initialized as every Ycode vCPU (preferred target, PSCI 0.2 only)
+  vCPU initialized as every SwiftCode vCPU (preferred target, PSCI 0.2 only)
   is read with KVM_GET_ONE_REG and destroyed. ID registers are VM-wide in
   KVM, so this equals reading the first vCPU of the first image (§4.1) and
   keeps the image build path unchanged. One log line gives the mode, the
@@ -534,7 +534,7 @@ boot time moves outside the run-to-run noise.
   same cores run the guest, KVM does not trap FPCR, and nothing has to
   run in a VM before the first image. The guest probe (§9.3) repeats it
   inside the guest.
-- `YCODE_CPU_FEATURES=off` publishes nothing optional (caps 13 zero bytes,
+- `SWIFTCODE_CPU_FEATURES=off` publishes nothing optional (caps 13 zero bytes,
   no `hw.optional.*` entries, so every such name reads 0 as before; the
   base commpage bits TLS, VFP, event, FMA only). The other corrected
   values (timebase, caches, machdep, perflevel0) do not depend on the
@@ -542,7 +542,7 @@ boot time moves outside the run-to-run noise.
 - Cache sizes come from the host's sysfs cache description (cpu0 index
   entries; Thor: L1I 64 KiB, L1D 64 KiB, L2 1 MiB, one CPU per L2);
   `hw.cachelinesize` from CTR_EL0.CWG (Thor: 64). The brand string is
-  built from MIDR (Thor: `"Ycode VM (Arm Neoverse V3AE)"`).
+  built from MIDR (Thor: `"SwiftCode VM (Arm Neoverse V3AE)"`).
 - `kern.grade_cputype` stays ENOENT, as §4.5 says: a grading answer would
   change how dyld grades slices, for no gain.
 - sysctl reads that do not fit the caller's buffer now copy what fits and
@@ -576,7 +576,7 @@ this at 0x010, `0x8701ffa8` at 0x020, line 64 at 0x026, CPU family 0).
 
 ### 9.3 Guest probe (`SimShim/guest-tests/stageperf/p_cpufeat.c`)
 
-Built with `build-stageperf.sh`, run with `ycode-simd --exec`. Results with
+Built with `build-stageperf.sh`, run with `swiftcode-simd --exec`. Results with
 the switch on (`cpufeat ok`):
 
 - Every published feature executed in a child process: FlagM, FlagM2,
@@ -624,18 +624,18 @@ the switch on (`cpufeat ok`):
   naming the missing features; the warm-boot launcher then boots cold.
   A snapshot without the field (older builds) restores as before. The
   check uses the allowed set, not the published one, so switching
-  `YCODE_CPU_FEATURES` between save and restore does not force a cold
+  `SWIFTCODE_CPU_FEATURES` between save and restore does not force a cold
   boot; the restored images get a commpage built from the current
   setting and keep the snapshot's sysctl tables.
-- Prebuilt VMs (`PrebuiltVMs`, `YCODE_VM_PREBUILD`) live only inside one
-  `ycode-simd` process. The profile is installed once, before the first
+- Prebuilt VMs (`PrebuiltVMs`, `SWIFTCODE_VM_PREBUILD`) live only inside one
+  `swiftcode-simd` process. The profile is installed once, before the first
   VM of the process is built, and never changes, so every prebuilt VM
   shares the process's feature set; no per-VM record is needed.
 
 ### 9.5 Speed: micro-benchmarks (A/B)
 
-`p_cpufeat_bench` (original Ycode probe over public APIs), `--exec`, same
-build, `YCODE_CPU_FEATURES=on` and `off` interleaved, 5 runs each under
+`p_cpufeat_bench` (original SwiftCode probe over public APIs), `--exec`, same
+build, `SWIFTCODE_CPU_FEATURES=on` and `off` interleaved, 5 runs each under
 `timed.sh` (machine to itself). Each run reports the median of 7 timed
 repetitions after a warm-up; the table gives the median of the 5 run
 medians and their range.
@@ -680,10 +680,10 @@ BOOT-AB-PLACEHOLDER
 | Other consumers (Accelerate, audio, WebRTC, ImageIO, …) | 4 | string literals attributed through the cache map; `dyld_info -imports` for `__get_cpu_capabilities` |
 | Simulator compiler baseline apple-m1 | 3 | `clang -###` for `arm64-apple-ios27.1-simulator` |
 | Thor features, MIDR, caches | 3 | `lscpu`, `/proc/cpuinfo`, sysfs (read-only) |
-| What KVM hides from a PSCI-only vCPU | 1 (Linux KVM behaviour, public) for SVE, PAuth, SME and MTE; 3 for all fields | §9.2: KVM_GET_ONE_REG on the Thor (`ycode-simd` start-up log), 2026-10-23 |
-| Ycode's current values (`hw.tbfrequency` 1e9, caps 8 bytes, commpage bits) | own code | `ycode/Sources/YcodeDarwinKernel/SysctlTable.swift`, `ProcessImage.swift` |
+| What KVM hides from a PSCI-only vCPU | 1 (Linux KVM behaviour, public) for SVE, PAuth, SME and MTE; 3 for all fields | §9.2: KVM_GET_ONE_REG on the Thor (`swiftcode-simd` start-up log), 2026-10-23 |
+| SwiftCode's current values (`hw.tbfrequency` 1e9, caps 8 bytes, commpage bits) | own code | `swiftcode/Sources/SwiftCodeDarwinKernel/SysctlTable.swift`, `ProcessImage.swift` |
 | Speed effect concentrated in gated libraries, not boot-wide | inference (4) | §3; to be measured (§7.3) |
-| Q1 answer, published set and commpage word on the Thor | 3 | §9.2, `ycode-simd` log and `p_cpufeat` in the guest (Thor, 2026-10-23) |
+| Q1 answer, published set and commpage word on the Thor | 3 | §9.2, `swiftcode-simd` log and `p_cpufeat` in the guest (Thor, 2026-10-23) |
 | Published features execute, hidden ones SIGILL or execute harmlessly; invariants; DIT/SSBS/FPCR round trips; FPCR leak across reused vCPUs (main line) and its fix; bzero guards | 3 | `p_cpufeat` runs with the switch on and off and against the main-line build (Thor, 2026-10-23) |
 | Snapshot feature record and refusal | own code + unit tests | `CPUFeaturesTests.snapshotRefusesMissingFeatures`, `SnapshotKernelRoundTripTests` |
 | Micro-benchmark A/B (§9.5) | 3 | `p_cpufeat_bench`, 5 + 5 interleaved runs under `timed.sh` (Thor, 2026-10-23) |

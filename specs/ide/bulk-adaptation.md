@@ -11,10 +11,10 @@ for everything below.
 ## Method
 
 Per staged file, in order: (1) check destination coverage first — if the feature
-already exists in Ycode, record SUPERSEDED with the Ycode equivalent named and do
+already exists in SwiftCode, record SUPERSEDED with the SwiftCode equivalent named and do
 not duplicate it; (2) adapt what is genuinely missing into its proper SwiftPM
-target, in destination style (Ycode native style, default accent, no Legacy
-orange/liquidGlass), real implementations only, onto Ycode's Assist host (never a
+target, in destination style (SwiftCode native style, default accent, no Legacy
+orange/liquidGlass), real implementations only, onto SwiftCode's Assist host (never a
 parallel registry/session loop/providers; no Autopilot; no approval-gate bypass);
 (3) respect the REVIEW scout's dispositions in
 `~/SwiftCode-Migration-Workspace/audit/review-required-decisions.md` — a DROP stays
@@ -24,7 +24,7 @@ the exact reason — never fake it.
 Gap-closure was working in the same tree concurrently. Before adapting, each worker
 checked scoped `git status` and grepped the destination for the file's type names;
 already-covered files were skipped and reported as such. No worker touched
-gap-closure's files, `ycode/Package.swift`, the ledger, or the manifest. Wiring is
+gap-closure's files, `swiftcode/Package.swift`, the ledger, or the manifest. Wiring is
 reported as a list for the parent (see § Wiring).
 
 ## Totals (1,428 / 1,428 accounted for)
@@ -50,15 +50,15 @@ path or equivalent, notes) live in `~/SwiftCode-Migration-Workspace/bulk/`:
 `persistence-services-dispositions.tsv`, `frameworks-features-dispositions.tsv`,
 `small-clusters-dispositions.tsv`. These TSVs are the ledger-update source: the
 602 ADAPTED rows become IMPLEMENTED, the 503 SUPERSEDED rows become SUPERSEDED with
-the Ycode equivalent named in the TSV.
+the SwiftCode equivalent named in the TSV.
 
 ## Per-slice decisions
 
 ### Backend-Assist (145)
 
-- **Adapted (2):** `YcodeAssistant/PromptEnhancer.swift` (202 lines; prompt
+- **Adapted (2):** `SwiftCodeAssistant/PromptEnhancer.swift` (202 lines; prompt
   enhancement via Foundation Models provider, fails `.modelUnavailable` honestly
-  when Apple Foundation Models is unavailable); `YcodeMCP/CIBuildYAML.swift`
+  when Apple Foundation Models is unavailable); `SwiftCodeMCP/CIBuildYAML.swift`
   (484 lines; GitHub Actions `build.yml` generation). Plus 2 test files.
 - **Superseded (81):** covered by the Waves 1–8 Assist port.
 - **Honestly-unavailable (57):** worker runtime (20 — a seam exists, runtime not
@@ -77,13 +77,13 @@ the Ycode equivalent named in the TSV.
 - **Skipped (91):** already covered elsewhere — 54 Database rows belong to
   gap-closure, 30 VisualUIBuilder/Artboards rows belong to gap-closure, 5 Transfer
   Projects rows belong to the Backend-Projects (Persistence-Services) slice.
-- **Honest deviations:** Legacy SwiftData → Codable JSON (Ycode has no database
+- **Honest deviations:** Legacy SwiftData → Codable JSON (SwiftCode has no database
   layer); Legacy "Clean / Up to date" defaults NOT carried over — status reads
   "Unknown" until a live check runs.
 
 ### Views-B (240)
 
-- **Adapted (147):** 152 new files in `ycode-ide/DevTools/` (141) + `Developer/`
+- **Adapted (147):** 152 new files in `swiftcode-ide/DevTools/` (141) + `Developer/`
   (11). Bulk transform of self-contained SwiftUI views; liquid-glass removed,
   Legacy orange → default accent (except 6 spots where orange is data, not chrome).
   `#if canImport` guards + `DevToolsUnavailableView` stub for Linux.
@@ -109,15 +109,15 @@ the Ycode equivalent named in the TSV.
 
 ### Views-D (167)
 
-- **Adapted (29):** 12 new files in `ycode/Sources/ycode-ide/` (2,328 lines):
+- **Adapted (29):** 12 new files in `swiftcode/Sources/swiftcode-ide/` (2,328 lines):
   skills library (real SKILL.md), backups (onto BackupEngine), external MCP
-  servers (`~/.config/ycode/mcp-servers.json`), Ollama models (live API), code
+  servers (`~/.config/swiftcode/mcp-servers.json`), Ollama models (live API), code
   complexity, Markdown, branch graph, go-to-line, alternative keys, Composio
   settings, PR creation (onto GitHubClient), app permissions.
 - **Superseded (116):** Assistant pane / Settings panes / navigators.
 - **Honestly-unavailable (22):** realtime collaboration (12 — no backend),
   updater (2), sounds (2), other (6).
-- **Wiring:** `YcodeCloud` + `YcodeGitHub` onto `ycode-ide` (see § Wiring).
+- **Wiring:** `SwiftCodeCloud` + `SwiftCodeGitHub` onto `swiftcode-ide` (see § Wiring).
 - **Dependency note:** `BackupsSettingsView` depends on gap-closure's untracked
   `BackupEngine.swift` / `BackupModels.swift`.
 
@@ -131,36 +131,36 @@ the Ycode equivalent named in the TSV.
   output, `Double.random` performance metrics, two invented apps with made-up
   paths — all replaced with honest errors / empty states.
 - **Collision flag (parent to resolve at integration):**
-  `ycode/Sources/YcodeAssistant/SkillIndex.swift` exists once on disk and is
+  `swiftcode/Sources/SwiftCodeAssistant/SkillIndex.swift` exists once on disk and is
   Core's documented port (header cites Legacy source + bulk TSV; has
   enable/disable + indexing). Gap-closure had also claimed a file at that path —
   confirm with gap-closure at integration whether its content is subsumed.
 
 ### Persistence-Services (126)
 
-- **Adapted (87):** 68 new files. New targets `YcodeConnect` (24 files — full
+- **Adapted (87):** 68 new files. New targets `SwiftCodeConnect` (24 files — full
   Connect family + `LocalBuildService` + new seam `ConnectWorkspaceProvider.swift`)
-  and `YcodeCollaboration` (21 files — full Collaboration + Transfer family + new
-  seam `CollaborationProject.swift`); YcodeIDECore (9: `ProjectRegistryStore`,
+  and `SwiftCodeCollaboration` (21 files — full Collaboration + Transfer family + new
+  seam `CollaborationProject.swift`); SwiftCodeIDECore (9: `ProjectRegistryStore`,
   `ThemeStore`, `ProjectFolders`, `FileTemplateManager`, `ProjectZipImporter`,
   `LegacyProjectTemplates` (29 templates consolidated),
   `LegacyProjectTemplateManager`, `UnifiedLogger`, `DeploymentLogStore`);
-  `YcodeUI/Sound` (2: `SoundCatalog`, `SoundInstaller`); `ycode-ide/Color+Hex.swift`;
-  `YcodeGoogleAuth/AntigravityQuotaService.swift`;
-  `YcodeXcodebuild/IPABuildService.swift`; `YcodeAssistant/LocalModelManager.swift`;
-  `YcodeGitHub/RepoPermManager.swift`; 7 test files.
-- **Superseded (32):** each with Ycode equivalent in the TSV (e.g. `BookmarkStore`
+  `SwiftCodeUI/Sound` (2: `SoundCatalog`, `SoundInstaller`); `swiftcode-ide/Color+Hex.swift`;
+  `SwiftCodeGoogleAuth/AntigravityQuotaService.swift`;
+  `SwiftCodeXcodebuild/IPABuildService.swift`; `SwiftCodeAssistant/LocalModelManager.swift`;
+  `SwiftCodeGitHub/RepoPermManager.swift`; 7 test files.
+- **Superseded (32):** each with SwiftCode equivalent in the TSV (e.g. `BookmarkStore`
   → `Session/Bookmarks.swift`; `BreakpointStore` → `Model/WorkspaceModel.swift`;
   `PreferencesStore` → `Model/Preferences.swift`; `OpenRouterService` → Wave 9
-  OpenRouter provider; `SyntaxHighlighter` → YcodeSyntax;
+  OpenRouter provider; `SyntaxHighlighter` → SwiftCodeSyntax;
   `AgentCodeReviewManager` → `code_review` tool + `CodeReviewModel.swift` —
   Legacy's was a mock).
-- **Honestly-unavailable (1):** `ProjectFilesExtracter` — needs YcodeGitHub
+- **Honestly-unavailable (1):** `ProjectFilesExtracter` — needs SwiftCodeGitHub
   workflow-runs/artifacts API (not ported in Wave 10) plus Legacy's
   remote-generation backend.
 - **Skipped (6):** `NewFileComment` (already covered — gap-closure/another worker);
   `AgentSkillManager` (Skills-slice dependency); `ComposioService` (already covered
-  by gap-closure's `YcodeTools+ComposioClient.swift`); `SoundManager` +
+  by gap-closure's `SwiftCodeTools+ComposioClient.swift`); `SoundManager` +
   `NotificationManager` (blocked on Audio slice `AlertTone`/`AlertSoundPlayer` +
   Models slice `AppSettings` sound IDs); `ToolbarSettings` (no destination consumer).
 - **Honest rewrites:** `LocalBuildService` (Legacy returned `"Fake IPA Content"`
@@ -170,13 +170,13 @@ the Ycode equivalent named in the TSV.
   provider seam / `Process`); `IPABuildService` (hardcoded
   `/Users/dylan/.../build_ipa.sh` removed); `ProjectTemplateEngine` (nested-path
   parent-dir fix).
-- **Already committed:** `YcodeIDECore/Model/ProjectRegistryStore.swift` is
+- **Already committed:** `SwiftCodeIDECore/Model/ProjectRegistryStore.swift` is
   tracked in the gap-closure commit (`caec764`, also on remote main as `6deab9b`),
   byte-identical to the bulk file — it was scooped into that commit. The other 67
   Persistence files are untracked.
 - **Dedupes/collisions:** `ProjectRegistryEntry`/`ProjectKind` vs Core slice
   (remove the bulk copy if Core lands its own); `ProjectFolder` also exists in
-  `YcodeIDEShell/ProjectDashboardModel.swift` with a different shape (Swift
+  `SwiftCodeIDEShell/ProjectDashboardModel.swift` with a different shape (Swift
   shadows per-module, so it builds — flagged in-file).
 - **Security notes:** `PeerSessionManager` auto-accepts all invitations /
   certificates — gate on user approval + validate certificates before shipping.
@@ -222,17 +222,17 @@ the Ycode equivalent named in the TSV.
 
 | Slice | New files | Where |
 |---|---|---|
-| Backend-Assist | 4 (2 source + 2 tests) | `YcodeAssistant/PromptEnhancer.swift`, `YcodeMCP/CIBuildYAML.swift` + tests |
-| Views-A | 16 | `ycode/Sources/ycode-ide/` (6 model+view pairs + share-sheet presenter) |
-| Views-B | 152 | `ycode/Sources/ycode-ide/DevTools/` (141) + `Developer/` (11) |
+| Backend-Assist | 4 (2 source + 2 tests) | `SwiftCodeAssistant/PromptEnhancer.swift`, `SwiftCodeMCP/CIBuildYAML.swift` + tests |
+| Views-A | 16 | `swiftcode/Sources/swiftcode-ide/` (6 model+view pairs + share-sheet presenter) |
+| Views-B | 152 | `swiftcode/Sources/swiftcode-ide/DevTools/` (141) + `Developer/` (11) |
 | Views-C | 17 | `DeviceConnect*`, GitHub clients, 3 browser views, 2 tests |
-| Views-D | 12 | `ycode/Sources/ycode-ide/` |
+| Views-D | 12 | `swiftcode/Sources/swiftcode-ide/` |
 | Core | 63 (61 source + 2 tests) | simctl cluster, skills stack, preview models, build diagnostics |
-| Persistence-Services | 68 (61 source + 7 tests) | `YcodeConnect` (24), `YcodeCollaboration` (21), YcodeIDECore (9), misc (7), tests (7) |
+| Persistence-Services | 68 (61 source + 7 tests) | `SwiftCodeConnect` (24), `SwiftCodeCollaboration` (21), SwiftCodeIDECore (9), misc (7), tests (7) |
 | Frameworks-Features | 18 | offline-models stack, `.scproj` layer, code-intelligence, notes/snippets |
 | Small-Clusters | 31 | Codex client, audio tone system, GitHubOAuth, DocumentationAnalyzer |
 
-One file is already committed: `YcodeIDECore/Model/ProjectRegistryStore.swift`
+One file is already committed: `SwiftCodeIDECore/Model/ProjectRegistryStore.swift`
 (in gap-closure commit `caec764` / remote main `6deab9b`, byte-identical to the bulk
 file). The remaining 380 are untracked. No existing destination file was modified
 by this wave except through that gap-closure commit; bulk workers created new files
@@ -240,24 +240,24 @@ only.
 
 ## Package.swift wiring needed (list, not edits)
 
-1. New library product + target `YcodeConnect`, macOS-only (Network; inside the
-   existing `#if os(macOS)` block), deps `["YcodeAssistant"]`.
-2. New library product + target `YcodeCollaboration`, macOS-only
+1. New library product + target `SwiftCodeConnect`, macOS-only (Network; inside the
+   existing `#if os(macOS)` block), deps `["SwiftCodeAssistant"]`.
+2. New library product + target `SwiftCodeCollaboration`, macOS-only
    (MultipeerConnectivity; same block), deps
-   `[.product(name: "Crypto", package: "swift-crypto")]` (mirror YcodeIDECore's
+   `[.product(name: "Crypto", package: "swift-crypto")]` (mirror SwiftCodeIDECore's
    CryptoKit precedent).
-3. New test targets `YcodeConnectTests` (`YcodeConnect`) and
-   `YcodeCollaborationTests` (`YcodeCollaboration`), macOS-only.
-4. Add `"YcodeConnect"` + `"YcodeCollaboration"` to YcodeUI's target dependencies.
-5. Views-D: add `YcodeCloud` + `YcodeGitHub` to `ycode-ide`'s target dependencies.
-6. No changes needed for YcodeIDECore / YcodeGitHub / YcodeGoogleAuth /
-   YcodeAssistant / YcodeXcodebuild / ycode-ide (Persistence-Services items), and
+3. New test targets `SwiftCodeConnectTests` (`SwiftCodeConnect`) and
+   `SwiftCodeCollaborationTests` (`SwiftCodeCollaboration`), macOS-only.
+4. Add `"SwiftCodeConnect"` + `"SwiftCodeCollaboration"` to SwiftCodeUI's target dependencies.
+5. Views-D: add `SwiftCodeCloud` + `SwiftCodeGitHub` to `swiftcode-ide`'s target dependencies.
+6. No changes needed for SwiftCodeIDECore / SwiftCodeGitHub / SwiftCodeGoogleAuth /
+   SwiftCodeAssistant / SwiftCodeXcodebuild / swiftcode-ide (Persistence-Services items), and
    no other slice reported Package.swift wiring.
 
 ## Wiring / integration list
 
 - Connect shell: set `ConnectServer.shared.workspaceProvider` from the open
-  `WorkspaceSession` (git via `ConnectLocalGit`, builds/tests via YcodeBuild,
+  `WorkspaceSession` (git via `ConnectLocalGit`, builds/tests via SwiftCodeBuild,
   assist via CodingAssistantModel, devices via Device Hub/simctl); until then
   Connect honestly answers NO_ACTIVE_PROJECT.
 - NewProject flow: `LegacyProjectTemplateManager` + `LegacyProjectTemplates` +
@@ -288,7 +288,7 @@ only.
 - **Not verified:** no Swift build or test was run — no Swift toolchain in this
   environment, per Dylan's instruction. All test files (2 Backend-Assist, 2 Core,
   2 Views-C, 7 Persistence-Services, plus any others listed per slice) are
-  unexecuted. The two new targets (`YcodeConnect`, `YcodeCollaboration`) are not
+  unexecuted. The two new targets (`SwiftCodeConnect`, `SwiftCodeCollaboration`) are not
   yet in Package.swift, so nothing here has compiled.
 
 ## What is still pending / remainder
@@ -305,10 +305,10 @@ only.
   collaboration (12), updater, interactive PTY terminal, Apple ID sign-in, IPA
   packaging, local workflow engine, On Device Intelligence (canned-text fakes),
   Autopilot/autonomous takeover (excluded by design), System Assets corpus (Wave
-  19), `ProjectFilesExtracter` (needs YcodeGitHub workflow-runs/artifacts API).
+  19), `ProjectFilesExtracter` (needs SwiftCodeGitHub workflow-runs/artifacts API).
 - **Wave 19 (REVIEW execution):** Documentation Assets rewrite-from-spec +
   System Assets re-derivation; the 5 missing example commands (Wave 15 ships 2/7).
-- **Rebrand Ycode→SwiftCode** (scout still running at wave start), README V2
+- **Rebrand SwiftCode→SwiftCode** (scout still running at wave start), README V2
   parity, destination ledgers, final 12 audits + destination cleanup audit.
 - **Mac verification for everything in this wave:** `swift build` / `swift test`
   + live runs on Dylan's Mac; nothing is VERIFIED until then.

@@ -8,7 +8,7 @@ installcoordinationd stage an app (`app-install-launch.md` §2.1).
 
 Every fact comes from black-box runs of our own programs (level 3): our
 probe `sbext` on this Mac's booted iOS simulator, and the same probe and
-the runtime's daemons running on Ycode, where the kernel's trace records
+the runtime's daemons running on SwiftCode, where the kernel's trace records
 each call's argument block. No Apple binary was disassembled or
 decompiled. The function names `sandbox_extension_issue_file`,
 `sandbox_extension_consume` and `sandbox_extension_release` are exported
@@ -24,7 +24,7 @@ interop names. The prototypes the probe uses are its own declarations.
 | `sandbox_extension_release(h)` | 0 for handle 0 and for an unknown handle (999999). |
 
 The simulator's processes run unsandboxed on the Mac, so a consume grants
-nothing new there. Ycode answers in the same way.
+nothing new there. SwiftCode answers in the same way.
 
 ## 2. Kernel interface (`__mac_syscall`)
 
@@ -40,7 +40,7 @@ the issue, consume and release calls. Op 2 is the check call
 | **7** | `sandbox_extension_release` | 0: the handle | Return 0. |
 
 The size of the issue buffer is not passed. Tokens of up to about 220 bytes
-were seen. Ycode refuses tokens of 2048 bytes or more.
+were seen. SwiftCode refuses tokens of 2048 bytes or more.
 
 ## 3. Token form
 
@@ -58,16 +58,16 @@ Twelve fields separated by `;`. Examples seen on the Mac:
 | 11 | `01` | |
 | 12 | The resolved path (on the Mac, `realpath` form, lowercased on the case-insensitive volume) | `/private/tmp/yc-7-i3-sb/t` |
 
-## 4. Ycode's answer (normative for Ycode)
+## 4. SwiftCode's answer (normative for SwiftCode)
 
-- **Issue (5):** a token in the form of §3. Field 1 is a Ycode digest of
+- **Issue (5):** a token in the form of §3. Field 1 is a SwiftCode digest of
   fields 2–12. Field 12 is the guest `realpath` of the path, or the path as
   given if it cannot be resolved. Fields 8–10 come from `stat` (`00`, 0, 0
   when it fails). Returns 0. A missing class or buffer is EINVAL, and so is
   a missing path when word 1 is 0 (a file extension).
 - **Issue of another kind (5, word 1 nonzero, word 2 null):** `tccd` issues
   one when it allows `kTCCServiceCamera` (word 1 = 3, class
-  `com.apple.tcc.kTCCServiceCamera`, no path; §5). Ycode answers with a
+  `com.apple.tcc.kTCCServiceCamera`, no path; §5). SwiftCode answers with a
   token in the same form whose fields 8–10 are `00`, 0, 0 and whose field
   12 is empty, and returns 0.
 - **Consume (6):** a token with at least 12 fields whose first field is 64
@@ -78,13 +78,13 @@ Twelve fields separated by `;`. Examples seen on the Mac:
 
 ## 5. `tccd`'s extensions (CAMERA-GUEST, 2026-10-28)
 
-Ycode runs on the Thor with a kernel trace of `tccd` (`--trace-name tccd`)
+SwiftCode runs on the Thor with a kernel trace of `tccd` (`--trace-name tccd`)
 and a guest `log stream --process tccd` while an app asked for camera
 access with a granted record (`camera.md` §9.7):
 
 - For `kTCCServiceAddressBook` and `kTCCServicePhotos` (asked by system
   daemons), `tccd` issues with word 1 = 0, word 2 pointing at the path
-  `/`, a generic file extension that Ycode already answered.
+  `/`, a generic file extension that SwiftCode already answered.
 - For `kTCCServiceCamera` it issues with word 1 = 3 and word 2 = 0.
   Answered with EINVAL, `tccd` logged "Failed to issue Sandbox Extension
   for kTCCServiceCamera", put that text in the reply's `auth_error_string`
@@ -97,11 +97,11 @@ access with a granted record (`camera.md` §9.7):
 | Claim | Level | Source |
 |---|---|---|
 | Library results, token form, handle 0, EINVAL for a bad token, release always 0 (§1, §3) | 3 | `research/experiments/simulator/sandbox-extensions/sbext.c` run with `xcrun simctl spawn` on this Mac's booted simulator (iOS 27.1 runtime), classes `com.apple.app-sandbox.read`, `…read-write`, an unknown class, and a missing path |
-| Op numbers and argument words (§2) | 3 | Ycode kernel trace of `sbext` run with `ycode-simd --exec` on the Thor: the `__mac_syscall` lines with argument words and the strings they point to |
+| Op numbers and argument words (§2) | 3 | SwiftCode kernel trace of `sbext` run with `swiftcode-simd --exec` on the Thor: the `__mac_syscall` lines with argument words and the strings they point to |
 | Output buffer in word 4 and handle location in word 2 (§2) | 3 | Experiments on our own runs: answering op 5 by writing a token into the word-4 buffer made the library return that token, and consume then passed it in word 0 with its length in word 1; answering op 6 by writing 7 to the word-2 location made `sandbox_extension_consume` return 7, and release then passed 7 in word 0 |
-| installd needs the issue to succeed (introduction) | 3 | Ycode install run: IXErrorDomain 2, with the underlying error "Failed to create sandbox extension for path …/PromiseStaging", NSPOSIXErrorDomain 103 |
-| `tccd`'s camera extension and its effect (§5) | 3 | Ycode runs on the Thor: kernel trace of `tccd`'s `__mac_syscall` argument words; guest `log stream --process tccd` (CAMERA-GUEST, 2026-10-28) |
-| Ycode's answer (§4) | — | Ycode decision, shaped by the rows above |
+| installd needs the issue to succeed (introduction) | 3 | SwiftCode install run: IXErrorDomain 2, with the underlying error "Failed to create sandbox extension for path …/PromiseStaging", NSPOSIXErrorDomain 103 |
+| `tccd`'s camera extension and its effect (§5) | 3 | SwiftCode runs on the Thor: kernel trace of `tccd`'s `__mac_syscall` argument words; guest `log stream --process tccd` (CAMERA-GUEST, 2026-10-28) |
+| SwiftCode's answer (§4) | — | SwiftCode decision, shaped by the rows above |
 
 Level 5 was not used. `.claude/Xcode.app`, `research/dirty/`, and Ghidra
 were not opened.

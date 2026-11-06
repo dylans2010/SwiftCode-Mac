@@ -1,13 +1,13 @@
-# Postmortem: lost writes in ycode-simd (host KVM SVE bug)
+# Postmortem: lost writes in swiftcode-simd (host KVM SVE bug)
 
 Status: closed 2026-10-13. Root cause: a Linux host-kernel bug in KVM's
 handling of the VMM thread's SVE state, fixed upstream by commit
-fbc7e61195e2. Ycode carries two mitigations so it also runs correctly on
+fbc7e61195e2. SwiftCode carries two mitigations so it also runs correctly on
 hosts that lack the fix.
 
 ## 1. Summary
 
-ycode-simd, the VMM that runs the iOS simulator runtime in KVM micro-VMs on
+swiftcode-simd, the VMM that runs the iOS simulator runtime in KVM micro-VMs on
 the Thor (arm64 Linux, kernel 6.8.12-tegra), crashed in most device runs:
 about 4 of 10 release runs and more than 95% of debug runs. The crashes were
 in our own Swift code and looked like memory corruption, but nothing was
@@ -48,27 +48,27 @@ rate over several runs. A single run proves little at these rates.
 
 | # | Hypothesis | Experiment | Result | Verdict |
 |---|---|---|---|---|
-| 1 | Data race in the Darwin-kernel layer (lock not held) | hold the kernel lock for the whole trap (`YCODE_DEBUG_NO_UNLOCK`) | release 6/10 crashed | not it |
+| 1 | Data race in the Darwin-kernel layer (lock not held) | hold the kernel lock for the whole trap (`SWIFTCODE_DEBUG_NO_UNLOCK`) | release 6/10 crashed | not it |
 | 2 | Foundation path code is not thread-safe | remove Foundation from the path code, then byte-based paths | 2/10, then 1/10 | rate fell (less copying), still crashed |
 | 3 | `inout` access across a wait | unoptimized build, exclusivity checks on and off | debug 95%+, exclusivity off 5/5 | not it |
 | 4 | Heap use-after-free | never-reuse allocator (bumpmalloc), quarantine with fill check (qmalloc) | 3/3 and 2/3 crashed, 0 reports | not it |
 | 5 | Compiler bug | second toolchain, Swift 6.3.3 | 4/5 | not it |
 | 6 | Signals (vCPU kicks) interrupt code at a bad point | no kicks at pool end; log every kick in user code; block kicks outside `KVM_RUN` | 3/5; 0 kicks seen in user code; 4/4 | not it |
 | 7 | Transparent huge pages, page migration | `PR_SET_THP_DISABLE`; `pgmigrate_success` | 6/6; counter unchanged | not it |
-| 8 | Use of freed guest memory after VM close | keep VMs open (`YCODE_DEBUG_NO_VM_CLOSE`) | 5/6 | not it |
+| 8 | Use of freed guest memory after VM close | keep VMs open (`SWIFTCODE_DEBUG_NO_VM_CLOSE`) | 5/6 | not it |
 | 9 | Generic-metadata problem in unoptimized Swift | non-generic copy of the interval map | 5/5 (torn elements) | not it |
 | 10 | A wild write from another thread | hardware watchpoints, read-only element pages; ask whose stack holds the value | heap intact; the value was on the reading thread's own stack | changed the question |
 | 11 | Another thread's stack, or a stack clash | `pthread_getattr_np` in the report | own stack, same offset each time | not it |
 | 12 | Kernel loses registers across `KVM_RUN` | fpcheck: v0..v31, p0..p15, x1..x30, SP, NZCV, system registers, with kicks and preemption | 0 in 10M to 42M runs each | not it, but a blind spot (see 4) |
-| 13 | Lost writes on any thread | C threads write and verify 64 KB of stack and heap (`YCODE_DEBUG_MEMCHECK`) | 0 lost, all 3 runs crashed | not it, and a clue |
+| 13 | Lost writes on any thread | C threads write and verify 64 KB of stack and heap (`SWIFTCODE_DEBUG_MEMCHECK`) | 0 lost, all 3 runs crashed | not it, and a clue |
 | 14 | CPU migration / cache coherence | `taskset` to 1 CPU, 2 CPUs | 3/3, 1/2 | not it |
-| 15 | Reader overlaps a writer on a map | reader/writer guard (`YCODE_DEBUG_RW_GUARD`) | 0 traps in 8 runs | not it |
+| 15 | Reader overlaps a writer on a map | reader/writer guard (`SWIFTCODE_DEBUG_RW_GUARD`) | 0 traps in 8 runs | not it |
 | 16 | SP, FP, LR, x18, NZCV changed by `KVM_RUN` | check them and 4 KiB of caller frames around every `KVM_RUN` | 4/4 crashed, 0 reports | not it |
 | 17 | The guest's FP use matters | fpcheck with a guest that never touches FP | 149,873 of 21.3M runs lost predicates | **the bug** |
 
 Hypothesis 12 had passed because every fpcheck guest used FP registers
 (fmov) on every run. That forced the kernel onto its correct path. The
-ycode-simd guest exits to the VMM through the shim's doorbell store, often
+swiftcode-simd guest exits to the VMM through the shim's doorbell store, often
 without any FP access in that run. As soon as the test guest stopped using
 FP, the failure rate went from 0 to about 0.7% of runs.
 
@@ -131,7 +131,7 @@ backported to the 5.15, 6.1, 6.6, 6.12 and 6.13 stable series, not to 6.8.
 ## 6. Reproducer
 
 Source: `research/experiments/linux-host/kvm-sve/fpcheck.c` (our own code;
-the working copy is `qtest/` under `$YCODE_DATA/work/7-I3`
+the working copy is `qtest/` under `$SWIFTCODE_DATA/work/7-I3`
 on the Thor).
 
 ```
@@ -152,18 +152,18 @@ Results on the Thor, 48 threads on 14 CPUs, 30 s:
 | patched | predicates | no FP | 0 of 21.7M |
 | patched | glibc memcpy/memmove | no FP | 0 of 4.8G copies |
 
-## 7. Mitigations in Ycode
+## 7. Mitigations in SwiftCode
 
-Both are on by default and cost little, so Ycode stays correct on hosts
+Both are on by default and cost little, so SwiftCode stays correct on hosts
 without the kernel fix.
 
-1. **No SVE in `memcpy`/`memmove`** (`ycode/Sources/CKVM/hostcopy.c`).
-   ycode-simd defines AdvSIMD-only `memcpy` and `memmove`. The executable
+1. **No SVE in `memcpy`/`memmove`** (`swiftcode/Sources/CKVM/hostcopy.c`).
+   swiftcode-simd defines AdvSIMD-only `memcpy` and `memmove`. The executable
    exports them, so the dynamic linker binds them ahead of glibc's for the
    whole process, Swift runtime included. glibc's only SVE routines on this
    CPU are those two; libswiftCore contains no SVE instructions.
    `movetest.c` checks 169,764 size and overlap cases. With hostcopy linked
-   into fpcheck: 0 lost copies in 6.7G. `YCODE_LIBC_MEMCPY=1` switches back
+   into fpcheck: 0 lost copies in 6.7G. `SWIFTCODE_LIBC_MEMCPY=1` switches back
    to glibc for tests.
 2. **The shim touches FP on every resume** (`SimShim/shim.S`, resumeFlags
    bit 1, `VCPUPool.shimFPTouch`). Before it returns to the guest, the EL1
@@ -171,10 +171,10 @@ without the kernel fix.
    loads the FP registers for the vCPU in that run and takes its correct
    path. This also protects SVE code other than `memcpy` (drivers, other
    libraries) that runs on vCPU threads. Cost: 0.22 µs per `KVM_RUN`
-   (2.75 to 2.97 µs for a bare MMIO round trip); a ycode-simd trap round
+   (2.75 to 2.97 µs for a bare MMIO round trip); a swiftcode-simd trap round
    trip takes tens of µs. Residual: 1 in 21.5M runs, from runs that return
    before the guest reaches the FP access (a kick or an immediate exit).
-   `YCODE_SHIM_FP_TOUCH=0` turns it off. The flag is documented in
+   `SWIFTCODE_SHIM_FP_TOUCH=0` turns it off. The flag is documented in
    `specs/simulator/stage3-contract.md` section 7.
 
 ## 8. Results

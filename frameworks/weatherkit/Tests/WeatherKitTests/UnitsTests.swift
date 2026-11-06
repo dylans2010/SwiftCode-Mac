@@ -34,9 +34,9 @@ struct UnitsTests {
         let snowy = try #require(weather.minuteForecast?.first { $0.precipitation == .snow })
         // 0.4 mm/h in metres per second.
         #expect(abs(snowy.precipitationIntensity.converted(to: .metersPerSecond).value - 0.4 / 3_600_000) < 1e-15)
-        let ycodeUnit = Measurement(value: 0.4, unit: WeatherUnits.millimetersPerHour)
-        #expect(ycodeUnit == snowy.precipitationIntensity)
-        #expect(try jsonObject(ycodeUnit)["unit"] as? NSDictionary
+        let swiftcodeUnit = Measurement(value: 0.4, unit: WeatherUnits.millimetersPerHour)
+        #expect(swiftcodeUnit == snowy.precipitationIntensity)
+        #expect(try jsonObject(swiftcodeUnit)["unit"] as? NSDictionary
             == (try jsonObject(snowy.precipitationIntensity)["unit"] as? NSDictionary))
     }
 }

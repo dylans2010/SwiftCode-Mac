@@ -1,17 +1,17 @@
-# Design note (Ycode-original): a simulated world for ARKit
+# Design note (@@SWIFTCODE_ORIGINAL@@): a simulated world for ARKit
 
-> **This file is Ycode's own design, not a description of Apple's
+> **This file is SwiftCode's own design, not a description of Apple's
 > behavior.** Nothing here comes from Apple binaries; it builds on the
 > interface in the other files of this directory, public computer-vision
-> literature and permissively licensed open source. It defines what Ycode
+> literature and permissively licensed open source. It defines what SwiftCode
 > adds on top of the baseline in `simulator-baseline.md`.
 
 ## 1. Goal
 
-Run unmodified ARKit apps in Ycode's iOS simulator against a **simulated
+Run unmodified ARKit apps in SwiftCode's iOS simulator against a **simulated
 physical world**: a 3D scene in which a virtual iPhone moves. The simulator
 renders what the phone's cameras would see and what its motion sensors would
-measure, and Ycode's ARKit produces frames, anchors and the rest from that.
+measure, and SwiftCode's ARKit produces frames, anchors and the rest from that.
 Later the scene comes from the visionOS-like environment (`docs/FUTURE.md`),
 where the virtual iPhone is held inside a spatial scene.
 
@@ -20,10 +20,10 @@ baseline applies unchanged.
 
 ## 2. Architecture
 
-    host (Linux, Ycode simulator host)                 guest (iOS runtime)
+    host (Linux, SwiftCode simulator host)                 guest (iOS runtime)
     ┌──────────────────────────────┐                  ┌────────────────────────────┐
     │ World: scene + semantics      │                  │ App                        │
-    │ Pose driver: UI / script /    │                  │   │ ARKit API (Ycode)      │
+    │ Pose driver: UI / script /    │                  │   │ ARKit API (SwiftCode)      │
     │   visionOS hand pose          │   sensor channel │   ▼                        │
     │ Sensor renderer: cameras,     │ ───────────────► │ ARKit engine               │
     │   depth, IMU, compass, GPS    │  (IOSurfaces +   │  ├─ oracle backend         │
@@ -37,14 +37,14 @@ baseline applies unchanged.
   camera controls), a recorded or scripted trajectory file (deterministic
   tests), or, in the visionOS-like environment, the pose of the hand holding
   the phone.
-- **Sensor renderer**: renders camera images (Ycode's Metal→Vulkan graphics
+- **Sensor renderer**: renders camera images (SwiftCode's Metal→Vulkan graphics
   layer), depth, and synthesizes inertial data from the trajectory.
 - **Sensor channel**: delivers camera frames as IOSurface-backed buffers
   (`specs/simulator/iosurface-remote.md`) and a timestamped sample stream
   (IMU, magnetometer, location) into the guest. The same camera service
   should also back AVFoundation capture in the simulator, so apps that use
   the camera directly see the same world.
-- **ARKit engine** (guest, Ycode code): implements the API and selects a
+- **ARKit engine** (guest, SwiftCode code): implements the API and selects a
   backend per session.
 
 ## 3. Inputs an implementation needs
@@ -106,8 +106,8 @@ optional per session.
 - Geometry: **OpenUSD** stages (the format RealityKit and visionOS use), in
   meters with +Y up, which matches ARKit's world. A small built-in set of test
   worlds (empty room, tabletop with posters, office, outdoor plaza with a
-  geodetic origin) ships with Ycode, authored by us.
-- Semantic side-car (Ycode format, JSON) listing: planar surfaces with
+  geodetic origin) ships with SwiftCode, authored by us.
+- Semantic side-car (SwiftCode format, JSON) listing: planar surfaces with
   ARKit classifications; mesh classification per material or object; reference
   images placed in the world (by asset name and physical size); reference
   objects; animated people (body skeleton tracks) and faces (blend-shape
@@ -126,7 +126,7 @@ noise; exposure and white balance. Every control has a deterministic seed.
 ## 7. Open-source building blocks
 
 Licenses checked from each project's license file or GitHub metadata
-(2026-10-19). **GPL/LGPL code must not be linked into or copied into Ycode
+(2026-10-19). **GPL/LGPL code must not be linked into or copied into SwiftCode
 code.** Projects may be used only as external references or under their
 license terms; no code is copied into specs.
 
@@ -172,6 +172,6 @@ dataset's license separately; many research datasets are non-commercial.
 
 ## Evidence
 
-Ycode-original design. External facts used: license files and GitHub license
+@@SWIFTCODE_ORIGINAL@@ design. External facts used: license files and GitHub license
 metadata of the listed projects (fetched 2026-10-19); ARKit interface facts
 from the other files of this spec.

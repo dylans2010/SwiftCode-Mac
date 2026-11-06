@@ -9,7 +9,7 @@ import SwiftUICore
 // Help tags (round R13; `help(_:)`, public documentation: a tooltip on
 // macOS, and the view's accessibility hint).
 //
-// Design (Ycode's): a pointer that rests on a view with help text for
+// Design (SwiftCode's): a pointer that rests on a view with help text for
 // `TooltipMetrics.delay` seconds shows the text in a small box under the
 // pointer, kept inside the window (above the pointer when there is no room
 // below). Leaving the view, pressing a pointer button or a key hides it; a

@@ -1,5 +1,5 @@
-// Symbols of Ycode's Source Control, Test and Report navigators (B2-SCM), drawn
-// for Ycode in the same plain style as SymbolArtwork.swift: outlines on
+// Symbols of SwiftCode's Source Control, Test and Report navigators (B2-SCM), drawn
+// for SwiftCode in the same plain style as SymbolArtwork.swift: outlines on
 // the 24 × 24 grid, stroke 1.75. Licence: the repository's (MIT).
 
 import Foundation

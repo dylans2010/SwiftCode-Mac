@@ -1,7 +1,7 @@
 # MapKit spec: design note for an open implementation
 
-> **Ycode-original design.** Nothing in this file describes how Apple builds
-> MapKit. It is our plan for (a) running Apple's MapKit in Ycode's simulator
+> **@@SWIFTCODE_ORIGINAL@@ design.** Nothing in this file describes how Apple builds
+> MapKit. It is our plan for (a) running Apple's MapKit in SwiftCode's simulator
 > and (b) an open, Linux-buildable MapKit with the same interface, built from
 > open data and permissively licensed renderers. Facts it relies on are cited
 > to the other files of this directory.
@@ -10,14 +10,14 @@
 
 | Target | What runs | Where the map data comes from |
 |---|---|---|
-| **A. Baseline** | Apple's iOS 27.1 runtime in a Ycode micro-VM: Apple's MapKit, VectorKit, GeoServices and `geod` | Apple's servers, through the guest's network (exactly as Apple's simulator does, `simulator-baseline.md` §2) |
-| **B. Open MapKit** | Ycode's own `MapKit` (same module, class, selector and constant names; binary-compatible in the guest; a Swift package on Linux) | open data and services that Ycode or the developer chooses (§4) |
+| **A. Baseline** | Apple's iOS 27.1 runtime in a SwiftCode micro-VM: Apple's MapKit, VectorKit, GeoServices and `geod` | Apple's servers, through the guest's network (exactly as Apple's simulator does, `simulator-baseline.md` §2) |
+| **B. Open MapKit** | SwiftCode's own `MapKit` (same module, class, selector and constant names; binary-compatible in the guest; a Swift package on Linux) | open data and services that SwiftCode or the developer chooses (§4) |
 
 Target A comes first: it is what makes existing apps "just work". Target B
 is the long-term open-frameworks track (`docs/FUTURE.md`); it must never
 depend on Apple's servers or resources.
 
-## 2. Target A: what Ycode's simulator must provide
+## 2. Target A: what SwiftCode's simulator must provide
 
 From `simulator-baseline.md` §§2–7. Each line is a dependency with the
 evidence that it is needed. `plan.md` §2 orders them into rounds R1–R6.
@@ -29,11 +29,11 @@ evidence that it is needed. `plan.md` §2 orders them into rounds R1–R6.
 | A3 | `geod` launchable on demand as user `mobile`, with writable `/var/mobile/Library/Caches/GeoServices`, `…/Caches/com.apple.geod`, `…/Preferences/com.apple.GEO.plist` | resource manifest, styles, icons, fonts and tiles are downloaded and cached there on first use (45 MB of resources after one map) |
 | A4 | XPC lookup of `com.apple.geod` from apps, and of the snapshot XPC service bundled in `MapKit.framework/XPCServices` | the app's only map-data channel; `MKMapSnapshotter` runs out of process |
 | A5 | `locationd` with its simulation service and the TCC location grant | user location, `MKMapItem.forCurrentLocation()`, follow modes (see `../weatherkit/location.md`) |
-| A6 | Touch input with multi-step drags and double taps through Ycode's HID path | pan, fling deceleration, double-tap zoom, selection by tap (`simulator-baseline.md` §4.4) |
+| A6 | Touch input with multi-step drags and double taps through SwiftCode's HID path | pan, fling deceleration, double-tap zoom, selection by tap (`simulator-baseline.md` §4.4) |
 | A7 | Large virtual address space and memory for VectorKit (map process grows by ~150 MB with 3D) | 3D buildings, globe and satellite modes |
 | A8 | Correct wall clock and time zone | TLS validity, ETA dates, time-zone fields of map items |
 | A9 | `geoanalyticsd` launchable (looked up by every map app); `navd`, `mapssyncd`, `destinationd`, `mapspushd` jobs present (launch-on-demand) | the analytics lookup happens on every map use; the Maps-support daemons were not contacted by a MapKit app, only by the Maps app on 27.0 (`simulator-baseline.md` §2.1) |
-| A10 | No Maps app on 27.1 | `openInMaps` and `maps:` URLs fail exactly as `simulator-baseline.md` §5 records; Ycode must not "fix" this in the 27.1 baseline |
+| A10 | No Maps app on 27.1 | `openInMaps` and `maps:` URLs fail exactly as `simulator-baseline.md` §5 records; SwiftCode must not "fix" this in the 27.1 baseline |
 | A11 | `com.apple.MTLCompilerService` XPC service for app processes | Metal shader compilation for the map, snapshots and Look Around (`simulator-baseline.md` §2.2) |
 | A12 | `geod` in the **user** launchd domain (`user/501/…`), and a way to stop/restart it for tests | matches the reference's job placement; S16 checks the no-`geod` behavior (`simulator-baseline.md` §6) |
 
@@ -53,7 +53,7 @@ Not required: an Apple account, a team, entitlements, or MapKit JS tokens.
      (pure Swift,     (MapLibre Native,       tiles | search | routing | geocoding | street imagery
       golden tests)    BSD-2, Metal/Vulkan/GL)
              |              |                      |
-             +---- ycode-geod (open daemon, optional in the guest): cache, request queue, offline packs
+             +---- swiftcode-geod (open daemon, optional in the guest): cache, request queue, offline packs
 ```
 
 ### 3.1 Geometry core (`MKGeometry`)
@@ -82,7 +82,7 @@ Use **MapLibre Native** (BSD-2-Clause, verified §5) as the engine behind
 implement the format, we do not copy the text) with a MapLibre style
 document, supports globe, terrain, 3D extrusions and raster layers, and has
 Metal and Vulkan back ends (so the guest drop-in and Linux share one
-renderer). Ycode writes **its own styles** for the four looks MapKit
+renderer). SwiftCode writes **its own styles** for the four looks MapKit
 exposes (standard, muted standard, imagery, hybrid) in light and dark,
 starting from CC0 designs (Protomaps basemap themes, verified §5) — never
 from Apple's style files, icons or fonts, which are Apple resources cached
@@ -120,11 +120,11 @@ representations, polylines in map points, step lists, error codes of
 
 ### 3.5 Open daemon (guest only, optional)
 
-In the guest, Ycode's MapKit can talk to an open `ycode-geod` over XPC (same
+In the guest, SwiftCode's MapKit can talk to an open `swiftcode-geod` over XPC (same
 role as `geod`): one HTTP client with caching, request coalescing, a disk
 tile cache (SQLite of tiles keyed by source/z/x/y) and offline packs. On
 Linux the same code runs in-process. The service name must differ from
-Apple's (`dev.ycode.geod`) so the two never collide when Apple's runtime is
+Apple's (`dev.swiftcode.geod`) so the two never collide when Apple's runtime is
 present.
 
 ## 4. Data and license rules
@@ -134,7 +134,7 @@ present.
    OSM, a search index) must be offered under ODbL. Rendered images and our
    code are not derivative databases; produced works only need attribution
    ("© OpenStreetMap contributors" on the map). Our *code* stays under its own
-   license (MIT for Ycode). Ycode's attribution view must therefore be
+   license (MIT for SwiftCode). SwiftCode's attribution view must therefore be
    driven by the active sources, like Apple's "Legal" link (`simulator-baseline.md` §3, item 1).
 2. We link only permissive code (BSD, MIT, Apache-2.0). GPL servers
    (Nominatim) are used, if at all, over HTTP as separate programs.
@@ -164,7 +164,7 @@ present.
 
 - **Geometry and camera**: unit tests with the golden values of
   `geometry.md` (exact to the printed digits), on Linux and in the guest.
-- **Viewport**: the same `MKProbe` math phase run against Ycode's MapKit in
+- **Viewport**: the same `MKProbe` math phase run against SwiftCode's MapKit in
   the guest must print identical lines (modulo the device's safe area).
 - **Rendering**: no pixel parity with Apple (different data and styles).
   Tests check callbacks and their order (`interface.md` §3.4),

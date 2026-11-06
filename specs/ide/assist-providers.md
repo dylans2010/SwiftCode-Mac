@@ -1,13 +1,13 @@
 # Assist providers (Wave 9)
 
-The coding assistant's providers on Ycode's `AssistantProvider` host
-(`ycode/Sources/YcodeAssistant/`): OpenRouter, OpenCode, Hermes, Apple
+The coding assistant's providers on SwiftCode's `AssistantProvider` host
+(`swiftcode/Sources/SwiftCodeAssistant/`): OpenRouter, OpenCode, Hermes, Apple
 Foundation Models, and SwiftCode Cloud. Each provider is a `ProviderKind`
 case wired by `AssistantBackends.provider(_:)`; models are discovered
-live from the provider — Ycode ships no model list. Credentials live in
+live from the provider — SwiftCode ships no model list. Credentials live in
 the `SecretStore` (Keychain on macOS); no key, token, or secret appears
 in source, tests, or specs. Legacy behaviour is ported from Dylan's own
-Legacy code (direct porting authorised under MIT); the Ycode
+Legacy code (direct porting authorised under MIT); the SwiftCode
 implementation is written from this spec plus the host's public patterns.
 
 The TypeScript SDK provider paths (`OpenRouterSDKProvider` +
@@ -19,8 +19,8 @@ ported in this wave — they belong to the later SDK-platform wave.
 OpenRouter is the coding assistant's remote-model provider: any model
 listed by `https://openrouter.ai/api/v1/models`, reached through
 OpenRouter's OpenAI-compatible `POST /chat/completions`, authorized by
-an API key the user enters. This spec covers the Ycode port of
-Legacy's native (non-SDK) OpenRouter Assist path onto Ycode's
+an API key the user enters. This spec covers the SwiftCode port of
+Legacy's native (non-SDK) OpenRouter Assist path onto SwiftCode's
 `AssistantProvider` host. The TypeScript SDK path
 (`OpenRouterSDKProvider` + `SDKHosts/openrouter-bridge.mjs`) is
 explicitly **not** ported; see §6.
@@ -49,7 +49,7 @@ Adjacent Legacy code **not** in this slice: `SwiftCode/Services/OpenRouterServic
 - Base URL: `https://openrouter.ai/api/v1`.
 - `GET /models` — live model list. Legacy sends the request with
   `Authorization: Bearer <key>` when a key is stored, and without it
-  when none is (the endpoint answers unauthenticated); the Ycode
+  when none is (the endpoint answers unauthenticated); the SwiftCode
   port requires a key first and reports `.signedOut` without one
   (§2), matching the host's provider-availability contract.
 - `POST /chat/completions` — chat completions, `stream: true`,
@@ -135,7 +135,7 @@ as a silent substitution gate, and never used to switch models.
   identifier, other statuses with the server detail (truncated to
   300 characters), transport failure as a network error.
 
-## 2. What Ycode's host already provides
+## 2. What SwiftCode's host already provides
 
 - `AssistantProvider` (`kind`, `availability()`,
   `contextWindow(model:)`, `send(_:)`), `ProviderKind`,
@@ -146,7 +146,7 @@ as a silent substitution gate, and never used to switch models.
   `.usageLimit` / `.temporarilyUnavailable` / `.unsupported` /
   `.incomplete` / `.failed` / `.malformed`), `ChatRequest`,
   `ChatEvent` (`.text` / `.activity` / `.truncated` / `.finished`),
-  and the `eventStream` helper (`ycode/Sources/YcodeAssistant/Core.swift`).
+  and the `eventStream` helper (`swiftcode/Sources/SwiftCodeAssistant/Core.swift`).
 - HTTP one-shot and SSE streaming (`HTTP.send`, `HTTP.streamLines`,
   `HTTP.url`, `HTTP.errorMessage`, `HTTP.isUnreachable`, `SSEDecoder`,
   `JSON`), and the OpenAI chat-completions SSE chunk parser
@@ -161,7 +161,7 @@ as a silent substitution gate, and never used to switch models.
 
 ## 3. What this slice adds
 
-`ycode/Sources/YcodeAssistant/OpenRouterProvider.swift` —
+`swiftcode/Sources/SwiftCodeAssistant/OpenRouterProvider.swift` —
 `struct OpenRouterProvider: AssistantProvider`:
 
 - `kind == .openRouter` (the coordinator adds the `ProviderKind`
@@ -209,7 +209,7 @@ as a silent substitution gate, and never used to switch models.
   naming OpenRouter and the base URL. No key at send time →
   `.notSignedIn`. The stream closing early → `.incomplete`.
 
-`ycode/Tests/YcodeAssistantTests/OpenRouterProviderTests.swift`:
+`swiftcode/Tests/SwiftCodeAssistantTests/OpenRouterProviderTests.swift`:
 recorded-sample `/models` payload parsing (ids, display-name
 fallback, context windows, skipped id-less entry), tool-calling
 detection for all three states plus an unlisted model, signed-out
@@ -308,14 +308,14 @@ placeholder key.
 | Dynamic-first discovery, OpenRouter discovery mapping (display name, context window with 128,000 fallback, every model marked tool-calling, vision guessed from id), empty list on key-missing/fetch failure, service-level bundled/seed catalog fallback for other providers | 1 | Legacy `SwiftCode/Backend/Assist/AssistModelDiscoveryService.swift` (`discoverOpenRouterModels`, `getProviderName`, `isProviderExplicitlyActive`), read directly |
 | Model record fields (`id`, `name`, `description`, `context_length`, `pricing`) | 1 | Legacy `SwiftCode/Core/AI/OpenRouterModel.swift` and `SwiftCode/Services/OpenRouterService.swift` (`OpenRouterModelsResponse`), read directly |
 | SDK provider and Node bridge exist and are a separate path (599-line provider, `openrouter-bridge.mjs`) | 1 | Legacy `SwiftCode/Backend/Assist/OpenRouterSDKProvider.swift` (line count verified) and `SwiftCode/Backend/Assist/SDKHosts/` listing, read directly |
-| Host contracts: `AssistantProvider`, `ProviderKind` (7 cases, no OpenRouter), `ModelInfo`, `ProviderAvailability`, `AssistantError`, `ChatEvent`, `eventStream`, chat-completions SSE parsing, `SecretStore` accounts, `provider()` factory | 1 | Destination `ycode/Sources/YcodeAssistant/Core.swift`, `ChatCompletionsProvider.swift`, `OpenAIProvider.swift`, `HTTP.swift`, `SecretStore.swift`, `AssistantSettings.swift`, read directly |
+| Host contracts: `AssistantProvider`, `ProviderKind` (7 cases, no OpenRouter), `ModelInfo`, `ProviderAvailability`, `AssistantError`, `ChatEvent`, `eventStream`, chat-completions SSE parsing, `SecretStore` accounts, `provider()` factory | 1 | Destination `swiftcode/Sources/SwiftCodeAssistant/Core.swift`, `ChatCompletionsProvider.swift`, `OpenAIProvider.swift`, `HTTP.swift`, `SecretStore.swift`, `AssistantSettings.swift`, read directly |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it. Legacy is Dylan's own code; direct porting was authorised by Dylan under MIT | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 ## 2. OpenCode
 
-Wave 9 slice — the OpenCode provider on Ycode's `AssistantProvider` host.
+Wave 9 slice — the OpenCode provider on SwiftCode's `AssistantProvider` host.
 Legacy behaviour is ported from Dylan's own Legacy code (direct porting
-authorised under MIT); the Ycode implementation is written from this spec
+authorised under MIT); the SwiftCode implementation is written from this spec
 plus the host's public patterns.
 
 ## 1. Legacy behaviour
@@ -340,16 +340,16 @@ calls `OpenCodeClient.ensureServer()` before a run.
 
 - Default server URL: `http://127.0.0.1:4096`
   (`OpenCodeConfiguration.defaultServerURL`). Loopback only by default;
-  Ycode only ever connects out to the configured URL, never exposes it.
+  SwiftCode only ever connects out to the configured URL, never exposes it.
 - No API key, token, or secret: model-provider credentials live in
-  OpenCode's own configuration. Ycode stores none and sends none.
+  OpenCode's own configuration. SwiftCode stores none and sends none.
 - Agent: every session names the `swiftcode` agent
   (`defaultAgentName = "swiftcode"`), which must be configured
   server-side with every permission denied (Legacy's
   `swiftcodeAgentDefinition`, installed as
   `~/.config/opencode/agent/swiftcode.md` or
   `.opencode/agent/swiftcode.md`). The agent exists so OpenCode acts as
-  a pure model behind Ycode's own tool loop instead of executing its
+  a pure model behind SwiftCode's own tool loop instead of executing its
   own tools.
 - Model identifiers are `opencode:<providerID>/<modelID>` (for example
   `opencode:anthropic/claude-sonnet-4-5` — Legacy's own example of the
@@ -393,7 +393,7 @@ identifies the session; frames for other sessions are ignored.
 | Frame | Meaning |
 |---|---|
 | `message.part.delta` / `part.delta` with `part.type == "text"` | Text delta (`part.text`); also the bare `properties.delta` string form |
-| `message.part.delta` / `part.delta` with `part.type == "tool"` | **Tool part — fail the run closed.** OpenCode must never execute tools on a Ycode session; the run is aborted |
+| `message.part.delta` / `part.delta` with `part.type == "tool"` | **Tool part — fail the run closed.** OpenCode must never execute tools on a SwiftCode session; the run is aborted |
 | `part.updated` / `part.added` with text | Ignored — carries the full accumulated part, not a delta; yielding it would duplicate every delta already streamed |
 | `part.updated` / `part.added` with `part.type == "tool"` | Tool part — fail closed as above |
 | `session.idle` | Run complete |
@@ -403,23 +403,23 @@ identifies the session; frames for other sessions are ignored.
 The stream carries no token usage, so a finished run reports no
 usage counts.
 
-### 1.6 Legacy managed server (auto-heal) — NOT ported to Ycode
+### 1.6 Legacy managed server (auto-heal) — NOT ported to SwiftCode
 
 Legacy's `ensureServer()` auto-heals both failure modes: a missing
 server is started automatically (`opencode serve --hostname 127.0.0.1
 --port <port>`, loopback only), and a missing `opencode` binary is
 located in well-known install locations or installed via npm/bun
 (`npm install -g opencode-ai`, 180 s cap). Only a total auto-heal
-failure surfaces as a user-facing error. Ycode does **not** port this
-(see §3): the Ycode host has no managed-server lifecycle, and the
+failure surfaces as a user-facing error. SwiftCode does **not** port this
+(see §3): the SwiftCode host has no managed-server lifecycle, and the
 other local-server providers (Ollama, llama.cpp) report a stopped
 server with a start hint instead. A stopped OpenCode server is
 therefore a `.notRunning` availability with a hint telling the user to
 run `opencode serve` (installing the CLI first if needed).
 
-## 2. What Ycode's host already provides vs what this slice adds
+## 2. What SwiftCode's host already provides vs what this slice adds
 
-Host (`ycode/Sources/YcodeAssistant/`):
+Host (`swiftcode/Sources/SwiftCodeAssistant/`):
 
 - `Core.swift` — `AssistantProvider` protocol, `ProviderKind`,
   `ModelInfo`, `ProviderAvailability` (`.ready` / `.notRunning` /
@@ -437,7 +437,7 @@ Host (`ycode/Sources/YcodeAssistant/`):
 
 This slice adds (destination repo, uncommitted):
 
-- `ycode/Sources/YcodeAssistant/OpenCodeProvider.swift` —
+- `swiftcode/Sources/SwiftCodeAssistant/OpenCodeProvider.swift` —
   `struct OpenCodeProvider: AssistantProvider`:
   - `kind == .openCode` (the `ProviderKind.openCode` case, the
     `openCodeURL` settings field defaulting to
@@ -472,7 +472,7 @@ This slice adds (destination repo, uncommitted):
     — the §1.5 frame parser and dispatcher.
   - `resetSessions()` / `resetSession(directory:)` — drop cached
     session ids (e.g. on provider switch), mirroring Legacy.
-- `ycode/Tests/YcodeAssistantTests/OpenCodeProviderTests.swift` —
+- `swiftcode/Tests/SwiftCodeAssistantTests/OpenCodeProviderTests.swift` —
   parser tests against recorded sample payloads (no live network),
   availability / cache / not-running tests against the test
   `LoopbackServer` (unreachable-port case needs no live server),
@@ -485,8 +485,8 @@ This slice adds (destination repo, uncommitted):
 ## 3. Divergences from Legacy (deliberate)
 
 1. **No managed server / auto-install.** Legacy starts and installs
-   the server (§1.6); Ycode reports `.notRunning` with a start hint.
-   Reason: the Ycode host has no managed-server lifecycle, and the
+   the server (§1.6); SwiftCode reports `.notRunning` with a start hint.
+   Reason: the SwiftCode host has no managed-server lifecycle, and the
    sibling local providers behave the same way. A later wave could
    add managed startup; it would need a host-level lifecycle, not a
    provider-local `Process` launch.
@@ -506,7 +506,7 @@ This slice adds (destination repo, uncommitted):
    `.incomplete`. There is no `.notRunning` error case; unreachability
    is reported through availability and `.unreachable` on send.
 5. **One event subscription survives the stale-session retry.**
-   Legacy re-opens the event stream after the retry; Ycode reuses the
+   Legacy re-opens the event stream after the retry; SwiftCode reuses the
    single subscription because `/event` is a global feed filtered by
    session id. If the prompt fails outright, the opened subscription
    is cancelled via a throwaway iterating task so no connection is
@@ -540,17 +540,17 @@ a shared NDJSON run protocol on stdin/stdout, using
 `@opencode-ai/sdk@1.19.5` (v2 client), installed by the
 SDKRuntimeManager under Application Support. It is **not ported in
 this slice**, by task scope: the native HTTP client above is the
-provider Ycode needs, and the bridge needs a Node runtime, an SDK
+provider SwiftCode needs, and the bridge needs a Node runtime, an SDK
 runtime manager, and the SDK tool-source/event contract
 (`SDKToolEvent`, `OpenCodeSDKToolSource`, `SDKBridgeLaunching`) that
-do not exist in the Ycode host. Consequences, stated plainly:
+do not exist in the SwiftCode host. Consequences, stated plainly:
 
 - Runs that need the SDK transport (the bridge's session ownership,
   SDK-managed tools, and the `swiftcode` / `opencode` / `combined`
   tool-source selection) are honestly unavailable through this
   provider; nothing here reimplements the bridge.
 - The native client covers the pure-model path: prompt in, text
-  deltas out, with Ycode's own tool loop on top. Any operation that
+  deltas out, with SwiftCode's own tool loop on top. Any operation that
   in Legacy depended on the Node SDK bridge is unavailable, with the
   prerequisite (Node + `@opencode-ai/sdk` bridge + SDK runtime
   manager) named here rather than silently emulated.
@@ -565,14 +565,14 @@ do not exist in the Ycode host. Consequences, stated plainly:
   `~/workspace/repos/SwiftCode-Legacy` @ `d51a8f0d` (read-only). Legacy is
   Dylan's own code; direct porting authorised under MIT (spec-first
   where it costs nothing).
-- Ycode host: `ycode/Sources/YcodeAssistant/Core.swift`,
+- SwiftCode host: `swiftcode/Sources/SwiftCodeAssistant/Core.swift`,
   `OllamaProvider.swift`, `ChatCompletionsProvider.swift`, `HTTP.swift`,
   `AssistantSettings.swift` — read live from the destination repo @
   `aca43f3f`.
 - Audit: `~/SwiftCode-Migration-Workspace/audit/legacy-subsystem-map.md`
   §2.3 (providers).
 - Evidence levels (per the repo's clean-room protocol): Legacy source
-  and Ycode host source are first-hand reads of Dylan's own / Ycode's
+  and SwiftCode host source are first-hand reads of Dylan's own / SwiftCode's
   own code (level 1 for this migration's purposes — no Apple binaries,
   no Ghidra, no Xcode/Simulator observation were involved). The
   OpenCode server API shapes are taken from Legacy's implementation
@@ -588,9 +588,9 @@ do not exist in the Ycode host. Consequences, stated plainly:
 ## 3. Hermes
 
 Hermes Agent (Nous Research) as a coding-assistant back end in
-YcodeAssistant: one-shot runs of the real `hermes` CLI, observed
-through its stream-json event stream. No Ycode tools are sent to
-Hermes; Hermes runs its own tools and Ycode only observes them.
+SwiftCodeAssistant: one-shot runs of the real `hermes` CLI, observed
+through its stream-json event stream. No SwiftCode tools are sent to
+Hermes; Hermes runs its own tools and SwiftCode only observes them.
 
 ## 1. Legacy behaviour (verified live, Legacy @ d51a8f0d)
 
@@ -723,7 +723,7 @@ bare `provider/model` id already routes to OpenRouter in
 `LLMService`, so an unprefixed Hermes model would be silently sent
 to the wrong provider. Nothing strips the prefix and re-routes the
 model elsewhere. (The example model names above are Legacy's own
-recorded samples, not a catalogue Ycode ships.)
+recorded samples, not a catalogue SwiftCode ships.)
 
 Discovery is dynamic-first and throws rather than fabricating.
 There is no non-interactive Hermes model-list command, so Legacy
@@ -782,36 +782,36 @@ Configured path wins when it is executable; otherwise PATH plus
 --version` (first stdout line, 15 s timeout) is used by the
 Settings status check, never to gate a run.
 
-## 2. What Ycode's host already provides vs what this slice adds
+## 2. What SwiftCode's host already provides vs what this slice adds
 
 Host (read first, followed exactly):
 
-- `ycode/Sources/YcodeAssistant/Core.swift` — `ProviderKind` (7
+- `swiftcode/Sources/SwiftCodeAssistant/Core.swift` — `ProviderKind` (7
   cases; the coordinator adds `.hermes`), `AssistantProvider`
   protocol, `ModelInfo`, `ProviderAvailability`, `AssistantError`,
   `eventStream` helper.
-- `ycode/Sources/YcodeAssistant/CLIAgents.swift` — the CLI-agent
+- `swiftcode/Sources/SwiftCodeAssistant/CLIAgents.swift` — the CLI-agent
   pattern this provider follows: one subprocess per request,
   `CLIToolLocator` for discovery, `CLIEventParser` for turning a
   tool's JSON event stream into `ChatEvent`s, `CLIAgentProvider`
   as the structural model.
-- `ycode/Sources/YcodeSubprocess/StreamingSubprocess.swift` —
+- `swiftcode/Sources/SwiftCodeSubprocess/StreamingSubprocess.swift` —
   `lines(executable:arguments:environment:currentDirectory:)`,
   which streams stdout line by line and escalates SIGINT →
   SIGTERM → SIGKILL on cancellation; non-zero exit surfaces as
   `ExitError` with a capped stderr tail.
-- `ycode/Sources/YcodeAssistant/SecretStore.swift` —
+- `swiftcode/Sources/SwiftCodeAssistant/SecretStore.swift` —
   `SecretStore` protocol (`KeychainSecretStore` on macOS,
   0600-file store on Linux, `MemorySecretStore` for tests).
 
 What this slice adds (new files only; no host file is edited):
 
-- `ycode/Sources/YcodeAssistant/HermesProvider.swift` —
+- `swiftcode/Sources/SwiftCodeAssistant/HermesProvider.swift` —
   `HermesProvider: AssistantProvider` plus the ported value types
   (`HermesModelID`, `HermesConfiguration`, `HermesStreamResult`,
   `HermesParsedEvent`, `HermesStreamParser`,
   `HermesPromptBuilder`, `HermesStreamEventParser`).
-- `ycode/Tests/YcodeAssistantTests/HermesProviderTests.swift` —
+- `swiftcode/Tests/SwiftCodeAssistantTests/HermesProviderTests.swift` —
   offline tests (see §5).
 - This spec.
 
@@ -831,7 +831,7 @@ protocol mismatch, not a missing feature:
   is a stream of flat JSON objects (`system` / `text` /
   `tool_use` / `tool_result` / `result`) and whose stdin is never
   written to. There is no JSON-RPC request/response, no session
-  creation, no permission callback, and no way to inject Ycode
+  creation, no permission callback, and no way to inject SwiftCode
   tools or a system prompt through it.
 
 Forcing Hermes onto `ACPConnection` would mean speaking ACP to a
@@ -845,11 +845,11 @@ and builds **no** ACP code at all — no parallel ACP stack, no
 second JSON-RPC implementation. The one gap this leaves, versus a
 hypothetical future ACP-based Hermes provider, is the one Legacy
 already documents: no gateway-side cancel (`session/cancel`) and
-no way to expose Ycode tools to Hermes via `session/new`
+no way to expose SwiftCode tools to Hermes via `session/new`
 `mcpServers`. Both are documented Hermes capabilities, neither is
 claimed by this CLI implementation.
 
-## 3. Ycode behaviour
+## 3. SwiftCode behaviour
 
 ### 3.1 Provider shape
 
@@ -899,7 +899,7 @@ child process per request:
 1. Resolve the model id (§3.4). An invalid `hermes:` id throws
    `AssistantError.modelNotFound` **before** anything is launched.
 2. Write the prompt to a temp query file
-   (`ycode-hermes-query-<uuid>.txt` in the temporary directory),
+   (`swiftcode-hermes-query-<uuid>.txt` in the temporary directory),
    built by `HermesPromptBuilder` from the request's instructions
    plus the conversation (earlier turns as `<role>` blocks, then
    the new message), separated by `\n\n---\n\n`. Deleted in
@@ -920,35 +920,35 @@ child process per request:
    child via `StreamingSubprocess` (SIGINT → SIGTERM → SIGKILL);
    the gateway caveat from §1.8 still applies.
 
-No Ycode tool schemas are sent. No MCP server is attached.
-Hermes runs its own tools; Ycode observes.
+No SwiftCode tool schemas are sent. No MCP server is attached.
+Hermes runs its own tools; SwiftCode observes.
 
 ### 3.4 Model ids
 
 `HermesModelID` is ported from Legacy unchanged in semantics:
 `spec`, `storedID` (`hermes:<spec>`), `provider` (nil for a bare
-model — Ycode must not invent one), `model` (the part after the
+model — SwiftCode must not invent one), `model` (the part after the
 provider prefix), strict `parse` (nil for anything without the
 `hermes:` prefix, an empty spec, or an empty model part).
 
 One deliberate leniency in `resolvedModelID`: a non-empty model
 value that does **not** carry the `hermes:` prefix is taken as
-Hermes' own spec. In Ycode the provider is already selected
+Hermes' own spec. In SwiftCode the provider is already selected
 (`ProviderKind.hermes`), so the prefix carries no routing meaning;
 Legacy needed it only to keep a bare `provider/model` id from
 routing to OpenRouter. An empty model part still fails before
 launch.
 
-### 3.5 Credentials — the Ycode deviation (explicit)
+### 3.5 Credentials — the SwiftCode deviation (explicit)
 
 Legacy behaviour: Hermes authenticates itself from its own
 `~/.hermes/.env`; SwiftCode stores no Hermes key and passes none.
 
-Ycode behaviour: Ycode **never reads or writes `~/.hermes/.env`**
+SwiftCode behaviour: SwiftCode **never reads or writes `~/.hermes/.env`**
 and never reads `~/.hermes/config.yaml` for secrets (it reads
 only the non-secret `model.provider` / `model.default` fields for
 discovery, §3.2). Instead, when the selected model's provider has
-a documented key variable, the key is read from Ycode's
+a documented key variable, the key is read from SwiftCode's
 `SecretStore` (Keychain on macOS) and placed in the child
 process's environment at spawn time:
 
@@ -1041,7 +1041,7 @@ is a small additive extension, not a behaviour change.
 
 `HermesConfiguration` (executable path, toolsets, max-turns) is
 ported as a plain value with `normalisedToolsets`. It does **not**
-read or write UserDefaults: in Ycode, settings live in
+read or write UserDefaults: in SwiftCode, settings live in
 `AssistantSettings` (coordinator-owned) and the coordinator maps
 them into this value when constructing the provider. Model
 selection lives in the selected model id, never duplicated in the
@@ -1049,7 +1049,7 @@ configuration.
 
 ## 4. Error cases
 
-| Situation | Ycode result |
+| Situation | SwiftCode result |
 |---|---|
 | `hermes` binary not found | `availability()` → `.notInstalled` (setup hint); `send` throws `AssistantError.tool` with the setup hint |
 | Invalid `hermes:` model id (empty spec, empty model part) | `AssistantError.modelNotFound` before launch; no other model substituted |
@@ -1065,8 +1065,8 @@ configuration.
 
 ## 5. Tests
 
-`ycode/Tests/YcodeAssistantTests/HermesProviderTests.swift`
-(Swift Testing, `@testable import YcodeAssistant`). All offline and
+`swiftcode/Tests/SwiftCodeAssistantTests/HermesProviderTests.swift`
+(Swift Testing, `@testable import SwiftCodeAssistant`). All offline and
 deterministic — no real `hermes` binary, no real key, no network:
 
 - Model-id parsing and provider/model split (Legacy's recorded
@@ -1118,7 +1118,7 @@ event is observed).
   the coordinator adds the case. Nothing else in this slice can be
   built or tested until then.
 - No ACP support (§2.1): by design, following Legacy. Gateway-side
-  cancel and exposing Ycode tools to Hermes remain unavailable.
+  cancel and exposing SwiftCode tools to Hermes remain unavailable.
 - No OpenRouter-catalog expansion in availability (§3.2): needs
   the OpenRouter slice's live catalog.
 - No `hermes --version` check: Legacy used it only for the
@@ -1145,13 +1145,13 @@ event is observed).
 | Cancellation is local-only; gateway turn may continue after detach | 1 | Legacy `HermesProvider.swift` (`cancel`); `Docs/Assist-Hermes-Provider.md` § Cancellation |
 | Executable discovery order; `hermes --version` for Settings checks only | 1 | Legacy `HermesProvider.swift` (`defaultSearchDirectories`, `resolveExecutable`, `detectVersion`) |
 | `AssistModelDiscoveryService.swift` contains no Hermes code | 1 | Grep over the file (1,185 lines, zero `hermes` matches), verified live |
-| Host ACP client speaks ACP v1 JSON-RPC (`initialize`/`session/new`/`session/prompt`/`session/cancel`); host CLI-agent pattern is one subprocess + `StreamingSubprocess.lines` + `CLIEventParser` | 1 | Destination `ycode/Sources/YcodeAssistant/ACPClient.swift`, `CLIAgents.swift`; `ycode/Sources/YcodeSubprocess/StreamingSubprocess.swift`, read directly |
+| Host ACP client speaks ACP v1 JSON-RPC (`initialize`/`session/new`/`session/prompt`/`session/cancel`); host CLI-agent pattern is one subprocess + `StreamingSubprocess.lines` + `CLIEventParser` | 1 | Destination `swiftcode/Sources/SwiftCodeAssistant/ACPClient.swift`, `CLIAgents.swift`; `swiftcode/Sources/SwiftCodeSubprocess/StreamingSubprocess.swift`, read directly |
 | Provider key variables are per-provider env vars (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`); secrets belong in `.env`, other settings in `config.yaml` | 2 | Hermes Agent public docs: Configuration (`hermes config set OPENROUTER_API_KEY …`, `.env` for secrets) and Environment Variables (LLM Providers table), retrieved 2026-11-06 |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 ## 4. Apple Foundation Models
 
-Ycode modules: `YcodeAssistant` (the provider), `YcodeAssistantTests`
+SwiftCode modules: `SwiftCodeAssistant` (the provider), `SwiftCodeAssistantTests`
 (its tests). Wave 9 slice: Apple Foundation Models only.
 
 This spec is the behaviour contract for `FoundationModelsProvider`, the
@@ -1243,7 +1243,7 @@ ledger.
   (FoundationModels)` block at the bottom of the file also declares
   stub `SystemLanguageModel` / `LanguageModelSession` types whose
   `respond` returns `"Simulated response"`.
-- Ycode does **not** port any of this. A provider that answers from
+- SwiftCode does **not** port any of this. A provider that answers from
   canned text while presenting itself as a model would violate the
   host's contract; where the framework is absent this provider reports
   honestly unavailable and `send(_:)` fails (§3, §5).
@@ -1269,7 +1269,7 @@ ledger.
 
 ## 2. What the host already provides vs what this slice adds
 
-| | Host (`YcodeAssistant`) | This slice |
+| | Host (`SwiftCodeAssistant`) | This slice |
 |---|---|---|
 | Provider contract | `AssistantProvider`: `kind`, `availability()`, `contextWindow(model:)`, `send(_:)`; `ProviderAvailability` (`.ready` / `.notRunning` / `.noModels` / `.notInstalled` / `.signedOut` / `.failed`); `AssistantError`; `eventStream` helper; `ChatRequest` / `ChatEvent` | `FoundationModelsProvider: AssistantProvider` |
 | Existing provider to model on | `OllamaProvider` (HTTP discovery, streaming NDJSON, error mapping, cancellation via `eventStream`) | Same shape, no HTTP: the framework is the transport |
@@ -1416,14 +1416,14 @@ from a Mac build — see §6.
 | `generateAppleFoundationModels()` two entries with ids, display names, context windows 8,192 / 32,000, capabilities, priorities, undeletable; `discoverAppleFoundationModels()` returns the same list; `generateBaselineModels()` appends it first | 1 | Legacy `SwiftCode/Backend/Assist/AssistModelDiscoveryService.swift` (`generateAppleFoundationModels`, `discoverAppleFoundationModels`, `generateBaselineModels`, `isFoundationModel`, `removeModel`, `removeProvider`), read directly |
 | No separate Assist provider client for Foundation Models; surfaced only via discovery | 1 | Legacy subsystem map `audit/legacy-subsystem-map.md` §2.3, verified against the two files above |
 | Assist callers (`AgentModelAdapter` fallback, `AssistConversationHistory` titles, `PromptEnhancer`, `CodingToolsService`, `CodeReview`, `WorkerTaskDecomposer`, `AssistManager`, `AssistAgentSession`, `AssistFeedbackService`) | 1 | Legacy `SwiftCode/Backend/Assist/` grep for `FoundationModels`, read directly |
-| Host contract: `AssistantProvider`, `ProviderAvailability`, `AssistantError`, `eventStream`, `ChatRequest`/`ChatEvent`; `OllamaProvider` streaming/error/cancellation shape | 1 | Ycode `ycode/Sources/YcodeAssistant/Core.swift`, `OllamaProvider.swift`, read directly |
+| Host contract: `AssistantProvider`, `ProviderAvailability`, `AssistantError`, `eventStream`, `ChatRequest`/`ChatEvent`; `OllamaProvider` streaming/error/cancellation shape | 1 | SwiftCode `swiftcode/Sources/SwiftCodeAssistant/Core.swift`, `OllamaProvider.swift`, read directly |
 | Framework is macOS 26 / iOS 26+; `SystemLanguageModel.default` is the entry point; `.availability` is `.available` / `.unavailable(.deviceNotEligible \| .appleIntelligenceNotEnabled \| .modelNotReady)`; `isAvailable` shorthand; `contextSize` is an async `Int` on the default model; `LanguageModelSession(model:instructions:)` and `streamResponse(to:)` yielding cumulative `ResponseStream<String>` snapshots with `.content`; `GenerationError` cases `exceededContextWindowSize` / `rateLimited` / `guardrailViolation` | 1 | Public documentation and references: conor.fyi "iOS 26 FoundationModels: Comprehensive Swift/SwiftUI Reference" (availability, session init, streaming, `contextSize`, generation errors); emrldlabs "Foundation Models Framework: On-Device LLMs in Swift" (framework scope, `SystemLanguageModel.default`, streaming). Apple's own developer documentation page for `SystemLanguageModel` returned no extractable content when fetched in this environment, so the Apple-direct check is still open — the call shapes above are **unverified until a Mac build** (see §6) |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
 
 ## 5. SwiftCode Cloud (SCCloud)
 
-SwiftCode's own hosted models, as an `AssistantProvider` on the Ycode
-assistant host (`ycode/Sources/YcodeAssistant/SCCloudProvider.swift`).
+SwiftCode's own hosted models, as an `AssistantProvider` on the SwiftCode
+assistant host (`swiftcode/Sources/SwiftCodeAssistant/SCCloudProvider.swift`).
 
 ## 1. Legacy behaviour
 
@@ -1557,7 +1557,7 @@ had.
   failure. Quota frees up gradually as old requests age out of the
   window.
 
-## 2. What Ycode's host already provides vs what this slice adds
+## 2. What SwiftCode's host already provides vs what this slice adds
 
 Host already provides (unchanged by this slice):
 
@@ -1574,7 +1574,7 @@ Host already provides (unchanged by this slice):
 - `SecretStore` (Keychain on macOS, 0600 files on Linux) for the
   coordinator to persist the provisioned fingerprint in.
 
-This slice adds (`ycode/Sources/YcodeAssistant/SCCloudProvider.swift`):
+This slice adds (`swiftcode/Sources/SwiftCodeAssistant/SCCloudProvider.swift`):
 
 - `SCCloudProvider: AssistantProvider` with `kind == .scCloud`
   (case added by the coordinator), `init(baseURL:fingerprint:cache:limiter:)`.
@@ -1695,7 +1695,7 @@ calls against it — never canned responses.
 
 ## 6. Tests
 
-`ycode/Tests/YcodeAssistantTests/SCCloudProviderTests.swift`
+`swiftcode/Tests/SwiftCodeAssistantTests/SCCloudProviderTests.swift`
 (uses the shared `LoopbackServer`, `Recorder`, and `collect`
 helpers from `ProviderTests.swift`; no live network):
 
@@ -1746,5 +1746,5 @@ remains pending, including the fact that the test file references
 | SDK contract: adapter passes only extension content, host owns endpoint/fingerprint/quota, input bounds | 1 | Legacy `SwiftCode/SDK/Contracts/Protocol/SDKCloudModelContracts.swift`, `SwiftCode/SDK/Host/ServiceAdapters/CloudModel/SDKCloudModelAdapter.swift` |
 | `AssistModelDiscoveryService.swift` has no SCCloud parts | 1 | Grep over Legacy `SwiftCode/Backend/Assist/AssistModelDiscoveryService.swift` for `SCCloud` — no hits |
 | No API key / token / sign-in exists for SCCloud in Legacy | 1 | Full read of `SCCloudModel.swift` — the only credential is the device fingerprint; no `Authorization` header is set anywhere in the file |
-| Host protocol, availability cases, error types, HTTP/SSE/JSON helpers, SHA-256 + SecureRandom in-module | 1 | Destination `ycode/Sources/YcodeAssistant/Core.swift`, `HTTP.swift`, `Crypto.swift`, `SecretStore.swift`, `AssistantSettings.swift` |
+| Host protocol, availability cases, error types, HTTP/SSE/JSON helpers, SHA-256 + SecureRandom in-module | 1 | Destination `swiftcode/Sources/SwiftCodeAssistant/Core.swift`, `HTTP.swift`, `Crypto.swift`, `SecretStore.swift`, `AssistantSettings.swift` |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |

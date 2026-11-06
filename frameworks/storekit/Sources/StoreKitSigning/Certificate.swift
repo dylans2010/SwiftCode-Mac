@@ -197,7 +197,7 @@ public struct Certificate: Hashable, Sendable {
     /// Builds and signs a certificate.
     /// - Parameters:
     ///   - isCA: basic constraints cA (critical); a leaf gets an empty basic-constraints value.
-    ///   - subjectAltDNSName: the subject alternative name (Ycode's choice; README spec question 8).
+    ///   - subjectAltDNSName: the subject alternative name (SwiftCode's choice; README spec question 8).
     public static func make(
         subject: DistinguishedName, publicKey: P256.Signing.PublicKey, notBefore: Date, notAfter: Date,
         isCA: Bool = false, subjectAltDNSName: String? = "storekit-testing.invalid", signer: Signer,

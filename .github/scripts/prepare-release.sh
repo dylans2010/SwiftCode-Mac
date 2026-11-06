@@ -13,7 +13,7 @@ SIGNING="$4"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 mkdir -p "$OUT"
-FILES="Ycode-$VERSION.dmg Ycode-$VERSION-x86_64.flatpak Ycode-$VERSION-aarch64.flatpak Ycode-$VERSION-x86_64.tar.xz Ycode-$VERSION-aarch64.tar.xz"
+FILES="SwiftCode-$VERSION.dmg SwiftCode-$VERSION-x86_64.flatpak SwiftCode-$VERSION-aarch64.flatpak SwiftCode-$VERSION-x86_64.tar.xz SwiftCode-$VERSION-aarch64.tar.xz"
 for name in $FILES; do
     found="$(find "$ARTIFACTS" -type f -name "$name" | head -n 1)"
     [ -n "$found" ] || { echo "Missing release file: $name" >&2; exit 1; }
@@ -30,19 +30,19 @@ python3 -I "$HERE/changelog-section.py" "$VERSION" > "$NOTES"
     echo
     echo "## Install"
     echo
-    echo "See [Install](https://github.com/MarcoDotIO/Ycode#install) in the README. Check a download with \`shasum -a 256 -c SHA256SUMS.txt --ignore-missing\`."
+    echo "See [Install](https://github.com/dylans2010/SwiftCode-Mac#install) in the README. Check a download with \`shasum -a 256 -c SHA256SUMS.txt --ignore-missing\`."
     echo
     case "$SIGNING" in
         notarized)
             echo "The macOS disk image is signed with a Developer ID and notarized." ;;
         developer-id)
-            echo "The macOS disk image is signed with a Developer ID but **not notarized**. macOS blocks it on first launch: see [Opening an ad-hoc signed build](https://github.com/MarcoDotIO/Ycode#opening-an-ad-hoc-signed-build)." ;;
+            echo "The macOS disk image is signed with a Developer ID but **not notarized**. macOS blocks it on first launch: see [Opening an ad-hoc signed build](https://github.com/dylans2010/SwiftCode-Mac#opening-an-ad-hoc-signed-build)." ;;
         *)
-            echo "The macOS disk image in this release is **ad-hoc signed, not notarized**. macOS blocks it on first launch: see [Opening an ad-hoc signed build](https://github.com/MarcoDotIO/Ycode#opening-an-ad-hoc-signed-build)." ;;
+            echo "The macOS disk image in this release is **ad-hoc signed, not notarized**. macOS blocks it on first launch: see [Opening an ad-hoc signed build](https://github.com/dylans2010/SwiftCode-Mac#opening-an-ad-hoc-signed-build)." ;;
     esac
     echo
     echo "The \`.tar.xz\` files hold the same files as the Flatpak bundles, for repackaging. They are built against the freedesktop 26.08 runtime (glibc 2.44) and are not meant to run directly on most distributions: install the \`.flatpak\` instead."
     echo
-    echo "Ycode is not affiliated with or endorsed by Apple Inc. Nothing of Apple's is in these packages."
+    echo "SwiftCode is not affiliated with or endorsed by Apple Inc. Nothing of Apple's is in these packages."
 } >> "$NOTES"
 cat "$OUT/SHA256SUMS.txt"

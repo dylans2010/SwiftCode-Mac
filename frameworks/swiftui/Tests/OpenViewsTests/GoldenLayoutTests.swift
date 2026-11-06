@@ -2179,7 +2179,7 @@ struct GoldenLayoutTests {
     @Test("gauge — Gauge(value: 0.5) { Text(\"G\") }", .disabled("R8 controls (T-CTL) and R9 scroll views: checked built from views in GoldenViewLayoutTests"))
     func golden_gauge() {}
 
-    @Test("link — Link(\"Ycode\", destination: URL(string: \"https://example.com\")!)", .disabled("R8 controls (T-CTL) and R9 scroll views: checked built from views in GoldenViewLayoutTests"))
+    @Test("link — Link(\"SwiftCode\", destination: URL(string: \"https://example.com\")!)", .disabled("R8 controls (T-CTL) and R9 scroll views: checked built from views in GoldenViewLayoutTests"))
     func golden_link() {}
 
     @Test("scrollView — ScrollView { VStack { Text(\"A\").probe(\"a\"); Color.red.frame(height: 1000).probe(\"c\") } }", .disabled("R8 controls (T-CTL) and R9 scroll views: checked built from views in GoldenViewLayoutTests"))

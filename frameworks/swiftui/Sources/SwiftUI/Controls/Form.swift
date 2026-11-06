@@ -8,7 +8,7 @@ import SwiftUICore
 // Form and Section (round R8, grouped look). 06 §4 (informative; the
 // reference hosts rows in UIKit views): rows inset 20 + 20 points from the
 // container's edges, the first row 35 points down, rows at least
-// `defaultMinListRowHeight` (52) high. Ycode's grouped look: the grouped
+// `defaultMinListRowHeight` (52) high. SwiftCode's grouped look: the grouped
 // background colour behind everything, each section a rounded group in the
 // row colour (radius 10) with hairline separators inset 20 points, section
 // headers and footers in the footnote style, secondary colour, 20 points
@@ -31,7 +31,7 @@ struct FormSectionMarker: NodeBehavior {
     }
 }
 
-/// The `.columns` look (Ycode's desktop form, the macOS IDE's Settings
+/// The `.columns` look (SwiftCode's desktop form, the macOS IDE's Settings
 /// panes, `specs/ide/metrics.md` §8): no groups; the content 20 points
 /// from the top and bottom and 28 from the sides; headings in bold 12-point
 /// text; rows 10 points apart; each control's label right-aligned in a

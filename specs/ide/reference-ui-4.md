@@ -6,7 +6,7 @@ repository (two commits, one modified file and one untracked file), and a
 Swift package with a breakpoint, a background dispatch queue and a
 doc-commented function. It continues `reference-ui.md` to
 `reference-ui-3.md`. It records visible behavior, labels and defaults only.
-It records no colors, no assets, and no user identity. Ycode chooses its own
+It records no colors, no assets, and no user identity. SwiftCode chooses its own
 icons.
 
 ## 1. Source control status outside the navigator
@@ -80,7 +80,7 @@ icons.
    - Add Selected Files, Cherry-Pick…, Stash Changes…
    - Discard All Changes…, Move Selected Files to Trash…
    - Clone…, New Git Repository…
-2. **Section "Xcode Cloud":** Create Workflow…, Manage Workflows…. Ycode
+2. **Section "Xcode Cloud":** Create Workflow…, Manage Workflows…. SwiftCode
    shows these disabled.
 3. Items that don't apply to the current selection or state are disabled.
 4. Pass 5 (`reference-ui-5.md` §2.11):
@@ -152,7 +152,7 @@ icons.
    Breakpoint…, Runtime Issue Breakpoint…, Constraint Error Breakpoint, Test
    Failure Breakpoint.
 3. **Bottom bar:** "+", then a filter with two toggles.
-4. Breakpoints are stored per user with the project or package (Ycode's
+4. Breakpoints are stored per user with the project or package (SwiftCode's
    storage format is in `debug.md`) and survive copying the folder.
 
 ## 7. Quick Help inspector
@@ -207,7 +207,7 @@ icons.
    4. Convert Function to Async, Change Localized String Key, Convert
       Localized String to Symbol, Convert to Localized String Literal
 
-   Items that don't apply at the cursor are disabled. Ycode maps them to
+   Items that don't apply at the cursor are disabled. SwiftCode maps them to
    the refactoring actions sourcekit-lsp offers (code actions) where one
    exists; the others stay disabled.
 
@@ -263,7 +263,7 @@ Open Quickly.
    - update frames, align, add constraints (pin), resolve auto-layout
      issues, embed in.
 
-## 12. Differences to implement in Ycode
+## 12. Differences to implement in SwiftCode
 
 1. Status letters in the project navigator, and the branch in the debug bar
    (§1).
@@ -295,7 +295,7 @@ Open Quickly.
 10. The preview canvas states, the tab header and the bottom bar (§10).
 11. Interface Builder: the outline tree, scene title bars, the entry arrow,
     the seven inspector tabs and the canvas bottom bar (§11). The
-    inspectors' contents were not observed, so keep Ycode's current
+    inspectors' contents were not observed, so keep SwiftCode's current
     content.
 
 ## 13. Interface Builder inspectors (pass 4b)
@@ -441,7 +441,7 @@ Open Quickly.
 | §1–§6, §8–§11 | 3 | Black-box observation of the reference app (Xcode 27.1, installed copy) on throwaway samples, 2026-10-18/19, through screenshots, menus and tooltips. No binaries were opened. |
 | §7 structure | 3 | The same observation, with a doc comment written for the test. |
 | §7 markup keywords | 1 | Swift Markup (public Apple documentation) and sourcekit-lsp. |
-| §8 mapping to code actions, §2 git access | — | Ycode's own design choice, not observed. |
-| §12, §18 | — | Comparison with Ycode's specs at the time. |
+| §8 mapping to code actions, §2 git access | — | SwiftCode's own design choice, not observed. |
+| §12, §18 | — | Comparison with SwiftCode's specs at the time. |
 | §3.4 | 3 | Pass 5 menu-bar listing (`reference-ui-5.md` §2.11). |
 | §13–§17 | 3 | Second session (pass 4b), 2026-10-19, with Xcode in full screen. Storyboard XML names in §18 come from the file format (level 2). |

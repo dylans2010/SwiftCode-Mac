@@ -1,4 +1,4 @@
-# Contributing to Ycode
+# Contributing to SwiftCode
 
 Thank you for your interest. Bug reports, tests, documentation and code are all welcome. For anything large,
 please open an issue first, so that we can agree on the approach before you invest the time.
@@ -8,7 +8,7 @@ Everyone follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security
 
 ## The clean-room rules (mandatory)
 
-Ycode can only stay independent and releasable if every contribution follows the clean-room protocol. The
+SwiftCode can only stay independent and releasable if every contribution follows the clean-room protocol. The
 full text is in [AGENTS.md](AGENTS.md), and it applies to every contributor, human or AI. **A pull request
 that breaks these rules will be closed, however good the code is.**
 
@@ -18,7 +18,7 @@ There are two rooms, and information crosses between them only in written specs:
 |---|---|---|---|
 | Dirty (analysis) | `research/`; `research/dirty/` is never committed | Yes | Observations, then specs |
 | The boundary | `specs/` | | Prose, tables, grammars, interface descriptions |
-| Clean (implementation) | `ycode/`, `frameworks/`, `composer/` | **No** | Original source code |
+| Clean (implementation) | `swiftcode/`, `frameworks/`, `composer/` | **No** | Original source code |
 
 1. **Never contribute Apple material, anywhere in this repository, `research/` included.** That covers code,
    decompiler pseudo-code, disassembly, method bodies, binaries, and resources (icons, nibs, templates,
@@ -33,8 +33,8 @@ There are two rooms, and information crosses between them only in written specs:
    layouts. Interop identifiers are facts and may be named: `isa` names, build-setting names, plist keys, XML
    elements, Mach trap numbers.
 5. **Never commit Apple's software.** No Xcode, no simulator runtimes, no IPSWs or firmware. Tests that need a
-   real project or a runtime read it from a local path at test time ([ycode/README.md](ycode/README.md)).
-6. **No Apple trademarks or artwork in Ycode's own UI or assets.** Ycode's features get their own names.
+   real project or a runtime read it from a local path at test time ([swiftcode/README.md](swiftcode/README.md)).
+6. **No Apple trademarks or artwork in SwiftCode's own UI or assets.** SwiftCode's features get their own names.
 
 ### Evidence levels
 
@@ -55,33 +55,33 @@ If you are unsure whether something is allowed, ask in an issue first.
 You need Swift 6.4: Xcode 27 on macOS, or the [swift.org release](https://www.swift.org/install/) on Linux.
 
 ```sh
-cd ycode
+cd swiftcode
 swift build
 swift test
 scripts/lint.sh     # needs SwiftLint
 ```
 
-[ycode/README.md](ycode/README.md) covers the tools, the tests and the opt-in test inputs.
+[swiftcode/README.md](swiftcode/README.md) covers the tools, the tests and the opt-in test inputs.
 [docs/README.md](docs/README.md) is a guide to the rest of the repository.
 
 ## Before you open a pull request
 
-- **Tests pass.** `swift build && swift test` in `ycode/` must pass on macOS, and on Linux if you touch shared
+- **Tests pass.** `swift build && swift test` in `swiftcode/` must pass on macOS, and on Linux if you touch shared
   code. Each package in `frameworks/`, and `composer/`, builds and tests on its own on both systems. Some tests
   need a GPU, KVM or a simulator runtime; they skip themselves.
 - **A flaky test is not a pass.** The tests known to be flaky under load are listed in
-  [ycode/README.md](ycode/README.md) and `.github/ci/known-flaky.txt`. Rerun one alone before you report it. CI
+  [swiftcode/README.md](swiftcode/README.md) and `.github/ci/known-flaky.txt`. Rerun one alone before you report it. CI
   does the same and retries nothing else. Don't add a test to the list to get a change through.
-- **Lint is clean.** `ycode/scripts/lint.sh` checks `ycode/`, `frameworks/` and `composer/` against
+- **Lint is clean.** `swiftcode/scripts/lint.sh` checks `swiftcode/`, `frameworks/` and `composer/` against
   `.swiftlint.yml` and must report no violations. If a rule is wrong for one line, disable it for that line and
   give the reason: `// swiftlint:disable:next force_cast - <why it is safe>`.
 - **No private details.** Keep host names, user names, machine paths and secrets out of the repository. Specs
-  and scripts call the data directory `$YCODE_DATA`. CI scans every change with
+  and scripts call the data directory `$SWIFTCODE_DATA`. CI scans every change with
   `python3 -I .github/scripts/scan-public.py`, and you can run that yourself.
 - **`Package.resolved` follows the dependencies.** A package with remote dependencies commits its
-  `Package.resolved`, which is the only record of its transitive pins (today `ycode/`, `ycode/Tools/ycode-swb/`,
+  `Package.resolved`, which is the only record of its transitive pins (today `swiftcode/`, `swiftcode/Tools/swiftcode-swb/`,
   `frameworks/storekit/` and `frameworks/weatherkit/`). A package with none has no `Package.resolved`. When
-  `ycode/` or `ycode-swb`'s file changes, run `python3 -I packaging/flatpak/generate-swift-dependencies.py`
+  `swiftcode/` or `swiftcode-swb`'s file changes, run `python3 -I packaging/flatpak/generate-swift-dependencies.py`
   so the Flatpak build gets the same pins.
 - **Docs match.** If you change what works, update the feature table in [README.md](README.md) and add a line to
   [CHANGELOG.md](CHANGELOG.md).

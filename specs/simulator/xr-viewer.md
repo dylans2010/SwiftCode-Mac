@@ -4,28 +4,28 @@ Status: **implemented** (agent XR-VIEWER, 2026-11-01; quality after run 7: §12)
 live on a headset (§2); the whole path Thor → x86 was run with recorded
 tracking scripts in place of the headset (§9.1); the live run with the
 headset is §9.2.
-Ycode-original design. It describes how Ycode's own simulator, its display
+@@SWIFTCODE_ORIGINAL@@ design. It describes how SwiftCode's own simulator, its display
 stream (`display-stream.md`) and its visionOS input (`visionos.md` §5.5)
 are viewed and driven from an OpenXR headset. It follows public
 specifications only: the OpenXR 1.1 specification and registry (Khronos),
 the Vulkan 1.3 specification, and WiVRn's user documentation (for how to
 run it; no WiVRn code is used or linked).
 
-Code: `Sources/CYcodeOpenXR` (the OpenXR and Vulkan side, C),
-`Sources/YcodeXRViewer` and `Sources/ycode-xr-viewer` (the viewer),
-`Sources/YcodeDisplayStream/XRViewer.swift` (the shared mapping, the eye
-scheduler and the messages), `Sources/ycode-simd/DisplayXR.swift` (the
-server's headset mode), `ycode sim remote view --xr`.
+Code: `Sources/CSwiftCodeOpenXR` (the OpenXR and Vulkan side, C),
+`Sources/SwiftCodeXRViewer` and `Sources/swiftcode-xr-viewer` (the viewer),
+`Sources/SwiftCodeDisplayStream/XRViewer.swift` (the shared mapping, the eye
+scheduler and the messages), `Sources/swiftcode-simd/DisplayXR.swift` (the
+server's headset mode), `swiftcode sim remote view --xr`.
 
 ## 1. Architecture
 
 ```
  Thor (arm64, KVM)                        x86 PC (Linux)                     headset
  ┌──────────────────────────────┐  link  ┌─────────────────────────────┐ WiVRn ┌──────────┐
- │ guest: backboardd renders    │ (sim-  │ ycode-xr-viewer             │ (its  │ Quest Pro│
+ │ guest: backboardd renders    │ (sim-  │ swiftcode-xr-viewer             │ (its  │ Quest Pro│
  │ one view per picture for the │ link.md│  stream client → per-eye    │ own   │ display, │
  │ camera pose it was given     │  TCP + │  canvases → OpenXR swap-    │ stream│ head,    │
- │ ycode-simd: DisplayXRState   │  UDP)  │  chains → projection layer  │ ing)  │ eyes,    │
+ │ swiftcode-simd: DisplayXRState   │  UDP)  │  chains → projection layer  │ ing)  │ eyes,    │
  │  schedules eye poses, tags   │◀──────▶│  OpenXR tracking → XRInput- │◀─────▶│ hands,   │
  │  pictures, per-view damage   │        │  Mapper → views, selection, │       │ control- │
  │ HID bundle + vhmdd (R9 path) │        │  crown, immersion           │       │ lers     │
@@ -33,13 +33,13 @@ server's headset mode), `ycode sim remote view --xr`.
 ```
 
 - The simulator keeps running on the simulator host. The viewer reaches it
-  over Ycode's link (`sim-link.md`): control and input over TCP, frames by
+  over SwiftCode's link (`sim-link.md`): control and input over TCP, frames by
   UDP. It accepts the display socket address too (`--connect`).
 - The viewer is an OpenXR application. It links nothing of OpenXR at build
-  time: CYcodeOpenXR opens the **Khronos OpenXR loader**
+  time: CSwiftCodeOpenXR opens the **Khronos OpenXR loader**
   (`libopenxr_loader.so.1`, Apache-2.0) and the Vulkan loader with `dlopen`,
   and the loader finds the active runtime. No runtime (WiVRn, Monado; GPL)
-  and no vendor SDK is linked. Without a loader, `ycode-xr-viewer` says so
+  and no vendor SDK is linked. Without a loader, `swiftcode-xr-viewer` says so
   and exits; on macOS the shim builds as stubs.
 - The runtime used here is **WiVRn** (Monado-based; it streams its
   compositor's output to a standalone headset's own client). The viewer
@@ -50,7 +50,7 @@ server's headset mode), `ycode sim remote view --xr`.
 ## 2. What the runtime offers (phase 1, measured 2026-11-01)
 
 A Meta Quest Pro connected to WiVRn 26.9 (Ubuntu 26.04, OpenXR loader
-1.1.47, NVIDIA RTX 4060 Ti), our probe and CYcodeOpenXR's own test pattern:
+1.1.47, NVIDIA RTX 4060 Ti), our probe and CSwiftCodeOpenXR's own test pattern:
 
 | What | Value |
 |---|---|
@@ -110,13 +110,13 @@ its orientation are right.
   view's picture in the other eye or at another picture's pose (it did
   before run 5, when mono and the left eye shared a swapchain).
 
-## 4. Stereo from Ycode's own host
+## 4. Stereo from SwiftCode's own host
 
 **One view is the guest's design** (`visionos.md` §5.6, answering the
 questions of this round): the guest's simulated headset renders one view,
 with an identity eye transform and tangents (1, 1, 0.5625, 0.5625); no host
 input, preference or vhmdd command gives it a second view (Q-XR1–Q-XR4,
-answered). Ycode therefore makes stereo from what it owns, the camera pose
+answered). SwiftCode therefore makes stereo from what it owns, the camera pose
 (§5.6.5): the guest is given one eye's pose, then the other's, and every
 picture is tagged with the eye and pose it was rendered for.
 
@@ -164,13 +164,13 @@ view), so a still scene costs nothing in either eye once both are sent.
 **Rotation.** Until the HID bundle's fix (`visionos.md` §5.5.10: the
 Orientation child made as a quaternion orientation event) the guest
 ignored the pose's rotation; with it, a yaw of +30° turns the view left at
-the plain home view (Thor, 2026-11-01). `YCODE_XR_GUEST_ROTATION=0` keeps
+the plain home view (Thor, 2026-11-01). `SWIFTCODE_XR_GUEST_ROTATION=0` keeps
 a diagnostic: the rendered camera gets the eye's position only and the tag
 says so, which shows a correct world-locked window.
 
-Server switches (environment of `ycode-simd`): `YCODE_XR_SETTLE_MS` (250),
-`YCODE_XR_SETTLE_MAX_MS` (420), `YCODE_XR_RENDER_DELAY_MS` (240),
-`YCODE_XR_LATCH` (mono tags by picture count when the render delay is 0).
+Server switches (environment of `swiftcode-simd`): `SWIFTCODE_XR_SETTLE_MS` (250),
+`SWIFTCODE_XR_SETTLE_MAX_MS` (420), `SWIFTCODE_XR_RENDER_DELAY_MS` (240),
+`SWIFTCODE_XR_LATCH` (mono tags by picture count when the render delay is 0).
 
 ### 4.1 Messages (`display-stream.md` §18)
 
@@ -199,13 +199,13 @@ record).
 ### 4.3 What the guest's camera does with a pose
 
 - **Rotation** turns the view since the HID bundle's fix (`visionos.md`
-  §5.5.10, §5.5.11). `YCODE_XR_GUEST_ROTATION=0` keeps the diagnostic of
+  §5.5.10, §5.5.11). `SWIFTCODE_XR_GUEST_ROTATION=0` keeps the diagnostic of
   §4: the eye's position only.
 - **Smoothing is the guest's own** (`visionos.md` §5.5.12, parity): the
   first change comes 3–4 presented pictures after a pose, then the camera
   closes in over a few more. (Since the event clock fix a window app has
   about 60 pictures/s and 75 ms to the first change, `visionos.md` §10.28.1;
-  the rates in this document were measured before it.) Under Ycode at about
+  the rates in this document were measured before it.) Under SwiftCode at about
   23 pictures/s that is
   about 170 ms and 250 ms more. The server therefore sends a pose only when
   the head moved beyond a deadband (0.5 mm, 0.05°): repeating a pose slows
@@ -219,7 +219,7 @@ record).
 
 The guest's projection has tangents (1, 1, h/w, h/w) (`visionos.md`
 §5.6.6): 90° horizontally always, vertically as the display's aspect.
-Ycode sets the display (`YCODE_VISION_SCREEN=<w>x<h>`, a ycode-simd
+SwiftCode sets the display (`SWIFTCODE_VISION_SCREEN=<w>x<h>`, a swiftcode-simd
 environment switch; the device type's default stays 3840 × 2160). Measured
 on the Thor (screenshots checked):
 
@@ -296,7 +296,7 @@ All in the stage frame (§3); messages as `display-stream.md` §17.
 
 **The wearer's hands** (`--hands rendered`, the default; §5.1): drawn
 from the joints over the picture. **Immersion** from the thumbstick is on
-(`--no-immersion` turns it off); it hung Ycode's GPU translation in run 3,
+(`--no-immersion` turns it off); it hung SwiftCode's GPU translation in run 3,
 fixed by GPU-SIRI and checked on a fresh device (0.8 and 0.2 from the home
 view).
 
@@ -337,7 +337,7 @@ composited by the runtime at its own rate (90 Hz) from the joints of the
 frame being drawn; they never wait for the guest and are not sent to it.
 (Runs 4 and 4b drew one layer per disc, 88 and 24 layers: WiVRn
 composites each layer over the whole eye image, the x86 GPU went to
-98–100 % and the headset to about 28 Hz.) Ycode's procedural model; no hand assets. The
+98–100 % and the headset to about 28 Hz.) SwiftCode's procedural model; no hand assets. The
 headset's passthrough is not offered by WiVRn 26.9 (no
 `XR_FB_passthrough`); its alpha-blend mode would need the picture masked on
 the GPU each frame (follow-up).
@@ -352,9 +352,9 @@ runtime's own: every displayed frame is reprojected from the pose its
 image carries, so the guest's lag shows as the picture catching up, not as
 the world swimming.
 
-Measured 2026-11-01 with Ycode's simulator on the Thor (visionOS 27.0 at the
+Measured 2026-11-01 with SwiftCode's simulator on the Thor (visionOS 27.0 at the
 home view, load 8–25), the display socket forwarded to the x86 PC by ssh,
-zlib tiles at downscale 2, scripts replayed by `ycode-xr-viewer --replay`
+zlib tiles at downscale 2, scripts replayed by `swiftcode-xr-viewer --replay`
 (`--dump` per frame: tag, decode time, a 32 × 18 grey thumbnail, the
 pose's send time):
 
@@ -375,9 +375,9 @@ smoothing gone or a guest-native second view (§11).
 
 *(The live run's head-motion-to-photon on the headset: §9.2.)*
 
-## 7. The viewer (`ycode-xr-viewer`)
+## 7. The viewer (`swiftcode-xr-viewer`)
 
-`ycode-xr-viewer --link <device> [--host N] [--media udp|tcp]` or
+`swiftcode-xr-viewer --link <device> [--host N] [--media udp|tcp]` or
 `--connect <address>`; `--stereo adaptive|alternate|mono` (§4), `--latch
 n`, `--settle ms`, `--pointer auto|eyes|controller|head`, `--palm`,
 `--encoding auto|hevc444|hevc|h264|jpeg|zlib` (auto: the best both ends have; a
@@ -397,9 +397,9 @@ lost costs a whole new keyframe. `--hands rendered|off`,
 `--immersion`, `--foveate [fraction]`, `--eye-yaw deg`,
 `--record <file.mp4>` and `--record-cursor` (§7.1), `--record-tracking
 <script>`; the gaze path's and the picture's options: §13.6. A line every 5 s gives headset frames,
-tracked frames and the stream's counts (off the headset's loop since XR-GAZE: the summary sorts every sample so far). `ycode sim remote [--host N] view
+tracked frames and the stream's counts (off the headset's loop since XR-GAZE: the summary sorts every sample so far). `swiftcode sim remote [--host N] view
 <device> --xr [viewer options]` runs it for a device of a paired host (it
-finds `ycode-xr-viewer` next to `ycode`, or `$YCODE_XR_VIEWER`).
+finds `swiftcode-xr-viewer` next to `swiftcode`, or `$SWIFTCODE_XR_VIEWER`).
 
 ### 7.1 Recording (`--record <file.mp4>`)
 
@@ -411,7 +411,7 @@ waiting), only while the headset tracks (worn); 30 frames a second and
 `--record-bitrate`). During the session the recorder's thread draws and
 JPEG-compresses each frame on the CPU into `<file>.spool` (5.6 ms per
 frame); after the session it decodes the spool, encodes H.264 with NVENC
-(CYcodeVideo) and writes the MP4 with Ycode's own writer (one track, one
+(CSwiftCodeVideo) and writes the MP4 with SwiftCode's own writer (one track, one
 chunk: ftyp, mdat, moov with avcC, stts from the frames' times, stss every
 IDR at 2 s), then removes the spool. The GPU's encoder is not used during
 the session: WiVRn streams to the headset with it, and sharing it in run 3
@@ -431,7 +431,7 @@ when the first picture arrives (the display is the headset's now),
 and `"pid"`. SIGTERM and SIGINT end it cleanly (the OpenXR session is asked
 to exit; `--replay` stops between samples). The server's takeover notice
 (`display-stream.md` §1.1) ends it too: the headset never fights another
-viewer for the display. `ycode sim headset view` and the hub start it
+viewer for the display. `swiftcode sim headset view` and the hub start it
 detached on the viewer host and poll the file.
 
 ## 8. Privacy
@@ -441,7 +441,7 @@ sent to the simulator over the link (encrypted, `sim-link.md`) and handed
 to the guest's HID bundle. It is **never logged, traced, recorded or
 stored** by the viewer, the server or the shim: `--record` drops it,
 `--verbose` and the summaries print counts only, the server's input trace
-(`YCODE_DISPLAY_TIMING`) records the kind and time of a selection but no
+(`SWIFTCODE_DISPLAY_TIMING`) records the kind and time of a selection but no
 ray, and nothing keeps a gaze sample past the frame (the fixation filter keeps its
 own state and the one fixation a pinch can go back to, in memory). `--gaze-calibrate`
 keeps the tracker's constant error in memory for the session and logs only its size;
@@ -483,7 +483,7 @@ without it the viewer asks for what comes next, and says so (§12.1).
 | 3 | JPEG full resolution, MP4 recording on the GPU | "a lot more laggy": the recording's NVENC competed with WiVRn's (headset about 20 Hz, predicted display 150 ms), and a second boot of ours loaded the Thor (network 200 ms). Without recording (3c): 90 Hz, seen → decoded 12 ms, stereo 34 + 29 eye pictures |
 | 4 | 2160 × 3840, foveated, hands as 88 disc layers, MP4 recording | headset about 28 Hz, x86 GPU 98–100 %; 1175 pictures (151 eye pictures); frame seen → decoded 23 ms; MP4 5748 frames, 1 dropped |
 | 4b | the same with 24 disc layers, no recording | "worse in some ways": flicker between the 9:16 picture and a full surround (most likely the runtime's own scene when our frames came late), selection "finicky". 78 Hz average; 3817 pictures (230 eye pictures); frame seen → decoded 12.1 / 14.5 ms; insets 4250 × 72 KB, 4.1 ms; WiVRn's predicted display 147 ms (33 ms in run 2). Fixed after: one layer per hand, separate swapchains per view (§3), a new picture waits up to 50 ms for its inset. Offline check with `--drive`: GPU 14–20 %, loop p99 3.4 ms |
-| 3 | thumbstick immersion | the guest's GPU hung in `immersivemask::precomputeMaskTransition` (6 × 11 groups of 32 × 16 threads), the device was lost and backboardd aborted in a loop ("Command buffer SharedEventSignalBuffer failed to execute"); Siri's `affordanceDynamicPointLight` (also 32 × 16) hung the same way in run 2. Ycode GPU bugs (a kernel hang, a lost device not recreated), reported; immersion now needs `--immersion` |
+| 3 | thumbstick immersion | the guest's GPU hung in `immersivemask::precomputeMaskTransition` (6 × 11 groups of 32 × 16 threads), the device was lost and backboardd aborted in a loop ("Command buffer SharedEventSignalBuffer failed to execute"); Siri's `affordanceDynamicPointLight` (also 32 × 16) hung the same way in run 2. SwiftCode GPU bugs (a kernel hang, a lost device not recreated), reported; immersion now needs `--immersion` |
 
 Controllers worked (A = Home, hold A = recentre, thumbstick).
 
@@ -497,7 +497,7 @@ headset run, on a tree with both fixes:
    sideways. Is there still anything like a cylinder?
 2. The same with `--stereo adaptive --reproject off`. If it shows there, that is
    not re-projection: say which icon and the head's position, and the operator then
-   runs `touch` on the file named by `YCODE_GPU_FRAME_MAP_FILE` (with the count in it)
+   runs `touch` on the file named by `SWIFTCODE_GPU_FRAME_MAP_FILE` (with the count in it)
    and takes a screenshot at that moment, so that the picture and its draws can be
    read.
 3. While the head moves, do the icons lag or lose part of a disc (`xr-depth.md` §5.6,
@@ -511,19 +511,19 @@ two-slice passes, vhmdd stereo commands) are answered in `visionos.md`
 pose's rotation is answered in §5.5.10.
 
 - **Q-XR5** Does the reference's rendered camera follow a new pose at once
-  or smoothed, and over what time (under Ycode: first change about 170 ms
+  or smoothed, and over what time (under SwiftCode: first change about 170 ms
   after the pose, settled about 250 ms later, §6)? If the reference is
-  faster, the difference is Ycode's to find; if the smoothing is the
+  faster, the difference is SwiftCode's to find; if the smoothing is the
   guest's own (a filter on the head pose), a host cannot avoid it, and
   alternate-eye stereo stays slow.
 
 - **Q-XR6** While a pinch is held on the reference, does a moving gaze ray change
-  anything (under Ycode the viewer now holds it, as the desktop viewers do)?
+  anything (under SwiftCode the viewer now holds it, as the desktop viewers do)?
 - **Q-XR7** When a hand has `allowDirect` set away from any element (an open hand with a
   straight index finger), does the reference's hover or indirect pinch behave any
-  differently? Ycode's viewer sets it for a straight finger; `--poke off` is the A/B.
+  differently? SwiftCode's viewer sets it for a straight finger; `--poke off` is the A/B.
 - **Q-XR8** How far from an element does the reference's hover still catch it, on the
-  home view's icons? Under Ycode a ray 2.9° off an icon's centre still highlights it
+  home view's icons? Under SwiftCode a ray 2.9° off an icon's centre still highlights it
   (§13.3).
 
 ## 11. Next steps
@@ -540,7 +540,7 @@ environment) are `xr-depth.md` (XR-DEPTH): `--reproject`, `--stereo synth`.*
   off the blocks' centres (2 picture pixels at 1/4): at rest it does not show
   (§12.3), in parallax it shifts edges by that much.
 - Done (XR-HUB): Device Hub's View in Headset / Back to Desktop and the
-  headset onboarding (`device-hub.md` §I.12), `ycode sim headset`, `ycode
+  headset onboarding (`device-hub.md` §I.12), `swiftcode sim headset`, `swiftcode
   sim remote view --xr --background | --desktop`. The display size stays a
   boot choice (`--vision-display`; the guest reads it once, §I.12.5).
 
@@ -556,7 +556,7 @@ of the scene and on the UI", and selection "more finicky". 4.2 pictures/s,
 **Cause.** The viewer's default was `jpeg`. The x86 PC had `libjpeg.so.8` but no
 `jpeglib.h` when the viewer was built, so JPEG was compiled out, and the hello fell
 back to zlib without a word. H.264 was never asked for, though NVDEC was there all
-along (`ycode-sim-viewer` had used it). The frames then went over an ssh forward.
+along (`swiftcode-sim-viewer` had used it). The frames then went over an ssh forward.
 (`libjpeg-turbo8-dev` was installed on the PC later that day, so builds since then
 decode JPEG; the default no longer depends on it.)
 
@@ -638,7 +638,7 @@ hevc444 QP 20, link, `walk` script, the same Thor load:
 | 2160 × 3840 | 90° × 121° | 28.6–35.1 | 2.8–3.4 MB/s | 19.4–19.8 / 22.6–22.8 ms |
 | 3840 × 2160 | 90° × 58.7° | 33.7–46.8 | 4.2–5.8 MB/s | 18.7–19.1 / 22.2–22.4 ms |
 
-The same pixel count costs the same: **keep 2160 × 3840** (`YCODE_VISION_SCREEN`).
+The same pixel count costs the same: **keep 2160 × 3840** (`SWIFTCODE_VISION_SCREEN`).
 It fills the headset's field vertically from one picture; 3840 × 2160 gets the
 rest from the cache.
 
@@ -667,11 +667,11 @@ window, the load). No gaze, no pose values. `idle` lines are counted, not printe
 
 | Class | What it is | Measured | Whose | Done |
 |---|---|---|---|---|
-| **Under the cache** | Pictures come, but the newest is drawn under the world cache: hover and pinch feedback, a window opening, do not show | A head wandering at up to 5°/s, run 8's rules (load 10–12): **90 % of the headset frames, longest 9.5 s**. Turns of 30° with 3 s rests: 30 %, longest 1.3 s. Run 8's own log fits (14–22 poses/s, 2 % of its pictures final; inferred, it did not count this) | Ycode | §13.5: 2.8–3.1 % and 753–842 ms, the sweep's only; turns 20 %, 823 ms |
-| **Guest's presenter stopped** | Presents +2 to +11 over the stretch, asked and unanswered | Intermittent, about the owner's "couple of seconds": one 5-minute arm (load 7–11) had 6 (33 s, **longest 17.8 s**); 3.5 s once (load 5–8); 1.0 s in its repeat (load 6–8); 1.0 s at load 41 with another device booting. Two other 5-minute arms had none (load 15–19 on a device 3–9 min old; load 2.5–5 at 18–24 min) | Ycode's simulator (host side or guest kernel; not found) | Open, §13.7 |
+| **Under the cache** | Pictures come, but the newest is drawn under the world cache: hover and pinch feedback, a window opening, do not show | A head wandering at up to 5°/s, run 8's rules (load 10–12): **90 % of the headset frames, longest 9.5 s**. Turns of 30° with 3 s rests: 30 %, longest 1.3 s. Run 8's own log fits (14–22 poses/s, 2 % of its pictures final; inferred, it did not count this) | SwiftCode | §13.5: 2.8–3.1 % and 753–842 ms, the sweep's only; turns 20 %, 823 ms |
+| **Guest's presenter stopped** | Presents +2 to +11 over the stretch, asked and unanswered | Intermittent, about the owner's "couple of seconds": one 5-minute arm (load 7–11) had 6 (33 s, **longest 17.8 s**); 3.5 s once (load 5–8); 1.0 s in its repeat (load 6–8); 1.0 s at load 41 with another device booting. Two other 5-minute arms had none (load 15–19 on a device 3–9 min old; load 2.5–5 at 18–24 min) | SwiftCode's simulator (host side or guest kernel; not found) | Open, §13.7 |
 | Guest, no new picture | Presenter alive, camera moved, no new picture | With the stalls above: 11 (12.5 s, longest 2.5 s). Without: 0–2 (one 1.2 s just after the sweep) | Simulator | Open |
 | Stream | Captured on time, arrived late (way here 365–1351 ms, never on the network's account: p50 1 ms) | 5 (4.4 s, longest 1.4 s), only together with the stalls above. None elsewhere | Simulator's host side, inferred (the encode or the send held up) | Open |
-| Viewer | Received long before uploaded; our loop | None over 250 ms in any arm; the longest headset frame 24–37 ms offscreen. Run 8: at most 77 ms; the 5 s summary sorted every sample on the headset's loop (from reading; it grows with the session) | Ycode | Summary off the loop |
+| Viewer | Received long before uploaded; our loop | None over 250 ms in any arm; the longest headset frame 24–37 ms offscreen. Run 8: at most 77 ms; the 5 s summary sorted every sample on the headset's loop (from reading; it grows with the session) | SwiftCode | Summary off the loop |
 | Runtime (WiVRn) | xrWaitFrame | Run 8: 447–451 headset frames in every 5 s window while tracked, so its loop never stalled for hiccups of seconds. Not reproducible offscreen. WiVRn's link to the headset cannot be seen from the loop | — | The viewer now logs long waits and stretches of stale tracking samples (`XRStaleTracking`) |
 | Nothing asked | A rest; a saccade over nothing | Most stretches: `idle`, `idle-gaze` | — | — |
 
@@ -846,29 +846,29 @@ compare them; each is a restart of the viewer on the same device.
 - A camera command right after the sweep, to a pose the picture already shows, counts as asked: a `guest-no-picture` line of many seconds with one camera move at the start of a rest (18.6 s in one smoke run) is that, not a stall. The server's line ("presents") tells them apart.
 - The session path (swapchain copy) of the plain upload: offscreen it runs without a runtime; only a run shows its 90 Hz.
 - Over `--media udp` the window was not exercised (the link defaults to TCP).
-- Other viewers do not ask for a frame window yet (`ycode-sim-viewer`, the IDE's canvas); the same slow-consumer queue can form behind them, now bounded by the transport's limit and TCP's buffers.
+- Other viewers do not ask for a frame window yet (`swiftcode-sim-viewer`, the IDE's canvas); the same slow-consumer queue can form behind them, now bounded by the transport's limit and TCP's buffers.
 - `tagged pose sent → shown` should say "held" for a held camera; the render-delay estimate (`effectiveRenderDelay`) follows the idle time between sparse pictures up to 400 ms (from reading; it matters only for an on-top picture just after a rest).
 
 ## Evidence
 
 | Claim | Level | Source |
 |---|---|---|
-| OpenXR calls, structures, events, spaces, swapchain use, projection layers, extensions (eye gaze, hand tracking, hand interaction, convert timespec, Vulkan enable 2) | 1 | OpenXR 1.1 specification and registry (Khronos), the OpenXR-SDK release-1.1.47 headers (Apache-2.0 OR MIT), vendored in `Sources/CYcodeOpenXR/openxr` |
+| OpenXR calls, structures, events, spaces, swapchain use, projection layers, extensions (eye gaze, hand tracking, hand interaction, convert timespec, Vulkan enable 2) | 1 | OpenXR 1.1 specification and registry (Khronos), the OpenXR-SDK release-1.1.47 headers (Apache-2.0 OR MIT), vendored in `Sources/CSwiftCodeOpenXR/openxr` |
 | Vulkan staging copy, layouts, queue use | 1 | Vulkan 1.3 specification; the CVulkan target's vendored headers (Apache-2.0) |
 | WiVRn's behaviour and the headset's capabilities (§2) | 3 | our probe and test pattern against WiVRn 26.9 with a Quest Pro, 2026-11-01 (counts and ranges only) |
 | WiVRn usage (runtime manifest, server) | 1 | WiVRn's user documentation; no WiVRn code used |
-| Stage frame, absolute camera, gaze and hands in the stage frame, 90° projection, vhmdd pose, crown and recentre | — | `visionos.md` §5.5 (Ycode's spec; its own evidence there) |
+| Stage frame, absolute camera, gaze and hands in the stage frame, 90° projection, vhmdd pose, crown and recentre | — | `visionos.md` §5.5 (SwiftCode's spec; its own evidence there) |
 | One view per presented picture, two-slice passes, device answers (§4) | — | `visionos.md` §1, §4.5, §10.6.1, §10.13.3, §10.24.1; `metal-sim-protocol.md` §5.11 |
-| One view, the camera's tangents, no stereo input (§4) | — | `visionos.md` §5.6 (Ycode's spec; its evidence there) |
+| One view, the camera's tangents, no stereo input (§4) | — | `visionos.md` §5.6 (SwiftCode's spec; its evidence there) |
 | Rotation lost by a generically made Orientation child, and the fix (§4) | — / 3 | `visionos.md` §5.5.10; our Thor boots before and after the fix |
-| The guest's picture rate, pose → picture times, convergence, tag agreement (§6, §9.1) | 3 | Ycode's own simulator on the Thor with our scripts and analysis, 2026-11-01 |
-| Adaptive and settled scheduling, tags, per-view damage, signatures, the mapping's thresholds, the messages | — | Ycode design decisions |
-| Run 7's causes, the measurements and captures of §12 | 3 | XR-QUALITY: Ycode's own stream, Thor → x86, offscreen viewer, 2026-11-02; run 7's log |
+| The guest's picture rate, pose → picture times, convergence, tag agreement (§6, §9.1) | 3 | SwiftCode's own simulator on the Thor with our scripts and analysis, 2026-11-01 |
+| Adaptive and settled scheduling, tags, per-view damage, signatures, the mapping's thresholds, the messages | — | SwiftCode design decisions |
+| Run 7's causes, the measurements and captures of §12 | 3 | XR-QUALITY: SwiftCode's own stream, Thor → x86, offscreen viewer, 2026-11-02; run 7's log |
 | Run 8's numbers in §13 | 3 | run 8's logs (viewer and Thor), counts and ranges only |
-| Gaps, the queue, tags, hover place and latency, the pinch (§13.1–§13.3, §13.5) | 3 | XR-GAZE: Ycode's own simulator with a current translator, Thor → x86, offscreen viewer and written scripts, 2026-11-02 |
-| Filter comparisons (§13.3) | — | Ycode's tests, synthetic gaze of the shape run 8 measured; no real eye data |
+| Gaps, the queue, tags, hover place and latency, the pinch (§13.1–§13.3, §13.5) | 3 | XR-GAZE: SwiftCode's own simulator with a current translator, Thor → x86, offscreen viewer and written scripts, 2026-11-02 |
+| Filter comparisons (§13.3) | — | SwiftCode's tests, synthetic gaze of the shape run 8 measured; no real eye data |
 | How eyes move (fixation, saccade main sequence, vestibulo-ocular reflex) | 1 | public eye-movement literature, general knowledge; no code or device behaviour used |
-| Filter, calibration, pinch gate, reticle, frame window, gap recorders | — | Ycode design decisions |
+| Filter, calibration, pinch gate, reticle, frame window, gap recorders | — | SwiftCode design decisions |
 
 No Apple binary, Apple software, reference tool or `research/` material was
 used for this spec.

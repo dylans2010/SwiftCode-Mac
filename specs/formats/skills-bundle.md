@@ -1,6 +1,6 @@
 # App skills bundles (`.skillsbundle`)
 
-Status: **planned** for Ycode 2 (Xcode 27.2 parity). Nothing is implemented yet. This spec records what
+Status: **planned** for SwiftCode 2 (Xcode 27.2 parity). Nothing is implemented yet. This spec records what
 Apple's public documentation says, so that the work can start from it, and lists what still has to be
 observed.
 
@@ -50,7 +50,7 @@ Skills.skillsbundle/
 Xcode validates the bundle at build time and compiles it into the app bundle. On a supported device the
 system indexes the compiled skills of the app, its extensions and its embedded frameworks.
 
-## 5. What Ycode must do
+## 5. What SwiftCode must do
 
 1. **Project files:** recognise `.skillsbundle` as a file type that the Project navigator shows as one item
    that expands; File ▸ New ▸ File from Template ▸ Resource ▸ Skills Bundle, which suggests the name
@@ -64,9 +64,9 @@ system indexes the compiled skills of the app, its extensions and its embedded f
    coding assistant can draft a skill from the target's App Intents.
 5. **Testing:** Apple verifies skills on a device or through TestFlight, not in the Simulator. Siri
    Evaluations lets automated integration tests check Siri's handling; supporting those test targets in
-   `ycodebuild` is open question Q2.
+   `swiftcodebuild` is open question Q2.
 
-Ycode's coding assistant already writes a `SKILL.md` for coding agents (`specs/ide/coding-assistant.md`
+SwiftCode's coding assistant already writes a `SKILL.md` for coding agents (`specs/ide/coding-assistant.md`
 §10.6), in the full Agent Skills format. App skills are a different, smaller subset, so the two validators
 stay separate.
 
@@ -86,4 +86,4 @@ stay separate.
 |---|---|---|
 | §1–§4, §5 testing note | Apple, "Orchestrating complex actions with app skills" (App Intents documentation, developer.apple.com), read 2026-11-03 | 1 |
 | The format is a subset of Agent Skills | The same page, citing agentskills.io's specification | 1 |
-| §5 items 1–4 | Ycode's design, derived from §2–§4 | – |
+| §5 items 1–4 | SwiftCode's design, derived from §2–§4 | – |

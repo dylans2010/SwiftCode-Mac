@@ -4,20 +4,20 @@
 
 import Foundation
 
-extension YcodeLocalHomeStore {
+extension SwiftCodeLocalHomeStore {
     static let builtinActionSetTypes: Set<String> = [
         HMActionSetTypeWakeUp, HMActionSetTypeSleep, HMActionSetTypeHomeDeparture, HMActionSetTypeHomeArrival,
     ]
 
-    func handleAutomation(_ request: YcodeHomeRequest, session: Session, reply: @escaping Reply) {
+    func handleAutomation(_ request: SwiftCodeHomeRequest, session: Session, reply: @escaping Reply) {
         switch request {
         case .addActionSet(let h, let name):
             mutateReturning(h, session, reply) { home in
                 let n = try self.checkedName(name)
-                if home.actionSets.contains(where: { YcodeNameRules.similar($0.name, n) }) {
+                if home.actionSets.contains(where: { SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.objectWithSimilarNameExistsInHome)
                 }
-                let set = YcodeActionSetRecord(id: UUID(), name: n, type: HMActionSetTypeUserDefined, actions: [],
+                let set = SwiftCodeActionSetRecord(id: UUID(), name: n, type: HMActionSetTypeUserDefined, actions: [],
                                                lastExecutionDate: nil, isExecuting: false)
                 home.actionSets.append(set)
                 return (.actionSetAdded(set.id), .object(set.id))
@@ -34,7 +34,7 @@ extension YcodeLocalHomeStore {
             mutate(h, session, reply) { home in
                 guard let i = home.actionSets.firstIndex(where: { $0.id == s }) else { throw HMError(.notFound) }
                 let n = try self.checkedName(name)
-                if home.actionSets.contains(where: { $0.id != s && YcodeNameRules.similar($0.name, n) }) {
+                if home.actionSets.contains(where: { $0.id != s && SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.renameWithSimilarName)
                 }
                 home.actionSets[i].name = n
@@ -85,7 +85,7 @@ extension YcodeLocalHomeStore {
             mutateReturning(h, session, reply) { home in
                 if home.triggers.contains(where: { $0.id == trigger.id }) { throw HMError(.alreadyExists) }
                 let n = try self.checkedName(trigger.name)
-                if home.triggers.contains(where: { YcodeNameRules.similar($0.name, n) }) {
+                if home.triggers.contains(where: { SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.objectWithSimilarNameExistsInHome)
                 }
                 try self.validateTriggerKind(trigger.kind, in: home)
@@ -107,7 +107,7 @@ extension YcodeLocalHomeStore {
             mutate(h, session, reply) { home in
                 guard let i = home.triggers.firstIndex(where: { $0.id == t }) else { throw HMError(.notFound) }
                 let n = try self.checkedName(name)
-                if home.triggers.contains(where: { $0.id != t && YcodeNameRules.similar($0.name, n) }) {
+                if home.triggers.contains(where: { $0.id != t && SwiftCodeNameRules.similar($0.name, n) }) {
                     throw HMError(.renameWithSimilarName)
                 }
                 home.triggers[i].name = n
@@ -149,7 +149,7 @@ extension YcodeLocalHomeStore {
                 return .triggerUpdated(trigger.id)
             }
         default:
-            reply(.failure(YcodeHomeStoreError(.operationNotSupported)))
+            reply(.failure(SwiftCodeHomeStoreError(.operationNotSupported)))
         }
     }
 
@@ -159,11 +159,11 @@ extension YcodeLocalHomeStore {
     }
 
     /// The value of a write action, validated against its characteristic.
-    func checkedActionValue(_ home: YcodeHomeRecord, _ cid: UUID, _ value: YcodeHomeValue) throws -> YcodeHomeValue {
+    func checkedActionValue(_ home: SwiftCodeHomeRecord, _ cid: UUID, _ value: SwiftCodeHomeValue) throws -> SwiftCodeHomeValue {
         guard let (a, s, c) = home.characteristicPath(cid) else { throw HMError(.notFound) }
         let ch = home.accessories[a].services[s].characteristics[c]
         guard ch.properties.contains(HMCharacteristicPropertyWritable) else { throw HMError(.readOnlyCharacteristic) }
-        switch YcodeValueValidation.validate(value.apiValue, metadata: ch.metadata) {
+        switch SwiftCodeValueValidation.validate(value.apiValue, metadata: ch.metadata) {
         case .success(let v): return v
         case .failure(let e): throw e
         }
@@ -172,7 +172,7 @@ extension YcodeLocalHomeStore {
     // MARK: Trigger rules (object-model.md §9, errors.md 28, 42, 69, 70, 72)
 
     /// Timer recurrences: only minute, hour, day and week-of-year fields; at
-    /// least 5 minutes and at most 5 weeks (Ycode's reading of the public
+    /// least 5 minutes and at most 5 weeks (SwiftCode's reading of the public
     /// documentation; to be confirmed by plan.md HK-A08).
     public static let minimumRecurrence: TimeInterval = 5 * 60
     public static let maximumRecurrence: TimeInterval = 5 * 7 * 86_400
@@ -197,7 +197,7 @@ extension YcodeLocalHomeStore {
         if seconds > maximumRecurrence { throw HMError(.recurrenceTooLarge) }
     }
 
-    func validateTriggerKind(_ kind: YcodeTriggerRecord.Kind, in home: YcodeHomeRecord) throws {
+    func validateTriggerKind(_ kind: SwiftCodeTriggerRecord.Kind, in home: SwiftCodeHomeRecord) throws {
         switch kind {
         case .timer(let fire, let recurrence):
             try Self.validateTimer(fireDate: fire, recurrence: recurrence)
@@ -218,25 +218,25 @@ extension YcodeLocalHomeStore {
     func execute(_ homeID: UUID, _ setID: UUID, _ session: Session, _ reply: @escaping Reply) {
         guard let h = state.homes.firstIndex(where: { $0.id == homeID }),
               let set = state.homes[h].actionSets.first(where: { $0.id == setID }) else {
-            reply(.failure(YcodeHomeStoreError(.notFound))); return
+            reply(.failure(SwiftCodeHomeStoreError(.notFound))); return
         }
-        if set.actions.isEmpty { reply(.failure(YcodeHomeStoreError(.noActionsInActionSet))); return }
-        if set.isExecuting { reply(.failure(YcodeHomeStoreError(.actionSetExecutionInProgress))); return }
+        if set.actions.isEmpty { reply(.failure(SwiftCodeHomeStoreError(.noActionsInActionSet))); return }
+        if set.isExecuting { reply(.failure(SwiftCodeHomeStoreError(.actionSetExecutionInProgress))); return }
         setExecuting(homeID, setID, true, date: nil)
         executeStep(homeID, setID, set.actions, 0, failures: 0, reply)
     }
 
     /// Writes action `index` (on the store queue), then the next one.
-    func executeStep(_ homeID: UUID, _ setID: UUID, _ actions: [YcodeActionRecord], _ index: Int, failures: Int,
+    func executeStep(_ homeID: UUID, _ setID: UUID, _ actions: [SwiftCodeActionRecord], _ index: Int, failures: Int,
                      _ reply: @escaping Reply) {
         guard index < actions.count else {
             setExecuting(homeID, setID, false, date: Date())
             if failures == 0 {
                 reply(.success(.done))
             } else if failures == actions.count {
-                reply(.failure(YcodeHomeStoreError(.actionSetExecutionFailed)))
+                reply(.failure(SwiftCodeHomeStoreError(.actionSetExecutionFailed)))
             } else {
-                reply(.failure(YcodeHomeStoreError(.actionSetExecutionPartialSuccess)))
+                reply(.failure(SwiftCodeHomeStoreError(.actionSetExecutionPartialSuccess)))
             }
             return
         }

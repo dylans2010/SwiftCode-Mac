@@ -1,11 +1,11 @@
-# Spec: Ycode micro-VM, stage 2 contract (VMM ↔ EL1 shim ↔ EL0)
+# Spec: SwiftCode micro-VM, stage 2 contract (VMM ↔ EL1 shim ↔ EL0)
 
 Status: **implemented and verified (stage 2 of `docs/SIMULATOR-LINUX.md`).**
 The end-to-end self-test passes on the Thor. Every component
 built in stage 2 follows this document exactly. If something needs to change,
 change it here first.
 
-This is Ycode's own design. It describes no Apple internals. The Darwin
+This is SwiftCode's own design. It describes no Apple internals. The Darwin
 facts it relies on are in `specs/simulator/darwin-arm64-abi.md`, and the Arm
 architecture facts come from the public Arm Architecture Reference Manual.
 
@@ -13,13 +13,13 @@ architecture facts come from the public Arm Architecture Reference Manual.
 
 | Component | Location | Language | Runs |
 |---|---|---|---|
-| EL1 shim | `ycode/SimShim/shim.S` → `shim.bin` | arm64 assembly | guest EL1 |
-| EL0 self-test | `ycode/SimShim/el0_selftest.S` → `el0_selftest.bin` | arm64 assembly | guest EL0 |
-| Shim build script | `ycode/SimShim/build.sh` | sh (clang + llvm-objcopy) | host |
-| ABI and layout library | `ycode/Sources/YcodeDarwinABI` | Swift, portable (macOS and Linux) | host |
-| KVM bindings | `ycode/Sources/CKVM` | C (compiled only on Linux) | host |
-| Hypervisor | `ycode/Sources/YcodeHypervisor` | Swift (Linux-only code under `#if os(Linux)`) | host |
-| VMM executable | `ycode/Sources/ycode-simd` | Swift | host |
+| EL1 shim | `swiftcode/SimShim/shim.S` → `shim.bin` | arm64 assembly | guest EL1 |
+| EL0 self-test | `swiftcode/SimShim/el0_selftest.S` → `el0_selftest.bin` | arm64 assembly | guest EL0 |
+| Shim build script | `swiftcode/SimShim/build.sh` | sh (clang + llvm-objcopy) | host |
+| ABI and layout library | `swiftcode/Sources/SwiftCodeDarwinABI` | Swift, portable (macOS and Linux) | host |
+| KVM bindings | `swiftcode/Sources/CKVM` | C (compiled only on Linux) | host |
+| Hypervisor | `swiftcode/Sources/SwiftCodeHypervisor` | Swift (Linux-only code under `#if os(Linux)`) | host |
+| VMM executable | `swiftcode/Sources/swiftcode-simd` | Swift | host |
 
 ## 2. Guest physical memory (GPA)
 
@@ -163,7 +163,7 @@ it as fatal.
 
 The doorbell may instead be an `HVC` call that KVM forwards to the VMM. The
 VMM chooses the form per VM (the HVC form by default when the host installs
-the filter below; `YCODE_HVC_DOORBELL=0` keeps the MMIO form); both forms
+the filter below; `SWIFTCODE_HVC_DOORBELL=0` keeps the MMIO form); both forms
 carry the same frame and give the same resume semantics.
 
 - **Selection.** Boot info field 64 (doorbell address) = **0** selects the
@@ -200,7 +200,7 @@ carry the same frame and give the same resume semantics.
   reuse works unchanged.
 - **Cost.** A bare forwarded HVC round trip is about 230 ns (8 %) cheaper
   than the MMIO exit on the Thor (`native-mode.md` §8.2). Through the full
-  `ycode-simd` trap path (guest probe `p_fasttraps`, 3 runs each, the Thor
+  `swiftcode-simd` trap path (guest probe `p_fasttraps`, 3 runs each, the Thor
   under load), the saving is about the same in absolute terms:
   - lock-free trap −3: MMIO 4691/4692/4902 ns, HVC 4538/4514/4548 ns
     (median −154 ns, −3 %);
@@ -211,7 +211,7 @@ carry the same frame and give the same resume semantics.
   (`fast-traps.md` §8.3). That is about 2–3 % faster, within the harness
   noise. The trap counts and lock times were unchanged. Every boot reached
   the home screen with no host crash and `guest_fatal` 43–44. The VMM
-  prints `ycode-simd: HVC doorbell on (...)` once when it installs the
+  prints `swiftcode-simd: HVC doorbell on (...)` once when it installs the
   filter.
 - **Recommendation.** Make this the default doorbell. The gain is small but
   consistent, the cost is nothing, and a host without the SMCCC filter
@@ -227,7 +227,7 @@ GUEST-CPU, `guest-cpu.md` §4):
 |---|---|
 | 0 | Invalidate stale translations before the `eret`. Alone: `tlbi vmalle1is` (every stage-1 entry of the VM, on every core), then `ic ialluis`, `dsb ish`, `isb` |
 | 1 | Touch FP/SIMD (`stage3-contract.md` §7) |
-| 2 | With bit 0: no `ic ialluis`. The VMM sets it when the host's CTR_EL0.DIC is 1 (instruction fetch is coherent with data writes, so no I-cache invalidation is needed for new code), unless `YCODE_TLB_FLUSH_ICACHE=1` |
+| 2 | With bit 0: no `ic ialluis`. The VMM sets it when the host's CTR_EL0.DIC is 1 (instruction fetch is coherent with data writes, so no I-cache invalidation is needed for new code), unless `SWIFTCODE_TLB_FLUSH_ICACHE=1` |
 | 3 | With bit 0: invalidate only the last-level entries of `count` 16 KiB pages from `VA` (`dsb ishst`, then one `tlbi vale1is` per page, operand `VA[55:12]`), not the whole TLB |
 | 8–15 | With bit 3: `count − 1` (1–256 pages) |
 | 16–63 | With bit 3: `VA >> 14` |
@@ -241,11 +241,11 @@ When the VMM asks for bit 0:
   "Translation Lookaside Buffers": only valid translations are cached). On a
   host whose CTR_EL0.DIC is 0, every change still asks for bit 0 (the
   I-cache invalidation it carries is what a reused code page needs there).
-  `YCODE_TLB_FLUSH_ADDS=1` restores "every change".
+  `SWIFTCODE_TLB_FLUSH_ADDS=1` restores "every change".
 - With bit 3 when the change was one span of at most 256 pages that only
   changed leaf descriptors (the VMM's tables never free or replace a table)
   and no other change of the address space happened during the trap; the
-  whole TLB otherwise. `YCODE_TLB_BY_VA=0` turns bit 3 off.
+  whole TLB otherwise. `SWIFTCODE_TLB_BY_VA=0` turns bit 3 off.
 - Leaf descriptors are global (nG = 0), so a by-VA invalidation needs no
   ASID.
 
@@ -295,10 +295,10 @@ ELR) and exits with status 70.
 hello line and a trap log, and exits with status 0:
 
 ```
-ycode-simd --shim shim.bin --el0 el0_selftest.bin
+swiftcode-simd --shim shim.bin --el0 el0_selftest.bin
 ```
 
-## 8. Swift API of `YcodeDarwinABI` (used by the hypervisor)
+## 8. Swift API of `SwiftCodeDarwinABI` (used by the hypervisor)
 
 ```swift
 public enum VMLayout { /* the constants of §2 and §3 as static lets (GPA/VA values, sizes) */ }
@@ -361,7 +361,7 @@ These were settled while building stage 2 and are now part of the contract.
   doorbell and then spin. The VMM must never resume them.
 - **Resumable kinds.** Lower-EL kinds 2 and 3 may be resumed. The shim
   restores everything and `eret`s if the VMM runs the vCPU again.
-- **Register values used**, from `YcodeDarwinABI.VMLayout`:
+- **Register values used**, from `SwiftCodeDarwinABI.VMLayout`:
   - `TCR_EL1 = 0x0000_0002_4091_B511`. T1SZ is set to 17 (not 0) so that
     the unused TTBR1 field is architecturally valid.
   - `MAIR_EL1 = 0xFF`.
@@ -390,7 +390,7 @@ These were settled while building stage 2 and are now part of the contract.
   - 1 for a KVM error.
 - **Platforms.** The KVM bindings and the hypervisor are compiled only for
   arm64 Linux (`__linux__ && __aarch64__`, `os(Linux) && arch(arm64)`). On
-  other platforms `ycode-simd` reports that it is unavailable.
+  other platforms `swiftcode-simd` reports that it is unavailable.
 
 ## Evidence
 
@@ -412,7 +412,7 @@ These were settled while building stage 2 and are now part of the contract.
 ## Addendum (stage 6): read-only file window
 
 From stage 6 every VM also has a read-only memslot at GPA
-`0x80_0000_0000` (64 GiB) that maps the `ycode-simd` process's shared file
+`0x80_0000_0000` (64 GiB) that maps the `swiftcode-simd` process's shared file
 window (each guest-mapped file mapped once, read-only, shared by all VMs).
 The file-mapping bump window ends below it. Guest writes to it fault;
 copy-on-write privatizes the page into pool memory first

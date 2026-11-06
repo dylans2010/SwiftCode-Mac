@@ -1,14 +1,14 @@
 # Spec: guest execution efficiency (2026-10-24, agents GUEST-CPU and GUEST-CPU-2)
 
-How fast does plain guest code run in a Ycode micro-VM compared with the
-same code on the host, why, and what Ycode changed. Context: the boot's
+How fast does plain guest code run in a SwiftCode micro-VM compared with the
+same code on the host, why, and what SwiftCode changed. Context: the boot's
 critical path (`boot-profile.md` §8.3) has SpringBoard's main thread running
 guest code for 14.1 s; a Mac runs SpringBoard's whole loader in 5–6 s of
 CPU (§6.2 there).
 
 ## 1. Instruments
 
-- **`p_gcpu`** (`SimShim/guest-tests/stageperf/p_gcpu.c`, original Ycode
+- **`p_gcpu`** (`SimShim/guest-tests/stageperf/p_gcpu.c`, original SwiftCode
   code): one source built as a guest program (`build-stageperf.sh`, iOS
   simulator platform, `-mcpu=apple-m1` by the target's default) and as a
   native Linux program (`clang -O2 -mcpu=apple-m1 -pthread`), so both run
@@ -30,7 +30,7 @@ CPU (§6.2 there).
   2,048-page chase in slices with another thread of the process running in
   between). The native build takes `GCPU_NO_THP=1` (prctl
   `PR_SET_THP_DISABLE`) so its anonymous memory is 4 KiB pages.
-- **`pmustat`** (`SimShim/guest-tests/stageperf/pmustat.c`, original Ycode
+- **`pmustat`** (`SimShim/guest-tests/stageperf/pmustat.c`, original SwiftCode
   code, Linux host tool): counts Arm PMUv3 common events of a command and all
   its threads with `perf_event_open` (inherit, user mode only, which
   `perf_event_paranoid` = 2 allows for one's own processes). `-g` counts only
@@ -47,7 +47,7 @@ Main line 5de53eb (`SX/GCPU`). Each column: median of 3 processes (each
 process the median of 5 repeats), spread of the 3 in parentheses; run with
 `SX/bin/timed.sh` (load 2.4–3.9 at the start). Native THP: the native
 program's anonymous memory in 2 MiB pages (the host default); native 4K: THP
-off for the process. Guest: `ycode-simd --exec` (one micro-VM, 16 KiB
+off for the process. Guest: `swiftcode-simd --exec` (one micro-VM, 16 KiB
 stage 1 on 4 KiB stage 2). Ratio: guest / native 4K (time; for GB/s the
 inverse).
 
@@ -138,12 +138,12 @@ without large folios, no `CONFIG_READ_ONLY_THP_FOR_FS`):
 | Guest memory | Host backing | Stage-2 mapping |
 |---|---|---|
 | Anonymous pool (heap, stacks, images' writable copies, page tables' pages): `KVMPhysicalBacking` | 16 GiB private anonymous mapping per VM; its host address is 2 MiB-aligned (Linux 6.8 aligns large anonymous mappings) like its GPA | 2 MiB blocks where the host page is still a transparent huge page; 4 KiB once part of it was dropped (§3.3) |
-| Shared file arena (shared cache, every read-only file mapping) | page-cache pages of the data volume (ext4), mapped once per host process | 4 KiB (SPAWN's `YCODE_ARENA_HUGE=hot`, `boot-profile.md` §9.5, copies the shared cache's hot chunks into huge pages; off by default) |
+| Shared file arena (shared cache, every read-only file mapping) | page-cache pages of the data volume (ext4), mapped once per host process | 4 KiB (SPAWN's `SWIFTCODE_ARENA_HUGE=hot`, `boot-profile.md` §9.5, copies the shared cache's hot chunks into huge pages; off by default) |
 | Private file window (writable file mappings over 1 MiB, mostly the shared cache's data) | private file mapping: page cache until written, then 4 KiB anonymous copies | 4 KiB |
 | Shared object arena (Mach memory entries, POSIX shared memory) | shared memory (`shmem_enabled = never`) | 4 KiB |
 | Per-VM RAM slot (shim, frames, EL1 stack, the guest's page tables) | 1 GiB private anonymous | 2 MiB blocks (never dropped) |
 
-Measured at the home screen of a boot (`/proc/<ycode-simd>/smaps` summed
+Measured at the home screen of a boot (`/proc/<swiftcode-simd>/smaps` summed
 by mapping kind, census-2 §6): the pools held 1,190 MiB, 718 MiB of it
 (60 %) in huge pages.
 
@@ -160,7 +160,7 @@ block. From then on the rest of that 2 MiB is mapped again 4 KiB at a time
 reused, takes a host page fault and a stage-2 fault per 4 KiB. The
 `touch` phase shows it: mapping 64 MiB, touching every 4 KiB and unmapping,
 repeated, costs 11.3 µs per 16 KiB in the guest against 0.29 µs native with
-THP (5.7 µs native 4K), and asking for huge pages (`YCODE_POOL_HUGE=1`,
+THP (5.7 µs native 4K), and asking for huge pages (`SWIFTCODE_POOL_HUGE=1`,
 §4.5) does not change it. §4.6 is the change.
 
 ### 3.4 Guest stage-1 settings and VMIDs
@@ -174,18 +174,18 @@ THP (5.7 µs native 4K), and asking for huge pages (`YCODE_POOL_HUGE=1`,
   are made per boot, far below a rollover. A VM's TLB entries are flushed
   on the local CPU when another vCPU of the same VM last ran there (KVM's
   `last_vcpu_ran`), which a multithreaded process meets when its threads
-  move between host CPUs; Ycode does not pin vCPU threads.
+  move between host CPUs; SwiftCode does not pin vCPU threads.
 
 ### 3.5 What it means for a boot
 
-Whole-boot guest PMU counts (`pmustat -g -s 1` around `ycode-simd`, the
+Whole-boot guest PMU counts (`pmustat -g -s 1` around `swiftcode-simd`, the
 area's device at its own path, about 47 s each, 2026-10-27, tlb1 series):
 
 | Pool backing | Boots | Guest cycles | Instructions | CPI | DTLB walks / 1,000 instr. | ITLB walks / 1,000 instr. |
 |---|---|---|---|---|---|---|
 | default (huge pages until split) | 2 | 707 G, 678 G | 1.80 T, 1.73 T | 0.392, 0.392 | 0.087, 0.087 | 0.043, 0.043 |
-| `YCODE_POOL_KEEP_THP=1` (§4.6) | 2 | 691 G, 734 G | 1.77 T, 1.87 T | 0.391, 0.392 | 0.083, 0.083 | 0.043, 0.043 |
-| `YCODE_POOL_HUGE=never` (no huge pages at all) | 2 | 676 G, 757 G | 1.72 T, 1.90 T | 0.392, 0.399 | 0.092, 0.097 | 0.046, 0.045 |
+| `SWIFTCODE_POOL_KEEP_THP=1` (§4.6) | 2 | 691 G, 734 G | 1.77 T, 1.87 T | 0.391, 0.392 | 0.083, 0.083 | 0.043, 0.043 |
+| `SWIFTCODE_POOL_HUGE=never` (no huge pages at all) | 2 | 676 G, 757 G | 1.72 T, 1.90 T | 0.392, 0.399 | 0.092, 0.097 | 0.046, 0.045 |
 
 About 0.13 page walks per 1,000 guest instructions, whatever the pool's
 backing: taking the pool's huge pages away entirely changes the walks by
@@ -193,7 +193,7 @@ backing: taking the pool's huge pages away entirely changes the walks by
 bound by translation (the earlier TLB maintenance, §4.1–§4.3, was: 211 M
 DTLB walks per boot before, 137 M after). The cost of 4 KiB stage-2
 mappings in a boot is on the host side: the stage-2 faults themselves
-(kernel exits that `ycode-simd`'s user exits do not count; 5.6 M per boot
+(kernel exits that `swiftcode-simd`'s user exits do not count; 5.6 M per boot
 in `p-GCPU-a`, about half of all exits) and the host page faults behind
 them, each taking the host process's address-space lock (`boot-profile.md`
 §9.4).
@@ -207,32 +207,32 @@ invalid descriptors resumes without a TLB flush (a translation that faults
 is never cached, Arm ARM); a change of valid descriptors in one span of up
 to 256 pages invalidates those pages by VA (`tlbi vale1is`) instead of the
 whole VM's TLB; on a host whose CTR_EL0.DIC is 1 (the Thor) the flush no
-longer broadcasts an I-cache invalidation. Switches: `YCODE_TLB_FLUSH_ADDS=1`,
-`YCODE_TLB_BY_VA=0`, `YCODE_TLB_FLUSH_ICACHE=1` restore the old behavior.
+longer broadcasts an I-cache invalidation. Switches: `SWIFTCODE_TLB_FLUSH_ADDS=1`,
+`SWIFTCODE_TLB_BY_VA=0`, `SWIFTCODE_TLB_FLUSH_ICACHE=1` restore the old behavior.
 Measured (ab1, 3 processes each, old = all three switches back): the
 `churn` chase (another thread maps and unmaps in a loop) 27.7 → 5.9 ns per
 hop; flushing resumes in the probe 99,926 → 12,545 (12,509 by VA); in a
 boot about 420,000 flushing resumes, 97 % by VA. Boots (h1, 2026-10-26,
 one `timed.sh`, 4 rounds rotating, the area's device): main line 5de53eb
 32.6, 35.2, 36.4, 37.3 s to the home screen; with §4.1–§4.4 31.4, 31.6,
-32.1, 32.0 s; the same with `YCODE_POOL_HUGE=1` 31.5–32.0 s; whole-boot
+32.1, 32.0 s; the same with `SWIFTCODE_POOL_HUGE=1` 31.5–32.0 s; whole-boot
 guest DTLB walks 211 M → 137 M (pmu1).
 
 ### 4.4 String and memory routines (agent GUEST-CPU)
 
-`libsystem_platform` (Ycode's host library) got vector `strcmp`,
+`libsystem_platform` (SwiftCode's host library) got vector `strcmp`,
 `memset`/`bzero` and short `memcpy` paths: library `strcmp` on path
 strings 12.7 → 5.8 ns, `memset` 100 B 15.3 → 28.8 GB/s, unaligned 100 B
 `memcpy` 15.3 → 31.2 GB/s, `bzero` 128 MiB 79 → 92 GB/s (ab1).
 
-### 4.5 `YCODE_POOL_HUGE` (diagnostics)
+### 4.5 `SWIFTCODE_POOL_HUGE` (diagnostics)
 
 `1`: the pool's host mapping 2 MiB-aligned with `MADV_HUGEPAGE`; `align`:
 aligned only; `never` (GUEST-CPU-2): aligned with `MADV_NOHUGEPAGE`, for
 §3.5's comparison. With THP `always` the default mapping already gets huge
 pages (§3.2), so `1` changed nothing measurable (ab1, h1).
 
-### 4.6 `YCODE_POOL_KEEP_THP`: return pool memory only in whole huge pages (GUEST-CPU-2)
+### 4.6 `SWIFTCODE_POOL_KEEP_THP`: return pool memory only in whole huge pages (GUEST-CPU-2)
 
 With the switch, the pool never drops part of a host huge page:
 
@@ -260,23 +260,23 @@ memory: freed partial huge pages stay resident until the process ends
 ### 5.1 Instruments
 
 - **`exitcost`** (`SimShim/guest-tests/stageperf/exitcost.c`, original
-  Ycode code, a Linux host tool): its own one-vCPU VM running a few
+  SwiftCode code, a Linux host tool): its own one-vCPU VM running a few
   instructions at EL1, timing one round trip per mode: an HVC that KVM
   answers itself (PSCI_VERSION, no return to user space), an HVC forwarded
-  to user space (Ycode's doorbell, `vm-shim-protocol.md` §5.1) with an
+  to user space (SwiftCode's doorbell, `vm-shim-protocol.md` §5.1) with an
   empty VMM loop, the same with the guest touching FP/SIMD after each exit,
   with `KVM_SET_SIGNAL_MASK`, in a VM with an in-kernel vGICv3, an MMIO
   store, and, without a guest, a cheap `ioctl` and a `getppid` system call.
-- **`YCODE_TRAP_PEEL=<1…4>`** (diagnostics, `TrapFrame.peelLevel`): the
-  trap `YCODE_TRAP_PEEL_NUMBER` (default 39, `getppid`) is answered (x0 =
-  1, carry clear) at one point of `ycode-simd`'s path instead of being
+- **`SWIFTCODE_TRAP_PEEL=<1…4>`** (diagnostics, `TrapFrame.peelLevel`): the
+  trap `SWIFTCODE_TRAP_PEEL_NUMBER` (default 39, `getppid`) is answered (x0 =
+  1, carry clear) at one point of `swiftcode-simd`'s path instead of being
   handled: 1 right after the exit (no decode), 2 after the frame is
   decoded, 3 at the start of the image's trap handler, 4 inside the kernel
   lock. `p_gcpu trap` (a `getppid` loop) then times the path up to that
   point.
-- **`YCODE_HOST_PROFILE=<path>`** (diagnostics, `ckvm_hostprof_thread_start`):
+- **`SWIFTCODE_HOST_PROFILE=<path>`** (diagnostics, `ckvm_hostprof_thread_start`):
   every vCPU host thread samples its own PC and frame-pointer chain on a
-  CPU-time timer (`YCODE_HOST_PROFILE_US`, default 200 µs; the kernel checks
+  CPU-time timer (`SWIFTCODE_HOST_PROFILE_US`, default 200 µs; the kernel checks
   CPU timers at its tick, so about one sample per 4 ms of CPU); the samples
   and the host's code mappings are written at exit for offline
   symbolization (`llvm-symbolizer`, `swift-demangle`).
@@ -287,8 +287,8 @@ memory: freed partial huge pages stay resident until the process ends
 |---|---|---|
 | guest exception to the host kernel and back, KVM answering (no return to user space) | 0.72 | `exitcost kern` (pinned, n = 7: 0.718–0.746) |
 | returning to user space and calling `KVM_RUN` again (vCPU state put and loaded, the system call) | 1.77 | `exitcost user` 2.49 − `kern` |
-| the lazy FP/SIMD switch after each return (the shim touches FP on every resume, `YCODE_SHIM_FP_TOUCH`) | 0.17 | `user-fp` − `user`; `p_gcpu` with the touch off: −0.16 |
-| guest side (EL0 `svc`, the shim's 320-byte save, `dsb`, `hvc`, restore, `eret`) and `ycode-simd`'s run loop | 0.36 | peel 1 (3.025) − `user-fp` (2.667) |
+| the lazy FP/SIMD switch after each return (the shim touches FP on every resume, `SWIFTCODE_SHIM_FP_TOUCH`) | 0.17 | `user-fp` − `user`; `p_gcpu` with the touch off: −0.16 |
+| guest side (EL0 `svc`, the shim's 320-byte save, `dsb`, `hvc`, restore, `eret`) and `swiftcode-simd`'s run loop | 0.36 | peel 1 (3.025) − `user-fp` (2.667) |
 | frame decode and encode, the run loop's bookkeeping | 0.20 | peel 2 − peel 1 |
 | the pool's handler call | 0.06 | peel 3 − peel 2 |
 | the image's trap prologue, fast-path checks, the kernel lock's acquisition | 0.75 | peel 4 − peel 3 |
@@ -301,12 +301,12 @@ host is 0.095 µs and an `ioctl` 0.104 µs. Of the kernel part, KVM's
 in-kernel round trip is 0.72 µs and the return to user space 1.77 µs.
 An in-kernel vGICv3 makes the user-space round trip 0.13–0.17 µs cheaper
 (2.35–2.37 against 2.49 µs), but KVM refuses new vCPUs once a vGIC is
-initialized (at the first `KVM_RUN`), and Ycode creates vCPUs as guest
+initialized (at the first `KVM_RUN`), and SwiftCode creates vCPUs as guest
 threads start, so it is not used. `KVM_SET_SIGNAL_MASK` costs nothing
 measurable (2.50 against 2.49 µs).
 
-Host profile of the `getppid` loop (`YCODE_HOST_PROFILE`, build 2, 2,055
-samples, 71 % inside `KVM_RUN`): of `ycode-simd`'s own time, the clock
+Host profile of the `getppid` loop (`SWIFTCODE_HOST_PROFILE`, build 2, 2,055
+samples, 71 % inside `KVM_RUN`): of `swiftcode-simd`'s own time, the clock
 reads of the kernel lock's hold accounting (two `clock_gettime` per
 acquisition, 55–70 ns each on the Thor, whose counter register alone costs
 55 ns) were 17 %, Swift reference counting 28 % (mostly the slow side-table
@@ -338,7 +338,7 @@ Result (peel2, the same method, GCPU against GCPUB = before):
 | full `getppid` | 4.42 (4.40–4.45) | 4.14 (4.13–4.15) |
 | full, FP touch off | 4.26 | 3.96 |
 
-−0.28 µs (−6 %) per trap. What remains in `ycode-simd` is about 1.2 µs
+−0.28 µs (−6 %) per trap. What remains in `swiftcode-simd` is about 1.2 µs
 per trap, spread over the kernel lock (with its two clock reads), Swift
 reference counting and the general dispatch.
 
@@ -346,7 +346,7 @@ reference counting and the general dispatch.
 
 ### 6.1 The census
 
-`YCODE_BOOT_PROFILE_TRAPS=1` counts every trap that reaches the image's
+`SWIFTCODE_BOOT_PROFILE_TRAPS=1` counts every trap that reaches the image's
 trap handler (fast paths included) by number and, since GUEST-CPU-2,
 splits chosen traps by argument (`# arg` lines: the sysctl MIB or name,
 the `proc_info` call and flavor, the `madvise` advice, the
@@ -379,10 +379,10 @@ that §6.2 removes are the ones that went to zero.
 ### 6.2 Calls answered in the library (GUEST-CPU-2; `fast-traps.md` §5a)
 
 - `madvise` advice 0…10 and invalid advice, and `issetugid`: the kernel's
-  answer is fixed, so the library gives it (`YCODE_LOCAL_CALLS`, default
+  answer is fixed, so the library gives it (`SWIFTCODE_LOCAL_CALLS`, default
   on). 3 ns instead of 3.4 µs.
 - `sysctl` name-to-OID and `kern.boottime`: the library keeps the first
-  answer (`YCODE_SYSCTL_CACHE`, default on). `sysctlbyname("kern.boottime")`
+  answer (`SWIFTCODE_SYSCTL_CACHE`, default on). `sysctlbyname("kern.boottime")`
   30 ns instead of 10.7 µs; with it the guest's
   `clock_gettime(CLOCK_MONOTONIC)` no longer traps.
 
@@ -395,7 +395,7 @@ Together about 0.9 M traps per boot (17 % of census-1's).
 `p_gcpu` (bench4: 3 processes per arm, each the median of 5 repeats;
 spread of the 3 in parentheses where it matters). Before = branch state
 after GUEST-CPU (GCPUB); after = with this agent's defaults (GCPU); keep =
-after plus `YCODE_POOL_KEEP_THP=1`. Native from §2. Ratio: guest / native
+after plus `SWIFTCODE_POOL_KEEP_THP=1`. Native from §2. Ratio: guest / native
 4K.
 
 | Workload | Unit | Native THP | Native 4K | Guest before | Guest after | Guest keep | Ratio before → keep |
@@ -428,17 +428,17 @@ clock reads) was already at native speed (§2).
 ### 7.2 Boots to the home screen and the first Settings launch
 
 The area's device (`ide-remote/gcpu/dev`, booted before at its own path),
-cold boots with `YCODE_HOME_WATCH` (b4: 4 rounds, b5: 4 rounds, l5: 3
+cold boots with `SWIFTCODE_HOME_WATCH` (b4: 4 rounds, b5: 4 rounds, l5: 3
 rounds with `ylaunch open com.apple.Preferences` 20 s after the home
 screen; arms rotating each round; each series under one `timed.sh`; load
 when a series started below 4, during it 11–29 from the boots themselves):
 
-| Arm | Boots | home_s median (range), mean | ycode-simd CPU at home, s, median (range) | Settings open request, ms (l5) |
+| Arm | Boots | home_s median (range), mean | swiftcode-simd CPU at home, s, median (range) | Settings open request, ms (l5) |
 |---|---|---|---|---|
 | before (GCPUB) | 11 | 32.54 (31.31–40.23), 33.72 | 302 (286–331) | 2,730, 1,016, 671 |
 | after (GCPU defaults) | 11 | 32.45 (31.47–37.38), 33.51 | 302 (284–335) | 3,435, 615, 1,756 |
-| after, §6.2 switches off (`YCODE_LOCAL_CALLS=0 YCODE_SYSCTL_CACHE=0`) | 4 | 31.79 (31.61–35.03), 32.55 | 293 (282–307) | |
-| after + `YCODE_POOL_KEEP_THP=1` | 11 | 32.33 (31.45–35.17), 32.80 | 293 (287–312) | 2,391, 829, 1,214 |
+| after, §6.2 switches off (`SWIFTCODE_LOCAL_CALLS=0 SWIFTCODE_SYSCTL_CACHE=0`) | 4 | 31.79 (31.61–35.03), 32.55 | 293 (282–307) | |
+| after + `SWIFTCODE_POOL_KEEP_THP=1` | 11 | 32.33 (31.45–35.17), 32.80 | 293 (287–312) | 2,391, 829, 1,214 |
 
 No arm changes the time to the home screen beyond the boots' own spread
 (31.3–40 s, partly bimodal: about 32 or about 35 s). The boot's critical
@@ -446,23 +446,23 @@ path is SpringBoard's own guest code and kernel-lock waits
 (`boot-profile.md` §8.3), and its guest code is not bound by translation
 (§3.5); the 0.9 M traps fewer and 0.28 µs less per remaining trap are
 about 5 s of host CPU of the 290–300 s a boot spends, inside the CPU
-measurement's spread. `YCODE_POOL_KEEP_THP` has the lowest CPU median and
+measurement's spread. `SWIFTCODE_POOL_KEEP_THP` has the lowest CPU median and
 the narrowest home range of the arms; the open request of the first
 Settings launch (ylaunch's spawn to FrontBoard's answer) varies 0.6–3.4 s
 within every arm.
 
 Host memory (mem1, `smapwatch.sh` at the home screen, 2 boots each): the
 anonymous pools held 981 MiB (612 MiB in huge pages) by default and
-1,625–1,697 MiB (99 % in huge pages) with `YCODE_POOL_KEEP_THP=1`:
+1,625–1,697 MiB (99 % in huge pages) with `SWIFTCODE_POOL_KEEP_THP=1`:
 +650–720 MiB at the home screen, the price of §4.6.
 
 ### 7.3 Defaults
 
 - §5.3 (allocation-free trap frames and the rest): on, no switch (the
   answers are unchanged).
-- §6.2 `YCODE_LOCAL_CALLS`, `YCODE_SYSCTL_CACHE`: on (`=0` off); they
+- §6.2 `SWIFTCODE_LOCAL_CALLS`, `SWIFTCODE_SYSCTL_CACHE`: on (`=0` off); they
   answer exactly as the kernel does (`fast-traps.md` §5a).
-- `YCODE_POOL_KEEP_THP`: off. It makes recycled guest memory 30× cheaper
+- `SWIFTCODE_POOL_KEEP_THP`: off. It makes recycled guest memory 30× cheaper
   and TLB-heavy access 1.2–3× faster, costs about 0.7 GiB of host memory
   per booted device and does not shorten a boot measurably; the owner
   decides whether to trade the memory.
@@ -474,19 +474,19 @@ anonymous pools held 981 MiB (612 MiB in huge pages) by default and
   (KVM's vCPU put and load around each `KVM_RUN`), which only a kernel
   change or fewer exits removes. The shim's FP/SIMD touch adds 0.16 µs per
   trap; it exists for hosts without the arm64 KVM SVE fix, which the Thor
-  now has (`YCODE_SHIM_FP_TOUCH=0` is safe there; the default is the
+  now has (`SWIFTCODE_SHIM_FP_TOUCH=0` is safe there; the default is the
   owner's call).
 - **More traps the library could answer.** `proc_info` DIRTYCONTROL SET
   on the caller (217,000 a boot, XPC transactions): the dirty word would
   have to live in memory the guest library and the kernel share (a
-  Ycode-private EL0-writable page registered once per image, read and
+  SwiftCode-private EL0-writable page registered once per image, read and
   updated atomically by the kernel for GET, TRACK and CLEAR from other
   processes, captured by snapshots). `proc_pidpath` of the caller (20,000)
   is fixed per image. `lseek` (95,000) and the `mach_vm_protect` toggles
   (270,000; read-only ↔ read-write, mostly after the milestone) are real
   kernel work but cheap in the handler (1.4 and 12 µs): their cost is the
   exit.
-- **What remains in `ycode-simd` per trap (about 1.2 µs)**: the kernel
+- **What remains in `swiftcode-simd` per trap (about 1.2 µs)**: the kernel
   lock's two clock reads for its hold accounting (the start hold's busy
   fraction needs them while processes are held, which is most of a boot),
   Swift reference counting on objects with side tables, exclusivity
@@ -496,7 +496,7 @@ anonymous pools held 981 MiB (612 MiB in huge pages) by default and
   folios, `shmem_enabled = never`). A hugetlbfs pool or `shmem_enabled =
   advise` (both need the owner, sysctl/sysfs as root) would let a copy of
   the shared cache be block-mapped without THP's compaction; SPAWN's hot
-  chunk copy (`YCODE_ARENA_HUGE=hot`) is the user-space way and measured
+  chunk copy (`SWIFTCODE_ARENA_HUGE=hot`) is the user-space way and measured
   no gain (`boot-profile.md` §9.3). §3.5 says why: the boot's guest code
   is not bound by translation.
 - **Guest stage-1 blocks or the contiguous hint** (16 KiB granule: 128
@@ -507,16 +507,16 @@ anonymous pools held 981 MiB (612 MiB in huge pages) by default and
 
 | Claim | Level | Source |
 |---|---|---|
-| Benchmark method (§1) | 3 | Ycode's own programs on the Thor, native and under `ycode-simd --exec` |
+| Benchmark method (§1) | 3 | SwiftCode's own programs on the Thor, native and under `swiftcode-simd --exec` |
 | Two-stage walk, combined TLB entry size, faults not cached, TLBI by VA (§3.1, §4.1) | 1 | Arm Architecture Reference Manual (VMSA, TLB maintenance) |
 | Stage-2 block conditions, THP split on partial `MADV_DONTNEED`, MMU notifier, vGIC and vCPU creation, `last_vcpu_ran` (§3.2–§3.4, §5.2) | 1 | Linux 6.8 source (`arch/arm64/kvm/mmu.c`, `arch/arm64/kvm/arm.c`, `mm/huge_memory.c`, `mm/madvise.c`) and the KVM API documentation |
 | Host settings (THP, defrag, shmem, kernel) | 3 | `/sys/kernel/mm/transparent_hugepage/*`, `uname` on the Thor |
-| §3.5 whole-boot PMU counts | 3 | `pmustat -g -s 1` around `ycode-simd` boots (tlb1) |
-| §5 exit costs, peel breakdown, host profile | 3 | `exitcost`, `YCODE_TRAP_PEEL`, `YCODE_HOST_PROFILE` on the Thor (peel1, peel2) |
-| §6 census | 3 | `YCODE_BOOT_PROFILE_TRAPS=1` boots census-1/-2/-3 |
+| §3.5 whole-boot PMU counts | 3 | `pmustat -g -s 1` around `swiftcode-simd` boots (tlb1) |
+| §5 exit costs, peel breakdown, host profile | 3 | `exitcost`, `SWIFTCODE_TRAP_PEEL`, `SWIFTCODE_HOST_PROFILE` on the Thor (peel1, peel2) |
+| §6 census | 3 | `SWIFTCODE_BOOT_PROFILE_TRAPS=1` boots census-1/-2/-3 |
 | §7 results | 3 | bench4, b4, b5, l5, mem1 on the Thor (`ide-remote/gcpu`) |
 | Darwin call semantics (`sysctl` name-to-OID, `kern.boottime`, `proc_info` callnums and flavors, `fcntl` commands, `madvise` advice) | 1 | xnu open source (`bsd/kern/kern_sysctl.c`, `bsd/sys/proc_info.h`, `bsd/sys/fcntl.h`, `bsd/sys/mman.h`) |
-| The guest's `clock_gettime(CLOCK_MONOTONIC)` asks `sysctl` for `kern.boottime` (§2 note, §6.2) | 3 | `p_gcpu files` with and without `YCODE_SYSCTL_CACHE` (690 → 69 ns per 16 KiB, `map_unmap` 90 → 47 µs: one clock call per file) and the census's 105,000 `kern.boottime` reads |
+| The guest's `clock_gettime(CLOCK_MONOTONIC)` asks `sysctl` for `kern.boottime` (§2 note, §6.2) | 3 | `p_gcpu files` with and without `SWIFTCODE_SYSCTL_CACHE` (690 → 69 ns per 16 KiB, `map_unmap` 90 → 47 µs: one clock call per file) and the census's 105,000 `kern.boottime` reads |
 
 Level 5 was not used. The reference tools, `research/` and Ghidra were not
 opened; Apple's Xcode and Simulator were not run.

@@ -2,24 +2,24 @@
 
 Status: **implemented** (agent FPS-PROF, 2026-10-19). §1–§3 are a
 diagnostic (off by default). §5 lists three changes; each has a switch and
-is on by default. Ycode's own design: nothing here describes Apple
+is on by default. SwiftCode's own design: nothing here describes Apple
 software. Programs (backboardd, SpringBoard, notifyd, …) are named only as
 black boxes whose traps, waits and wakeups the VMM observes.
 
 Related: `display-stream.md` §10 (FPS-LATENCY's swap and input timing,
-`ycode-display-probe`), `boot-profile.md` (per-image CPU accounting, PC
+`swiftcode-display-probe`), `boot-profile.md` (per-image CPU accounting, PC
 samples), `mach-ipc-locking.md` and `bsd-locking.md` (the locks named
 here), `thread-latency.md` (wakeups).
 
-## 1. The frame profile (`YCODE_FRAME_PROFILE=<path>`)
+## 1. The frame profile (`SWIFTCODE_FRAME_PROFILE=<path>`)
 
 A trace of everything the VMM sees of a frame, recorded only in windows
 that the person opens, so it can stay on for a whole interactive session.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `YCODE_FRAME_PROFILE` | unset | the path prefix of the output; unset: nothing below exists |
-| `YCODE_FRAME_PROFILE_EVENTS` | 4194304 | events per window (32 bytes each, preallocated: 128 MiB at the default) |
+| `SWIFTCODE_FRAME_PROFILE` | unset | the path prefix of the output; unset: nothing below exists |
+| `SWIFTCODE_FRAME_PROFILE_EVENTS` | 4194304 | events per window (32 bytes each, preallocated: 128 MiB at the default) |
 
 - **Opening a window.** Create `<path>.go`; its content is the window's
   length in seconds (default 10, 0.5–120). A poller looks every 100 ms and
@@ -57,12 +57,12 @@ that the person opens, so it can stay on for a whole interactive session.
     `KVM_RUN` and in trap handlers, VM exits, scheduler timeslices,
     voluntary and involuntary context switches, minor faults, and CPU and
     run-queue ms per present; the host load average at both ends; the
-    shared-arena recycling counters (§5.2). With `YCODE_TRAP_PROFILE` also
+    shared-arena recycling counters (§5.2). With `SWIFTCODE_TRAP_PROFILE` also
     set, three more tables: per trap number over the window, the kernel
     lock L0, the event locks and the port lock (traps, acquisitions, hold
     and wait ms, per present, contended share, wait per acquisition).
 
-## 2. The analysis (`scripts/ycode-frame-profile <path>.<n>`)
+## 2. The analysis (`scripts/swiftcode-frame-profile <path>.<n>`)
 
 Python 3 standard library, run with `python3 -I`. Options:
 `--program <name>` (whose `pwrite` of the frame record is the present;
@@ -96,13 +96,13 @@ It prints:
    with consecutive steps of one program merged.
 
 How the other frame agents use it: FPS-GPU reads the "host thread:
-DispatchWorker" and "ycode-simd (woke backboardd in mach_msg2)" steps
+DispatchWorker" and "swiftcode-simd (woke backboardd in mach_msg2)" steps
 (waits for the Metal host service and GPU completion); FPS-LATENCY reads
 §8 (input → first present) next to `display-stream.md` §10.
 
 ## 3. Method
 
-Device `ide-remote/<agent>/` area through `ycode-sim-try` with a separate
+Device `ide-remote/<agent>/` area through `swiftcode-sim-try` with a separate
 config, viewer `--script` (home-screen swipes: six drags of 340 points in
 250 ms, 1.2 s apart), a frame-profile window of 10–12 s opened at the
 script's marker; restores of one saved device (`snapshot.md` §12), arms
@@ -121,12 +121,12 @@ intervals p50 37 ms, p90 330 ms. The critical path of an animation frame
 | Step (mean per frame) | ms | Share |
 |---|---|---|
 | backboardd's `pwrite` of the 96-byte frame record (trap service) | 17.9 | 39 % |
-| backboardd's `mach_make_memory_entry_64` (Ycode routine `0x7963200A`), about 21 per frame (new shared Metal buffers) | 14.5 | 32 % |
+| backboardd's `mach_make_memory_entry_64` (SwiftCode routine `0x7963200A`), about 21 per frame (new shared Metal buffers) | 14.5 | 32 % |
 | a host `DispatchWorker` (the Metal host service's GPU completion) | 3.4 | 7 % |
 | backboardd guest code | 2.0 | 4 % |
 | wakeup latency | 0.9 | 2 % |
 
-The trap profile (`YCODE_TRAP_PROFILE`, cold boot, load 57) showed why:
+The trap profile (`SWIFTCODE_TRAP_PROFILE`, cold boot, load 57) showed why:
 L0 was held 53 % of the window; its waits were 1–3 ms per acquisition
 (contended 17–43 %). `pwrite` (BSD 154) and `write` (4, 397) were not on a
 BSD fast path, so a frame's present waited for L0 (p50 1–5 ms, p90 9–23
@@ -155,12 +155,12 @@ object (pipe, socket), the console, a device node, a bad descriptor and a
 length above `INT_MAX` fall back to the locked path, which reports them
 exactly as before. Results, offsets and `O_APPEND` behave as on the locked
 path (test `BSDFastPathTests.writesMatchTheLockedPath`). Switch: the
-existing `YCODE_BSD_FAST_EXCLUDE=4,397,154,415` turns it off.
+existing `SWIFTCODE_BSD_FAST_EXCLUDE=4,397,154,415` turns it off.
 
 ### 5.2 The shared object arena reuses freed runs
 
 A freed run of an anonymous shared memory object stays mapped (its pages
-kept) in a pool by size, up to `YCODE_ARENA_RECYCLE_MB` (default 256; 0 =
+kept) in a pool by size, up to `SWIFTCODE_ARENA_RECYCLE_MB` (default 256; 0 =
 off) and runs of at most 4 MiB; the next object of exactly that size takes
 it and zeroes it, so neither the creation nor the release changes a host
 mapping and no VM's MMU notifier runs. File views are never pooled (their
@@ -184,7 +184,7 @@ as before. Its wait queue is bound to L_P; every waker already held it
 wakes it directly instead of deferring the wakeup to L0. Waiters without a
 guest thread are ignored by the snapshot census, so snapshots are
 unchanged (one cold boot and 12 sessions restored from and saved again, 6 of them with the change on, all restored). Switch:
-`YCODE_TIMER_L0=1` restores the L0 timer thread.
+`SWIFTCODE_TIMER_L0=1` restores the L0 timer thread.
 
 ## 6. Measurements (Thor, 2026-10-19)
 
@@ -305,14 +305,14 @@ switch, and findings for items 4 and 5. Main line for the comparison:
 
 ### 8.1 The frame record and timing files in a memory directory
 
-Each device has a *memory directory*: guest path `DEV/ycode-memory` (a
+Each device has a *memory directory*: guest path `DEV/swiftcode-memory` (a
 writable prefix of its own, so it resolves to whatever host directory the
-current run chose), host directory `/dev/shm/ycode-<uid>-<16 hex digits of
-the device's UDID>` (`YCODE_MEMORY_DIR=<dir>` picks another memory file
-system; an absent or unwritable one, and `YCODE_FRAME_RECORD_MEMORY=0`,
-use `DEV/data/tmp/ycode-memory` on the data volume). It holds the frame
-record (`ycode-framebuffer.state`, whose guest path the framebuffer library
-gets in `YCODE_FRAMEBUFFER_STATE`) and, with `YCODE_DISPLAY_TIMING=1`, the
+current run chose), host directory `/dev/shm/swiftcode-<uid>-<16 hex digits of
+the device's UDID>` (`SWIFTCODE_MEMORY_DIR=<dir>` picks another memory file
+system; an absent or unwritable one, and `SWIFTCODE_FRAME_RECORD_MEMORY=0`,
+use `DEV/data/tmp/swiftcode-memory` on the data volume). It holds the frame
+record (`swiftcode-framebuffer.state`, whose guest path the framebuffer library
+gets in `SWIFTCODE_FRAMEBUFFER_STATE`) and, with `SWIFTCODE_DISPLAY_TIMING=1`, the
 three timing files of `display-stream.md` §10. The display server,
 screenshots and the frame profile read the host path.
 
@@ -320,8 +320,8 @@ screenshots and the frame profile read the host path.
 |---|---|
 | cold boot | created (mode 0700) and emptied |
 | while the device runs, timing on | a symbolic link of each timing file's name in `DEV/data/tmp` points into it (the analysis tools read them there) |
-| snapshot (warm-boot save), all guest threads parked | its files are copied, with their modification times, to `DEV/ycode-memory.saved` (written as `.partial`, then renamed) |
-| restore | emptied, then refilled from `DEV/ycode-memory.saved` before any guest thread runs (the snapshot reopens the frame record by guest path, and the times match the snapshot's records) |
+| snapshot (warm-boot save), all guest threads parked | its files are copied, with their modification times, to `DEV/swiftcode-memory.saved` (written as `.partial`, then renamed) |
+| restore | emptied, then refilled from `DEV/swiftcode-memory.saved` before any guest thread runs (the snapshot reopens the frame record by guest path, and the times match the snapshot's records) |
 | the run's end | the timing files are copied to `DEV/data/tmp`; the directory is removed (not the data-volume fallback) |
 | any start | `.owner` (the process id; never saved) is written; this user's other memory directories whose `.owner` names no live process, or that have none and are over a day old, are removed (runs that were killed, e.g. by a benchmark's SIGTERM without a save, and tests) |
 
@@ -342,7 +342,7 @@ locked path's checks pass, and the change is one compare-and-swap, `or`,
 `and` or load. Each image reaches its record's word through a small leaf
 lock set when the record takes the image. Every other target, call or
 flavor (including an invalid flavor's `EINVAL`) stays on the locked path,
-which changes the same word. Switch: `YCODE_DIRTY_FAST=0`. The frame
+which changes the same word. Switch: `SWIFTCODE_DIRTY_FAST=0`. The frame
 profile's summary line `BSD fast paths: … proc_info dirty control without
 L0: N` counts them. Test `BSDFastPathTests.dirtyControlOfItself`.
 
@@ -353,7 +353,7 @@ decoded it into a second array, and on resume encoded and wrote a third.
 It now decodes from, and encodes into, the guest page directly (one slot
 lookup each way; the lookup is repeated on resume because the handler may
 have changed the VM's memory slots). The bytes written are the same
-(`TrapFramePointerTests`). Switch: `YCODE_TRAP_FRAME_COPY=1` restores the
+(`TrapFramePointerTests`). Switch: `SWIFTCODE_TRAP_FRAME_COPY=1` restores the
 copies.
 
 ### 8.4 Measurements (Thor, paired, load average under 4 at each start)
@@ -398,7 +398,7 @@ control; FPS-2 served 38,800–79,900 per session without L0.)
    direction only.
 
 Change 8.3 alone (one device home, FPS-2's build, arms differ only in
-`YCODE_TRAP_FRAME_COPY=1`; four rounds, load 2.6–4.3 at the probe): VMM
+`SWIFTCODE_TRAP_FRAME_COPY=1`; four rounds, load 2.6–4.3 at the probe): VMM
 time per exit 10.95 / 11.06 / 10.26 / 11.49 µs in place against 11.22 /
 11.10 / 11.52 / 11.80 µs with the copies, lower in all four rounds (by
 0.04–1.26 µs, about 3 % on average). Nothing else in the session moved
@@ -435,10 +435,10 @@ each step (sessions `X1`), from the home page and from the Today view, the
 drag from (400, 350) left the screen byte-identical, while drags from
 (300, 500) and (300, 120) moved the page (the latter back from Today to
 the home page). Whether the reference also ignores a page drag that
-starts on a dock icon is a question for the reference (Q1 below); Ycode's
+starts on a dock icon is a question for the reference (Q1 below); SwiftCode's
 input path delivers such a drag like any other (`HIDInputBridge`, no edge
 mark that far from an edge). Consequences for measurements:
-- the "input → first frame" of `ycode-display-probe` charges such an input
+- the "input → first frame" of `swiftcode-display-probe` charges such an input
   with the time to the next input's frame (1.08–1.56 s in these sessions:
   the next drag 1.05 s later); this is the 1.5–2.9 s "Today stall" of item
   5 and FPS-GPU's R4 outlier, not a slow frame;
@@ -464,9 +464,9 @@ each start, slots 2–4 held:
 | bc29655 (before it) | 75, 70 |
 | 391af58 (FPS-GPU's base, its own build and GPU cache) | 75, 70, 75, 80 |
 | 786aef0 with 391af58's GPU cache | 120, 110 |
-| 786aef0, `YCODE_CACHE_IMAGE_FILES=0` | 125, 130 |
-| 786aef0, `YCODE_LAZY_ANON_MB=0` | 110, 110 |
-| 786aef0, the copy's `ycode-device-path` set to its own path before the boot | 75, 70 |
+| 786aef0, `SWIFTCODE_CACHE_IMAGE_FILES=0` | 125, 130 |
+| 786aef0, `SWIFTCODE_LAZY_ANON_MB=0` | 110, 110 |
+| 786aef0, the copy's `swiftcode-device-path` set to its own path before the boot | 75, 70 |
 | 786aef0, the same harness without that (paired) | 120, 125 |
 
 FPS-2 does not change cold boot. The main line's 110–125 s against the
@@ -485,7 +485,7 @@ was first booted at, and the VMM serves that path from the copy
 (`app-launch.md` §3.3), so a copy's stores stay valid and nothing is
 rebuilt. Idle-host boots of the same harness, a RAM copy of the pristine
 device per boot (5 s frame resolution), each started with no other
-ycode-simd and load under 4 while holding the machine (`timed.sh`; the last
+swiftcode-simd and load under 4 while holding the machine (`timed.sh`; the last
 seven in one held series, which took boot slot 1 itself):
 
 | Tree | Rule at the boot | home_s |
@@ -510,15 +510,15 @@ written under the original's directory.
 ## 9. Boot windows and critical paths across process starts (2026-10-23, agent BOOT-CP)
 
 Used by `boot-profile.md` §8. With the variables unset nothing changes;
-with `YCODE_FRAME_PROFILE` set and no window open, the new events cost what
+with `SWIFTCODE_FRAME_PROFILE` set and no window open, the new events cost what
 the old ones do (one load and a nil check).
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `YCODE_FRAME_PROFILE_BOOT` | unset | open window 1 before the root process is spawned, for at most this many seconds (≤ 900) |
-| `YCODE_FRAME_PROFILE_BOOT_TAIL` | 3 | close the boot window this many seconds after the home screen is first seen |
-| `YCODE_FRAME_PROFILE_SCHED_MS` | 200 | while a window is open, sample every vCPU host thread's scheduler counters this often (0: off) |
-| `YCODE_HOME_WATCH` | unset | `1`: log the first home-screen frame (no trace; works without `YCODE_FRAME_PROFILE`) |
+| `SWIFTCODE_FRAME_PROFILE_BOOT` | unset | open window 1 before the root process is spawned, for at most this many seconds (≤ 900) |
+| `SWIFTCODE_FRAME_PROFILE_BOOT_TAIL` | 3 | close the boot window this many seconds after the home screen is first seen |
+| `SWIFTCODE_FRAME_PROFILE_SCHED_MS` | 200 | while a window is open, sample every vCPU host thread's scheduler counters this often (0: off) |
+| `SWIFTCODE_HOME_WATCH` | unset | `1`: log the first home-screen frame (no trace; works without `SWIFTCODE_FRAME_PROFILE`) |
 
 Event kinds added to §1's list (same 32-byte record):
 
@@ -545,7 +545,7 @@ every image launched in the window (an exec gives a pid a new program) and
 named when they are first seen (a service thread may have ended by the
 window's end).
 
-Analysis (`scripts/ycode-frame-profile`; the options are listed in its
+Analysis (`scripts/swiftcode-frame-profile`; the options are listed in its
 header): `--boot`, `--launch P`, `--backbone P:main`, `--thread P[:kind]`
 with `--long-ms`, `--anchor P`, `--edges N`, `--stop-at S`. Rules of the
 walk beyond §2 item 7: a wait woken by the thread itself (a deferred wakeup
@@ -565,21 +565,21 @@ Tools:
 
 | Tool | What it does |
 |---|---|
-| `scripts/ycode-vision-motion <run> <experiment> [key=value…]` | drives a running device over its display socket for three phases (before, drive, after) and writes `marks.txt` (phase names, CLOCK_MONOTONIC ns, the clock of both traces): poses, gaze selections or `vision pose` commands at a given rate; `fp=1` opens a frame-profile window over the phases |
-| `scripts/ycode-gpu-phases <dir>` | per phase of `marks.txt`, from `YCODE_METAL_TRACE` with `YCODE_METAL_TRACE_SEGMENTS=1`: presents and pictures per second with interval percentiles, GPU busy (union of begin..end), GPU ms per present by pass, the host stages |
-| `YCODE_IOSURFACE_STATS=<s>` | a log line per interval: IOSurface requests per client and method, with their service time |
+| `scripts/swiftcode-vision-motion <run> <experiment> [key=value…]` | drives a running device over its display socket for three phases (before, drive, after) and writes `marks.txt` (phase names, CLOCK_MONOTONIC ns, the clock of both traces): poses, gaze selections or `vision pose` commands at a given rate; `fp=1` opens a frame-profile window over the phases |
+| `scripts/swiftcode-gpu-phases <dir>` | per phase of `marks.txt`, from `SWIFTCODE_METAL_TRACE` with `SWIFTCODE_METAL_TRACE_SEGMENTS=1`: presents and pictures per second with interval percentiles, GPU busy (union of begin..end), GPU ms per present by pass, the host stages |
+| `SWIFTCODE_IOSURFACE_STATS=<s>` | a log line per interval: IOSurface requests per client and method, with their service time |
 
 Method: one device left running, experiments of 28 s one after another, 60 s
 or more after the home view; sessions with an alternative setting alternate
 with the default, as the host's load (other agents' devices) changes results
 more than most settings do. Pass costs at several
-display sizes come from `YCODE_VISION_SCREEN=<w>x<h>` (`xr-viewer.md` §4.4).
+display sizes come from `SWIFTCODE_VISION_SCREEN=<w>x<h>` (`xr-viewer.md` §4.4).
 
 **The trace hooks** (`KernelTrace.wake`, `blocking`, `timerFired`,
 `lockWaited`) are installed once, before the root process, and record only
 while a window is open. They used to be set at a window's open and cleared at
 its close, which raced their readers: a closure released while another thread
-retained it. ycode-simd died in `WaitQueue.Waiter.finish` as a window closed,
+retained it. swiftcode-simd died in `WaitQueue.Waiter.finish` as a window closed,
 once in about 50 profiled sessions.
 
 **Tried and removed: host services on the caller's thread.** The guest's RPC
@@ -597,21 +597,21 @@ trips; the numbers are the place to start.
 
 | Claim | Level | Source |
 |---|---|---|
-| The trace, its format and the analysis (§1, §2) | — | Ycode design |
-| Which traps, waits and wakeups make up a frame (§4, §6) | 3 | frame-profile windows of Ycode's simulator on the Thor (black-box observation of the guest programs' traps); runs `r1`–`r3`, `c1`, `c2`, `ab2`, `ab3` |
+| The trace, its format and the analysis (§1, §2) | — | SwiftCode design |
+| Which traps, waits and wakeups make up a frame (§4, §6) | 3 | frame-profile windows of SwiftCode's simulator on the Thor (black-box observation of the guest programs' traps); runs `r1`–`r3`, `c1`, `c2`, `ab2`, `ab3` |
 | `PROC_INFO_CALL_DIRTYCONTROL` = 8, `mach_msg2` argument packing | 1 | xnu `bsd/sys/proc_info.h`, `osfmk/mach/mach_traps.h` (open source) |
 | KVM runs every VM's MMU notifier on a change of the host mapping it registered; ext4 writes can wait for a journal commit | 1 | Linux KVM and ext4 documentation and source |
-| The shared arena, BSD fast paths, lock split, timer thread (§5) | — | Ycode design (`boot-profile.md`, `bsd-locking.md`, `mach-ipc-locking.md`) |
-| The memory directory, dirty-control fast path, in-place trap frame (§8.1–§8.3) | — | Ycode design |
-| `PROC_INFO_CALL_DIRTYCONTROL` flavors 1–4 (track, set, get, clear) and their checks | — | as Ycode's locked path, `processes.md` §2.11 (its evidence there) |
-| Frame-record write stalls, dirty-control latency, VMM time per exit, first-present latencies (§8.4) | 3 | paired sessions `ide-remote/fps2{,-base}/out/R1–R4`, `T1–T4` (Ycode's simulator on the Thor) |
-| Boot windows, event formats and walk rules (§9) | — | Ycode design |
-| Tools, hooks and the inline experiment (§10) | — / 3 | Ycode design; sessions `ide-remote/vision-fps/runs/s1`–`s13` (Ycode's simulator on the Thor) |
-| Cold boot times and the relocated-device rebuild (§8.6) | 3 | `bench.sh` boots of the trees named there, `SX/FPS2*/runs/` (Ycode's simulator on the Thor) |
-| Cold boots with the guest path, the baseline and the rebuild cases, keeping the system-only store (§8.6) | 3 | harness boots `SX/IDE/runs/bench-ls-base-*`, `bench-ls-e1-*`, `SX/BENCHLS/runs/t1`–`t4`, `reloc-t1`, functional runs `func-settings-1`, `func-safari-2`, `func-reloc-safari-2` (Ycode's simulator on the Thor, 2026-10-23/24) |
-| Drags from the dock do not move the page in Ycode; poster CPU after boots and restores (§8.5) | 3 | sessions `X1`–`X3` with screenshots (Ycode's simulator) |
-| Recording, GPU and feedback-copy costs of the render server after GPU-2 (§7 item 2) | 3 | timed A/B series `ide-remote/gpu2/out/R1a`–`R3c`, `S1a`–`S3c` (Ycode's simulator on the Thor, frame trace with GPU segments); method in `stage8-contract.md` §15.7 |
-| GPU completion wait and bytes per present after FPS-GPU (§7 item 2) | 3 | paired frame-profile sessions `ide-remote/fpsgpu{,-base}/out/R1–R4` (Ycode's simulator on the Thor); method in `stage8-contract.md` §14.5 |
+| The shared arena, BSD fast paths, lock split, timer thread (§5) | — | SwiftCode design (`boot-profile.md`, `bsd-locking.md`, `mach-ipc-locking.md`) |
+| The memory directory, dirty-control fast path, in-place trap frame (§8.1–§8.3) | — | SwiftCode design |
+| `PROC_INFO_CALL_DIRTYCONTROL` flavors 1–4 (track, set, get, clear) and their checks | — | as SwiftCode's locked path, `processes.md` §2.11 (its evidence there) |
+| Frame-record write stalls, dirty-control latency, VMM time per exit, first-present latencies (§8.4) | 3 | paired sessions `ide-remote/fps2{,-base}/out/R1–R4`, `T1–T4` (SwiftCode's simulator on the Thor) |
+| Boot windows, event formats and walk rules (§9) | — | SwiftCode design |
+| Tools, hooks and the inline experiment (§10) | — / 3 | SwiftCode design; sessions `ide-remote/vision-fps/runs/s1`–`s13` (SwiftCode's simulator on the Thor) |
+| Cold boot times and the relocated-device rebuild (§8.6) | 3 | `bench.sh` boots of the trees named there, `SX/FPS2*/runs/` (SwiftCode's simulator on the Thor) |
+| Cold boots with the guest path, the baseline and the rebuild cases, keeping the system-only store (§8.6) | 3 | harness boots `SX/IDE/runs/bench-ls-base-*`, `bench-ls-e1-*`, `SX/BENCHLS/runs/t1`–`t4`, `reloc-t1`, functional runs `func-settings-1`, `func-safari-2`, `func-reloc-safari-2` (SwiftCode's simulator on the Thor, 2026-10-23/24) |
+| Drags from the dock do not move the page in SwiftCode; poster CPU after boots and restores (§8.5) | 3 | sessions `X1`–`X3` with screenshots (SwiftCode's simulator) |
+| Recording, GPU and feedback-copy costs of the render server after GPU-2 (§7 item 2) | 3 | timed A/B series `ide-remote/gpu2/out/R1a`–`R3c`, `S1a`–`S3c` (SwiftCode's simulator on the Thor, frame trace with GPU segments); method in `stage8-contract.md` §15.7 |
+| GPU completion wait and bytes per present after FPS-GPU (§7 item 2) | 3 | paired frame-profile sessions `ide-remote/fpsgpu{,-base}/out/R1–R4` (SwiftCode's simulator on the Thor); method in `stage8-contract.md` §14.5 |
 
 No Apple binary, Apple source other than the open-source xnu headers
 named above, or `research/` material was used (levels 2, 4 and 5 not

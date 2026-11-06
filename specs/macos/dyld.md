@@ -1,19 +1,19 @@
-# Spec: Ycode's dynamic linker for macOS processes
+# Spec: SwiftCode's dynamic linker for macOS processes
 
-Status: **implemented for Milestone A** (`ycode/MacUserland/dyld/`).
-Ycode design, clean room. Sources: the public Mach-O format headers
+Status: **implemented for Milestone A** (`swiftcode/MacUserland/dyld/`).
+SwiftCode design, clean room. Sources: the public Mach-O format headers
 (`<mach-o/loader.h>`, `<mach-o/fixup-chains.h>`, `<mach-o/nlist.h>`,
 `<dlfcn.h>`), the process contract in
 `specs/simulator/darwin-process-start.md`, and `specs/simulator/host-library-init.md`
 §2.7 (`ProgramVars`). It is not derived from Apple's dyld source.
 
 Context: `specs/macos/macos-apps.md` §3 (execution model) and §5.2 (why
-Ycode has its own dynamic linker: option 2 needs a redistributable one).
+SwiftCode has its own dynamic linker: option 2 needs a redistributable one).
 
 ## 1. Scope
 
-Ycode's dyld ("ydl" in file and symbol names) is the first user code of a
-macOS process under Ycode. It:
+SwiftCode's dyld ("ydl" in file and symbol names) is the first user code of a
+macOS process under SwiftCode. It:
 
 - loads the dependent dylibs of the main executable, recursively;
 - applies their fixups (chained fixups, or the classic rebase and bind
@@ -21,7 +21,7 @@ macOS process under Ycode. It:
 - runs the initializers, libSystem's first;
 - calls `main`, then libSystem's `exit` with its result;
 - serves `dlopen`, `dlsym`, `dladdr` and the image-list queries to
-  Ycode's libSystem through a private table (§7).
+  SwiftCode's libSystem through a private table (§7).
 
 It is deliberately small. It has no shared cache, no closures, no
 interposing and no code-signature checks (§9).
@@ -46,15 +46,15 @@ interposing and no code-signature checks (§9).
 | `dlsym` pseudo-handles | `RTLD_NEXT` −1, `RTLD_DEFAULT` −2, `RTLD_SELF` −3, `RTLD_MAIN_ONLY` −5 |
 
 These are interoperability facts from the public headers (evidence level 1).
-`ycode/MacUserland/common/yc_macho.h` declares them in Ycode's own names.
+`swiftcode/MacUserland/common/yc_macho.h` declares them in SwiftCode's own names.
 
 ## 3. The process contract with the VMM
 
-`ycode-simd --macos` (see `macos-apps.md` §3) builds the process:
+`swiftcode-simd --macos` (see `macos-apps.md` §3) builds the process:
 
 1. Maps the **main executable** at its preferred addresses (no slide), each
    segment with its initial protection; `__PAGEZERO` stays unmapped.
-2. Maps **Ycode's dyld** (`/usr/lib/dyld` in the macOS userland root) at
+2. Maps **SwiftCode's dyld** (`/usr/lib/dyld` in the macOS userland root) at
    the fixed dynamic-linker base the simulator path also uses for its
    loader, sliding it there. The dyld image has **no fixups at all** (the
    build checks it, §10), so the slide needs no processing.
@@ -122,7 +122,7 @@ afterwards read-only again.
   other pointer formats (arm64e and 32-bit) are refused with a clear error.
 - **Classic opcodes.** The rebase stream adds the slide to each pointer;
   the bind and lazy-bind streams bind each location. Lazy binds are done
-  eagerly (Ycode's dyld has no stub binder). Threaded binds (arm64e) are
+  eagerly (SwiftCode's dyld has no stub binder). Threaded binds (arm64e) are
   refused.
 
 ## 6. Symbol resolution
@@ -163,8 +163,8 @@ executable, `&argc`, `&argv`, `&environ`, `&progname`
 ### 7.2 The private table
 
 Before any initializer runs, the dyld stores the address of its interface
-table into libSystem's exported variable `_ycode_dyld_api` (a pointer). The
-table (`ycode/MacUserland/common/yc_dyld_api.h`) is a Ycode-private
+table into libSystem's exported variable `_swiftcode_dyld_api` (a pointer). The
+table (`swiftcode/MacUserland/common/yc_dyld_api.h`) is a SwiftCode-private
 contract, **version 1**; later versions only append members:
 
 | Member | Meaning |
@@ -194,7 +194,7 @@ libSystem it makes the `exit` system call itself.
   format errors name the image.
 - `DYLD_PRINT_LIBRARIES` (non-empty, not `0`) prints each image path as it
   is mapped.
-- `DYLD_PRINT_SEGMENTS` (non-empty, not `0`; Ycode's form) prints each
+- `DYLD_PRINT_SEGMENTS` (non-empty, not `0`; SwiftCode's form) prints each
   library's path with its Mach-header address
   (`dyld[<pid>]: <path> at 0x<address>`), to symbolize crash addresses.
 
@@ -237,4 +237,4 @@ samples (`macos-apps.md` §9.1).
 | §2 format facts | 1 (public `<mach-o/*.h>` and `<dlfcn.h>` headers) |
 | §3 process contract | 1, via `darwin-process-start.md` |
 | `ProgramVars` layout, libSystem-first initializer order | 1, via `host-library-init.md` §1.1 and §2.7 |
-| Everything else (search order details, the private table, errors) | Ycode design |
+| Everything else (search order details, the private table, errors) | SwiftCode design |

@@ -7,70 +7,70 @@ import SwiftUICore
 #endif
 
 // Shared pieces of the round R8 controls (10-plan.md R8; 06 §4; sizes from
-// golden-layout.md): Ycode's default palette, the layouts the measured sizes
+// golden-layout.md): SwiftCode's default palette, the layouts the measured sizes
 // imply, keyboard focus for controls, and the gestures controls use.
 
 // MARK: - Palette
 
 extension Color {
     /// An sRGB colour from 0xRRGGBB and an opacity.
-    init(ycodeHex hex: UInt32, opacity: Double = 1) {
+    init(swiftcodeHex hex: UInt32, opacity: Double = 1) {
         self.init(.sRGB, red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255,
                   blue: Double(hex & 0xFF) / 255, opacity: opacity)
     }
 }
 
-/// Ycode's default control look for light and dark mode (09-open-design.md
+/// SwiftCode's default control look for light and dark mode (09-open-design.md
 /// §4.2). Where 07 §4 records a system colour the spec value is used
 /// (fills, separators, grouped backgrounds, placeholder text); the rest are
-/// Ycode's neutral choices. The accent is the environment's tint.
+/// SwiftCode's neutral choices. The accent is the environment's tint.
 struct ControlPalette {
     let dark: Bool
 
     init(_ scheme: ColorScheme) { dark = scheme == .dark }
 
     /// systemFill (07 §4): bordered buttons, stepper and segmented tracks.
-    var fill: Color { dark ? Color(ycodeHex: 0x787880, opacity: 0x5C / 255) : Color(ycodeHex: 0x787880, opacity: 0x33 / 255) }
-    /// A lighter fill (pressed overlays, slider tracks; Ycode).
-    var subtleFill: Color { dark ? Color(ycodeHex: 0x787880, opacity: 0.32) : Color(ycodeHex: 0x787880, opacity: 0.16) }
+    var fill: Color { dark ? Color(swiftcodeHex: 0x787880, opacity: 0x5C / 255) : Color(swiftcodeHex: 0x787880, opacity: 0x33 / 255) }
+    /// A lighter fill (pressed overlays, slider tracks; SwiftCode).
+    var subtleFill: Color { dark ? Color(swiftcodeHex: 0x787880, opacity: 0.32) : Color(swiftcodeHex: 0x787880, opacity: 0.16) }
     /// separator (07 §4).
-    var separator: Color { dark ? Color(ycodeHex: 0x545458, opacity: 0x80 / 255) : Color(ycodeHex: 0x3C3C43, opacity: 0x1F / 255) }
-    /// A stronger outline for fields and checkboxes (Ycode).
-    var outline: Color { dark ? Color(ycodeHex: 0xEBEBF5, opacity: 0.3) : Color(ycodeHex: 0x3C3C43, opacity: 0.3) }
+    var separator: Color { dark ? Color(swiftcodeHex: 0x545458, opacity: 0x80 / 255) : Color(swiftcodeHex: 0x3C3C43, opacity: 0x1F / 255) }
+    /// A stronger outline for fields and checkboxes (SwiftCode).
+    var outline: Color { dark ? Color(swiftcodeHex: 0xEBEBF5, opacity: 0.3) : Color(swiftcodeHex: 0x3C3C43, opacity: 0.3) }
     /// systemGroupedBackground / secondarySystemGroupedBackground (07 §4).
-    var groupedBackground: Color { dark ? Color(ycodeHex: 0x000000) : Color(ycodeHex: 0xF2F2F7) }
-    var groupedRow: Color { dark ? Color(ycodeHex: 0x1C1C1E) : Color(ycodeHex: 0xFFFFFF) }
-    /// Text fields' and menus' background (Ycode).
-    var fieldBackground: Color { dark ? Color(ycodeHex: 0x1C1C1E) : Color(ycodeHex: 0xFFFFFF) }
-    var menuBackground: Color { dark ? Color(ycodeHex: 0x2C2C2E) : Color(ycodeHex: 0xFFFFFF) }
+    var groupedBackground: Color { dark ? Color(swiftcodeHex: 0x000000) : Color(swiftcodeHex: 0xF2F2F7) }
+    var groupedRow: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xFFFFFF) }
+    /// Text fields' and menus' background (SwiftCode).
+    var fieldBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xFFFFFF) }
+    var menuBackground: Color { dark ? Color(swiftcodeHex: 0x2C2C2E) : Color(swiftcodeHex: 0xFFFFFF) }
     /// placeholderText (07 §4).
-    var placeholder: Color { dark ? Color(ycodeHex: 0xEBEBF5, opacity: 0x4C / 255) : Color(ycodeHex: 0x3C3C43, opacity: 0x4C / 255) }
+    var placeholder: Color { dark ? Color(swiftcodeHex: 0xEBEBF5, opacity: 0x4C / 255) : Color(swiftcodeHex: 0x3C3C43, opacity: 0x4C / 255) }
     /// secondaryLabel (07 §4).
-    var secondaryLabel: Color { dark ? Color(ycodeHex: 0xEBEBF5, opacity: 0x99 / 255) : Color(ycodeHex: 0x3C3C43, opacity: 0x99 / 255) }
-    /// The off track of a switch (Ycode).
-    var switchOff: Color { dark ? Color(ycodeHex: 0x39393D) : Color(ycodeHex: 0xE5E5EA) }
-    /// Thumbs of switches and sliders (Ycode).
-    var thumb: Color { dark ? Color(ycodeHex: 0xF2F2F7) : Color(ycodeHex: 0xFFFFFF) }
-    var thumbBorder: Color { dark ? Color(ycodeHex: 0x000000, opacity: 0.25) : Color(ycodeHex: 0x000000, opacity: 0.12) }
-    /// The raised segment of a segmented picker (Ycode).
-    var segmentSelected: Color { dark ? Color(ycodeHex: 0x636366) : Color(ycodeHex: 0xFFFFFF) }
-    /// Menu rows under the pointer (Ycode).
-    var menuHighlight: Color { dark ? Color(ycodeHex: 0xFFFFFF, opacity: 0.12) : Color(ycodeHex: 0x000000, opacity: 0.07) }
-    /// Scroll indicators (Ycode, R9).
-    var indicator: Color { dark ? Color(ycodeHex: 0xFFFFFF, opacity: 0.45) : Color(ycodeHex: 0x000000, opacity: 0.38) }
-    /// Selected list rows (Ycode, R9): the tint at 22 % / 35 %.
+    var secondaryLabel: Color { dark ? Color(swiftcodeHex: 0xEBEBF5, opacity: 0x99 / 255) : Color(swiftcodeHex: 0x3C3C43, opacity: 0x99 / 255) }
+    /// The off track of a switch (SwiftCode).
+    var switchOff: Color { dark ? Color(swiftcodeHex: 0x39393D) : Color(swiftcodeHex: 0xE5E5EA) }
+    /// Thumbs of switches and sliders (SwiftCode).
+    var thumb: Color { dark ? Color(swiftcodeHex: 0xF2F2F7) : Color(swiftcodeHex: 0xFFFFFF) }
+    var thumbBorder: Color { dark ? Color(swiftcodeHex: 0x000000, opacity: 0.25) : Color(swiftcodeHex: 0x000000, opacity: 0.12) }
+    /// The raised segment of a segmented picker (SwiftCode).
+    var segmentSelected: Color { dark ? Color(swiftcodeHex: 0x636366) : Color(swiftcodeHex: 0xFFFFFF) }
+    /// Menu rows under the pointer (SwiftCode).
+    var menuHighlight: Color { dark ? Color(swiftcodeHex: 0xFFFFFF, opacity: 0.12) : Color(swiftcodeHex: 0x000000, opacity: 0.07) }
+    /// Scroll indicators (SwiftCode, R9).
+    var indicator: Color { dark ? Color(swiftcodeHex: 0xFFFFFF, opacity: 0.45) : Color(swiftcodeHex: 0x000000, opacity: 0.38) }
+    /// Selected list rows (SwiftCode, R9): the tint at 22 % / 35 %.
     var rowSelectionOpacity: Double { dark ? 0.35 : 0.22 }
-    /// The plain list and sidebar backgrounds (systemBackground and Ycode's
+    /// The plain list and sidebar backgrounds (systemBackground and SwiftCode's
     /// sidebar colour).
-    var plainBackground: Color { dark ? Color(ycodeHex: 0x000000) : Color(ycodeHex: 0xFFFFFF) }
-    var sidebarBackground: Color { dark ? Color(ycodeHex: 0x1C1C1E) : Color(ycodeHex: 0xF2F2F7) }
-    /// Navigation and tool bars (Ycode): a translucent bar colour.
-    var barBackground: Color { dark ? Color(ycodeHex: 0x1C1C1E, opacity: 0.94) : Color(ycodeHex: 0xF9F9F9, opacity: 0.94) }
-    /// The dimming layer behind modal presentations (Ycode).
-    var dimming: Color { dark ? Color(ycodeHex: 0x000000, opacity: 0.48) : Color(ycodeHex: 0x000000, opacity: 0.2) }
-    /// Sheets, alerts and popovers (Ycode).
-    var sheetBackground: Color { dark ? Color(ycodeHex: 0x1C1C1E) : Color(ycodeHex: 0xFFFFFF) }
-    var alertBackground: Color { dark ? Color(ycodeHex: 0x2C2C2E) : Color(ycodeHex: 0xF2F2F2) }
+    var plainBackground: Color { dark ? Color(swiftcodeHex: 0x000000) : Color(swiftcodeHex: 0xFFFFFF) }
+    var sidebarBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xF2F2F7) }
+    /// Navigation and tool bars (SwiftCode): a translucent bar colour.
+    var barBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E, opacity: 0.94) : Color(swiftcodeHex: 0xF9F9F9, opacity: 0.94) }
+    /// The dimming layer behind modal presentations (SwiftCode).
+    var dimming: Color { dark ? Color(swiftcodeHex: 0x000000, opacity: 0.48) : Color(swiftcodeHex: 0x000000, opacity: 0.2) }
+    /// Sheets, alerts and popovers (SwiftCode).
+    var sheetBackground: Color { dark ? Color(swiftcodeHex: 0x1C1C1E) : Color(swiftcodeHex: 0xFFFFFF) }
+    var alertBackground: Color { dark ? Color(swiftcodeHex: 0x2C2C2E) : Color(swiftcodeHex: 0xF2F2F2) }
     /// Destructive actions: `Color.red` of 07 §4.
     var destructive: Color { .red }
 }
@@ -343,7 +343,7 @@ extension View {
         modifier(ControlFocusModifier(isFocused: isFocused, onKey: onKey, ref: ref))
     }
 
-    /// Ycode's focus ring: a 2.5 pt tint outline 3 pt outside the control's
+    /// SwiftCode's focus ring: a 2.5 pt tint outline 3 pt outside the control's
     /// shape (09-open-design.md §4.2).
     func focusRing<S: Shape>(_ visible: Bool, _ shape: S) -> some View {
         overlay {

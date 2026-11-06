@@ -100,11 +100,11 @@ func roundTrip(_ from: DBusConnection, _ m: DBusMessage, _ all: [DBusConnection]
     return r
 }
 
-/// A test object: `org.ycode.Test` with Echo, Fail and a Count property.
+/// A test object: `org.swiftcode.Test` with Echo, Fail and a Count property.
 @MainActor
 final class EchoObjects: DBusObjectTree {
     var count: Int32 = 3
-    static let iface = DBusInterfaceDescription("org.ycode.Test", methods: [
+    static let iface = DBusInterfaceDescription("org.swiftcode.Test", methods: [
         .method("Echo", in: ["v"], out: ["v"]), .method("Fail"),
     ], properties: [.init("Count", "i", .readwrite), .init("Name", "s")], signals: [.init("Changed", [.init("s")])])
 
@@ -113,7 +113,7 @@ final class EchoObjects: DBusObjectTree {
     func handle(_ call: DBusMessage) -> DBusCallResult {
         switch (call.member, call.signature) {
         case ("Echo", "v"): return .reply(call.body)
-        case ("Fail", ""): return .error(name: "org.ycode.Test.Error.Failed", message: "asked to fail")
+        case ("Fail", ""): return .error(name: "org.swiftcode.Test.Error.Failed", message: "asked to fail")
         default: return .unknownMethod
         }
     }
@@ -202,39 +202,39 @@ struct DBusLiveTests {
         // Echo a nested AT-SPI-shaped value, and a large one (several reads).
         let item = DBusValue.variant(.structure([.structure([.string(":1.9"), .objectPath("/x")]), .int32(-1),
                                                  .strings(["a", "b"]), .array(.uint32, [.uint32(5), .uint32(0)])]))
-        #expect(try call("Echo", "org.ycode.Test", [item]).body == [item])
+        #expect(try call("Echo", "org.swiftcode.Test", [item]).body == [item])
         let big = DBusValue.variant(.string(String(repeating: "abcdefgh", count: 40_000)))
-        #expect(try call("Echo", "org.ycode.Test", [big]).body == [big])
+        #expect(try call("Echo", "org.swiftcode.Test", [big]).body == [big])
         trace("2 Errors.")
         // Errors.
-        #expect(throws: DBusError.remote(name: "org.ycode.Test.Error.Failed", message: "asked to fail")) {
-            try call("Fail", "org.ycode.Test")
+        #expect(throws: DBusError.remote(name: "org.swiftcode.Test.Error.Failed", message: "asked to fail")) {
+            try call("Fail", "org.swiftcode.Test")
         }
-        #expect(throws: DBusError.self) { try call("Echo", "org.ycode.Test", [item], path: "/nothing") }
-        #expect(throws: DBusError.self) { try call("Nope", "org.ycode.Test") }
+        #expect(throws: DBusError.self) { try call("Echo", "org.swiftcode.Test", [item], path: "/nothing") }
+        #expect(throws: DBusError.self) { try call("Nope", "org.swiftcode.Test") }
         trace("3 Standard interfaces.")
         // Standard interfaces.
         #expect(try call("Ping", "org.freedesktop.DBus.Peer").body.isEmpty)
         let xml = try call("Introspect", "org.freedesktop.DBus.Introspectable").body.first?.stringValue ?? ""
-        #expect(xml.contains("<interface name=\"org.ycode.Test\">") && xml.contains("<arg type=\"v\" direction=\"in\"/>"))
+        #expect(xml.contains("<interface name=\"org.swiftcode.Test\">") && xml.contains("<arg type=\"v\" direction=\"in\"/>"))
         #expect(xml.contains("<property name=\"Count\" type=\"i\" access=\"readwrite\"/>"))
         let root = try call("Introspect", "org.freedesktop.DBus.Introspectable", path: "/").body.first?.stringValue ?? ""
         #expect(root.contains("<node name=\"test\"/>"))
         let props = "org.freedesktop.DBus.Properties"
-        #expect(try call("Get", props, [.string("org.ycode.Test"), .string("Count")]).body == [.variant(.int32(3))])
-        _ = try call("Set", props, [.string("org.ycode.Test"), .string("Count"), .variant(.int32(9))])
+        #expect(try call("Get", props, [.string("org.swiftcode.Test"), .string("Count")]).body == [.variant(.int32(3))])
+        _ = try call("Set", props, [.string("org.swiftcode.Test"), .string("Count"), .variant(.int32(9))])
         #expect(objects.count == 9)
-        let allProps = try call("GetAll", props, [.string("org.ycode.Test")]).body.first?.dictionaryValue
+        let allProps = try call("GetAll", props, [.string("org.swiftcode.Test")]).body.first?.dictionaryValue
         #expect(allProps?["Count"] == .variant(.int32(9)) && allProps?["Name"] == .variant(.string("echo")))
-        #expect(throws: DBusError.self) { try call("Set", props, [.string("org.ycode.Test"), .string("Name"), .variant(.string("x"))]) }
+        #expect(throws: DBusError.self) { try call("Set", props, [.string("org.swiftcode.Test"), .string("Name"), .variant(.string("x"))]) }
         trace("4 Signals: b subscribes, a emits.")
         // Signals: b subscribes, a emits.
         var got: [DBusMessage] = []
-        b.onSignal = { if $0.interface == "org.ycode.Test" { got.append($0) } }
-        try b.addMatch("type='signal',interface='org.ycode.Test'")
+        b.onSignal = { if $0.interface == "org.swiftcode.Test" { got.append($0) } }
+        try b.addMatch("type='signal',interface='org.swiftcode.Test'")
         _ = try roundTrip(b, .methodCall(destination: DBusConnection.busName, path: DBusConnection.busPath,
                                          interface: "org.freedesktop.DBus.Peer", member: "Ping"), all)
-        try a.emit(path: "/test", interface: "org.ycode.Test", member: "Changed", body: [.string("now")])
+        try a.emit(path: "/test", interface: "org.swiftcode.Test", member: "Changed", body: [.string("now")])
         pumpAll(all) { !got.isEmpty }
         #expect(got.first?.body == [.string("now")] && got.first?.sender == a.uniqueName)
         trace("5 A blocking call to the bus itself.")
@@ -319,7 +319,7 @@ struct DBusLiveTests {
         #expect(ext.count == 4 && (ext[2].intValue ?? 0) > 0)
         let xml = try call(fieldPath, "org.freedesktop.DBus.Introspectable", "Introspect").first?.stringValue ?? ""
         #expect(xml.contains("<interface name=\"org.a11y.atspi.Text\">"))
-        #expect(try call(fieldPath, ATSPI.text, "GetText", [.int32(0), .int32(-1)]) == [.string("Ycode")])
+        #expect(try call(fieldPath, ATSPI.text, "GetText", [.int32(0), .int32(-1)]) == [.string("SwiftCode")])
         trace("10 The cache: the root and every object.")
         // The cache: the root and every object.
         let items = try call(ATSPI.cachePath, ATSPI.cache, "GetItems").first?.arrayValue ?? []

@@ -1,6 +1,6 @@
 # Spec: Xcode XML documents (`.xcscheme`, `contents.xcworkspacedata`)
 
-Status: **implemented** in `ycode/Sources/YcodeWorkspace`. 49 of 49
+Status: **implemented** in `swiftcode/Sources/SwiftCodeWorkspace`. 49 of 49
 Xcode-written corpus files round-trip byte for byte. One more corpus file,
 which a tool wrote in compact XML, parses correctly and is rewritten in
 canonical form.
@@ -22,7 +22,7 @@ canonical form.
 - An element without attributes is written as `<Name>` on one line.
 - **Every element has an explicit end tag** on its own line. Xcode never
   writes self-closing tags.
-- Attribute order is significant and Ycode preserves it. Xcode writes a fixed
+- Attribute order is significant and SwiftCode preserves it. Xcode writes a fixed
   per-element order. It is not alphabetical.
 - Attribute escaping: `&amp; &lt; &gt; &quot;`, and newline as `&#10;`. Tab
   is written as `&#9;` and CR as `&#13;`; these two are not yet confirmed
@@ -79,13 +79,13 @@ can appear in this order: `BuildAction`, `TestAction`, `LaunchAction`,
   - auto-generated schemes for local Swift packages (one per product or
     target, as the corpus shows). *Not yet implemented. Needs the package
     graph (M3).*
-  On 10 corpus projects, Ycode matches `xcodebuild -list` exactly for 6. The
+  On 10 corpus projects, SwiftCode matches `xcodebuild -list` exactly for 6. The
   other 4 differ only by local-package schemes.
 
 ## Open questions
 
 - The exact attribute set and order of the schemes that Xcode autocreates.
-  Ycode currently writes a minimal set.
+  SwiftCode currently writes a minimal set.
 - The ordering and visibility state in `xcschememanagement.plist`.
 
 ## Evidence

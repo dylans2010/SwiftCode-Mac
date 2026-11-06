@@ -17,7 +17,7 @@ import SwiftUICore
 // full-screen cover fills the window with the content in its safe area and
 // has the sheet's dismissal order; a popover is sized to its content.
 //
-// Design (Ycode's): sheets, covers, alerts and dialogs are layers of their
+// Design (SwiftCode's): sheets, covers, alerts and dialogs are layers of their
 // window (a presentation layer above the window's content and below its
 // pop-up overlays) with a dimming layer that takes every press, so the
 // content below is modal; Tab stays inside the innermost presentation.
@@ -684,7 +684,7 @@ extension PopoverModifier: GraphInputComparable {
     nonisolated func _isGraphInputEqual(to other: Any) -> Bool { false }
 }
 
-/// A popover's frame (Ycode): the sheet colour, a hairline, 12-point padding.
+/// A popover's frame (SwiftCode): the sheet colour, a hairline, 12-point padding.
 struct PopoverChrome: View {
     let content: AnyView
     @Environment(\.colorScheme) private var scheme

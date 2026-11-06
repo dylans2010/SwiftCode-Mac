@@ -1,21 +1,21 @@
-# ycodebuild conformance harness and results
+# swiftcodebuild conformance harness and results
 
-Script: `ycode/scripts/xcodebuild-conformance.py` (run with `python3 -I`).
-It runs `xcodebuild` and `ycodebuild` with the same arguments in the same
+Script: `swiftcode/scripts/xcodebuild-conformance.py` (run with `python3 -I`).
+It runs `xcodebuild` and `swiftcodebuild` with the same arguments in the same
 directory and compares stdout, stderr and exit status. Reference results
-are cached (default `ycode/.build-xcb-scratch/conformance/`, git-ignored),
-so later runs execute only ycodebuild; `--refresh` re-runs the reference.
+are cached (default `swiftcode/.build-xcb-scratch/conformance/`, git-ignored),
+so later runs execute only swiftcodebuild; `--refresh` re-runs the reference.
 Only read-only commands run against corpus projects (nothing is built in
 them and no DerivedData is written).
 
-Inputs: `YCODE_PBXPROJ_CORPUS` (manifest, one `= path` or `~ path` per
-line, as for the project-I/O corpus tests), `YCODE_SWB` (the helper).
+Inputs: `SWIFTCODE_PBXPROJ_CORPUS` (manifest, one `= path` or `~ path` per
+line, as for the project-I/O corpus tests), `SWIFTCODE_SWB` (the helper).
 Projects inside an application bundle are skipped: the clean-room rules
 forbid opening the reference application.
 
 Normalization: the tool path in the "Command line invocation" header;
 stderr lines from the reference tool's own logging (time-stamped
-`xcodebuild[pid]` lines) and ycodebuild's own `ycodebuild: warning:` lines.
+`xcodebuild[pid]` lines) and swiftcodebuild's own `swiftcodebuild: warning:` lines.
 Settings comparisons skip `PATH` (its first element names the build
 service's location). Error cases compare the first `xcodebuild: error:`
 line and the exit status.
@@ -51,8 +51,8 @@ equal, 0 different, 0 missing, 0 extra names.
 
 `-list` output is compared with the resolved-package lines as an
 unordered block (their order is not fixed in the reference tool,
-`info-commands.md` §2.3). The harness points ycodebuild at the built
-`ycode-swb` helper when `YCODE_SWB` is not set (without it ycodebuild
+`info-commands.md` §2.3). The harness points swiftcodebuild at the built
+`swiftcode-swb` helper when `SWIFTCODE_SWB` is not set (without it swiftcodebuild
 shows only project-defined settings).
 
 Not covered by the corpus cases (machine-dependent or writes files):
@@ -77,7 +77,7 @@ one copy for each tool, each with its own DerivedData, result bundles and
 archives (the reference tool's copy in the system temporary directory: its
 test runner cannot load bundles from some external volumes). Corpus
 projects are never built. Reference observations are cached in
-`builds-reference.json`, ycodebuild's in `builds-ycodebuild.json`;
+`builds-reference.json`, swiftcodebuild's in `builds-swiftcodebuild.json`;
 `--refresh --only <kind>` re-runs one kind (export cases need
 `archive-app` in the same run). Neither tool writes outside the work
 directories: cases without `-derivedDataPath` get
@@ -131,11 +131,11 @@ identical.**
 Target-level warnings of targets built in parallel (`test-quiet`), whose
 order varies from run to run in both tools, are compared as a multiset.
 
-Build-log section headers: in every case each header ycodebuild prints
+Build-log section headers: in every case each header swiftcodebuild prints
 also appears in the reference log. The reference logs have 2 more in each
 project build (`ComputePackagePrebuildTargetDependencyGraph`, `Prepare
 packages`), and the app archive 4 more (the reference signs the archived
-app with an empty entitlements file). `YcodeXcodebuildTests` covers the
+app with an empty entitlements file). `SwiftCodeXcodebuildTests` covers the
 same paths without the reference tool.
 
 ## Evidence

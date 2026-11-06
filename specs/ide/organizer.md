@@ -1,7 +1,7 @@
 # Organizer and Product ▸ Archive
 
-Ycode modules: `YcodeUI` (`Organizer`, `OrganizerController`), using
-`YcodeXcodebuild` read-only through its public `Xcodebuild.run` (no API
+SwiftCode modules: `SwiftCodeUI` (`Organizer`, `OrganizerController`), using
+`SwiftCodeXcodebuild` read-only through its public `Xcodebuild.run` (no API
 changes).
 
 ## Archives
@@ -27,17 +27,17 @@ changes).
 
 ## Distribute App
 
-Enabled for archives with an application. Ycode offers one method, Copy
+Enabled for archives with an application. SwiftCode offers one method, Copy
 App (`mac-application`): a folder is chosen, an options plist
 `{method = mac-application}` is written to a temporary file, and
-ycodebuild's `-exportArchive -archivePath … -exportPath … -exportOptionsPlist …`
+swiftcodebuild's `-exportArchive -archivePath … -exportPath … -exportOptionsPlist …`
 runs in-process; its output and exit status are kept. The result is the
 application copied as `<exportPath>/<App>.app`
 (`specs/xcodebuild/archive.md` §4).
 
 ## Product ▸ Archive
 
-For a project or workspace with a scheme: runs ycodebuild's
+For a project or workspace with a scheme: runs swiftcodebuild's
 `-project|-workspace <path> -scheme <scheme> archive` in-process (default
 archive path), then opens the Organizer and selects the archive that
 appeared. A failure (non-zero exit) becomes "Archive failed: <last output

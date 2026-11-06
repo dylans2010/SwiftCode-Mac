@@ -47,7 +47,7 @@ struct HistoryTests {
         let t = TestStore()
         let token = t.store.currentHistoryToken
         let authored = (1...3).map { person("Authored\($0)", "Example") }
-        try save(t.store, author: "ycode-probe") { r in authored.forEach { r.add($0, toContainerWithIdentifier: nil) } }
+        try save(t.store, author: "swiftcode-probe") { r in authored.forEach { r.add($0, toContainerWithIdentifier: nil) } }
         for i in 1...5 { try save(t.store) { $0.add(person("Plain\(i)", "Example"), toContainerWithIdentifier: nil) } }
         // A later update of an added contact keeps a single add event.
         authored[0].givenName = "Authored1-Renamed"
@@ -58,7 +58,7 @@ struct HistoryTests {
         let first = try #require(all.first as? CNChangeHistoryAddContactEvent)
         #expect(first.contact.givenName == "Authored1-Renamed")
         #expect(first.containerIdentifier == localContainerIdentifier)
-        let excluded = try history(t.store, from: token, excluding: ["ycode-probe"])
+        let excluded = try history(t.store, from: token, excluding: ["swiftcode-probe"])
         // The update of authored[0] was not authored, so it shows as an update.
         #expect(excluded.filter { $0 is CNChangeHistoryAddContactEvent }.count == 5)
         #expect(excluded.filter { $0 is CNChangeHistoryUpdateContactEvent }.count == 1)

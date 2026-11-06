@@ -112,7 +112,7 @@ struct ContactData: Equatable {
 }
 
 /// Process-wide settings that are not tied to a store.
-public enum YcodeContactsEnvironment {
+public enum SwiftCodeContactsEnvironment {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var _notes = false
 
@@ -137,7 +137,7 @@ func newGroupIdentifier() -> String { UUID().uuidString + ":ABGroup" }
 /// Keys available on a contact created by the app: everything, except the
 /// note without the notes entitlement (interface.md §2.2).
 func keysForNewContact() -> Set<String> {
-    YcodeContactsEnvironment.notesEntitlement ? allContactKeys : allContactKeys.subtracting([CNContactNoteKey])
+    SwiftCodeContactsEnvironment.notesEntitlement ? allContactKeys : allContactKeys.subtracting([CNContactNoteKey])
 }
 
 public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @unchecked Sendable {
@@ -239,7 +239,7 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
         CNAggregateKeyDescriptor(kind: "Comparator keys", keys: comparatorKeys)
     }
 
-    /// Ycode treats every contact as its own unified contact; the answer is
+    /// SwiftCode treats every contact as its own unified contact; the answer is
     /// NO even for the contact's own identifier (interface.md §4.4).
     public func isUnifiedWithContact(withIdentifier contactIdentifier: String) -> Bool { false }
 
@@ -277,7 +277,7 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
     // MARK: Key-value access
 
     /// The value of a property by key; raises when the key was not fetched.
-    func ycodeValue(forKey key: String) -> Any? {
+    func swiftcodeValue(forKey key: String) -> Any? {
         if key == CNContactIdentifierKey { return identifier }
         guard available.contains(key) else {
             CNException.notFetched().raise()
@@ -287,9 +287,9 @@ public class CNContact: NSObject, NSCopying, NSMutableCopying, Identifiable, @un
     }
 
     #if canImport(ObjectiveC)
-    public override func value(forKey key: String) -> Any? { ycodeValue(forKey: key) }
+    public override func value(forKey key: String) -> Any? { swiftcodeValue(forKey: key) }
     #else
-    public func value(forKey key: String) -> Any? { ycodeValue(forKey: key) }
+    public func value(forKey key: String) -> Any? { swiftcodeValue(forKey: key) }
     #endif
 }
 
@@ -411,7 +411,7 @@ public final class CNMutableContact: CNContact, @unchecked Sendable {
     /// Sets a property by key. A multi-valued property only takes labeled
     /// values of its class; anything else raises
     /// `CNPropertyInvalidTypeException` (interface.md §2.4, errors.md §3).
-    func ycodeSetValue(_ value: Any?, forKey key: String) {
+    func swiftcodeSetValue(_ value: Any?, forKey key: String) {
         func labeled<V>(_ type: V.Type, _ expected: String) -> [CNLabeledValue<V>]? {
             guard let items = value as? [Any] else {
                 if value == nil { return [] }
@@ -482,13 +482,13 @@ public final class CNMutableContact: CNContact, @unchecked Sendable {
     }
 
     #if canImport(ObjectiveC)
-    public override func setValue(_ value: Any?, forKey key: String) { ycodeSetValue(value, forKey: key) }
+    public override func setValue(_ value: Any?, forKey key: String) { swiftcodeSetValue(value, forKey: key) }
     #else
-    public func setValue(_ value: Any?, forKey key: String) { ycodeSetValue(value, forKey: key) }
+    public func setValue(_ value: Any?, forKey key: String) { swiftcodeSetValue(value, forKey: key) }
     #endif
 }
 
-/// The stored thumbnail (interface.md §2.5). Ycode does not decode images;
+/// The stored thumbnail (interface.md §2.5). SwiftCode does not decode images;
 /// the thumbnail is the image data itself (deviation, see README).
 enum Thumbnail {
     static func make(_ image: Data) -> Data { image }

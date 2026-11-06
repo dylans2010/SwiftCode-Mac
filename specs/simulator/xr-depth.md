@@ -3,9 +3,9 @@
 Status: **implemented** (agent XR-DEPTH, 2026-11-01; the surround by default,
 the camera hold and sweep, the cube's frame and probe: XR-DEPTH-2,
 2026-11-02). Measurements in §8.
-Ycode-original design. It extends the headset viewer (`xr-viewer.md`) and
+@@SWIFTCODE_ORIGINAL@@ design. It extends the headset viewer (`xr-viewer.md`) and
 the display stream (`display-stream.md` §19) so that the x86 viewer can
-re-project the newest picture of Ycode's visionOS simulator to the current
+re-project the newest picture of SwiftCode's visionOS simulator to the current
 head pose every headset frame (90 Hz), make both eyes from one view, and
 fill everything around the guest's 90° view. It follows public
 specifications only: the Vulkan 1.3 specification (cube-map face
@@ -14,18 +14,18 @@ specification (`XR_KHR_composition_layer_depth`), RFC 1950 (zlib), and the
 GLSL 4.50 specification with the `GL_EXT_*` extensions named in the
 shaders; the shaders are compiled by glslc (shaderc, Apache-2.0) once and
 committed as SPIR-V words. Nothing of Apple's is read: the depth comes from
-Ycode's own replay of the guest's Metal work (attachments, sizes, formats,
+SwiftCode's own replay of the guest's Metal work (attachments, sizes, formats,
 sample counts, clear values), never from the guest's shaders.
 
-Code: `Sources/YcodeVulkan/VulkanDepthTap.swift` and `shaders/depth_tap.comp`
-(the Thor's tap), `Sources/ycode-simd/DisplayXRDepth.swift` (the messages),
-`Sources/YcodeDisplayStream/XRDepth.swift` (message types),
-`Sources/YcodeXRReprojection` (codec, geometry, CPU reference, GPU
-wrapper, the environment's calibration), `Sources/CYcodeXRReprojection` and
+Code: `Sources/SwiftCodeVulkan/VulkanDepthTap.swift` and `shaders/depth_tap.comp`
+(the Thor's tap), `Sources/swiftcode-simd/DisplayXRDepth.swift` (the messages),
+`Sources/SwiftCodeDisplayStream/XRDepth.swift` (message types),
+`Sources/SwiftCodeXRReprojection` (codec, geometry, CPU reference, GPU
+wrapper, the environment's calibration), `Sources/CSwiftCodeXRReprojection` and
 `shaders/reproject.{vert,frag}` (the GPU path),
-`Sources/YcodeDisplayStream/XRCamera.swift` (camera hold and sweep),
-`Sources/YcodeXRViewer/XRDepthView.swift` (the viewer's use), `scripts/xr-depth-shaders.sh` (SPIR-V regeneration). Tests:
-`Tests/YcodeXRReprojectionTests`.
+`Sources/SwiftCodeDisplayStream/XRCamera.swift` (camera hold and sweep),
+`Sources/SwiftCodeXRViewer/XRDepthView.swift` (the viewer's use), `scripts/xr-depth-shaders.sh` (SPIR-V regeneration). Tests:
+`Tests/SwiftCodeXRReprojectionTests`.
 
 ## 1. Why
 
@@ -46,7 +46,7 @@ h/w), reverse-Z with an infinite far plane and near 0.1 m. Its depth
 buffer therefore holds **d = near / z** (z the view distance along −Z):
 1 at the near plane, 0 at infinity. This is inverse depth, which is what a
 re-projection needs: a point's parallax under a sideways step b is b · d /
-near in tangent units, linear in d. Ycode carries depth as this value,
+near in tangent units, linear in d. SwiftCode carries depth as this value,
 quantised to 16 bits (q = round(d · 65535), q = 0: nothing drawn). The
 resolution at distance z is z² / (near · 65535): 0.15 mm at 1 m, 3.8 mm at
 5 m, 15 mm at 10 m.
@@ -55,7 +55,7 @@ resolution at distance z is z² / (near · 65535): 0.15 mm at 1 m, 3.8 mm at
 
 ### 3.1 Which depth
 
-Ycode's frame maps (`visionos.md` §10.12.4, §10.20.1, §10.24.1) give a
+SwiftCode's frame maps (`visionos.md` §10.12.4, §10.20.1, §10.24.1) give a
 steady frame of backboardd: the room drawn into backboardd's own 3840 ×
 2160 `BGRA8Unorm_sRGB` target with a `Depth32Float` depth attachment; the
 windows (the home view, app windows, their glass) drawn in a 4× pass
@@ -78,7 +78,7 @@ a depth attachment at level 0 and at least one command is a candidate:
 home icon's name is almost wholly transparent, and with its depth the wall
 and television behind it rode along at the icon's 1.2 m. The merge counts a
 texel only when the pass's resolved colour has alpha ≥ 0.25
-(`YCODE_XR_DEPTH_ALPHA`; 0: every texel, as before). The windows pass's
+(`SWIFTCODE_XR_DEPTH_ALPHA`; 0: every texel, as before). The windows pass's
 colour and depth must have one size, or every texel counts.
 
 **A sample says whose it is.** Its low bit is 1 for the windows layer and 0
@@ -93,7 +93,7 @@ A pass that clears depth to a value above 0.5 is treated as standard Z
 ### 3.2 The copy
 
 At the end of a candidate pass the backend records, in the same command
-buffer and with a full memory barrier, one compute dispatch of Ycode's own
+buffer and with a full memory barrier, one compute dispatch of SwiftCode's own
 shader (`depth_tap.comp`) on the backend's bindless heap: the tap makes
 its own sampled view of the depth image (depth aspect, a 2D or 2D
 multisample view, sample 0) in a heap slot of its own, and the shader
@@ -127,7 +127,7 @@ wants the environment, the top level (256² per face; 128² until XR-QUALITY) is
 a host buffer at the end of a command buffer every 2 s; when its content
 hash changes (a new room), the server sends it.
 
-**Its frame and where it was taken** (measured 2026-11-02, §8.3; Ycode's
+**Its frame and where it was taken** (measured 2026-11-02, §8.3; SwiftCode's
 own fit of the cube against the guest's pictures and their depth, no
 look at the guest's code). The cube is a panorama of the room in a
 left-handed frame: the stage direction (x, y, z) is the cube direction
@@ -137,7 +137,7 @@ living room 1.6 m ahead of the default eye point and 0.2 m above it. Its
 values are linear light at about 1 / 0.62 of the picture's (§8.3). The
 server sends the faces as the guest holds them; the viewer mirrors.
 
-Diagnostics: `YCODE_XR_DEPTH_LOG=1` logs the first 40 candidate passes
+Diagnostics: `SWIFTCODE_XR_DEPTH_LOG=1` logs the first 40 candidate passes
 (size, depth format, samples, load and store actions, clear value,
 colours, resolve, process) and the environment's changes.
 
@@ -272,7 +272,7 @@ eye is drawn in this order:
    per update orders the picture's own triangles). **The room only**: triangles
    touching a sample of the windows layer stay out (§3.1, §5.6). `--cache-all` takes
    every picture. Its inverse depth relative to the face is written from
-   the rasteriser's depth (Ycode's projection makes depth = near / z). Its
+   the rasteriser's depth (SwiftCode's projection makes depth = near / z). Its
    colour has a mip chain, rebuilt per face after an update (a face's corners
    hold about three times the pixels per degree of its centre), and a partly
    empty filtered texel takes its colour from the premultiplied average. The
@@ -297,7 +297,7 @@ A recentre moves the anchor: the cache is emptied about the new origin.
 ### 5.4 Submission
 
 Each eye is drawn into the session's rendered swapchain
-(`yxr_acquire_render`, CYcodeOpenXR's hook b) at the runtime's
+(`yxr_acquire_render`, CSwiftCodeOpenXR's hook b) at the runtime's
 recommended size, under the queue lock, and submitted with `render[i]`
 set, at the eye's current pose and its own field of view: the runtime's
 own re-projection then corrects only the few milliseconds of its
@@ -441,7 +441,7 @@ it comes.
 
 ## 7. The viewer
 
-`ycode-xr-viewer … --reproject on|off` (default: on when the server's hello
+`swiftcode-xr-viewer … --reproject on|off` (default: on when the server's hello
 says `xrDepth`), `--stereo synth|adaptive|alternate|mono` (default synth;
 adaptive with `--reproject off`; with a server that sends no depth, synth
 shows the one view in both eyes without re-projection and says so),
@@ -463,7 +463,7 @@ at display, the disoccluded fraction, and the depth's bandwidth.
 ## 8. Measurements
 
 Runs of 2026-11-02 on the Thor (this branch's release build, visionOS 27.0
-runtime, `YCODE_VISION_SCREEN=2160x3840`, the living room, Thor load 2–58
+runtime, `SWIFTCODE_VISION_SCREEN=2160x3840`, the living room, Thor load 2–58
 from other agents) with the x86 viewer offscreen (`--replay` scripts of
 held poses; RTX 4060 Ti; eyes 2700 × 2970 unless said). The stream went
 through an ssh forward, so its send times are not the link's.
@@ -481,7 +481,7 @@ match): the measured parallax against the one the depth predicts (b / z).
 | The TV, a lamp, a picture on the far wall (5.0–5.4 m) | 3 | 40–43 px against 40–43 px |
 
 The depth is metric to 1 %, the windows' as well as the room's;
-`YCODE_XR_DEPTH_WINDOWS=0` is not needed. The bowed picture edges of the
+`SWIFTCODE_XR_DEPTH_WINDOWS=0` is not needed. The bowed picture edges of the
 first headset shots came from pictures shown at a wrong pose (a turn's
 last picture tagged with a pose of the turn), not from the depth: what the
 camera hold and the final-picture rule of §5.5 address.
@@ -571,17 +571,17 @@ pixels along depth edges (the depth is at ¼ resolution).
 
 | Claim | Level | Source |
 |---|---|---|
-| The windows layer's transparent depth, the cache's fills, the measurements of §5.6 | 3 | Ycode's own simulator on the Thor (boots `s1`, `c1`–`c5`, visionOS 27.0, 2160 × 3840), the x86 viewer offscreen, raw depth dumps; tests `DepthTapGPUTests`, `XRReprojectorGPUTests.theWindowsLayerStaysOutOfTheCache`, `aStretchedEdgeIsNotStoredInTheCache` |
-| The guest's projection (reverse-Z, infinite far, near 0.1, tangents) | — | `visionos.md` §5.6.1, §5.5.12 (Ycode's spec; its evidence there) |
-| The passes of a frame (room target and depth, the 4× windows pass, layers) | — | `visionos.md` §10.12.4, §10.20.1, §10.24.1 (Ycode's frame maps) |
+| The windows layer's transparent depth, the cache's fills, the measurements of §5.6 | 3 | SwiftCode's own simulator on the Thor (boots `s1`, `c1`–`c5`, visionOS 27.0, 2160 × 3840), the x86 viewer offscreen, raw depth dumps; tests `DepthTapGPUTests`, `XRReprojectorGPUTests.theWindowsLayerStaysOutOfTheCache`, `aStretchedEdgeIsNotStoredInTheCache` |
+| The guest's projection (reverse-Z, infinite far, near 0.1, tangents) | — | `visionos.md` §5.6.1, §5.5.12 (SwiftCode's spec; its evidence there) |
+| The passes of a frame (room target and depth, the 4× windows pass, layers) | — | `visionos.md` §10.12.4, §10.20.1, §10.24.1 (SwiftCode's frame maps) |
 | The environment cube's format, size and levels | — | `visionos.md` §10.23.4, §10.24.2 |
 | The guest's smoothing and render delay | — | `xr-viewer.md` §6, `visionos.md` §5.5.12 |
 | Cube-map face selection, depth formats, multisample views, timestamps, buffer device addresses | 1 | Vulkan 1.3 specification |
 | `XR_KHR_composition_layer_depth` | 1 | OpenXR 1.1 specification and registry |
 | zlib | 1 | RFC 1950 / 1951 |
-| The tap's candidates, their depth contents, provenance pairing, costs (§8) | 3 | Ycode's own simulator on the Thor with `YCODE_XR_DEPTH_LOG=1`, 2026-11-01 |
-| The depth's scale, the guest's picture timing, the cube's frame, probe and exposure (§3.4, §8.1–§8.3) | 3 | Ycode's own simulator on the Thor: its streamed pictures, depth and environment, fitted on the x86, 2026-11-02 |
-| Everything else (messages, codec, mesh, fill modes, cache, order) | — | Ycode design decisions |
+| The tap's candidates, their depth contents, provenance pairing, costs (§8) | 3 | SwiftCode's own simulator on the Thor with `SWIFTCODE_XR_DEPTH_LOG=1`, 2026-11-01 |
+| The depth's scale, the guest's picture timing, the cube's frame, probe and exposure (§3.4, §8.1–§8.3) | 3 | SwiftCode's own simulator on the Thor: its streamed pictures, depth and environment, fitted on the x86, 2026-11-02 |
+| Everything else (messages, codec, mesh, fill modes, cache, order) | — | SwiftCode design decisions |
 
 No Apple binary, Apple software, reference tool or `research/` material was
 used for this spec.

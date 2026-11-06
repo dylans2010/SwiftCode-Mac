@@ -1,10 +1,10 @@
 # Reference IDE user interface (Xcode 27.1): observed layout and defaults
 
 Spec status: boundary document. It records black-box observations (level 3)
-of the reference IDE's user interface, so that Ycode's shell can match them.
+of the reference IDE's user interface, so that SwiftCode's shell can match them.
 It describes what was seen: names, order, placement, sizes and default
 values. It describes no implementation. Theme color values were deliberately
-not recorded; Ycode's themes stay its own. Where a value may be a user choice
+not recorded; SwiftCode's themes stay its own. Where a value may be a user choice
 on the observing machine rather than a factory default, the text says so.
 
 Supersedes the OPEN QUESTIONs in workspace-window.md, menus.md, navigators.md,
@@ -199,7 +199,7 @@ menu is named **Integrate**.
       comments.
     - Editor: Cursor Style (Vertical Bar).
   - Theme color values were deliberately not recorded (clean-room rule:
-    Ycode's themes are its own).
+    SwiftCode's themes are its own).
 - **Behaviors**: a list of categories, each showing how many behaviors are
   set and drilling into a sub-page: Build (3 behaviors), Testing (4),
   Running (3), Intelligence, Search, Localization Import / Export (2), File,
@@ -284,7 +284,7 @@ menu is named **Integrate**.
 - When the inspector opens, the toolbar's centered scheme and destination
   pill moves to stay centered in the remaining width.
 
-## 7. Differences from Ycode at the time of observation (for implementers)
+## 7. Differences from SwiftCode at the time of observation (for implementers)
 
 - **Navigators:** the third navigator is **Bookmarks**, not Symbol. The order
   is Project, Source Control, Bookmarks, Find, Issues, Tests, Debug,
@@ -315,5 +315,5 @@ menu is named **Integrate**.
 | Claim | Level | Source |
 |---|---|---|
 | Everything in §1–§6 | 3 | Black-box observation of the running reference app (Xcode 27.1, installed copy), its accessibility tree and menu bar, through screen observation tools, 2026-10-17. No binaries were opened. |
-| §7 | — | Comparison of §1–§6 with Ycode's specs at the time. |
+| §7 | — | Comparison of §1–§6 with SwiftCode's specs at the time. |
 | §1 shortcuts and full item lists, §3 corrections | 3 | `reference-ui-5.md` §2, §5.1, §6 (pass 5, 2026-10-19). |

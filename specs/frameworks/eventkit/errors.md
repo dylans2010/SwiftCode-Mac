@@ -43,7 +43,7 @@ saved without collection.
 | reminder into an event calendar | 23 | "That calendar does not allow reminders to be added." |
 | reminder priority 12 | 26 | "Priorities must be between 0 and 9." |
 
-The messages are localized resources of Apple's framework; Ycode writes its
+The messages are localized resources of Apple's framework; SwiftCode writes its
 own English strings with the same meaning (the codes are the contract). Apps
 in the wild do compare codes, rarely strings.
 

@@ -1,24 +1,24 @@
 # HealthKit spec: design note for an open implementation
 
-> **Ycode-original design.** This note is our own proposal, not a description
+> **@@SWIFTCODE_ORIGINAL@@ design.** This note is our own proposal, not a description
 > of Apple's implementation. It is derived only from the behavior in the
 > other files of this directory. Clean-room implementers may follow it or
 > improve it; the conformance tests (`plan.md`) are what must pass.
 
 ## 1. Two delivery targets
 
-1. **Ycode's iOS simulator with Apple's runtime** (near term). The guest
-   runs Apple's own HealthKit, `healthd` and `HealthPrivacyService`; Ycode
+1. **SwiftCode's iOS simulator with Apple's runtime** (near term). The guest
+   runs Apple's own HealthKit, `healthd` and `HealthPrivacyService`; SwiftCode
    only has to provide the platform services they rely on (§2). This is the
    "easy win": no HealthKit code at all, just host plumbing, then the
    conformance app must produce the reference output.
 2. **Open HealthKit** (the open-frameworks track, `docs/FUTURE.md`): a
    Linux-buildable reimplementation with the same API names and semantics,
-   usable (a) as a drop-in `HealthKit.framework` for the guest when Ycode
+   usable (a) as a drop-in `HealthKit.framework` for the guest when SwiftCode
    wants its own (e.g. to seed data or run without Apple's daemon), and (b)
    as a Swift package on Linux for tools and tests. Components §3–§9.
 
-## 2. Ycode simulator dependency list (target 1)
+## 2. SwiftCode simulator dependency list (target 1)
 
 What the guest must provide so that Apple's HealthKit stack works as in
 `simulator-baseline.md`. Each item names the observed reason.
@@ -36,7 +36,7 @@ What the guest must provide so that Apple's HealthKit stack works as in
 | G9 | User notifications banner path | the one-time workout-access banner, Health app notifications |
 | G10 | Locale/region services (`en_US` default) | preferred units |
 | G11 | Enough patience at first boot: `healthd` start-up took ≈ 120 s on a loaded host; requests must wait, not time out | first-call latency |
-| G12 | Touch input and the tap/swipe path of the simulator panel | answering the sheet (Ycode tests drive it the same way) |
+| G12 | Touch input and the tap/swipe path of the simulator panel | answering the sheet (SwiftCode tests drive it the same way) |
 | G13 | For workouts: the workout session daemon paths inside `healthd` need no sensors; the live data source produces synthetic values | live session baseline |
 
 None of these is HealthKit-specific code; they are general simulator
@@ -44,7 +44,7 @@ features. G2 and G6 are the two that most likely need work.
 
 ## 3. Architecture of open HealthKit
 
-    app process                                 ycode-healthd (one per device / per user on Linux)
+    app process                                 swiftcode-healthd (one per device / per user on Linux)
     ┌──────────────────────────────┐            ┌──────────────────────────────────────────────┐
     │ HealthKit (API layer)        │  XPC /     │ connection: identity → (bundle id, ents)      │
     │  HKObjectType registry       │  local     │ authorization store                           │
@@ -52,7 +52,7 @@ features. G2 and G6 are the two that most likely need work.
     │  validation (exceptions)     │ ─────────► │ query engine + statistics engine              │
     │  query objects, handlers     │ ◄───────── │ change journal (anchors) → observers           │
     │  private serial callback q   │  events    │ background-delivery registry → launch events  │
-    └──────────────────────────────┘            │ consent UI broker → ycode-health-consent app  │
+    └──────────────────────────────┘            │ consent UI broker → swiftcode-health-consent app  │
                                                 └──────────────────────────────────────────────┘
 
 - **Validation in the client** (all exceptions of `errors.md` §3 happen
@@ -101,7 +101,7 @@ rowid)` for anchors, `metadata(key, text|number)`, `sync_ids` unique.
 - **Sync identifiers**: on save, look up (source, type, sync id); higher
   version → tombstone the old row and insert in the same transaction;
   lower/equal → no-op success.
-- Characteristics live in `settings` and are editable through a Ycode
+- Characteristics live in `settings` and are editable through a SwiftCode
   developer tool (the 27.1 runtime has no UI for them).
 
 ## 5. Change journal, observers, background delivery
@@ -166,14 +166,14 @@ rowid)` for anchors, `metadata(key, text|number)`, `sync_ids` unique.
 - `requestAuthorization…`: client-side validation (§4 of
   `authorization.md`), then the daemon computes the set of types not yet
   presented; if empty, complete immediately; otherwise ask the consent
-  broker to show Ycode's own sheet (our layout and words, same structure:
+  broker to show SwiftCode's own sheet (our layout and words, same structure:
   per-topic toggles, read/write sections, historical-range page), store
   per-type decisions and the earliest date, then complete with success.
 - Status answers: share status only; read-only types answer 1 once
   presented; request status from the presented flags.
 - Per-object authorization: a separate picker listing the objects matching
   the predicate; grants in `per_object_auth`.
-- A developer tool (`ycode health grant/revoke/reset`) edits the store
+- A developer tool (`swiftcode health grant/revoke/reset`) edits the store
   without UI for tests, and the consent UI can be bypassed by a test hook
   (recorded answers), so conformance runs need no taps.
 
@@ -188,9 +188,9 @@ rowid)` for anchors, `metadata(key, text|number)`, `sync_ids` unique.
   memory must not depend on Objective-C key-value coding there — the
   compiler of §6.1 handles the HealthKit key paths directly.
 
-## 10. Data seeding (Ycode feature)
+## 10. Data seeding (SwiftCode feature)
 
-A Ycode-original side-car (JSON) per device: sources, samples (with units),
+A @@SWIFTCODE_ORIGINAL@@ side-car (JSON) per device: sources, samples (with units),
 workouts and routes, characteristics, authorization decisions. The developer
 tool imports it into the store so that apps under test see realistic data —
 the simulator has no sensors or Health app on 27.1. Values in examples must

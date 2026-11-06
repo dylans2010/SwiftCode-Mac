@@ -1,16 +1,16 @@
 # Build notifications: the result bezel and system notifications
 
-Ycode's design for the Behaviors action "Notify with bezel or system
+SwiftCode's design for the Behaviors action "Notify with bezel or system
 notification" (`reference-ui.md` §4, `reference-ui-5.md` §9.4,
 `settings.md` Behaviors). It applies to both IDEs: the AppKit IDE on macOS
-(`YcodeUI`) and the SwiftUI shell (`ycode-ide`, on OpenViews on Linux).
+(`SwiftCodeUI`) and the SwiftUI shell (`swiftcode-ide`, on OpenViews on Linux).
 
 Sources: Apple's public documentation on Behaviors (Settings ▸ Behaviors
 lists events such as "When build succeeds" and "When build fails", each
 with actions, one of which notifies "with bezel or system notification"),
 the reference defaults recorded in `reference-ui.md` §4, and the project
 owner's description of what the reference shows. Every size, colour and
-duration below is **Ycode's own choice**; none was measured from the
+duration below is **SwiftCode's own choice**; none was measured from the
 reference.
 
 ## 1. Events
@@ -19,7 +19,7 @@ reference.
 |---|---|---|---|
 | When build succeeds | Build | a build, clean or analyze finishes with no error | Notify |
 | When build fails | Build | a build, clean or analyze finishes with an error (after "When build generates errors" when there are errors) | Notify |
-| When testing succeeds | Testing | a test run finishes and every test passed ("Test Succeeded", or "Test Completed" for selected tests) | Notify (Ycode's choice: the reference lists four Testing behaviors but their actions were not recorded) |
+| When testing succeeds | Testing | a test run finishes and every test passed ("Test Succeeded", or "Test Completed" for selected tests) | Notify (SwiftCode's choice: the reference lists four Testing behaviors but their actions were not recorded) |
 | When testing fails | Testing | a test run finishes with a failure ("Test Failed") | Notify (as above) |
 
 The other Build and Running events are unchanged (`settings.md`); any of
@@ -29,7 +29,7 @@ notify as below, with the event's own title.
 "Run failed" and "Run Failed" (a run that could not launch) raise "When
 running exits unexpectedly", never "When build fails".
 
-The event decision (activity → events) is one type in `YcodeIDECore`,
+The event decision (activity → events) is one type in `SwiftCodeIDECore`,
 `BehaviorEventTracker`, used by both IDEs; `BuildNotificationPolicy`
 turns an event and its activity text into the notification's content and
 picks its route.
@@ -44,9 +44,9 @@ picks its route.
 | Testing fails | "Test Failed" | cross in a circle |
 | any other event with Notify | the event's title without "When " ("Running completes") | play triangle for Running events, hammer for Build events |
 
-The glyph is drawn by Ycode: on macOS the system's symbol API is used at
+The glyph is drawn by SwiftCode: on macOS the system's symbol API is used at
 run time by name (as the IDE's toolbar already does). In the SwiftUI shell
-the hammer is Ycode's own outline (`HammerGlyph` in `ycode-ide`: a head
+the hammer is SwiftCode's own outline (`HammerGlyph` in `swiftcode-ide`: a head
 with a flat face and a tapered claw over a tapered handle, tilted 40°,
 stroked 4.5 pt with round joins), and the other glyphs are OpenViews' own
 drawings (`frameworks/swiftui`'s symbol set). No picture is copied.
@@ -63,11 +63,11 @@ drawings (`frameworks/swiftui`'s symbol set). No picture is copied.
   - macOS: `UserNotifications` (title = the content's title, body = the
     workspace name). Authorisation is requested once, the first time a
     notification is needed. If it is denied, unavailable (a process with
-    no app bundle, such as a test runner) or fails, Ycode bounces the Dock
+    no app bundle, such as a test runner) or fails, SwiftCode bounces the Dock
     icon instead (`requestUserAttention(.informationalRequest)`), and says
     nothing.
   - Linux: `org.freedesktop.Notifications.Notify` on the session bus
-    (app name "Ycode", summary = title, body = workspace name, expire
+    (app name "SwiftCode", summary = title, body = workspace name, expire
     timeout −1 = the server's default), through OpenViews' own D-Bus
     client. If there is no session bus, or no name owns
     `org.freedesktop.Notifications`, nothing is shown and nothing is
@@ -109,13 +109,13 @@ focusable element.
 Settings ▸ Behaviors lists the Testing events under Testing; the
 "Notify with bezel or system notification" action can be added to or
 removed from any event. The Notifications pane's per-event toggle is the
-same flag. Stored as before under `Ycode.behavior.<caseName>`.
+same flag. Stored as before under `SwiftCode.behavior.<caseName>`.
 
 ## 6. Open questions (for the dirty room)
 
 1. The reference's default actions for the four Testing behaviors.
 2. Whether a test run also shows the build's bezel before the test
-   result (Ycode shows only what the activity reports).
+   result (SwiftCode shows only what the activity reports).
 3. Whether the reference uses a different glyph for failure.
 
 ## Evidence
@@ -124,6 +124,6 @@ same flag. Stored as before under `Ycode.behavior.<caseName>`.
 |---|---|
 | Event names, the action's label, success/failure defaults (§1) | 1 (public Behaviors documentation) and the recorded reference defaults (`reference-ui.md` §4) |
 | What the bezel looks like in general (dark translucent square, hammer, one-line result, short display then fade) | owner's description |
-| Every number, the route rule, replacement, Reduce Motion, the fallbacks (§2–§4) | Ycode's own design |
+| Every number, the route rule, replacement, Reduce Motion, the fallbacks (§2–§4) | SwiftCode's own design |
 | `UserNotifications`, `NSAccessibility` announcements | 1 (Apple's public API documentation) |
 | `org.freedesktop.Notifications` | freedesktop.org Desktop Notifications Specification (public) |

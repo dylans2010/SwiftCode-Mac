@@ -3,7 +3,7 @@
  *
  * Finalized from specs/ide/sdk-platform.md (TypeScript developer contract
  * intent) and §11.2/§11.3 (API minimums), matched against the Swift host
- * contracts in `ycode/Sources/YcodeSDK/Contracts/`.
+ * contracts in `swiftcode/Sources/SwiftCodeSDK/Contracts/`.
  *
  * These are types only. The real implementations of the IPC client and the
  * context live in `ipc.ts` and `context.ts`.

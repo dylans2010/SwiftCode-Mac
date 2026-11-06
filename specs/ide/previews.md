@@ -1,7 +1,7 @@
-# SwiftUI previews, Ycode's own design
+# SwiftUI previews, SwiftCode's own design
 
-Ycode modules: `YcodePreviews` (discovery, payloads, hosts, plans, the
-update planner, the screen layout; builds on Linux too) and `YcodeUI`
+SwiftCode modules: `SwiftCodePreviews` (discovery, payloads, hosts, plans, the
+update planner, the screen layout; builds on Linux too) and `SwiftCodeUI`
 (`PreviewRenderer`, `PreviewCanvasController`, `RemotePreviewSession`,
 `WorkspaceWindowController` previews). Evidence is limited to Apple's
 public `#Preview` / `PreviewProvider` / `@Previewable` documentation, the
@@ -12,11 +12,11 @@ Previews run two ways:
 
 | Platform of the previewed target | Path | Section |
 |---|---|---|
-| macOS (and packages without a Ycode simulator destination) | load a payload into a long-lived Mac host, render each preview offscreen to PNG | §The macOS host |
-| iOS, iPadOS, visionOS | a long-lived preview host on a Ycode simulator; edits load new payloads into it; the canvas shows its live display | §Live previews |
+| macOS (and packages without a SwiftCode simulator destination) | load a payload into a long-lived Mac host, render each preview offscreen to PNG | §The macOS host |
+| iOS, iPadOS, visionOS | a long-lived preview host on a SwiftCode simulator; edits load new payloads into it; the canvas shows its live display | §Live previews |
 
 The platform is the product's (`SDKROOT` of the project's first target);
-a package previews on iOS when the run destination is a Ycode simulator,
+a package previews on iOS when the run destination is a SwiftCode simulator,
 else on the Mac.
 
 ## Discovery (lexical)
@@ -40,33 +40,33 @@ In the focused Swift file, outside comments and string literals:
 
 ### Pieces
 
-- **Preview device.** Every Ycode simulator row (`run.md` §Runtimes and
+- **Preview device.** Every SwiftCode simulator row (`run.md` §Runtimes and
   device types) has a preview device of its own, the row's device
-  directory plus `-previews` (e.g. `<data>/devices/ycode-device-iphone-18-pro-27.0-previews`),
+  directory plus `-previews` (e.g. `<data>/devices/swiftcode-device-iphone-18-pro-27.0-previews`),
   so previews never touch the device an app runs on. It runs with warm
-  boot always on (Ycode decision: it exists to start fast), its display
+  boot always on (SwiftCode decision: it exists to start fast), its display
   server on, and the preview host installed and launched:
-  `… ycode-sim --device <dev> --runtime-root <root> [--device-type <id>]
-  --install-app <data>/apps/previews-<platform>/YcodePreviewHost.app
-  --launch dev.ycode.previewhost --display-server unix:<data>/display/pv-<hash>.sock`.
+  `… swiftcode-sim --device <dev> --runtime-root <root> [--device-type <id>]
+  --install-app <data>/apps/previews-<platform>/SwiftCodePreviewHost.app
+  --launch dev.swiftcode.previewhost --display-server unix:<data>/display/pv-<hash>.sock`.
   The socket's name is short (`pv-` and a 32-bit FNV-1a hash of the device
   directory's name, in hex): the Mac's ssh refuses a forward whose socket
   path is 104 bytes or longer ("Bad local forwarding specification"),
   which `<data>/display/<device directory>-previews.sock` reached on the
   reference host.
-  It runs until Ycode quits (SIGINT to the launcher, which saves it).
+  It runs until SwiftCode quits (SIGINT to the launcher, which saves it).
 - **Preview host** (`PreviewHost`): one small UIKit app, the same for every
   project, built once per platform and deployment target on the Mac
   (`xcrun --sdk iphonesimulator swiftc`, a scene-based app,
-  `dev.ycode.previewhost`, display name "Previews", with an icon of
-  Ycode's own drawn at build time: `AppIcon60x60@2x/@3x.png`, RGB PNGs
-  with stored deflate blocks). It polls `/tmp/ycode-previews/plan.json` every
+  `dev.swiftcode.previewhost`, display name "Previews", with an icon of
+  SwiftCode's own drawn at build time: `AppIcon60x60@2x/@3x.png`, RGB PNGs
+  with stored deflate blocks). It polls `/tmp/swiftcode-previews/plan.json` every
   25 ms (the device's `/tmp` is `DEV/data/tmp` on the simulator host,
   `specs/simulator/app-install-launch.md` §3.4). A new plan names a payload;
-  the host `dlopen`s it (once per path), calls `ycode_preview_make(i)` for
+  the host `dlopen`s it (once per path), calls `swiftcode_preview_make(i)` for
   each region and shows the view controllers. It appends its reports to
-  `/tmp/ycode-previews/host.log`: `YCODE-PREVIEW started`, `YCODE-PREVIEW
-  ready <generation> <ms>` (views built and committed), `YCODE-PREVIEW
+  `/tmp/swiftcode-previews/host.log`: `SWIFTCODE-PREVIEW started`, `SWIFTCODE-PREVIEW
+  ready <generation> <ms>` (views built and committed), `SWIFTCODE-PREVIEW
   error <generation> <message>` (the payload did not load, a preview index
   is missing). The IDE follows that file with `tail -F` over ssh (an app's
   standard output does not reach the launcher's output).
@@ -76,9 +76,9 @@ In the focused Swift file, outside comments and string literals:
   block and every entry-point attribute (`@main`, `@UIApplicationMain`,
   `@NSApplicationMain`) replaced by spaces (lines kept); the previewed
   file's copy gets the wrappers appended (so they see its `fileprivate`
-  declarations); a generated support file holds the `__ycodeHost`
-  overloads and the two C entry points `ycode_preview_count` and
-  `ycode_preview_make` (a retained `UIViewController`, or
+  declarations); a generated support file holds the `__swiftcodeHost`
+  overloads and the two C entry points `swiftcode_preview_count` and
+  `swiftcode_preview_make` (a retained `UIViewController`, or
   `NSViewController` on the Mac). A body of SwiftUI content resolves to
   the `@ViewBuilder` overload (wrapped in a hosting controller); a body
   that returns a `UIViewController` or a `UIView` resolves to the UIKit
@@ -87,8 +87,8 @@ In the focused Swift file, outside comments and string literals:
   `@Previewable` lines becomes a wrapper view whose stored properties they
   are. Compile: one whole-module `-Onone` frontend job, `-emit-library`,
   `-target arm64-apple-ios<runtime version>-simulator`, `-D DEBUG -D
-  YCODE_PREVIEW`, Swift 5 mode, a warm module cache under
-  `~/Library/Developer/Ycode/DerivedData/Previews/ModuleCache` (an absolute,
+  SWIFTCODE_PREVIEW`, Swift 5 mode, a warm module cache under
+  `~/Library/Developer/SwiftCode/DerivedData/Previews/ModuleCache` (an absolute,
   normalized path: a `..` in it made clang see two caches), each
   generation's own install name `@rpath/payload-<n>.dylib`.
 - **Plan** (`PreviewPlan`): `{generation, payload, regions[]}`; a region
@@ -109,7 +109,7 @@ In the focused Swift file, outside comments and string literals:
   1/3. A fixed-layout tile keeps its size; a landscape tile is the screen
   turned.
 
-### Fast updates (Ycode design)
+### Fast updates (SwiftCode design)
 
 Goal: under 2 s from a save to new pixels for a body change in a small
 file, without an app rebuild or relaunch.
@@ -167,7 +167,7 @@ picture and shows the banner (§Canvas).
   size times the zoom, captioned with the preview's tab title and the
   variant. Tiles keep the device's arrangement: rows as on the screen.
   Fit (the default zoom) shows every tile, at most 100 %.
-- **Which tiles** (Ycode decision): Grid → every preview of the file;
+- **Which tiles** (SwiftCode decision): Grid → every preview of the file;
   Variants → the selected preview in each variant of the chosen kind
   (Color Scheme: light, dark; Orientation: portrait, landscape left;
   Dynamic Type: xSmall, large, xxxLarge, accessibility1, accessibility3,
@@ -178,23 +178,23 @@ picture and shows the banner (§Canvas).
   and up become touches at the matching device points (`display-stream.md`
   §5.1), so the preview reacts as on the device. **Selectable**: clicks do
   not reach the device; a click selects the tile's preview and reveals its
-  `#Preview` line in the editor (Ycode decision: the reference's
+  `#Preview` line in the editor (SwiftCode decision: the reference's
   selectable mode is not specified beyond its button). On a visionOS
   preview device (the stream's hello says `spatial`) the mouse is the gaze
   and a right-hand pinch instead (Option: both hands, Shift: depth;
   `visionos.md` §5.5.8 item 7).
-- **Pin** (a pin button left of the header tabs, Ycode decision): pins the
+- **Pin** (a pin button left of the header tabs, SwiftCode decision): pins the
   selected preview; while pinned, the pinned preview stays on the canvas
   next to the focused file's selected preview, also when another file of
   the same module is focused (the payload exports the focused file's
   previews, then the pinned one). Clicking the pin again unpins.
 - **Device** (the bottom-left pop-up): "Automatic – <device>" is the run
-  destination when it is a Ycode simulator, else the first phone of
-  Settings ▸ Simulators. The Devices section lists every Ycode simulator
+  destination when it is a SwiftCode simulator, else the first phone of
+  Settings ▸ Simulators. The Devices section lists every SwiftCode simulator
   row and, after them, every other device type a configured runtime boots
-  (Ycode decision: previews look at sizes the run destinations leave out;
-  `run.md` offers one iPhone per runtime, so "iPhone 18 Pro (Ycode) 27.1"
-  is a preview device only), titled "<type> (Ycode) <runtime version>",
+  (SwiftCode decision: previews look at sizes the run destinations leave out;
+  `run.md` offers one iPhone per runtime, so "iPhone 18 Pro (SwiftCode) 27.1"
+  is a preview device only), titled "<type> (SwiftCode) <runtime version>",
   device directory `<device name>-<type>-<version>` plus `-previews`.
   Choosing one moves the previews to its preview device.
 - **Errors**: compile errors show a red banner over the last picture
@@ -217,7 +217,7 @@ the simulator host on the same LAN, iPhone 18 Pro on iOS 27.0 (load 20–100
 from other agents' boots). `LivePreviewEndToEndTests` prints these; times
 in seconds.
 
-Live previews, iPhone 18 Pro (Ycode) on the 27.1 runtime, through the IDE
+Live previews, iPhone 18 Pro (SwiftCode) on the 27.1 runtime, through the IDE
 (`LivePreviewEndToEndTests`, sample iOS app, two `#Preview`s, a body edit
 per save):
 
@@ -231,7 +231,7 @@ per save):
 | Tap on the Live tile → changed tile | within 0.1 s of the release in the test's polling |
 | First preview, device restored from its save (resume → picture) | 15.8 s: device start 11.5 s (restore to home 11.4 s), host compile 3.2 s (warm module cache), load 0.25 s |
 | First preview while every boot slot was taken by other jobs | 424–446 s (slot waits of 210–411 s, then restore or cold boot) |
-| Cold boot of the preview device (snapshot discarded) | home 125.7 s, host running 208 s after `ycode-simd` started |
+| Cold boot of the preview device (snapshot discarded) | home 125.7 s, host running 208 s after `swiftcode-simd` started |
 | First boot of a new preview device | home 345.5 s, host running 438.7 s (host load 100–145) |
 | Stop → device saved | 8.6–21 s |
 
@@ -248,9 +248,9 @@ light and dark):
 
 ## The macOS host
 
-Generated under `~/Library/Developer/Ycode/DerivedData/Previews/<module>/`
+Generated under `~/Library/Developer/SwiftCode/DerivedData/Previews/<module>/`
 (never in the user's project) as a SwiftPM package with one executable
-target `YcodePreviewHost` (macOS 14). The folder is kept between
+target `SwiftCodePreviewHost` (macOS 14). The folder is kept between
 refreshes: files are rewritten only when their text changed (stale ones
 are removed), so the build directory stays warm and rebuilds are
 incremental.
@@ -275,7 +275,7 @@ Two ways to reach the module:
 
 Generated code:
 
-- One wrapper view per preview: `struct __YcodePreview<i>: View`. For a
+- One wrapper view per preview: `struct __SwiftCodePreview<i>: View`. For a
   macro, lines of the body that start with `@Previewable ` become stored
   properties (without the attribute) and the rest is `body` (per Apple's
   documentation of `@Previewable`); a provider's `body` is `X.previews`.
@@ -299,9 +299,9 @@ Module resolution:
   <file>".
 
 Build engine (decided from the timings below): package previews always
-use SwiftPM (`swift build --product YcodePreviewHost`), for the first
+use SwiftPM (`swift build --product SwiftCodePreviewHost`), for the first
 build and every refresh, because its incremental rebuilds are 3–4×
-faster; project targets use the swift-build engine (`ycode-swb`'s
+faster; project targets use the swift-build engine (`swiftcode-swb`'s
 `swbuild`) when it is installed, falling back to SwiftPM when it is not
 or when it fails without a source diagnostic. A failure reports the first error with
 a location, mapped back to the user's file name (`Badge.swift:6: cannot
@@ -324,14 +324,14 @@ long-lived Mac host process (`PreviewMacHost`, built once under
 input (`generation`, `payload`, `output`, `schemes`, `items` with fixed
 sizes or 0 × 0), `dlopen`s the payload, renders each item's controller in
 an offscreen borderless window per scheme (appearance aqua / darkAqua;
-size as before) to `<index>-<scheme>.png`, and answers `YCODE-PREVIEW
+size as before) to `<index>-<scheme>.png`, and answers `SWIFTCODE-PREVIEW
 ready|error <generation> …`. One host per work directory; it is restarted
 after 40 payloads or when it exits. Linked modules keep the SwiftPM host.
-`YCODE_PREVIEWS_BUILT_HOST=1` (or `useBuiltPreviewHost`) restores the old
+`SWIFTCODE_PREVIEWS_BUILT_HOST=1` (or `useBuiltPreviewHost`) restores the old
 path.
 
-**Host lifetime (Ycode design, 2026-10-30).** A preview host never
-outlives its parent (Ycode, or the test process), and no wait on a preview
+**Host lifetime (SwiftCode design, 2026-10-30).** A preview host never
+outlives its parent (SwiftCode, or the test process), and no wait on a preview
 child is unbounded. A full Mac test run once hung for 86 minutes on a Mac
 host that never answered and never exited, so these rules hold:
 
@@ -340,20 +340,20 @@ host that never answered and never exited, so these rules hold:
   goes away: it remembers its parent's pid at start (ending at once if that
   is already launchd, pid 1) and checks once a second whether it was
   reparented.
-- Ycode waits at most `requestTimeout` (120 s) for an answer to one request.
+- SwiftCode waits at most `requestTimeout` (120 s) for an answer to one request.
   A host that does not answer in time, or whose output ends, is stopped and
   the refresh fails with "The preview host ended or did not answer in 120 s".
   A write to a host that is gone fails with EPIPE (the pipe is set to
-  `F_SETNOSIGPIPE`), never with a SIGPIPE that would end Ycode.
+  `F_SETNOSIGPIPE`), never with a SIGPIPE that would end SwiftCode.
 - Stopping a host closes its input, then sends SIGTERM, then SIGKILL, each
   after a short grace (2 s); the host registry's lock is not held meanwhile.
-  Ycode stops every host at exit.
+  SwiftCode stops every host at exit.
 - The SwiftPM host path bounds each child too: a build or a run of the built
   host that takes longer than its limit (600 s for a build, the request
   timeout for a run) gets SIGINT, SIGTERM, then SIGKILL, and fails with
   "… did not finish in N s and was stopped".
 - Tests: every preview suite has a time limit, and the heavy ones carry a
-  check that fails a test when any child named `YcodePreview…` is still
+  check that fails a test when any child named `SwiftCodePreview…` is still
   running after it (the child is then killed).
 
 ## Canvas
@@ -363,7 +363,7 @@ host that never answered and never exited, so these rules hold:
   current tab.
 - Placement: beside the editor, or below it when the editor area is
   narrower than 760 points; it moves again when the width changes
-  (`reference-ui-4.md` §10.1, §17.1; the 760-point threshold is Ycode's
+  (`reference-ui-4.md` §10.1, §17.1; the 760-point threshold is SwiftCode's
   choice).
 - Until the first build the canvas shows a "Canvas paused" capsule with a
   resume button; nothing builds before resume (`reference-ui-4.md` §10.2).
@@ -371,7 +371,7 @@ host that never answered and never exited, so these rules hold:
   else the view type at the start of the body; a spinner while building,
   then an eye icon. Clicking a tab selects that preview (§10.3). Live
   canvases have the pin button left of the tabs.
-- Content: the selected preview in a device frame drawn by Ycode (macOS
+- Content: the selected preview in a device frame drawn by SwiftCode (macOS
   path), or the live tiles (§Live canvas).
 - Bottom bar: left the device pop-up, Live (selected by default),
   Selectable, Grid, Variants (macOS path: light and dark side by side;
@@ -396,23 +396,23 @@ host that never answered and never exited, so these rules hold:
 headless back end lays a view out, lowers it to a display list and
 rasterises it with ThorVG on the CPU, without a window or a GPU.
 
-`ycode preview --list <file.swift>` prints the file's previews (line, name,
-kind, traits) on any platform. `ycode preview --render <out.png>
-<file.swift> [--name N]` renders one `#Preview` (Ycode design,
-`YcodePreviews/PreviewRenderHost.swift`):
+`swiftcode preview --list <file.swift>` prints the file's previews (line, name,
+kind, traits) on any platform. `swiftcode preview --render <out.png>
+<file.swift> [--name N]` renders one `#Preview` (SwiftCode design,
+`SwiftCodePreviews/PreviewRenderHost.swift`):
 
-- It writes a small package to `$XDG_CACHE_HOME/ycode/preview-render`
+- It writes a small package to `$XDG_CACHE_HOME/swiftcode/preview-render`
   (default `~/.cache/…`): the file with every `#Preview` blanked (lines
   kept, so build errors point at the file's lines) and `@main` removed, a
   `main.swift` that evaluates the preview's body as a view builder, and a
-  manifest that depends on the port by path (`$YCODE_OPENVIEWS`, else
-  `frameworks/swiftui` found above the working directory, the `ycode`
+  manifest that depends on the port by path (`$SWIFTCODE_OPENVIEWS`, else
+  `frameworks/swiftui` found above the working directory, the `swiftcode`
   executable or the file). On macOS the file's `import SwiftUI` is
   rewritten to the port's renamed module, `OpenViews`.
 - It builds that package (`swift build`; unchanged files keep their dates,
   so later renders rebuild only the file) and runs it; the program writes
   `ImageRenderer.pngData` (scale 2, opaque) to the output path, which
-  `ycode` prints.
+  `swiftcode` prints.
 - Size: `.fixedLayout(width:height:)` → that size; `.sizeThatFitsLayout` →
   the view's ideal size; otherwise 393 × 852 points.
 - Status: 0 on success, 1 when the preview does not build or render, 3
@@ -420,10 +420,10 @@ kind, traits) on any platform. `ycode preview --render <out.png>
   Measured on the x86-64 workstation: about 11 s for the first render
   (building the port), about 3 s after an edit.
 
-### The Linux canvas (Ycode design, B3-PREVIEWS, 2026-11-05)
+### The Linux canvas (SwiftCode design, B3-PREVIEWS, 2026-11-05)
 
-The Linux IDE's canvas (`YcodeIDEShell/PreviewCanvasShellModel.swift`,
-`ycode-ide/PreviewCanvasView.swift`) follows §Canvas: beside the editor,
+The Linux IDE's canvas (`SwiftCodeIDEShell/PreviewCanvasShellModel.swift`,
+`swiftcode-ide/PreviewCanvasView.swift`) follows §Canvas: beside the editor,
 below it when the editor area is narrower than 760 points (Editor ▸ Layout
 overrides), Editor ▸ Canvas and the toolbar's Canvas segment toggle canvas
 mode, the paused capsule until Resume (once resumed, the window's canvas
@@ -434,20 +434,20 @@ on the live canvas), the zoom pop-up and Canvas Settings. Capture is not
 offered yet (the Linux clipboard carries text only).
 
 **SwiftUI previews render with OpenViews**, the Mac's payload path with
-OpenViews as the toolkit (`YcodePreviews/PreviewOpenViewsHost.swift`):
+OpenViews as the toolkit (`SwiftCodePreviews/PreviewOpenViewsHost.swift`):
 
 - **Host.** A SwiftPM package written to
-  `$XDG_CACHE_HOME/ycode/preview-host/v<n>-<hash of the OpenViews path>`,
+  `$XDG_CACHE_HOME/swiftcode/preview-host/v<n>-<hash of the OpenViews path>`,
   one executable on OpenViews, linked with `--export-dynamic`, built once in
   release (1.5–2.5 minutes on the x86-64 workstation; a debug build renders
   a phone-sized preview 10 times slower). It reads one JSON request per line
   (`generation`, `payload`, `items`: preview index, size, dark, dynamic
   type, output file), `dlopen`s the payload once per path and answers
-  `YCODE-PREVIEW ready|error <generation> …`. It ends at the end of its
-  input and when its parent goes; Ycode waits at most 120 s for an answer.
+  `SWIFTCODE-PREVIEW ready|error <generation> …`. It ends at the end of its
+  input and when its parent goes; SwiftCode waits at most 120 s for an answer.
 - **Payload.** `PreviewPayloadGenerator` with the `openViews` kit: the
   module's files (previews and entry points blanked), the wrappers return
-  `AnyView`, and the support file exports `ycode_preview_render(index,
+  `AnyView`, and the support file exports `swiftcode_preview_render(index,
   dark, dynamicType, width, height, scale, path)`, which renders one preview
   with `ImageRenderer` at scale 2 over white or black. `swiftc
   -emit-library -wmo -Onone` against the host's build: `-I` its products,
@@ -462,7 +462,7 @@ OpenViews as the toolkit (`YcodePreviews/PreviewOpenViewsHost.swift`):
   source change compiles a new payload. Only the shown tiles are rendered.
   A device-sized preview is laid out on the chosen device's screen
   (Automatic: iPhone 18 Pro, 402 × 874; also iPhone Duo, iPad (A16), iPad
-  Pro 13-inch (M5)) and drawn in Ycode's bezel with the device's corner
+  Pro 13-inch (M5)) and drawn in SwiftCode's bezel with the device's corner
   radius; fixed and fitting previews have no frame.
 - **Errors.** A failed compile keeps the last picture under a red banner
   (up to three `File.swift:line: message` links into the editor); with no
@@ -477,21 +477,21 @@ OpenViews as the toolkit (`YcodePreviews/PreviewOpenViewsHost.swift`):
 
 **UIKit previews** (a file that imports UIKit, or a `#Preview` body that
 makes a `UI…View`/`Controller`; `PreviewDiscovery.needsUIKit`) need UIKit, so
-Ycode's iOS simulator (`YcodeIDEShell/SimulatorPreviewEngine.swift`):
+SwiftCode's iOS simulator (`SwiftCodeIDEShell/SimulatorPreviewEngine.swift`):
 
-- With no simulator host paired (`ycode sim remote pair`), the canvas shows
+- With no simulator host paired (`swiftcode sim remote pair`), the canvas shows
   "Needs a Simulator Host" and what to do, with Check Again; not an error.
-  With a host but no SDK copy (`YCODE_USER_SDK`, as for Run) or no
+  With a host but no SDK copy (`SWIFTCODE_USER_SDK`, as for Run) or no
   `ld64.lld`, it shows "UIKit Previews Need Setup".
 - Otherwise each update compiles the payload for the simulator on Linux
   (`PreviewIOSToolchain`: `-target arm64-apple-ios<SDK>-simulator`, the
   SDK's Swift resources, `-use-ld=lld`, `libclang_rt.iossim.a`; 0.5 s with
   a warm module cache, 8–10 s cold), builds the host once from
   `PreviewHost.bundledPlanSource` (the plan and the payload are read from the
-  app's `Previews/` folder), uploads the app over Ycode's link, has the host
-  create the preview device `ycode-previews-<type>` when it is missing and
+  app's `Previews/` folder), uploads the app over SwiftCode's link, has the host
+  create the preview device `swiftcode-previews-<type>` when it is missing and
   launch the app on it, and takes one picture with the headless viewer
-  (`ycode-sim-viewer --link --headless --script`: wait live, past the boot logo, wait quiet,
+  (`swiftcode-sim-viewer --link --headless --script`: wait live, past the boot logo, wait quiet,
   `server-shot`; the shot waits until the app replaced the home screen).
   Each tile shows its region of that picture. There is no file delivery
   into a running device over the link yet, so every update restarts the
@@ -501,17 +501,17 @@ Ycode's iOS simulator (`YcodeIDEShell/SimulatorPreviewEngine.swift`):
   had just finished its first boot, 21.3 s after it was saved; an edit to
   new pixels 26.1 s (compile 0.8 s, the rest the device's restore and the
   app's launch). Far from the 2 s goal: a link operation that writes the
-  plan and the payload into a running device's `/tmp/ycode-previews` would
+  plan and the payload into a running device's `/tmp/swiftcode-previews` would
   give UIKit previews the live path's fast updates (open).
 - The macOS IDE previews a package file that needs UIKit on the simulator
   path even when the run destination is the Mac, and shows a
   needs-a-simulator card (Check Again, Open Simulators Settings…) instead of
-  a build error when no Ycode simulator is set up.
+  a build error when no SwiftCode simulator is set up.
 
 ## Open questions
 
 - The reference's live and selectable modes beyond their buttons, the
-  pin's placement, and the variants menu's exact items (Ycode decisions
+  pin's placement, and the variants menu's exact items (SwiftCode decisions
   above).
 - Previews of package targets with dependencies on the simulator path:
   the dependencies would have to be built for the simulator SDK and linked
@@ -533,24 +533,24 @@ Ycode's iOS simulator (`YcodeIDEShell/SimulatorPreviewEngine.swift`):
 - Offscreen rendering and appearances, trait overrides, `dlopen`: public
   AppKit / UIKit / SwiftUI / POSIX API (level 1).
 - `/tmp` of the device on the simulator host, launching an app:
-  `specs/simulator/app-install-launch.md` (Ycode's own spec).
+  `specs/simulator/app-install-launch.md` (SwiftCode's own spec).
 - Timings: measured by `PreviewDepthTests` and `LivePreviewEndToEndTests`
-  (level 3, Ycode itself).
+  (level 3, SwiftCode itself).
 - Every live-preview design choice (payloads, plan, host, planner, screen
   and canvas layout, pin, selectable reveal, banners, preview devices):
-  Ycode decisions, tested by `YcodePreviewsTests`, `LivePreviewCanvasTests`
+  SwiftCode decisions, tested by `SwiftCodePreviewsTests`, `LivePreviewCanvasTests`
   and `PreviewPayloadCompileTests` (payloads and hosts for iOS and visionOS
   compile with the installed SDKs; errors map to the `#Preview` line).
-- The iOS 27.0 freeze and its fix: Ycode's own thread reports and
-  display-stream screenshots on the simulator host (level 3, Ycode
+- The iOS 27.0 freeze and its fix: SwiftCode's own thread reports and
+  display-stream screenshots on the simulator host (level 3, SwiftCode
   itself; `specs/simulator/app-launch.md` §3.9).
 - The Linux canvas, the OpenViews host and payloads, UIKit previews from
-  Linux: Ycode decisions on public POSIX and Swift API (`dlopen`,
+  Linux: SwiftCode decisions on public POSIX and Swift API (`dlopen`,
   `--export-dynamic`), measured by `PreviewsDriver` and
-  `OpenViewsHostEndToEndTests` (level 3, Ycode itself); tested by
+  `OpenViewsHostEndToEndTests` (level 3, SwiftCode itself); tested by
   `PreviewCanvasShellTests`, `OpenViewsPayloadTests`, `IOSToolchainTests`
   and `UIKitPreviewCanvasTests`.
 - Host lifetime (parent watch, request timeout, stop escalation, bounded
-  SwiftPM children): Ycode decisions on public POSIX API (`getppid`,
+  SwiftPM children): SwiftCode decisions on public POSIX API (`getppid`,
   `poll`, `kill`, `F_SETNOSIGPIPE`; level 1), tested by
   `MacPreviewHostLifetimeTests` and the `.previewHostCheck` trait.

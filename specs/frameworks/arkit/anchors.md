@@ -49,7 +49,7 @@ of class name `ARAnchor` (class chain `ARAnchor`, `NSObject`) with these keys:
 
 Unarchiving restores identifier and name. Subclasses add their own keys; their
 layouts are not yet observed (they need anchors produced by a running
-session, i.e. hardware). A Ycode implementation should write at least these
+session, i.e. hardware). A SwiftCode implementation should write at least these
 keys so that archives round-trip with Apple's implementation, and should treat
 unknown keys as optional when reading.
 
@@ -159,7 +159,7 @@ never change; only vertex positions move.
 | `initWithBlendShapes:` | Builds a geometry for given coefficients (empty dictionary = neutral face). Nullable. |
 
 The topology (vertex positions of the neutral face, UVs, indices) is data
-that a Ycode implementation must author itself (for example from a
+that a SwiftCode implementation must author itself (for example from a
 permissively licensed face model); Apple's mesh must not be copied. Apps
 depend on the counts being constant, not on particular values. The
 commonly cited count on devices (1220 vertices) is not verified here.
@@ -214,7 +214,7 @@ key to a joint name, or nil.
 
 **3D definition:** empty in the simulator (0 joints, no names). The device
 definition (documented in WWDC 2019 material as 91 joints, of which a subset
-is actively tracked) must be obtained by a hardware probe before Ycode can
+is actively tracked) must be obtained by a hardware probe before SwiftCode can
 match it; joint names are interop identifiers, so recording them from a
 device run of our own probe is allowed.
 

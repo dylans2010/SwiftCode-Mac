@@ -1,7 +1,7 @@
 # Spec: Liquid Glass in the workspace window and its panels
 
 **Status:** boundary spec. It records how the reference release, Xcode
-27.1, uses the system's Liquid Glass material, so that Ycode can match it
+27.1, uses the system's Liquid Glass material, so that SwiftCode can match it
 with public AppKit API. It comes from black-box observation (level 3) of
 the reference on macOS 27.2 in the background (window captures and the
 accessibility tree, plain clicks only) and from Apple's public
@@ -11,7 +11,7 @@ documentation and SDK interface declarations (level 1). Dirty-room notes:
 **Scope.** Material kind (glass, solid, translucent panel), shape,
 geometry in points, scroll-edge behavior, and the differences between
 light and dark appearance and between active and inactive windows. **No
-colors and no assets** are recorded: Ycode takes every color from the
+colors and no assets** are recorded: SwiftCode takes every color from the
 system (semantic colors, the system's materials) and draws its own glyphs.
 
 **Relation to other specs.** Item order, titles and accessibility names of
@@ -34,24 +34,24 @@ accessibility frame and this spec's number is the drawn shape; both hold.
   look).
 - *Active / inactive*: the window is key in the active app, or not.
 
-## 0. Prioritized gap list (Ycode at 7c7e47d)
+## 0. Prioritized gap list (SwiftCode at 7c7e47d)
 
 | ID | Gap | Priority |
 |---|---|---|
-| G0 | The `YcodeApp` binary built by SwiftPM declares **SDK 15.0** in its build-version load command (minos 15.0, sdk 15.0), although it links against the macOS 27.0 SDK. AppKit keeps the pre-26 design for binaries that declare an SDK older than 26, so no part of this spec can take effect until the shipped binary declares SDK 26 or later. Ycode's Welcome window shows the old design (bezeled push buttons with a drop shadow, a rimless close button). Verify with `otool -l` / `vtool -show-build` on the built product. | P0 (blocker) |
+| G0 | The `SwiftCodeApp` binary built by SwiftPM declares **SDK 15.0** in its build-version load command (minos 15.0, sdk 15.0), although it links against the macOS 27.0 SDK. AppKit keeps the pre-26 design for binaries that declare an SDK older than 26, so no part of this spec can take effect until the shipped binary declares SDK 26 or later. SwiftCode's Welcome window shows the old design (bezeled push buttons with a drop shadow, a rimless close button). Verify with `otool -l` / `vtool -show-build` on the built product. | P0 (blocker) |
 | G1 | Opening any project in the debug build crashes at once: a main-actor isolation check fails in the document controller's recent-document-count property, which AppKit reads from a background queue when it notes a recent document. (Not a glass item, but it blocks checking every surface below.) | P0 (blocker) |
-| G2 | Side areas must **not** float: the navigator and the inspector are full-height, edge-to-edge areas with no inset, no rounded corners and no gap to the window frame (§2.1). With SDK 26+ the split-view sidebar and inspector behaviors may draw floating, inset panels; Ycode must end up with the reference's flush layout. | P1 |
-| G3 | Toolbar items as glass shapes: every item in its own glass circle or capsule, 38 points tall; grouped items share one capsule; the activity view has no shape; 6-point gaps; 7-point margins at area edges; the left groups track the navigator's edge and the inspector button tracks the inspector (§2.2). Ycode today builds the groups as segmented controls in custom-view items with no grouping API. | P1 |
+| G2 | Side areas must **not** float: the navigator and the inspector are full-height, edge-to-edge areas with no inset, no rounded corners and no gap to the window frame (§2.1). With SDK 26+ the split-view sidebar and inspector behaviors may draw floating, inset panels; SwiftCode must end up with the reference's flush layout. | P1 |
+| G3 | Toolbar items as glass shapes: every item in its own glass circle or capsule, 38 points tall; grouped items share one capsule; the activity view has no shape; 6-point gaps; 7-point margins at area edges; the left groups track the navigator's edge and the inspector button tracks the inspector (§2.2). SwiftCode today builds the groups as segmented controls in custom-view items with no grouping API. | P1 |
 | G4 | Navigator selector bar, inspector tab bar, Coding Assistant header and the navigator's bottom bar as **floating glass capsules** 30 points tall over content that scrolls beneath them (§2.3–§2.5). | P1 |
 | G5 | Scroll-edge behavior: the outline scrolls under the navigator's glass bars to the window's edges; the editor's bottom bar is a hard-edge bar over blurred editor text; the jump bar is an opaque band (§3). | P2 |
 | G6 | Inactive windows flatten all glass (§4.2). This comes from the system once G0 and G3/G4 use system glass; check it, do not draw it. | P2 |
 | G7 | Popovers: system popover material with arrow, 17-point corners; remove any custom background in popover content (§2.8). | P2 |
 | G8 | Sheets centered on the parent window, parent dimmed (§2.9). This is system behavior with SDK 26+; check it. | P2 |
-| G9 | Welcome window: glass close circle 38 × 38; flat filled capsule buttons (not bezeled push buttons); recent box with ~12-point corners and no border line; selected row inset 8 with ~8-point corners (§2.10). Ycode draws its own box radius (10) and uses push/flexible-push bezels. | P2 |
+| G9 | Welcome window: glass close circle 38 × 38; flat filled capsule buttons (not bezeled push buttons); recent box with ~12-point corners and no border line; selected row inset 8 with ~8-point corners (§2.10). SwiftCode draws its own box radius (10) and uses push/flexible-push bezels. | P2 |
 | G10 | Debug area, inspector content and the editor: **no glass** — flat filled fields and pop-ups, plain section headers (§2.6, §2.7, §2.7a). Do not add glass there. | P3 |
 
-**Status (IDE-GLASS, 2026-10-27, branch `ide-glass`).** Ycode's design
-record is `liquid-glass-ycode.md`; each gap:
+**Status (IDE-GLASS, 2026-10-27, branch `ide-glass`).** SwiftCode's design
+record is `liquid-glass-swiftcode.md`; each gap:
 
 - *G0 closed.* `scripts/make-app.sh` stamps the SDK the app is built with
   into `LC_BUILD_VERSION` (`vtool -set-build-version macos 15.0 27.0`);
@@ -64,9 +64,9 @@ record is `liquid-glass-ycode.md`; each gap:
   view draw no floating panel on macOS 27.2 (checked in a minimal AppKit
   window too). No line between navigator and editor; the inspector draws
   a 1-point separator at its leading edge, full height. No titlebar
-  separator. Ycode's inspector is 260 wide since beta 2, the reference's
+  separator. SwiftCode's inspector is 260 wide since beta 2, the reference's
   width.
-- *G3 closed.* Measured on Ycode's window (inactive, 1400 × 900):
+- *G3 closed.* Measured on SwiftCode's window (inactive, 1400 × 900):
   Navigators | Coding Assistant 95–173 (78 × 38, top 7), Run | Stop
   208–283 (75), Back | Forward 297–372 (75), New Conversation a 38 × 38
   circle, the scheme capsule and the issue capsule separate, Add Editor |
@@ -100,9 +100,9 @@ record is `liquid-glass-ycode.md`; each gap:
   so text beneath shows strongly blurred and faint, with the separator
   line above as the hard edge. The jump bar was already an opaque band
   with a separator; its height is still the earlier specs'.
-- *G6 checked.* Every Ycode capture here was of an inactive window: the
+- *G6 checked.* Every SwiftCode capture here was of an inactive window: the
   toolbar shapes, bars and the Welcome close circle draw flat with an
-  outline, at unchanged sizes (system behavior, no Ycode code).
+  outline, at unchanged sizes (system behavior, no SwiftCode code).
 - *G7 closed.* Popovers use the system material; `PanelBackgroundView`
   leaves a popover's background alone (macOS 26+); the prompt popover's
   content draws no background.
@@ -127,7 +127,7 @@ record is `liquid-glass-ycode.md`; each gap:
   `NSScrollEdgeEffectStyle` was not needed for the jump bar or the debug
   bar (above); it stays the way to try if the reference's edge rendering
   must be matched more closely.
-- Full screen (§4.3) and the dark appearance are system behavior; Ycode
+- Full screen (§4.3) and the dark appearance are system behavior; SwiftCode
   draws only system materials and semantic colors, so nothing more is
   done for them.
 
@@ -150,7 +150,7 @@ look.
 | Content placed under side areas or bars | `NSSplitViewItem.automaticallyAdjustsSafeAreaInsets`, `allowsFullHeightLayout` (sidebar/inspector full height under a full-size content view), `titlebarSeparatorStyle`; `NSBackgroundExtensionView` (not used by the reference). |
 | Split layout | `NSSplitViewController` with `NSSplitViewItem` behaviors (`sidebarWithViewController:`, `inspectorWithViewController:`). G2: whether these draw floating panels under SDK 26+ must be checked, and the reference's flush layout kept. |
 | Concentric corners | `NSView.cornerConfiguration` / `effectiveCornerRadii` (macOS 27). Optional. |
-| Accessibility adaptation | System: with standard components, Reduce Transparency and Increase Contrast adapt automatically (Apple, "Adopting Liquid Glass"). Ycode draws no custom translucency, so it needs no code for these. |
+| Accessibility adaptation | System: with standard components, Reduce Transparency and Increase Contrast adapt automatically (Apple, "Adopting Liquid Glass"). SwiftCode draws no custom translucency, so it needs no code for these. |
 
 ## 2. Surfaces
 
@@ -183,7 +183,7 @@ an area edge keeps **7 points** from that edge.
 | New Conversation | circle | 569–606 | 38 × 38 |
 | Scheme › Destination | capsule | 613–803 | 191 × 38 (width follows the titles) |
 | Issue capsule | capsule | 810–872 | 63 × 38 (width follows the counts) |
-| Notices (Ycode leaves this slot out, `reference-ui-6.md` §12) | circle | 879–916 | 38 × 38 |
+| Notices (SwiftCode leaves this slot out, `reference-ui-6.md` §12) | circle | 879–916 | 38 × 38 |
 | Add Editor \| Editor Options | one capsule, no divider | 923–1002 | 80 × 38 |
 | Canvas \| Assistant \| Code Review | one capsule, divider line before the third | 1009–1133 (ends 6 before the inspector divider) | 125 × 38 |
 | Hide / Show Inspector | circle over the inspector area | 1355–1392 (7 from the window's right edge) | 38 × 38 |
@@ -301,7 +301,7 @@ Opaque. The minimap and the overlay scrollers are not glass.
    pixel in it).
 2. In the toolbar band above the editor, once the editor is scrolled away
    from the top, a very faint, heavily blurred trace of the scrolled-away
-   text appears; at the top of the file nothing appears. Ycode may treat
+   text appears; at the top of the file nothing appears. SwiftCode may treat
    the toolbar band over the editor as plain editor background; the trace
    is barely visible.
 
@@ -337,7 +337,7 @@ Not observed (§6).
 ### 4.4 Accessibility settings
 
 Reduce Transparency and Increase Contrast were off and could not be
-changed. Ycode relies on system materials only, so the system's
+changed. SwiftCode relies on system materials only, so the system's
 adaptation applies (§1, last row).
 
 ## 5. Not observed
@@ -349,7 +349,7 @@ appearance, the Reduce
 Transparency and Increase Contrast states, and the scrolled navigator in
 an active window. Each needs a menu press, a keystroke, the pointer over
 the window, a drag, a Space change or a Mac setting change. Until
-observed, Ycode uses the system's standard look for these (system menus,
+observed, SwiftCode uses the system's standard look for these (system menus,
 standard search fields, standard tab bar).
 
 ## 6. Dark appearance
@@ -358,14 +358,14 @@ Not observed. The Mac's appearance is set to switch automatically and
 stayed light through the whole pass (checked until 18:50 local time, after
 sunset); the appearance is a Mac setting and was not changed, and the
 reference cannot be relaunched with another appearance without quitting it
-(a menu press). Requirement for Ycode until observed: draw every surface in
+(a menu press). Requirement for SwiftCode until observed: draw every surface in
 this spec with system materials and semantic colors only, so that the dark
 appearance is the system's; the shapes, sizes, spacing and scroll-edge
 behavior of §2–§4 do not depend on the appearance.
 
 ## 7. Council round 1 measurements (2026-11-04)
 
-A review council of three judges compared Ycode with the reference in one
+A review council of three judges compared SwiftCode with the reference in one
 scripted session. These values were measured from that session's captures:
 1x stills (one pixel is one point) and recordings with per-frame times. The
 judges disagreed on several values, and these measurements settle them. The
@@ -380,10 +380,10 @@ buttons are neutral grey. Every glass value below is therefore the
 "no colors" scope above, made for the council) are inactive-state sRGB
 values.
 
-**The Ycode build in the session showed the earlier design.** The capture
+**The SwiftCode build in the session showed the earlier design.** The capture
 wrapper bundles the plain `swift build` executable, which declares SDK 15.0
 (`LC_BUILD_VERSION`, minos 15.0, sdk 15.0). That is gap G0 again. AppKit
-therefore drew Ycode's pre-macOS-26 fallback: no toolbar capsules, an
+therefore drew SwiftCode's pre-macOS-26 fallback: no toolbar capsules, an
 opaque grey toolbar band and a grey jump bar. The judges' "no glass
 capsules" findings describe that build, not `make-app.sh`'s. The wrapper
 must stamp the SDK as `make-app.sh` does before round 2.
@@ -427,7 +427,7 @@ Drawn spans at mid-height (y 26) in this window:
 2. **Scheme capsule contents**, from left to right: a target glyph on a
    grey rounded square, "GlassScroll", a small "›" separator, a
    destination glyph (a laptop), "My Mac". The capsule has **no up-down
-   pop-up chevrons**. Ycode draws "⌃⌄" chevrons after both titles; remove
+   pop-up chevrons**. SwiftCode draws "⌃⌄" chevrons after both titles; remove
    them.
 3. **Activity view (title).** It has no shape. The icon is 19 wide at
    x 385, and the text starts 8 points after the icon. While a project
@@ -436,11 +436,11 @@ Drawn spans at mid-height (y 26) in this window:
    height runs from y 14 to y 23 and the subtitle line from y 30 to y 39
    (a smaller regular weight). Without one, the title is centred on the
    bar (ink y 21–30). **Inactive colour:** title and subtitle both
-   #BCBDBD. The active colour is to measure in round 2. Ycode draws its
+   #BCBDBD. The active colour is to measure in round 2. SwiftCode draws its
    title in #454546 in an inactive window and puts a document glyph before
    it.
 4. The toolbar band over the editor is **white (#FFFFFF)**, the editor's
-   background. Over the side areas it is their background, #F2F2F3. Ycode
+   background. Over the side areas it is their background, #F2F2F3. SwiftCode
    draws #E6E6E7 across the whole width.
 
 ### 7.2 Navigator and inspector bars
@@ -448,11 +448,11 @@ Drawn spans at mid-height (y 26) in this window:
 | Element | Measured | Notes |
 |---|---|---|
 | Navigator selector capsule | y 51–80 (30 tall), outline #C8C8C9, fill #DEDEDF | §2.3 confirmed |
-| Its selected pill | x ≈ 10–36, y 54–77 (≈ 27 × 24), #CACACB; selected glyph #7C7D7E, others #919192 | neutral grey. **No accent colour.** Ycode tints the selected glyph accent blue (#0070F5) with no pill |
+| Its selected pill | x ≈ 10–36, y 54–77 (≈ 27 × 24), #CACACB; selected glyph #7C7D7E, others #919192 | neutral grey. **No accent colour.** SwiftCode tints the selected glyph accent blue (#0070F5) with no pill |
 | Inspector tab capsule | y 51–80, fill #DEDEDF | §2.5 |
-| Its selected pill | x ≈ 1151–1224, y 54–77, #CACACB; selected glyph #7D7D7E | Ycode: an accent-blue glyph (#007AFF) on a light pill |
+| Its selected pill | x ≈ 1151–1224, y 54–77, #CACACB; selected glyph #7D7D7E | SwiftCode: an accent-blue glyph (#007AFF) on a light pill |
 | Filter capsule (880 window) | y 843–872, fill #E6E6E7, outline #C8C8C9 | 7 above the bottom edge, as §2.3 |
-| Debug bar's first item | a filled light-accent shape 18 × 11 at x 303–320, y 857–867 (#7FBCFF inactive) | Ycode draws a grey outline glyph there |
+| Debug bar's first item | a filled light-accent shape 18 × 11 at x 303–320, y 857–867 (#7FBCFF inactive) | SwiftCode draws a grey outline glyph there |
 
 ### 7.3 Scroll-under
 
@@ -475,7 +475,7 @@ faint, shapeless darkening, with no glyph shapes.
    full colour. For example, the comment ink right under the header is
    #697085, the same as in the middle of the editor. The effect does not
    reach below a bar's edge at all (0 points).
-2. **Ycode:** its toolbar band and jump bar changed by 0–1 levels during
+2. **SwiftCode:** its toolbar band and jump bar changed by 0–1 levels during
    the same scroll. They are opaque, and its scroll's changed region stops
    at y 83 and at the bottom bar. This is partly the SDK 15 fallback above.
 3. **Tint over light and dark content was not measured.** Step 5 (bands
@@ -485,7 +485,7 @@ faint, shapeless darkening, with no glyph shapes.
 
 ### 7.4 Pane backgrounds (inactive, light)
 
-| Surface | Reference | Ycode in the session |
+| Surface | Reference | SwiftCode in the session |
 |---|---|---|
 | Navigator area | #F2F2F3 | #E6E6E7 |
 | Inspector area | #F2F2F3 | #EBECEC |
@@ -538,7 +538,7 @@ neither has a single accent-blue pixel. Unavailable buttons dim:
 - Go Back and Go Forward are #AEAEAE until there is history (Go Back is
   black once there is).
 
-Ycode fills the navigator toggle (630 accent pixels) and the selected
+SwiftCode fills the navigator toggle (630 accent pixels) and the selected
 editor mode (605) with solid accent blue, and draws Stop, Back and Forward
 black whether or not they can act. The Show Inspector circle is not
 accent-filled in either app, before or after hiding; Gemini's
@@ -569,7 +569,7 @@ took in the window together with the menu. The window-server frame stayed
    circle went into "»", and the scheme capsule dropped its titles. The
    order in which they go cannot be told from a one-step resize. **Window
    minimum width: not measured.**
-2. **Ycode at 1100:** no "»". It keeps New Conversation, the scheme ("Glas…
+2. **SwiftCode at 1100:** no "»". It keeps New Conversation, the scheme ("Glas…
    › My Mac", truncated), Add Editor, Editor Options, and a collapsed
    editor-mode pull-down. It has no subtitle and no Notices.
 3. **To measure in round 3:** a slow live resize from 1400 down to the
@@ -585,7 +585,7 @@ colour, white at rest, at the frame where it was darkest over slate content
 and where it was reddest. The content row itself (y 86–104) reaches a mean
 darkness of 94.5 over slate.
 
-| Region | Over slate bands | Mean darkness | Share of the content's | Over red bands | Ycode |
+| Region | Over slate bands | Mean darkness | Share of the content's | Over red bands | SwiftCode |
 |---|---|---|---|---|---|
 | Toolbar band, y 0–6 (above the shapes) | #ECEDF0 | 17.2 | **18 %** | #FDE5E3 | no change (#FFFFFF throughout) |
 | Toolbar band, y 45–51 | #EEEFF2 | 15.3 | 16 % | #FBE7E6 | no change |
@@ -612,10 +612,10 @@ darkness of 94.5 over slate.
    6 % for the toolbar band and jump bar over text. The active window
    passes 8.5–18 %. The inactive share may simply be lower; to confirm
    with one capture of each state over the same bands.
-5. **Ycode:** its bottom bar matches. Its toolbar band does not respond
+5. **SwiftCode:** its bottom bar matches. Its toolbar band does not respond
    at all and its jump bar barely responds (≤ 2 levels), so the red glow
-   never appears above the editor. Ycode's own record says the editor
-   column still starts below the toolbar (`liquid-glass-ycode.md` §12.8).
+   never appears above the editor. SwiftCode's own record says the editor
+   column still starts below the toolbar (`liquid-glass-swiftcode.md` §12.8).
 6. **The judge's 229,230,231 → 228,220,221** was a region mean that took
    in the toolbar shapes. Use the per-region values above.
 
@@ -628,7 +628,7 @@ After scrolling the navigator 432 points:
   glows through it) and through the filter capsule (up to 237 levels of
   change: plainly visible, softened).
 
-In **Ycode the rows draw over the toolbar band, the traffic lights and the
+In **SwiftCode the rows draw over the toolbar band, the traffic lights and the
 toolbar shapes at full contrast** (pixel change up to 238 levels at
 y 0–44), and below the filter capsule. The outline must be clipped at the
 selector capsule's top edge. Its content may pass under the two capsules
@@ -637,7 +637,7 @@ only.
 ## 9. Council round 3 measurements (2026-11-05)
 
 Retina (2x) captures of both apps, foreground, key window, 120 fps; the
-same 1400 × 880 grid as §8. Ycode now declares the macOS 27 SDK, so its
+same 1400 × 880 grid as §8. SwiftCode now declares the macOS 27 SDK, so its
 glass layout is the one compared. Checklist rows 68–69 in
 `fidelity-council.md`.
 
@@ -648,7 +648,7 @@ with the reddest band under the bars was taken, and each row's
 upper-quartile green level was read across the editor's width
 (x 300–1130; 255 = untouched white, lower = more red showing through).
 
-| Row (y) | Reference | Ycode now |
+| Row (y) | Reference | SwiftCode now |
 |---|---|---|
 | Toolbar band above the shapes, 0–6 | 226–231 | 241, flat |
 | Toolbar shapes' row, 9–42 | 252–255 (the white capsules) | 247–255 |
@@ -670,7 +670,7 @@ upper-quartile green level was read across the editor's width
    the separator to white about 20 points down. Seen together, the top
    shows **two distinct blurred smears, one behind the toolbar row and one
    behind the jump bar, each about 15 points tall**.
-2. **Ycode draws a uniform wash.** Its jump bar is 239–245 at every row
+2. **SwiftCode draws a uniform wash.** Its jump bar is 239–245 at every row
    (a flat pink tint with no bands in it), its toolbar band 241, and its
    bottom bar 237–240 at every row. The tint is present (Gemini's
    "opaque jump bar" does not hold) but the content's shape is not.
@@ -686,7 +686,7 @@ upper-quartile green level was read across the editor's width
 Step 15 (the navigator scrolled 500 points so that rows pass under the
 selector capsule):
 
-| Element | Reference | Ycode now |
+| Element | Reference | SwiftCode now |
 |---|---|---|
 | Capsule fill over scrolled rows | about **#E8E8E9** | about #F0F0F1 |
 | Rows under the capsule | **blurred to colour smudges**: a row's text changes the fill only to #DFDFE0–#E3E1E0 in soft bands; an orange file icon tints it to #F1DED9; **no letter strokes** | **legible**: "Model16" shows as crisp 1-point strokes (#D1D1D3–#D6D5D5 on #F0F0F1) |
@@ -703,9 +703,9 @@ rows); its glyphs are drawn in the primary label colour, not secondary.
 
 | Claim | Level | Source |
 |---|---|---|
-| §0 G0 build version | — / 3 / 1 | `otool -l` of Ycode's SwiftPM product and of a plain `swiftc` product against the same SDK; a probe app of ours linked twice (declared sdk 27.0 vs 15.0) shows the new and the old design on macOS 27.2; Apple's "Adopting Liquid Glass" (build with the latest SDK to get the design; `UIDesignRequiresCompatibility`) |
-| §0 G1 crash | — | Crash report of Ycode's own debug build (our code) |
-| §0 G2–G10 Ycode side | — | Ycode source identifiers in `ycode/Sources/YcodeUI` and its running Welcome window |
+| §0 G0 build version | — / 3 / 1 | `otool -l` of SwiftCode's SwiftPM product and of a plain `swiftc` product against the same SDK; a probe app of ours linked twice (declared sdk 27.0 vs 15.0) shows the new and the old design on macOS 27.2; Apple's "Adopting Liquid Glass" (build with the latest SDK to get the design; `UIDesignRequiresCompatibility`) |
+| §0 G1 crash | — | Crash report of SwiftCode's own debug build (our code) |
+| §0 G2–G10 SwiftCode side | — | SwiftCode source identifiers in `swiftcode/Sources/SwiftCodeUI` and its running Welcome window |
 | §1 API names | 1 | macOS 27.0 SDK AppKit interface declarations (`NSGlassEffectView`, `NSScrollEdgeEffectStyle`, `NSSplitViewItemAccessoryViewController`, `NSSplitViewItem`, `NSToolbarItem`, `NSToolbarItemGroup`, `NSButton`/`NSControl` border shapes, `NSTitlebarAccessoryViewController`, `NSBackgroundExtensionView`, `NSView` corner configuration) and Apple's "Adopting Liquid Glass" article |
 | §2.1–§2.7 materials and geometry | 3 | Window captures at scale 1 (one pixel = one point): rim, highlight, shadow and separator positions from pixel profiles; accessibility frames |
 | §2.2 hidden-area variants | 3 | Captures after clicking the Navigators segment and the inspector button |
@@ -718,7 +718,7 @@ rows); its glyphs are drawn in the primary label colour, not secondary.
 | §4.3 full screen | 3 | Window-server window list and a background capture of the content window after the owner put it in full screen |
 | §4.3, §5 | — | Settings read with `defaults read` only; limits of background, click-only control |
 | §6 dark | — | Not observed (appearance setting read only) |
-| §7 capture conditions | 3 / — | Capture manifests: window frame, neutral window buttons. Ycode wrapper: `otool -l` of its executable (our own binary) |
+| §7 capture conditions | 3 / — | Capture manifests: window frame, neutral window buttons. SwiftCode wrapper: `otool -l` of its executable (our own binary) |
 | §7.1 toolbar shapes, positions, title | 3 | Council r1 stills 01, 02, 08 (1x): colour runs on rows 10 and 26 and on column 700, and glyph ink boxes. `research/tools/council-r1/measure_captures.py` (`toolbar`) |
 | §7.2 bars and pills | 3 | Still 01: colour runs on the selector and tab capsules |
 | §7.3 scroll-under | 3 | Recordings 02 (136 frames) and 07: per-frame mean darkness of each bar region against the content; before/after differences of stills 07. Script sections `under` and `navigator` |

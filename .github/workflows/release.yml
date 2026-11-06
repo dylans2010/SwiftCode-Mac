@@ -30,14 +30,14 @@ jobs:
         with:
           persist-credentials: false
       - id: version
-        name: The tag must match ycode/VERSION
+        name: The tag must match swiftcode/VERSION
         env:
           REF_TYPE: ${{ github.ref_type }}
           TAG: ${{ github.ref_name }}
         run: |
-          version="$(cd ycode && scripts/version.sh)"
+          version="$(cd swiftcode && scripts/version.sh)"
           if [ "$REF_TYPE" = tag ] && [ "$TAG" != "v$version" ]; then
-            echo "::error::Tag $TAG does not match ycode/VERSION ($version)"
+            echo "::error::Tag $TAG does not match swiftcode/VERSION ($version)"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -66,17 +66,17 @@ jobs:
       - uses: ./.github/actions/setup-swift
       - id: dmg
         name: Build, sign and verify the disk image
-        working-directory: ycode
+        working-directory: swiftcode
         # The only step that sees the signing secrets.
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          YCODE_SIGN_IDENTITY: ${{ secrets.YCODE_SIGN_IDENTITY }}
+          SWIFTCODE_SIGN_IDENTITY: ${{ secrets.SWIFTCODE_SIGN_IDENTITY }}
           NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          YCODE_BUILD_NUMBER: ${{ github.run_number }}
+          SWIFTCODE_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           signing=ad-hoc
           if [ -n "$MACOS_CERTIFICATE_P12_BASE64" ]; then
@@ -84,7 +84,7 @@ jobs:
             if [ -n "$NOTARY_KEY_P8_BASE64" ] && [ -n "$NOTARY_KEY_ID" ] && [ -n "$NOTARY_ISSUER_ID" ]; then
               signing=notarized
               # A notarized image must pass Gatekeeper, not just carry a signature.
-              export YCODE_VERIFY_REQUIRE_GATEKEEPER=1
+              export SWIFTCODE_VERIFY_REQUIRE_GATEKEEPER=1
             fi
           fi
           scripts/make-dmg.sh "$GITHUB_WORKSPACE/dist"
@@ -161,5 +161,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --latest \
-            --title "Ycode $VERSION" \
+            --title "SwiftCode $VERSION" \
             --notes-file release/release-notes.md

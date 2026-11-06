@@ -15,7 +15,7 @@ import SwiftUICore
 // defaults, not in the view: every reader of the key re-renders when it
 // changes, also when the change is made through `UserDefaults` directly
 // (06 §8: an external `set(_:forKey:)` updated the property and fired
-// `onChange`). Ycode's mechanism: readers register per store and key; a write
+// `onChange`). SwiftCode's mechanism: readers register per store and key; a write
 // through a wrapper invalidates the readers at once; other writes are seen
 // through `UserDefaults.didChangeNotification`, after which each reader
 // compares the stored object with the one it last read.
@@ -23,7 +23,7 @@ import SwiftUICore
 // `@SceneStorage(key)` keeps a value per scene (window): views of the same
 // window with the same key share it, it survives the view's removal and
 // re-insertion (navigation, tabs), and each window of a group has its own.
-// Ycode's rules (09-open-design.md §4): the scene's values are archived when
+// SwiftCode's rules (09-open-design.md §4): the scene's values are archived when
 // the app goes to the background and when it is terminated by the system,
 // discarded when the user closes the window or quits (06 §8: values were
 // not restored after a user quit), and restored at launch for the first

@@ -12,7 +12,7 @@ import SwiftUICore
 // go after the back button, `principal` replaces the inline title, the
 // others go to the trailing end in declaration order.
 //
-// R11 (Ycode's design): outside a navigation container, items go to the
+// R11 (SwiftCode's design): outside a navigation container, items go to the
 // window toolbar, a bar of its own under the menu bar (WindowChrome.swift):
 // leading placements at the leading end, `principal` (and `status`) centred,
 // the rest (`automatic`, `primaryAction`, `secondaryAction`,

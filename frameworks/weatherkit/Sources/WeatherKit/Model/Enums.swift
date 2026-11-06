@@ -2,7 +2,7 @@
 //
 // String-backed enums use the case name as raw value (codable.md §1) and
 // are CaseIterable and CustomStringConvertible. The English labels are the
-// observed output values of behavior.md §6; the tables are Ycode's own.
+// observed output values of behavior.md §6; the tables are SwiftCode's own.
 import Foundation
 
 /// The weather condition of a period.

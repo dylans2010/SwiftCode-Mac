@@ -109,7 +109,7 @@ Seed data of a fresh simulator device (level 2, shipped in the device
 template's `AddressBook.sqlitedb`): six persons — Kate Bell (Creative
 Consulting), Daniel Higgins, John Appleseed, Anna Haro, Hank Zakroff
 (Financial Services Inc.), David Taylor — and two groups, Friends and Work.
-These are Apple's sample data; Ycode ships its **own** made-up seed set
+These are Apple's sample data; SwiftCode ships its **own** made-up seed set
 (plan R1), not these records.
 
 ## 4. Fetching
@@ -138,7 +138,7 @@ These are Apple's sample data; Ycode ships its **own** made-up seed set
 | name "avery example", "Example Avery" | the two Avery Example contacts (all words must match, any order) |
 | name "Ave" | the two Averys (given name prefix; c1 also has nickname "Ave") |
 | name "Widgets" | the organization contact and c1 (organization "Example Widgets LLC") |
-| name "Ycode Probe Widgets" | the organization contact **and c1** — c1's job title is "ycode-probe": the name search also covers the job title (inference) |
+| name "SwiftCode Probe Widgets" | the organization contact **and c1** — c1's job title is "swiftcode-probe": the name search also covers the job title (inference) |
 | name "山田", "やまだ" | the Japanese contact (phonetic names are searched) |
 | name "Avéry" | the two Averys (diacritic-insensitive) |
 | email "avery@example.com", "AVERY@EXAMPLE.COM" | both contacts with that address (case-insensitive, exact) |
@@ -154,12 +154,12 @@ These are Apple's sample data; Ycode ships its **own** made-up seed set
 
 Probe contacts (given/family/organization): Avery Example, Avery Example
 (org Example Widgets LLC), Blake Example, Casey Sample, Pixel Probe,
-organization "Ycode Probe Widgets", 太郎 山田.
+organization "SwiftCode Probe Widgets", 太郎 山田.
 
 | `sortOrder` | Order |
 |---|---|
-| 2 given name | Avery/Example, Avery/Example/Example Widgets LLC, Blake/Example, Casey/Sample, Pixel/Probe, //Ycode Probe Widgets, 太郎/山田 |
-| 3 family name, 1 user default (= family) | Avery/Example, Blake/Example, Avery/Example/Example Widgets LLC, Pixel/Probe, Casey/Sample, //Ycode Probe Widgets, 太郎/山田 |
+| 2 given name | Avery/Example, Avery/Example/Example Widgets LLC, Blake/Example, Casey/Sample, Pixel/Probe, //SwiftCode Probe Widgets, 太郎/山田 |
+| 3 family name, 1 user default (= family) | Avery/Example, Blake/Example, Avery/Example/Example Widgets LLC, Pixel/Probe, Casey/Sample, //SwiftCode Probe Widgets, 太郎/山田 |
 | 0 none | unspecified (storage order; differed between runs) |
 
 Observations: the organization contact sorts by its organization name;
@@ -181,7 +181,7 @@ CJK last.)
 
 `unifyResults` YES/NO gave the same counts (no linked contacts exist);
 `isUnifiedWithContactWithIdentifier:` is NO even for the contact's own
-identifier on a fetched contact. Linking is not public API; Ycode treats each
+identifier on a fetched contact. Linking is not public API; SwiftCode treats each
 contact as its own unified contact (plan R5 note).
 
 ## 5. Saving
@@ -220,7 +220,7 @@ arrive:
    `CNNotificationOriginationExternally` = 1.
 
 (The user-info keys are not declared in the SDK; apps should not depend on
-them. Ycode posts the same pair.) With limited access the first
+them. SwiftCode posts the same pair.) With limited access the first
 notification of a deletion also carried `CNNotificationOriginationExternally`.
 
 ### 6.2 Change history

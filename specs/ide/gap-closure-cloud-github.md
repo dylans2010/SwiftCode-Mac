@@ -29,7 +29,7 @@ no real credential appears anywhere in this slice.
 Verified live before touching anything: there was no registered
 custom URL scheme anywhere in the destination (no
 `CFBundleURLTypes` in `packaging/macos/Info.plist.in`, no
-`onOpenURL` / `application(_:open:)` handler in `ycode/Sources`),
+`onOpenURL` / `application(_:open:)` handler in `swiftcode/Sources`),
 while both OAuth systems already had their receiving ends built:
 
 - `CloudAuthManager.beginOAuth(provider:openURL:)` opens the
@@ -43,7 +43,7 @@ while both OAuth systems already had their receiving ends built:
 
 ### What landed
 
-`ycode/Sources/YcodeUI/App/AppSupport.swift` (owned file):
+`swiftcode/Sources/SwiftCodeUI/App/AppSupport.swift` (owned file):
 
 - `AppDelegate.application(_:open:)` forwards every URL the
   system routes to the app to `AppDelegate.handleOpenedURL(_:)`.
@@ -77,7 +77,7 @@ exact patch (insert before the closing `</dict>`):
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.github.MarcoDotIO.Ycode.appwrite-callback</string>
+			<string>com.dylans2010.SwiftCode-Mac.appwrite-callback</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>appwrite-callback-6a670d0b0022e5f964b4</string>
@@ -85,7 +85,7 @@ exact patch (insert before the closing `</dict>`):
 		</dict>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.github.MarcoDotIO.Ycode.swiftcode</string>
+			<string>com.dylans2010.SwiftCode-Mac.swiftcode</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>swiftcode</string>
@@ -106,8 +106,8 @@ Notes on the patch:
 - The app must be (re)installed / relaunched for Launch Services
   to pick up the new scheme registration; a bare rebuild is not
   enough.
-- No `Package.swift` change is needed: `YcodeUI` already depends
-  on `YcodeCloud` and `YcodeGoogleAuth`.
+- No `Package.swift` change is needed: `SwiftCodeUI` already depends
+  on `SwiftCodeCloud` and `SwiftCodeGoogleAuth`.
 
 ### 1.1 Still open: the password-reset sheet
 
@@ -146,8 +146,8 @@ created file's id, instead of throwing. That unblocks the
 
 ## 3. SupabaseService (PostgREST, Database utility)
 
-`ycode/Sources/YcodeCloud/SupabaseService.swift` (new) +
-`ycode/Sources/YcodeCloud/DatabaseModels.swift` (new), ported
+`swiftcode/Sources/SwiftCodeCloud/SupabaseService.swift` (new) +
+`swiftcode/Sources/SwiftCodeCloud/DatabaseModels.swift` (new), ported
 from Legacy's `Views/Utilities/Database/Services/SupabaseService.swift`
 and the `Views/Utilities/Database/Models/` + `Helpers/` types it
 touches.
@@ -189,8 +189,8 @@ the direction Dylan's real-thing standard requires.
 
 ## 4. BackupEngine
 
-`ycode/Sources/YcodeCloud/BackupModels.swift` (new) +
-`ycode/Sources/YcodeCloud/BackupEngine.swift` (new), ported from
+`swiftcode/Sources/SwiftCodeCloud/BackupModels.swift` (new) +
+`swiftcode/Sources/SwiftCodeCloud/BackupEngine.swift` (new), ported from
 Legacy's `Frameworks/Internal/Backups/Models/BackupModels.swift`
 and `Frameworks/Internal/Backups/Engine/BackupEngine.swift`.
 
@@ -198,8 +198,8 @@ and `Frameworks/Internal/Backups/Engine/BackupEngine.swift`.
 
 | Legacy | This port | Why |
 |---|---|---|
-| ZIPFoundation `Archive` | `/usr/bin/zip` (create) + `/usr/bin/unzip` (extract) via `Foundation.Process` | No ZIPFoundation dependency in the destination; same precedent as `YcodeExtensions.PackageService`, which extracts with `/usr/bin/unzip` on macOS and Linux. Missing tool fails honestly as `.missingTool` naming the tool. |
-| CryptoKit `SHA256` | Pure-Swift `SHA256Digest` (already in `YcodeCloud`) | No new dependency; same digest. |
+| ZIPFoundation `Archive` | `/usr/bin/zip` (create) + `/usr/bin/unzip` (extract) via `Foundation.Process` | No ZIPFoundation dependency in the destination; same precedent as `SwiftCodeExtensions.PackageService`, which extracts with `/usr/bin/unzip` on macOS and Linux. Missing tool fails honestly as `.missingTool` naming the tool. |
+| CryptoKit `SHA256` | Pure-Swift `SHA256Digest` (already in `SwiftCodeCloud`) | No new dependency; same digest. |
 | `Host.current().localizedName` | `ProcessInfo.processInfo.hostName` | AppKit-only API; portable. |
 | `AuthManager.shared` read directly | Injected `CloudAuthManager` (default `.shared`) | Testable with a stub transport, like `CloudManager`. |
 | `os.Logger` | No logging | `os.log` is Apple-only; the hash is kept in `lastArchiveSHA256` instead of only being logged. |
@@ -243,7 +243,7 @@ and `Frameworks/Internal/Backups/Engine/BackupEngine.swift`.
 
 ## 5. AppConfig remainder
 
-`ycode/Sources/YcodeCloud/AppConfig.swift` (new), ported from
+`swiftcode/Sources/SwiftCodeCloud/AppConfig.swift` (new), ported from
 Legacy's `SwiftCode/Config/AppConfig.swift`: the five
 configuration entries, read from the same Info.plist keys
 (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENROUTER_API_KEY`,
@@ -275,8 +275,8 @@ The keys Dylan actually signs in with live in the secret store
 
 ## 6. GitHub remainder
 
-`ycode/Sources/YcodeGitHub/GitHubClient.swift` (extended) +
-`ycode/Sources/YcodeGitHub/GitHubModels.swift` (extended),
+`swiftcode/Sources/SwiftCodeGitHub/GitHubClient.swift` (extended) +
+`swiftcode/Sources/SwiftCodeGitHub/GitHubModels.swift` (extended),
 ported from Legacy's `Backend/GitHub/GitHubAPI.swift` (+
 `GitHubBuilds.swift` for the workflow helpers). Same
 conventions as Wave 10: token per request via `tokenProvider`,
@@ -339,7 +339,7 @@ type — no scope is probed or worked around here.
 
 ## 7. Tests
 
-`ycode/Tests/YcodeCloudTests/CloudGapTests.swift` — 26 tests
+`swiftcode/Tests/SwiftCodeCloudTests/CloudGapTests.swift` — 26 tests
 (Swift Testing, stub transport, hand-written fixtures, no live
 network, no real credentials):
 
@@ -351,7 +351,7 @@ network, no real credentials):
 | 3 | `AppConfig` defaults/diagnostics, configured values, placeholder/`$` values treated as unconfigured |
 | 9 | BackupEngine auth guard, local listing, local-only backup (hash + reload), upload leg, cloud fetch merge, cloud restore (download + erase + extract + count), missing-archive result, delete (local + remote), real `zip`/`unzip` round-trip |
 
-`ycode/Tests/YcodeGitHubTests/GitHubGapTests.swift` — 17 tests:
+`swiftcode/Tests/SwiftCodeGitHubTests/GitHubGapTests.swift` — 17 tests:
 
 | Tests | Covers |
 |---|---|
@@ -374,9 +374,9 @@ network, no real credentials):
 
 ## 9. Package.swift wiring needed
 
-None. `YcodeCloud` gains no dependency (Foundation +
-`YcodeAssistant` only); `YcodeGitHub` gains none; `YcodeUI`
-already depends on `YcodeCloud` and `YcodeGoogleAuth`, so the
+None. `SwiftCodeCloud` gains no dependency (Foundation +
+`SwiftCodeAssistant` only); `SwiftCodeGitHub` gains none; `SwiftCodeUI`
+already depends on `SwiftCodeCloud` and `SwiftCodeGoogleAuth`, so the
 app-shell forwarding needs no new wiring. No new target, no new
 product, no new test-target dependency.
 
@@ -393,15 +393,15 @@ Xcode/Simulator observation was opened, read, or run.
 
 | Claim | Evidence |
 |---|---|
-| No URL-scheme plumbing existed in the destination | `grep` over `ycode/Sources` for `onOpenURL` / `handleOpenURL` / `CFBundleURLSchemes` (only the IDE's own Info.plist *editor* model mentions `CFBundleURLTypes`; no handler, no registration) + `packaging/macos/Info.plist.in` read directly (no `CFBundleURLTypes`) |
-| Appwrite OAuth client side + `handleOAuthCallback` contract | `ycode/Sources/YcodeCloud/CloudAuthManager.swift` + `AppwriteAccountClient.swift`, read directly |
-| Google `handleOpenURL` contract + `swiftcode` scheme + loopback | `ycode/Sources/YcodeGoogleAuth/GoogleAccountAuthService.swift` (line ~1076) + `GoogleOAuthConfiguration.swift`, read directly |
+| No URL-scheme plumbing existed in the destination | `grep` over `swiftcode/Sources` for `onOpenURL` / `handleOpenURL` / `CFBundleURLSchemes` (only the IDE's own Info.plist *editor* model mentions `CFBundleURLTypes`; no handler, no registration) + `packaging/macos/Info.plist.in` read directly (no `CFBundleURLTypes`) |
+| Appwrite OAuth client side + `handleOAuthCallback` contract | `swiftcode/Sources/SwiftCodeCloud/CloudAuthManager.swift` + `AppwriteAccountClient.swift`, read directly |
+| Google `handleOpenURL` contract + `swiftcode` scheme + loopback | `swiftcode/Sources/SwiftCodeGoogleAuth/GoogleAccountAuthService.swift` (line ~1076) + `GoogleOAuthConfiguration.swift`, read directly |
 | Appwrite Storage file creation is multipart `fileId` + `file` | Appwrite REST API documentation (public); response shape is the same `AppwriteFile` the list call returns |
 | SupabaseService behaviour (PostgREST `rest/v1/`, `apikey` + `Bearer`, OpenAPI `definitions` parsing, faked `executeSQL`) | Legacy `Views/Utilities/Database/Services/SupabaseService.swift`, read directly |
 | Database models | Legacy `Views/Utilities/Database/Models/Database*.swift` + `Helpers/DatabaseErrorHandler.swift`, read directly |
 | BackupEngine behaviour (401 guard, `backups` bucket, ZIP snapshot of `SwiftCode/` minus `Backups`, hash, erase-on-restore, `triggerSync`) | Legacy `Frameworks/Internal/Backups/Engine/BackupEngine.swift` + `Models/BackupModels.swift`, read directly |
-| `zip`/`unzip` extraction precedent | `ycode/Sources/YcodeExtensions/PackageService.swift` (`/usr/bin/unzip -q -o` on macOS and Linux) |
+| `zip`/`unzip` extraction precedent | `swiftcode/Sources/SwiftCodeExtensions/PackageService.swift` (`/usr/bin/unzip -q -o` on macOS and Linux) |
 | AppConfig entries, Info.plist keys, sanitizing rule, diagnostics | Legacy `SwiftCode/Config/AppConfig.swift`, read directly; the anon-key fallback JWT carries the literal `mock-key-signature` segment |
 | GitHub endpoints + request/response shapes | Legacy `Backend/GitHub/GitHubAPI.swift` + `Backend/Git/GitHubService.swift` (models) + `Backend/GitHub/GitHubBuilds.swift`, read directly |
-| No MCP tool calls the new GitHub methods yet | `grep` for `pushFile` / `getFileSHA` / `listWorkflowRuns` / `createRepository` / `downloadRepositoryZip` / `listReleases` over `ycode/Sources/YcodeMCP/` + `YcodeAssistant/` (0 hits) |
-| `YcodeUI` already depends on `YcodeCloud` + `YcodeGoogleAuth` | `ycode/Package.swift` (line ~209), read directly |
+| No MCP tool calls the new GitHub methods yet | `grep` for `pushFile` / `getFileSHA` / `listWorkflowRuns` / `createRepository` / `downloadRepositoryZip` / `listReleases` over `swiftcode/Sources/SwiftCodeMCP/` + `SwiftCodeAssistant/` (0 hits) |
+| `SwiftCodeUI` already depends on `SwiftCodeCloud` + `SwiftCodeGoogleAuth` | `swiftcode/Package.swift` (line ~209), read directly |

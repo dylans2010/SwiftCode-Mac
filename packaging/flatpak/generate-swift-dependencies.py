@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Regenerates swift-dependencies.json from ycode/Package.resolved and
-# ycode/Tools/ycode-swb/Package.resolved: one tarball per pin, by commit, with the
+# Regenerates swift-dependencies.json from swiftcode/Package.resolved and
+# swiftcode/Tools/swiftcode-swb/Package.resolved: one tarball per pin, by commit, with the
 # SHA-256 of what was downloaded now. Run it when a Package.resolved changes.
 #
 # usage: python3 -I packaging/flatpak/generate-swift-dependencies.py
@@ -12,7 +12,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-PACKAGES = ["ycode/Package.resolved", "ycode/Tools/ycode-swb/Package.resolved"]
+PACKAGES = ["swiftcode/Package.resolved", "swiftcode/Tools/swiftcode-swb/Package.resolved"]
 
 
 def main():

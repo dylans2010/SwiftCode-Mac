@@ -1,4 +1,4 @@
-# Extensions platform — SwiftCode Extensions v2 onto Ycode
+# Extensions platform — SwiftCode Extensions v2 onto SwiftCode
 
 > Spec for Wave 11 Slice A (spec + audit). Behaviour and formats only:
 > inputs, outputs, invariants, file grammars, key names, wire protocols,
@@ -25,12 +25,12 @@
 > `SwiftCode/SDK/Host/CapabilityBroker/Grants/SDKGrantStore.swift`,
 > `SwiftCode/SDK/Examples/RepositoryBuildExtension/swiftcode.json` and its
 > `schemas/swiftcode-extension-v1.schema.json`.
-> Destination references: `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift`
+> Destination references: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift`
 > (`use_extension` registration and handler),
-> `ycode/Sources/YcodeSubprocess/Subprocess.swift`,
-> `ycode/Sources/YcodeSubprocess/StreamingSubprocess.swift`,
-> `ycode/Package.swift` (YcodeGitHub target model),
-> `ycode/Sources/YcodeLanguage/LSPClient.swift`,
+> `swiftcode/Sources/SwiftCodeSubprocess/Subprocess.swift`,
+> `swiftcode/Sources/SwiftCodeSubprocess/StreamingSubprocess.swift`,
+> `swiftcode/Package.swift` (SwiftCodeGitHub target model),
+> `swiftcode/Sources/SwiftCodeLanguage/LSPClient.swift`,
 > `specs/ide/assist-approval-model.md`.
 >
 > Evidence levels used in §12: **5** — read verbatim from Legacy source
@@ -44,13 +44,13 @@
 ### 1.1 What the Extensions v2 platform is in Legacy
 
 Legacy ships **three overlapping extension systems** plus one
-compatibility adapter. They must not be conflated; the Ycode port
+compatibility adapter. They must not be conflated; the SwiftCode port
 takes exactly one of them as its host, and treats the others as
 history.
 
-| # | System | Where it lives | Status in Legacy | Ycode disposition |
+| # | System | Where it lives | Status in Legacy | SwiftCode disposition |
 |---|---|---|---|---|
-| A | **Extensions v2** (the platform) | `SwiftCode/Backend/Extensions v2/` (23 files) | The live platform: VS Code extensions from Open VSX run out-of-process in Node; native Swift plugins run in-process; Xcode-shaped source-editor commands run against buffers | **Port** as the new `YcodeExtensions` SwiftPM target (§10) |
+| A | **Extensions v2** (the platform) | `SwiftCode/Backend/Extensions v2/` (23 files) | The live platform: VS Code extensions from Open VSX run out-of-process in Node; native Swift plugins run in-process; Xcode-shaped source-editor commands run against buffers | **Port** as the new `SwiftCodeExtensions` SwiftPM target (§10) |
 | B | **SDK extension host** (`swiftcode.json`) | `SwiftCode/SDK/` — `Sources/ExtensionKit/`, `Host/ExtensionRegistry/`, `Host/SDKExtensionManager.swift`, `Contracts/`, `Runtime/` | A second, parallel host for TypeScript extensions built against `@swiftcode/sdk`, with its own manifest, capability registry, grant store, Node launcher, IPC envelope, and crash/quarantine policy | **Adapt, narrowly**: its `swiftcode.json` manifest + validators + package validator are the stricter spec for *native SwiftCode* extensions; its runtime (adapter.js, event envelope) is **not** ported — one host, one wire protocol (§4, §12) |
 | C | **Legacy v1 ExtensionManager** (`extension.json`) | `SwiftCode/Services/ExtensionManager.swift` + `SwiftCode/Views/Settings/Extension Management/` (28 demo views) | Pre-v2 system: scans `~/Documents/Extensions/`, seeds 25 built-in view-backed "extensions" whose entry point is a SwiftUI view file name; `downloadExtension` only flips in-memory flags — no network, no host, no execution | **Drop**. Superseded by v2. The 28 demo views are explicitly out of this wave (§11) |
 | D | **Legacy PluginManager** (`plugin.json`) | `SwiftCode/Services/PluginManager.swift` | Scans `~/Documents/Plugins/` for `plugin.json` manifests; no execution engine at all (install = file copy, compatibility check is an iOS-version stub) | **Drop** |
@@ -68,37 +68,37 @@ extension kinds are distinct ecosystems, not labels (§3.1):
    against XcodeKit-shaped value types, run against a caller-supplied
    text buffer. XcodeKit extension *binaries* never run here.
 
-### 1.2 What it is in Ycode
+### 1.2 What it is in SwiftCode
 
-A new SwiftPM library target **`YcodeExtensions`** (modelled on the
-`YcodeGitHub` target added in Wave 10: a plain `.target` with a
-`.library` product and a matching `YcodeExtensionsTests` test target;
+A new SwiftPM library target **`SwiftCodeExtensions`** (modelled on the
+`SwiftCodeGitHub` target added in Wave 10: a plain `.target` with a
+`.library` product and a matching `SwiftCodeExtensionsTests` test target;
 see §10.6 for the exact `Package.swift` shape). It owns:
 
 - the extension model, identity, state machine, and storage;
 - both manifest parsers and both validators (VS Code `package.json`
   and SwiftCode `swiftcode.json`);
 - the Open VSX registry client and the VSIX install pipeline;
-- the out-of-process Node host (spawned through Ycode's existing
+- the out-of-process Node host (spawned through SwiftCode's existing
   subprocess facilities — **no new process runner**);
 - the capability/permission model and grant store;
 - the Assist bridge (extension commands become MCP tools) and the
   `use_extension` implementation that replaces the honestly-failing
-  handler in `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift`;
+  handler in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift`;
 - the editor/workspace bridges, the language-client surface, and the
   Xcode-command adapter.
 
-Ycode already has pieces Legacy lacked or duplicated; the port reuses
+SwiftCode already has pieces Legacy lacked or duplicated; the port reuses
 them instead of porting Legacy's copy (§8):
 
-- `YcodeLanguage.LSPClient` — a real LSP client (Content-Length
+- `SwiftCodeLanguage.LSPClient` — a real LSP client (Content-Length
   framing, sourcekit-lsp first) — replaces `ExtV2LanguageClient`.
-- `YcodeSubprocess.run` / `StreamingSubprocess.lines` — the process
+- `SwiftCodeSubprocess.run` / `StreamingSubprocess.lines` — the process
   primitives the host runner must use.
-- `YcodeMCP` + `specs/ide/assist-approval-model.md`
+- `SwiftCodeMCP` + `specs/ide/assist-approval-model.md`
   (`commit()` / `call.approve()`) — the single approval gate; no
   second gate is designed here (§5.4).
-- `YcodeCompletion` — completion providers; extension completion
+- `SwiftCodeCompletion` — completion providers; extension completion
   registration consults it rather than owning a parallel registry.
 
 UI placement (per `Docs/Extensions-v2.md` and the task brief):
@@ -106,7 +106,7 @@ Extensions belongs on the **editor toolbar beside Assist**, not in the
 workspace sidebar. Legacy moved it there in the 2026-10-29 batch for
 exactly the reason that matters here: the sidebar column squeezed its
 `NavigationSplitView`, and the manager's first-access disk IO froze
-the app. The Ycode UI is a later slice; this spec only fixes the
+the app. The SwiftCode UI is a later slice; this spec only fixes the
 placement rule and the async-load rule (`ensureReady()` semantics,
 §3.3).
 
@@ -115,7 +115,7 @@ placement rule and the async-load rule (`ensureReady()` semantics,
 This spec does not design a remote marketplace beyond Open VSX, does
 not design a signed-bundle loader for third-party native code, does
 not design webview/terminal/debug contributions, and does not change
-Ycode's Assist registry, session loop, or provider system. Extension
+SwiftCode's Assist registry, session loop, or provider system. Extension
 tools register into the existing MCP tool catalogue only.
 
 ## 2. Manifest schema
@@ -285,13 +285,13 @@ Worked example: `SwiftCode/SDK/Examples/RepositoryBuildExtension/swiftcode.json`
 ### 2.3 Validator disagreements — read them before coding either validator
 
 There are **two** `swiftcode.json` validators, and they disagree.
-The Ycode port must implement the **strict** one
+The SwiftCode port must implement the **strict** one
 (`SDKManifestValidator`) as the install-time gate and keep the
 lenient one (`ExtensionValidator`) only as the documented behaviour
 of the SDK-side `extension-validator` executable concept, if at all.
 Do not merge them silently; the table is the decision record.
 
-| Rule | `ExtensionValidator` (lenient, `SDK/Sources/ExtensionKit/`) | `SDKManifestValidator` (strict, `SDK/Host/ExtensionRegistry/`) | Ycode decision |
+| Rule | `ExtensionValidator` (lenient, `SDK/Sources/ExtensionKit/`) | `SDKManifestValidator` (strict, `SDK/Host/ExtensionRegistry/`) | SwiftCode decision |
 |---|---|---|---|
 | Manifest size cap | none | 64 KiB (`maxManifestBytes`); over → `resourceLimitExceeded` | Strict. |
 | Missing `manifestVersion` | error diagnostic "Unsupported manifestVersion" (only when present and != 1; absent is **not** flagged — the field decodes with default 1) | schema failure: missing → error; non-integer → error; != 1 → `manifestUnsupportedVersion` | Strict. |
@@ -318,7 +318,7 @@ Also note: `ExtensionManifest` (ExtensionKit) and `SDKManifest`
 (Contracts) describe the same file with different defaults
 (`sdk.versionRange` `"^1.0.0"` vs `"1.2.0"`; `type` default
 `"extension"` in both; `assist` default `requested: false` in both).
-The Ycode model uses one struct with the strict validator's
+The SwiftCode model uses one struct with the strict validator's
 expectations and the `"^1.0.0"` range default (the documented
 authoring default).
 
@@ -337,7 +337,7 @@ authoring default).
   **Caution**: the packager's `fileCount` is hardcoded to `1`
   regardless of archive contents (observed in source) — do not trust
   it; count entries from the archive. The `.swiftcode-extension`
-  format is specified here for completeness; the Ycode install path
+  format is specified here for completeness; the SwiftCode install path
   in this wave is the VSIX path (§6.3), and a
   `.swiftcode-extension` install path is a later slice.
 - **Legacy v1**: `extension.json` (Services `ExtensionManager`) and
@@ -383,7 +383,7 @@ The SDK host has its own, richer state machine
 ready → starting → active → stopping → stopped`, plus failure states
 `failedValidation`, `failedVersion`, `permissionDenied`,
 `launchFailed`, `activationFailed`, `crashed`, `timedOut`,
-`terminated`). The Ycode port uses the v2 `ExtV2State` enum as the
+`terminated`). The SwiftCode port uses the v2 `ExtV2State` enum as the
 user-visible state and the SDK machine only as a reference for the
 host lifecycle inside §10; it does not port both state machines as
 user-visible states.
@@ -492,9 +492,9 @@ validation error, never silently dropped).
 - **Uninstall**: removes the install record, revokes every grant,
   wipes security values, revokes Assist entitlements, closes Assist
   sessions. (Assist entitlements/sessions are SDK-host concepts;
-  the Ycode equivalent is unregistering the extension's MCP tools.)
+  the SwiftCode equivalent is unregistering the extension's MCP tools.)
 
-The Ycode port takes the **v2 crash policy** (stop after 3
+The SwiftCode port takes the **v2 crash policy** (stop after 3
 consecutive crashes, manual retry, no restart loop) as the user-facing
 rule, and records the SDK's restart-with-backoff + quarantine as a
 deviation (§12). It does **not** port both policies.
@@ -502,7 +502,7 @@ deviation (§12). It does **not** port both policies.
 ### 3.5 Storage locations (exact paths)
 
 All paths are relative to the user's home / Application Support
-unless stated. These are three different roots in Legacy — the Ycode
+unless stated. These are three different roots in Legacy — the SwiftCode
 port unifies on the v2 root (§12).
 
 **v2 platform root** —
@@ -519,7 +519,7 @@ port unifies on the v2 root (§12).
 | `backups/<id>.backup` | Previous version, kept until an update commits; removed on uninstall. |
 | `host/extension-host.js` | The embedded Node host script, written (and refreshed when it changes) by `ExtV2HostScript.ensureHostScript`. |
 
-**SDK host roots** (reference only — **not** the Ycode layout):
+**SDK host roots** (reference only — **not** the SwiftCode layout):
 
 | Path | Content |
 |---|---|
@@ -555,12 +555,12 @@ the user.
   different list and resolves Node via `SWIFTCODE_NODE_PATH` → the
   three well-known paths → `PATH` lookup; see §4.2.)
 - All host-manager state is `@MainActor`-isolated in Legacy; the
-  reading task hops back to the main actor for every line. The Ycode
+  reading task hops back to the main actor for every line. The SwiftCode
   port must preserve the invariant that at most one host runs per
   extension id and that a second `activate()` returns the existing
   contribution.
-- The implementation must reuse Ycode's existing subprocess
-  primitives (`YcodeSubprocess`, `StreamingSubprocess`) for spawning
+- The implementation must reuse SwiftCode's existing subprocess
+  primitives (`SwiftCodeSubprocess`, `StreamingSubprocess`) for spawning
   and line reading — **no new process runner**. Legacy's raw
   `Process` + `Pipe` + `bytes.lines` pattern is the behaviour to
   reproduce, not the code to copy.
@@ -584,7 +584,7 @@ Native plugins and Xcode commands do not need Node.
 The SDK launcher (`SDKNodeLauncher`) differs: it requires **Node.js
 20 or later**, resolves via `SWIFTCODE_NODE_PATH` env override →
 well-known paths → each `PATH` component + `/node`, and fails with a
-typed `.runtimeUnavailable` error. The Ycode port adopts the v2
+typed `.runtimeUnavailable` error. The SwiftCode port adopts the v2
 discovery order (settings path first, then the three well-known
 paths) and additionally honours `PATH` lookup as a fallback, and
 states the Node 20+ requirement in the activation error text.
@@ -692,7 +692,7 @@ a manual user action; confirm the exact UI affordance on Mac.
 `ExtV2HostScript.source` is a Node script written to
 `<root>/host/extension-host.js` (refreshed when its content differs)
 and executed as `node extension-host.js --extension-entry <path>`.
-Its behaviour, which the Ycode port must reproduce as a bundled
+Its behaviour, which the SwiftCode port must reproduce as a bundled
 resource (the script is a **resource**, not Swift code — the
 implementation slice must ship it as a file in the target's resources
 and keep it byte-identical to the spec's behaviour):
@@ -792,7 +792,7 @@ limits actually enforced at install — are **different**: max archive
 **64 MB**, max extracted **512 MB**, max entries **20,000**. The
 download path enforces the 200 MB figure (`downloadVSIX` rejects
 over `maxVSIXBytes`), so a 100 MB VSIX downloads successfully and
-is then rejected at install. The Ycode port must enforce **one**
+is then rejected at install. The SwiftCode port must enforce **one**
 set of limits everywhere: the `PackageService` figures (64 MB /
 512 MB / 20,000 entries) at both download and install, with the
 1 MiB IPC cap and the timeouts above. The SDK package validator's
@@ -804,7 +804,7 @@ bounds (100 MB total, 10,000 entries, 255-byte names, symlink depth
 ### 5.1 The two capability systems
 
 Legacy has two capability vocabularies. The v2 platform uses the
-first; the SDK host uses the second. The Ycode port implements the
+first; the SDK host uses the second. The SwiftCode port implements the
 v2 twelve as the runtime gate and the SDK thirty-five as the
 manifest-declared set for SwiftCode-native extensions, with the
 mapping in §5.3.
@@ -882,11 +882,11 @@ single `use.Security` grant, not separately grantable permissions**.
 `~/Library/Application Support/SwiftCode/SDKGrants.json`, mode
 `0600`, corrupt file moved aside (never deleted). Grants are scoped
 to one extension; a package-digest change revokes all of them
-(§3.4). The Ycode port uses **one** grant store — the v2
+(§3.4). The SwiftCode port uses **one** grant store — the v2
 `grants.json` — and records the SDK store's `0600` mode as a
 requirement to adopt for it (deviation §12).
 
-**Approval UX (Ycode)**: the UI slice presents one prompt per
+**Approval UX (SwiftCode)**: the UI slice presents one prompt per
 capability request with the extension's declared `reason` (from
 `swiftcode.json`) or the caller's reason string (from
 `host.requestPermission`). The prompt must show the capability's
@@ -895,7 +895,7 @@ persistent grant, not a one-shot bypass. No prompt may be shown for
 a capability the manifest does not declare (VS Code extensions) or
 that is not in the known registry (SwiftCode extensions).
 
-### 5.3 Mapping between the two vocabularies (Ycode)
+### 5.3 Mapping between the two vocabularies (SwiftCode)
 
 When a `swiftcode.json` manifest is installed, its declared SDK
 capability ids map to v2 runtime capabilities for enforcement:
@@ -912,10 +912,10 @@ capability ids map to v2 runtime capabilities for enforcement:
 | `ui.contribute`, `preview.live`, `uibuilder.open`, `simulator.view`, `sandbox.view`, `virtualization.view`, `deployConsole.view`, `db.ExploreView`, `ci.VisualWF`, `deviceconnect.open`, `use.SwiftCodeModel` | `webview` (UI contribution surface; no separate runtime gate in this wave) |
 
 `assist.invoke` maps to `assistTools` but is **not grantable** in the
-SDK system; in Ycode, an extension that declares `assist.invoke`
+SDK system; in SwiftCode, an extension that declares `assist.invoke`
 still requires an explicit user grant of `assistTools` through the
 v2 prompt — the manifest declaration alone never grants it. This
-mapping is a Ycode decision, not a Legacy behaviour; it is recorded
+mapping is a SwiftCode decision, not a Legacy behaviour; it is recorded
 as a deviation (§12).
 
 ### 5.4 The single approval gate (Wave 2) — do not design a second one
@@ -925,7 +925,7 @@ the Wave 2 gate in `specs/ide/assist-approval-model.md`:
 `MCPServer.run()` is the single gate; handlers call `commit()` /
 `call.approve(change)` before touching disk, and a refusal throws
 `MCPToolError(MCPServer.rejectedMessage)` ("The change was rejected
-in Ycode's review; nothing was written."). The `use_extension`
+in SwiftCode's review; nothing was written."). The `use_extension`
 handler (§7.2) is a write tool (`safeMutation`, `writes: true` in its
 existing registration) and must:
 
@@ -944,7 +944,7 @@ existing registration) and must:
   classifies it read-only — it only stops a host) do **not** call
   `approve()`.
 
-There is no Autopilot mode anywhere in Ycode: Legacy's
+There is no Autopilot mode anywhere in SwiftCode: Legacy's
 `AssistPermissionsManager` default (Autopilot bypassing
 SwiftCode-level restrictions) is explicitly rejected by the Wave 2
 spec and is not ported.
@@ -992,9 +992,9 @@ this client plus the installed set. If Open VSX is unreachable, the
 platform still works fully for already-installed extensions (local
 registry only, §6.2).
 
-### 6.2 Local registry (Ycode)
+### 6.2 Local registry (SwiftCode)
 
-Because the only remote is Open VSX, the Ycode port specifies a
+Because the only remote is Open VSX, the SwiftCode port specifies a
 **local registry first**: the installed set in `installed.json` is
 the registry of record for `list`/`details`/`list_commands`/
 `diagnostics`. Open VSX search/install is an additive remote. The
@@ -1012,7 +1012,7 @@ same `packageService.install` path.
 2. The downloaded file must exist, be a regular file, be non-empty,
    and be ≤ 64 MB (`Limits.maxArchiveBytes`) — else
    `ExtV2Error.package` with a specific reason.
-3. Open as a ZIP archive (`ZIPFoundation` in Legacy; Ycode must use
+3. Open as a ZIP archive (`ZIPFoundation` in Legacy; SwiftCode must use
    whatever ZIP reading the implementation slice can link — the
    **behaviour** is the contract, not the library). Unreadable →
    package error.
@@ -1112,8 +1112,8 @@ invocation on Linux.
 
 `ExtV2AssistBridge` is the only registration path: validated
 descriptors into the **existing** tool registry — there is no
-parallel tool system. In Ycode that means the MCP tool catalogue
-(`YcodeMCP`), not a new registry.
+parallel tool system. In SwiftCode that means the MCP tool catalogue
+(`SwiftCodeMCP`), not a new registry.
 
 - Descriptor (`ExtV2AssistCapability`): `toolId`, `name`,
   `description`, `parameters: [name: "string" | "number" |
@@ -1153,18 +1153,18 @@ parallel tool system. In Ycode that means the MCP tool catalogue
   (`ExtV2JSONValue.string("\(key)=\(value)")`), while the
   `use_extension` execute path sends a single JSON object argument
   (`[.object(args)]`) so the extension receives its named arguments
-  intact. The Ycode port must use the **object form everywhere**;
+  intact. The SwiftCode port must use the **object form everywhere**;
   the `key=value` form is a Legacy inconsistency, not a contract.
 
 ### 7.2 The `use_extension` contract (full)
 
-Already registered in Ycode (`YcodeTools+Terminal.swift`, ~line 224;
+Already registered in SwiftCode (`SwiftCodeTools+Terminal.swift`, ~line 224;
 handler ~line 606 honestly fails). The implementation slice wires
-the handler to `YcodeExtensions`; the contract below is Legacy's,
+the handler to `SwiftCodeExtensions`; the contract below is Legacy's,
 verified from `UseExtensionTool.swift` (581 lines).
 
 - Tool id `use_extension`, capability `.general`, risk
-  `.safeMutation`, required permission `.fileSystem`. In Ycode it is
+  `.safeMutation`, required permission `.fileSystem`. In SwiftCode it is
   registered `safeMutation, writes: true`.
 - **Actions (11)**: `list`, `details`, `list_commands`,
   `list_xcode_commands`, `activate`, `deactivate`, `execute`,
@@ -1210,7 +1210,7 @@ Per-action behaviour:
 | `enable` / `disable` | Guard installed; `setEnabled`; output `"<Enabled/Disabled> <id> (state: <display>)."` |
 | `diagnostics` | Last `limit` entries for the extension, `"[ISO8601] [level] message"` per line; empty → `"No diagnostics recorded for <id>."` |
 
-Known limitations (Legacy, kept verbatim in the Ycode tool
+Known limitations (Legacy, kept verbatim in the SwiftCode tool
 description): XcodeKit binaries cannot execute; VS Code execution
 needs Node.js and an installed, enabled extension; language-provider
 contributions (completion, hover) are editor surfaces, not
@@ -1339,8 +1339,8 @@ system. Capability-gated on every call.
   `ExtV2DocumentDidChange` (the latter is declared but **no sender
   was found** in the v2 files read — treat as reserved).
 
-In Ycode, the workspace bridge is backed by the open workspace
-(`YcodeWorkspace` / the MCP session's workspace root). The
+In SwiftCode, the workspace bridge is backed by the open workspace
+(`SwiftCodeWorkspace` / the MCP session's workspace root). The
 containment rule (symlink-resolved prefix check) is kept verbatim;
 it matches the Wave 2 workspace-confinement rule.
 
@@ -1370,17 +1370,17 @@ editor's undo stack. An extension edit is a file write that the
 editor reloads — undo for extension edits lives in the file's own
 history, not in the editor's Undo menu. Direct editor integration is
 the documented next wiring step, not something v1 pretends to do.
-The Ycode port keeps this limit and must not claim editor-undo
-integration until a later slice wires it to Ycode's editor.
+The SwiftCode port keeps this limit and must not claim editor-undo
+integration until a later slice wires it to SwiftCode's editor.
 
 **Webviews:** the contribution model carries an optional
 `webviewHTML`, rendered only through the restricted `WKWebView`
 bridge in Legacy's `ExtensionRunView` (`ExtV2RestrictedWebView`).
-No bridge code for that view was in the files read; the Ycode port
+No bridge code for that view was in the files read; the SwiftCode port
 treats webview contributions as data-only in this wave (accepted in
 the contribution model, not rendered).
 
-### 8.3 `ExtV2LanguageClient` — what it exposes, and what Ycode has instead
+### 8.3 `ExtV2LanguageClient` — what it exposes, and what SwiftCode has instead
 
 A minimal real LSP client (actor): JSON-RPC over stdio with
 **Content-Length framing** (`Content-Length: <n>\r\n\r\n` + body).
@@ -1409,21 +1409,21 @@ A minimal real LSP client (actor): JSON-RPC over stdio with
 - Server exit (EOF) fails all pending requests and sets `isRunning`
   false.
 
-**Ycode already has this — do not port it.** `YcodeLanguage`
+**SwiftCode already has this — do not port it.** `SwiftCodeLanguage`
 contains a real `LSPClient` (Content-Length framing, sourcekit-lsp
 first, `BuildServerLaunch` for sourcekit-lsp + build-server
-integration, call-hierarchy support). The Ycode port must:
+integration, call-hierarchy support). The SwiftCode port must:
 
 - delete the idea of a second LSP client; extension language
-  providers register against `YcodeLanguage.LSPClient` / Ycode's
+  providers register against `SwiftCodeLanguage.LSPClient` / SwiftCode's
   language services;
 - keep only the **provider-registration data** from
   `ExtV2ProviderRegistry` (which extension owns completion/hover for
   which language, and published diagnostics per file) as the
-  interface between the host and Ycode's editor;
+  interface between the host and SwiftCode's editor;
 - note that Legacy's `ExtV2LanguageClient` is a *generic* LSP client
-  for any server binary, while Ycode's is sourcekit-lsp-oriented —
-  whether a generic server binary can be attached through Ycode's
+  for any server binary, while SwiftCode's is sourcekit-lsp-oriented —
+  whether a generic server binary can be attached through SwiftCode's
   client is **UNVERIFIED** and is a question for the implementation
   slice, not a claim in this spec.
 
@@ -1475,7 +1475,7 @@ registry, and the sort-lines example as the test fixture.
 ### 9.4 Deliberately NOT ported
 
 - **XcodeKit binaries**: packaged, signed, and activated by Xcode;
-  they cannot execute inside SwiftCode/Ycode. No loader, no
+  they cannot execute inside SwiftCode/SwiftCode. No loader, no
   entitlement bridging, no claim otherwise.
 - **Debug / notebooks / testing / authentication / secrets /
   custom editors / filesystem providers / full PTY terminals**:
@@ -1493,21 +1493,21 @@ registry, and the sort-lines example as the test fixture.
 - **Legacy v1 ExtensionManager / PluginManager and their views**:
   dropped (§1.1).
 
-## 10. PUBLIC API CONTRACT for the new `YcodeExtensions` SwiftPM target
+## 10. PUBLIC API CONTRACT for the new `SwiftCodeExtensions` SwiftPM target
 
 This section is the contract the implementation slice codes against.
 It is minimal but complete: every type, case, and function the host,
 the MCP tool, and the UI need — and no API the host doesn't need.
-Names use the `Ycode` prefix in place of Legacy's `ExtV2` prefix
+Names use the `SwiftCode` prefix in place of Legacy's `ExtV2` prefix
 (the `ExtV2` prefix existed to disambiguate from Legacy's own
-`ExtensionManager`/`ExtensionManifest`; Ycode has no such collision,
-and the Ycode convention is `Ycode<Area>`). Where a Legacy name is
+`ExtensionManager`/`ExtensionManifest`; SwiftCode has no such collision,
+and the SwiftCode convention is `SwiftCode<Area>`). Where a Legacy name is
 kept for wire compatibility (JSON keys, RPC methods, capability raw
 values), it is marked **wire**.
 
 All public API is `Sendable` unless noted. The manager is
 `@MainActor`; the host runner and storage are `Sendable`. Errors are
-`YcodeExtensionError` (see §10.5); no other error type escapes the
+`SwiftCodeExtensionError` (see §10.5); no other error type escapes the
 target.
 
 ### 10.1 Identity, kind, state, errors
@@ -1535,7 +1535,7 @@ public enum ExtensionState: String, Codable, Sendable, CaseIterable {
     // transition into it is specified in this wave (see §3.2).
 }
 
-public enum YcodeExtensionError: Error, LocalizedError, Sendable {
+public enum SwiftCodeExtensionError: Error, LocalizedError, Sendable {
     case notInstalled(String)
     case disabled(String)
     case incompatible(String)
@@ -2073,14 +2073,14 @@ public final class ExtensionManager {
 }
 ```
 
-The MCP `use_extension` handler (in `YcodeMCP`, **not** in this
+The MCP `use_extension` handler (in `SwiftCodeMCP`, **not** in this
 target) calls exactly these entry points plus
 `permissions.grantedCapabilities(for:)`,
 `diagnostics.entries(for:)`, the Xcode registry (§10.8), and the
 native registry (§10.7). It must implement the §7.2 contract
 (actions, confirm rule, limit clamping, 8,000-char cap, error
 mapping) and the §5.4 `approve()` gate. `use_extension` stays
-registered in `YcodeTools+Terminal.swift` with its existing schema;
+registered in `SwiftCodeTools+Terminal.swift` with its existing schema;
 only the handler body changes from honestly-failing to real.
 
 ### 10.7 Native plugins, Assist bridge, providers
@@ -2308,7 +2308,7 @@ public struct SortLinesCommand: SourceEditorCommand {
 
 ### 10.9 What is NOT in the public API (deliberately)
 
-- No `ExtV2LanguageClient` equivalent — use `YcodeLanguage.LSPClient`.
+- No `ExtV2LanguageClient` equivalent — use `SwiftCodeLanguage.LSPClient`.
 - No SDK event-envelope IPC, no `adapter.js` resolution, no
   `SDKRuntimeSession` state machine as a public type.
 - No `ExtensionValidator` (lenient) — only the strict
@@ -2316,40 +2316,40 @@ public struct SortLinesCommand: SourceEditorCommand {
 - No `ExtensionPackager` / `.swiftcode-extension` install API in this
   wave (authoring tooling; validation rules are in §10.3).
 - No `ExtV2TestSuite` equivalent as a type — its cases become
-  `YcodeExtensionsTests` XCTest cases (§11).
+  `SwiftCodeExtensionsTests` XCTest cases (§11).
 - No UI types in this target. The UI slice owns the toolbar button,
   home/search/installed/details/permissions/settings/diagnostics/
   updates/run views, and the approval prompt handler wiring.
 - No secrets API. No Keychain access. No `SecretStore` dependency.
 
-### 10.10 Target wiring (`Package.swift` — the YcodeGitHub model)
+### 10.10 Target wiring (`Package.swift` — the SwiftCodeGitHub model)
 
-Follow the Wave 10 `YcodeGitHub` pattern exactly:
+Follow the Wave 10 `SwiftCodeGitHub` pattern exactly:
 
 ```swift
-.library(name: "YcodeExtensions", targets: ["YcodeExtensions"]),
+.library(name: "SwiftCodeExtensions", targets: ["SwiftCodeExtensions"]),
 // ...
-.target(name: "YcodeExtensions"),   // no third-party dependencies in this wave
-.testTarget(name: "YcodeExtensionsTests", dependencies: ["YcodeExtensions"]),
+.target(name: "SwiftCodeExtensions"),   // no third-party dependencies in this wave
+.testTarget(name: "SwiftCodeExtensionsTests", dependencies: ["SwiftCodeExtensions"]),
 ```
 
-- `YcodeMCP` gains `"YcodeExtensions"` in its dependencies (same
-  position as `YcodeGitHub` in the `YcodeMCP` target declaration) so
+- `SwiftCodeMCP` gains `"SwiftCodeExtensions"` in its dependencies (same
+  position as `SwiftCodeGitHub` in the `SwiftCodeMCP` target declaration) so
   the `use_extension` handler can call the manager.
-- `YcodeUI` gains `"YcodeExtensions"` in its dependencies for the
+- `SwiftCodeUI` gains `"SwiftCodeExtensions"` in its dependencies for the
   toolbar button and Extensions views (later slice).
 - The host script (`extension-host.js`) ships as a target resource
   (`.copy("Resources/extension-host.js")` or equivalent); its
   behaviour is §4.4. It must be treated as data: the implementation
   slice writes it from this spec's behaviour, it does not copy
   Legacy's file.
-- ZIP reading: Legacy uses ZIPFoundation (a Legacy dependency Ycode
+- ZIP reading: Legacy uses ZIPFoundation (a Legacy dependency SwiftCode
   does not have). The implementation slice must choose the mechanism
   (Foundation `Archive` is unavailable on Linux; a minimal ZIP reader
   or a new dependency) and record the choice — this spec does not
-  prescribe it, because no Ycode ZIP facility was verified in this
-  pass. **UNVERIFIED**: whether Ycode already has a ZIP reader
-  anywhere in `ycode/` or `frameworks/`.
+  prescribe it, because no SwiftCode ZIP facility was verified in this
+  pass. **UNVERIFIED**: whether SwiftCode already has a ZIP reader
+  anywhere in `swiftcode/` or `frameworks/`.
 
 ## 11. What is NOT in this wave (explicitly)
 
@@ -2366,7 +2366,7 @@ Follow the Wave 10 `YcodeGitHub` pattern exactly:
    `XcodeBuildTool`) — out of scope. They belong to the dropped v1
    system; their settings UI is not ported, and their functionality
    (formatters, linters, themes, language support) is not re-created
-   as demo extensions. A Ycode-native extensions settings UI is a
+   as demo extensions. A SwiftCode-native extensions settings UI is a
    later slice.
 2. **`ExtV2TestSuite`** as a file — its 15 cases (version parsing,
    engine requirements, manifest parsing/rejection, compatibility,
@@ -2375,7 +2375,7 @@ Follow the Wave 10 `YcodeGitHub` pattern exactly:
    permissions deny/grant/revoke, identity + Assist descriptor
    validation, `use_extension` validation, Xcode file round-trip,
    `use_extension` Xcode failures) are ported as **XCTest cases in
-   `YcodeExtensionsTests`**, not as an in-app self-test class.
+   `SwiftCodeExtensionsTests`**, not as an in-app self-test class.
    Registry download, package extraction, and host activation stay
    integration paths verified on Dylan's Mac.
 3. **Anything requiring a remote marketplace endpoint that does not
@@ -2385,7 +2385,7 @@ Follow the Wave 10 `YcodeGitHub` pattern exactly:
 4. **The 11 `Views/Extensions v2/` Legacy views** (home, search,
    installed, details, permissions, settings, diagnostics, updates,
    run, sidebar row, view models) — not ported as code in this wave;
-   the Ycode UI is rebuilt Mac-style in a later slice per the
+   the SwiftCode UI is rebuilt Mac-style in a later slice per the
    migration brief. Their *behaviour* (what each surface shows and
    which manager calls it makes) is specified in §3–§8 and is the
    input to that slice.
@@ -2450,21 +2450,21 @@ Follow the Wave 10 `YcodeGitHub` pattern exactly:
 | PluginManager: Documents/Plugins, `plugin.json`, no execution | 5 | `PluginManager.swift` verbatim |
 | Marketplace view renders v1 list only | 5 | `ExtensionMarketplaceView.swift` verbatim |
 | Extensions on editor toolbar beside Assist, not sidebar | 4 | `Docs/Extensions-v2.md` + task brief (the doc's sidebar history) |
-| Ycode `use_extension` registered, handler honestly failing | 5 | `YcodeTools+Terminal.swift` lines ~224, ~606 |
-| Ycode approval gate `commit()`/`approve()`, single gate, no Autopilot | 5 | `specs/ide/assist-approval-model.md` + `MCPServer.swift` (`MCPChange`, `rejectedMessage`) |
-| Ycode LSP client exists (sourcekit-lsp-oriented) | 4 | `YcodeLanguage/LSPClient.swift`, `BuildServerLaunch.swift` (headers + structure) |
-| Ycode subprocess primitives for the host runner | 4 | `YcodeSubprocess/Subprocess.swift`, `StreamingSubprocess.swift` (signatures) |
-| YcodeGitHub target model for `Package.swift` wiring | 5 | `ycode/Package.swift` (product/target/testTarget + `YcodeMCP`/`YcodeUI` deps) |
+| SwiftCode `use_extension` registered, handler honestly failing | 5 | `SwiftCodeTools+Terminal.swift` lines ~224, ~606 |
+| SwiftCode approval gate `commit()`/`approve()`, single gate, no Autopilot | 5 | `specs/ide/assist-approval-model.md` + `MCPServer.swift` (`MCPChange`, `rejectedMessage`) |
+| SwiftCode LSP client exists (sourcekit-lsp-oriented) | 4 | `SwiftCodeLanguage/LSPClient.swift`, `BuildServerLaunch.swift` (headers + structure) |
+| SwiftCode subprocess primitives for the host runner | 4 | `SwiftCodeSubprocess/Subprocess.swift`, `StreamingSubprocess.swift` (signatures) |
+| SwiftCodeGitHub target model for `Package.swift` wiring | 5 | `swiftcode/Package.swift` (product/target/testTarget + `SwiftCodeMCP`/`SwiftCodeUI` deps) |
 | `host.applyEdit` shape mismatch between shim and Swift handler | 5 | Compared `ExtV2HostScript.swift` (`{edit}`) vs `ExtV2Manager.swift` (`{path, edits}`) |
 | `didChangeTextDocument` / `didChangeConfiguration` have no sender | 3 | Allowlisted in `ExtV2RPC.swift`; no sender found in the v2 files read |
 | `ExtV2DocumentDidChange` has no sender | 3 | Declared in `ExtV2WorkspaceBridge.swift`; no sender found in the v2 files read |
 | `$/cancelRequest` is not sent by the LSP client | 3 | Mentioned in `ExtV2LanguageClient.swift` header; no send found in its code |
 | No UI path found for the manual host-retry after 3 crashes | 2 | `ExtV2HostManager.swift` refuses activation; no retry affordance in the files read |
-| Whether Ycode has a ZIP reader usable by the package service | 1 | Not checked in this pass — implementation slice must confirm |
+| Whether SwiftCode has a ZIP reader usable by the package service | 1 | Not checked in this pass — implementation slice must confirm |
 
-### 12.2 Deviations table (Legacy behaviour → Ycode port, with reasons)
+### 12.2 Deviations table (Legacy behaviour → SwiftCode port, with reasons)
 
-| # | Legacy behaviour | Ycode port | Reason |
+| # | Legacy behaviour | SwiftCode port | Reason |
 |---|---|---|---|
 | D-1 | Two VSIX limit sets: `ExtV2ResourceLimits` (200 MB / 1 GB / 10,000 entries) vs `ExtV2PackageService.Limits` (64 MB / 512 MB / 20,000 entries); download allows 200 MB, install rejects > 64 MB | One set everywhere: 64 MB / 512 MB / 20,000 entries (the enforced set) | A download that always fails at install is a bug, not a contract |
 | D-2 | Three storage roots: `ExtensionsV2/`, `~/.swiftcode/extensions`, `~/Library/Application Support/SwiftCode/Extensions`; two grant stores (`grants.json`, `SDKGrants.json`) | One root: `~/Library/Application Support/SwiftCode/ExtensionsV2/`; one grant store (`grants.json`), adopting the SDK store's `0600` file mode | One platform, one source of truth; the SDK roots belong to the unported SDK host |
@@ -2479,10 +2479,10 @@ Follow the Wave 10 `YcodeGitHub` pattern exactly:
 | D-11 | API matrix lists `window.withProgress` as partial, but the shim rejects it as unsupported | Matrix row stays `partial`; shim behaviour (reject with descriptive error) is the contract until a progress UI exists | The matrix is aspirational here; the implemented behaviour is the reject |
 | D-12 | `ExtV2Manager.refreshInstalled()`: unparseable installed manifest → `.enabled` (lenient fallback) | Kept as specified in §3.3, flagged for the implementation slice to confirm | Changing it would alter install-state semantics; it is recorded, not silently fixed |
 | D-13 | Provider registry: diagnostics replace per path across extensions; completion/hover last-wins per language | Kept as specified in §8.4 | Observed behaviour; changing merge semantics is a product decision for a later slice |
-| D-14 | SDK capability ids map to v2 capabilities for enforcement (§5.3) | Ycode mapping table | Legacy never maps them (the two systems never meet); the port needs one enforcement point |
+| D-14 | SDK capability ids map to v2 capabilities for enforcement (§5.3) | SwiftCode mapping table | Legacy never maps them (the two systems never meet); the port needs one enforcement point |
 | D-15 | Legacy `AssistPermissionsManager` defaults to Autopilot (bypasses restrictions) | Rejected; Wave 2 gate only (§5.4) | Autopilot-by-default was already rejected by the Wave 2 spec |
-| D-16 | Legacy `ExtV2Manager` is `@MainActor` + SwiftUI (`ObservableObject`, `@Published`) | `ExtensionManager` is `@MainActor`; the target itself has no SwiftUI dependency — publishing is the UI slice's job (via observation of the manager or a view model in `YcodeUI`) | SwiftPM target must stay UI-free and Linux-buildable where possible; SwiftUI lives in `YcodeUI` |
-| D-17 | Legacy names carry the `ExtV2` prefix | Ycode names use the `Ycode` prefix / plain names (§10) | The prefix existed to disambiguate Legacy's own colliding types; Ycode has no such collision |
+| D-16 | Legacy `ExtV2Manager` is `@MainActor` + SwiftUI (`ObservableObject`, `@Published`) | `ExtensionManager` is `@MainActor`; the target itself has no SwiftUI dependency — publishing is the UI slice's job (via observation of the manager or a view model in `SwiftCodeUI`) | SwiftPM target must stay UI-free and Linux-buildable where possible; SwiftUI lives in `SwiftCodeUI` |
+| D-17 | Legacy names carry the `ExtV2` prefix | SwiftCode names use the `SwiftCode` prefix / plain names (§10) | The prefix existed to disambiguate Legacy's own colliding types; SwiftCode has no such collision |
 | D-18 | `ExtV2ResourceLimits` values are described as "security controls, not tuning knobs" | Kept as constants in `ResourceLimits` (§10.5); raising them needs a spec note, not a quiet edit | Same rule, new home |
 
 ### 12.3 UNVERIFIED items (do not guess — confirm on Mac)
@@ -2509,10 +2509,10 @@ Follow the Wave 10 `YcodeGitHub` pattern exactly:
    3 consecutive crashes (the manager refuses activation; no retry
    UI was found in the files read).
 7. **U-7**: Whether a generic LSP server binary can be attached
-   through Ycode's `LSPClient` (sourcekit-lsp-oriented) or whether
+   through SwiftCode's `LSPClient` (sourcekit-lsp-oriented) or whether
    the extension language-client surface needs its own minimal
    client after all.
-8. **U-8**: Whether Ycode already has a ZIP reader usable by the
+8. **U-8**: Whether SwiftCode already has a ZIP reader usable by the
    package service (no facility was verified in this pass).
 9. **U-9**: Whether `ExtensionPackager`'s fallback zip (whole
    directory excluding `*.git*`/`*node_modules*`) is ever exercised,

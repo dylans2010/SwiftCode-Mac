@@ -23,7 +23,7 @@ func flushMain() async {
 
 /// Drains the store queue and the main queue a few times (prompt answers,
 /// initial loads, fan-out to other managers).
-func settle(_ store: YcodeLocalHomeStore) async {
+func settle(_ store: SwiftCodeLocalHomeStore) async {
     for _ in 0..<3 {
         store.sync {}
         await flushMain()
@@ -31,7 +31,7 @@ func settle(_ store: YcodeLocalHomeStore) async {
 }
 
 /// Polls until `condition` holds (events that pass through an accessory's queue).
-func eventually(_ store: YcodeLocalHomeStore, timeout: Double = 5, _ condition: () -> Bool) async -> Bool {
+func eventually(_ store: SwiftCodeLocalHomeStore, timeout: Double = 5, _ condition: () -> Bool) async -> Bool {
     let end = Date().addingTimeInterval(timeout)
     while Date() < end {
         await settle(store)
@@ -41,20 +41,20 @@ func eventually(_ store: YcodeLocalHomeStore, timeout: Double = 5, _ condition: 
     return condition()
 }
 
-func client(_ bundle: String = "local.ycode.homekit-tests", usage: String? = "Tests control made-up accessories.",
-            entitled: Bool = true) -> YcodeHomeClient {
-    YcodeHomeClient(bundleIdentifier: bundle, usageDescription: usage, hasHomeKitEntitlement: entitled)
+func client(_ bundle: String = "local.swiftcode.homekit-tests", usage: String? = "Tests control made-up accessories.",
+            entitled: Bool = true) -> SwiftCodeHomeClient {
+    SwiftCodeHomeClient(bundleIdentifier: bundle, usageDescription: usage, hasHomeKitEntitlement: entitled)
 }
 
 func newStore(noAccount: Bool = false, hub: HMHomeHubState = .connected, url: URL? = nil,
-              consent: @escaping @Sendable (YcodeHomeClient) -> Bool = { _ in true }) -> YcodeLocalHomeStore {
-    YcodeLocalHomeStore(configuration: .init(persistenceURL: url, simulateNoAccount: noAccount, hubState: hub, consent: consent))
+              consent: @escaping @Sendable (SwiftCodeHomeClient) -> Bool = { _ in true }) -> SwiftCodeLocalHomeStore {
+    SwiftCodeLocalHomeStore(configuration: .init(persistenceURL: url, simulateNoAccount: noAccount, hubState: hub, consent: consent))
 }
 
 /// A manager whose first homes callback has arrived.
-func loadedManager(_ store: YcodeLocalHomeStore, _ c: YcodeHomeClient = client(),
+func loadedManager(_ store: SwiftCodeLocalHomeStore, _ c: SwiftCodeHomeClient = client(),
                    delegate: HMHomeManagerDelegate? = nil) async -> HMHomeManager {
-    let m = HMHomeManager(ycodeStore: store, client: c)
+    let m = HMHomeManager(swiftcodeStore: store, client: c)
     m.delegate = delegate
     await settle(store)
     return m
@@ -67,8 +67,8 @@ nonisolated(unsafe) private var keptManagers: [HMHomeManager] = []
 private func keep(_ m: HMHomeManager) { keepLock.lock(); keptManagers.append(m); keepLock.unlock() }
 
 /// A store, a manager (kept alive) and one home.
-func homeFixture(_ name: String = "Test Home", store: YcodeLocalHomeStore = newStore()) async throws
-    -> (YcodeLocalHomeStore, HMHomeManager, HMHome) {
+func homeFixture(_ name: String = "Test Home", store: SwiftCodeLocalHomeStore = newStore()) async throws
+    -> (SwiftCodeLocalHomeStore, HMHomeManager, HMHome) {
     let m = await loadedManager(store)
     keep(m)
     let h = try await m.addHome(named: name)
@@ -77,9 +77,9 @@ func homeFixture(_ name: String = "Test Home", store: YcodeLocalHomeStore = newS
 
 /// Publishes `endpoint` and adds it to `home` through the browser path.
 @discardableResult
-func pair(_ endpoint: YcodeAccessoryEndpoint, into home: HMHome, store: YcodeLocalHomeStore) async throws -> HMAccessory {
+func pair(_ endpoint: SwiftCodeAccessoryEndpoint, into home: HMHome, store: SwiftCodeLocalHomeStore) async throws -> HMAccessory {
     store.publish(endpoint)
-    let browser = HMAccessoryBrowser(ycodeStore: store, client: client())
+    let browser = HMAccessoryBrowser(swiftcodeStore: store, client: client())
     browser.startSearchingForNewAccessories()
     let found = await eventually(store) { browser.discoveredAccessories.contains { $0.name == endpoint.name } }
     #expect(found)
@@ -155,7 +155,7 @@ final class Recorder: HMHomeManagerDelegate, HMHomeDelegate, HMAccessoryDelegate
     func accessory(_ accessory: HMAccessory, service: HMService, didUpdateValueFor characteristic: HMCharacteristic) {
         let v: String
         if let n = characteristic.value as? NSNumber { v = String(n.doubleValue) } else { v = characteristic.value.map { "\($0)" } ?? "nil" }
-        note("value \(YcodeHomeCatalog.characteristicType(characteristic.characteristicType)?.name ?? "?") \(v)")
+        note("value \(SwiftCodeHomeCatalog.characteristicType(characteristic.characteristicType)?.name ?? "?") \(v)")
     }
     func accessory(_ accessory: HMAccessory, didUpdateNameFor service: HMService) { note("service name \(service.name)") }
 

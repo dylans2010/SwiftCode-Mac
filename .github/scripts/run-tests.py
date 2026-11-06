@@ -13,7 +13,7 @@ again alone. Anything else fails:
 Skipped tests (no KVM, no GPU, no simulator runtime, no local corpus) are
 counted and listed with their reasons, so a skip is always visible.
 
-Usage: run-tests.py --package ycode [--scratch-path DIR] [--log DIR] [-- args for swift test]
+Usage: run-tests.py --package swiftcode [--scratch-path DIR] [--log DIR] [-- args for swift test]
 """
 import argparse
 import glob

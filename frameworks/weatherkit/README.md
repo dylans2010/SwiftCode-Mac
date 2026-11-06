@@ -1,4 +1,4 @@
-# ycode-weatherkit
+# swiftcode-weatherkit
 
 An open, Linux-buildable **WeatherKit**, written in the clean room from
 `specs/frameworks/weatherkit/` (rounds R2, R3 and R4 of `plan.md`). It contains
@@ -60,12 +60,12 @@ swift-crypto.
   `CLFloor`, `CLLocationSourceInformation`, `CLLocationCoordinate2DIsValid`,
   `CLLocationCoordinate2DMake`, `kCLLocationCoordinate2DInvalid`,
   `kCLDistanceFilterNone`, `kCLLocationAccuracyBest`. No location manager,
-  authorization or geocoding (future Core Location spec). Ycode choices:
+  authorization or geocoding (future Core Location spec). SwiftCode choices:
   `init(latitude:longitude:)` sets horizontal accuracy 0 and every other
   accuracy and motion value to −1; `distance(from:)` is haversine on the
   mean Earth radius.
 
-## Backends (Ycode extension)
+## Backends (SwiftCode extension)
 
 `WeatherService(backend:configuration:)` takes any `WeatherBackend`.
 `WeatherService.shared` and `WeatherService()` choose from the environment:
@@ -121,12 +121,12 @@ Mapping (`rest-api.md` §6): `conditionCode` UpperCamelCase → the
 lowerCamelCase case (unknown codes fall back by keyword); `clear` → `none`,
 `precipitation` → `rain`; `thirdQuarter` → `lastQuarter`; metric units as
 delivered, intensities in a `mm/h` `UnitSpeed`. Swift fields v1 does not
-document get Ycode values: cloud cover by altitude 0; visibility extremes 0;
+document get SwiftCode values: cloud cover by altitude 0; visibility extremes 0;
 day-level humidity and wind from the day parts; day parts synthesized from
 the day (07:00–19:00 and 19:00–07:00 after `forecastStart`) when absent; the
 hour's dew point from temperature and humidity (Magnus) when absent; the
 hour's snowfall from `snowfallIntensity` × 1 h; the minute summary sentence
-written by Ycode ("Snow starting in 20 min."); symbol names from Ycode's
+written by SwiftCode ("Snow starting in 20 min."); symbol names from SwiftCode's
 condition × daylight table; alert details link falls back to the collection's
 `detailsUrl`, then the alert endpoint. The legal page is
 `<base>/legal-attribution.html` and the marks are the `@3x` logos (relative
@@ -136,7 +136,7 @@ paths resolved against the base URL).
 
 `codable.md` requires some non-public keys that a backend may have no value
 for. Until the owner-run W-DATA check shows real values (`plan.md` R0b),
-Ycode writes: `airQualityAvailability` = `unknown`; intensity objects =
+SwiftCode writes: `airQualityAvailability` = `unknown`; intensity objects =
 `{"category": "none", "value": 0}`; zero amounts (millimetres) for the past/next
 amounts and amount-by-type objects. Non-public values whose format the spec
 leaves open (`minuteSummaries[].precipitationKind`, `minuteConditions[].shift.kind`,

@@ -53,7 +53,7 @@ The library's own objects are CF types.
    `SFB…` function of the client. In a real boot only two processes do so:
    `backboardd` (from QuartzCore's window-server start, connection name
    `CAWindowServer`) and CoreSimulator's bridge (`CoreSimulatorBridge`,
-   not needed by Ycode). The client is mapped into every process (shared
+   not needed by SwiftCode). The client is mapped into every process (shared
    cache), but no other process loaded the library.
 3. **How.** `dlopen(<value of the variable>, RTLD_LAZY)`, then `dlsym` of
    **61 function names in a fixed order** (§3.1). A missing name aborts the
@@ -267,7 +267,7 @@ About 0.45 s after `backboardd` starts, after its HID system is up
    between a few ids. The first swap comes about 0.4 s after step 1. Frames
    are submitted only when content changes (88–370 per boot and launch).
 
-### 5.2 CoreSimulator's bridge (not needed by Ycode)
+### 5.2 CoreSimulator's bridge (not needed by SwiftCode)
 
 `Create("CoreSimulatorBridge")`, `Connect(conn, NULL)`,
 `CopyDisplays(conn, NULL)`, `SetBacklightState(display 1, 2, NULL)` twice,
@@ -334,10 +334,10 @@ Settings succeeded. Items marked *(tested)* were also varied on purpose.
    `backboardd`, SpringBoard, and Settings start; QuartzCore kept submitting.
    Whether surfaces are then never recycled over a long run is open, so
    completing every swap is the recommended behavior.)*
-   Ycode's library completes every swap at once, asynchronously; under
-   Ycode the render server does not wait for a frame's completion before
+   SwiftCode's library completes every swap at once, asynchronously; under
+   SwiftCode the render server does not wait for a frame's completion before
    starting the next one (`display-stream.md` §10.2, level 3), and its
-   per-swap timing can be logged (`YCODE_DISPLAY_TIMING=1`, §10.1 there).
+   per-swap timing can be logged (`SWIFTCODE_DISPLAY_TIMING=1`, §10.1 there).
 8. **Handlers** are stored and never called. Setters that only change state
    (backlight, orientation, brightness, mode, canvas size) return true.
    `CreateDisplay`, `UpdateDisplay`, `RemoveDisplay`, `AcquireSurfaceFence`
@@ -351,7 +351,7 @@ names of `launchd-sim.md` §6.3, denied by our interposer in every process):
     (denied together with the framebuffer server and the Indigo port, which
     the headless library and an invalid HID path leave unused anyway),
     `backboardd` again reports screen size {0,0} even with the headless
-    library, and SpringBoard traps in `BKSDisplayServicesStart`. Ycode's
+    library, and SpringBoard traps in `BKSDisplayServicesStart`. SwiftCode's
     guest therefore needs a working IOSurface path before display services
     can start. This is a stage-7 blocker beyond the framebuffer library.
 11. **Metal host services are not required** to start: with every
@@ -424,7 +424,7 @@ names of `launchd-sim.md` §6.3, denied by our interposer in every process):
 - **Not needed to start.** With the variable pointing at a nonexistent
   path, `backboardd` logs "Failed to initialize HID services: Failed to
   bundle, <path>" and "BKHID: Unable to open Indigo HID system", then
-  continues; SpringBoard and Settings start. Ycode can leave the variable
+  continues; SpringBoard and Settings start. SwiftCode can leave the variable
   empty or invalid in stage 7.
 
 ## 9. Open questions
@@ -434,10 +434,10 @@ names of `launchd-sim.md` §6.3, denied by our interposer in every process):
    copies observed values).
 2. The 64-bit argument of the display-updated block, and the block
    signatures of the connected/disconnected handlers. When the server
-   invokes them (not in a plain boot). Under Ycode on visionOS 27.0 the
+   invokes them (not in a plain boot). Under SwiftCode on visionOS 27.0 the
    only process using the library registers none of the three handlers
    (`specs/ide/device-hub.md` §I.12.5; the library's
-   `YCODE_FRAMEBUFFER_LIVE_SIZE` diagnostic calls them when one is set).
+   `SWIFTCODE_FRAMEBUFFER_LIVE_SIZE` diagnostic calls them when one is set).
 3. The two trailing integer arguments of `SwapAddSurface` and the third
    argument of `SwapSetCallback`.
 4. Arguments of `CreateDisplay`, `UpdateDisplay`, `RemoveDisplay`,
@@ -448,20 +448,20 @@ names of `launchd-sim.md` §6.3, denied by our interposer in every process):
    rule says +1; unverified).
 6. Long-run behavior when swaps are never completed (§7 item 7).
 7. The server wire protocol (`simFramebufferMessage…`) and the Indigo HID
-   registration protocol: needed only when Ycode presents real frames or
+   registration protocol: needed only when SwiftCode presents real frames or
    injects touches (stage 8).
 8. How IOSurface reaches the host (`com.apple.IOSurface.Remote`) and what
-   Ycode's guest must provide for §7 item 10: proposed as a separate
+   SwiftCode's guest must provide for §7 item 10: proposed as a separate
    research task before stage 7 continues.
 
 ## 10. A foldable's displays (FOLD-IMPL, 2026-10-27; `foldable.md` §8.1, §10)
 
-Ycode's library publishes more than one display when the host sets
-`YCODE_FRAMEBUFFER_SECOND_DISPLAY` to "<id> <name> <device name> <width>
+SwiftCode's library publishes more than one display when the host sets
+`SWIFTCODE_FRAMEBUFFER_SECOND_DISPLAY` to "<id> <name> <device name> <width>
 <height> <scale> <pitch> <uid>" (the iPhone Duo's inner panel: `3 LCD-1
 primary-1 2007 2853 3 460 59434F44-4500-4000-8000-000000000003`; by
 default for a foldable since FOLD2, 2026-10-27, together with the
-`displays` capability; `YCODE_FOLD_DISPLAYS=0` turns it off; `foldable.md`
+`displays` capability; `SWIFTCODE_FOLD_DISPLAYS=0` turns it off; `foldable.md`
 §10.4):
 
 - `CopyDisplays` returns the list of §4: `LCD` (1), `TVOut` (2, type 1,
@@ -471,7 +471,7 @@ default for a foldable since FOLD2, 2026-10-27, together with the
   device size 0 × 0 for the three others). `CopyDisplay(id)` and
   `CopyDisplayByUID` find each. Mode records: mode id = display id, offset
   24 = 2 for display 1 and 1 for the others, byte 32 = 1 for type 0 only.
-  Under Ycode the CADisplay numbering follows the list's order
+  Under SwiftCode the CADisplay numbering follows the list's order
   ("Unknown.main[3]" for the inner panel with the five displays, "[2]"
   with only two), so the order is kept.
 - Each type-0 display takes one swapchain; `SwapchainGetDisplayID` and
@@ -482,12 +482,12 @@ default for a foldable since FOLD2, 2026-10-27, together with the
   `SFBDisplaySetBacklightState` and `SFBDisplaySetCurrentUIOrientation` on
   that display (such a call rewrites the record; surface 0 before the
   display's first frame). The swap timing ring keeps display 1's swaps. With
-  `YCODE_FRAMEBUFFER_CALLS`, those two calls log (display id << 16) | value;
+  `SWIFTCODE_FRAMEBUFFER_CALLS`, those two calls log (display id << 16) | value;
   the display setters (`SFBDisplaySet*`) and `SFBDisplayGetMaskPath` have a
   budget of 4096 lines of their own after the first 4096 calls (backboardd
   calls `GetDisplayUID` and `GetDotPitch` about 1400 times each in a boot,
   which filled the shared budget before any fold).
-- **Under Ycode the guest makes none of these calls** (FOLD2, iPhone Duo
+- **Under SwiftCode the guest makes none of these calls** (FOLD2, iPhone Duo
   with both panels, several boots with a dozen swaps each): no
   `SFBDisplaySetBacklightState`, `SetCurrentUIOrientation`,
   `SetBrightnessFactor`, `SetCurrentMode` or `GetMaskPath`, and no
@@ -512,8 +512,8 @@ default for a foldable since FOLD2, 2026-10-27, together with the
 | Requirements and the deny/refuse experiments (§7) | 3 | boots with `sfbheadless.c` (and its `SFBH_NO_CALLBACK`, `SFBH_NO_SWAPCHAIN` switches), `dlsymtrace.c` deny lists, `backboardd` log lines, crash reports, `simctl launch` |
 | CF object model, ownership convention | 1 | CF open source `CFRuntime.h`; CF Create/Copy/Get naming rule |
 | HID loading and not-needed result (§8) | 3 | `backboardd` log lines; boot with a nonexistent HID path; `hidprobe.m` |
-| Under Ycode, swaps are not held back by completions; SwapBegin's target equals the call time (§7 item 7) | 3 | Ycode runs on the Thor with the library's swap timing log (`display-stream.md` §10.2) |
-| CADisplay numbering by list position under Ycode (§10) | 3 | SpringBoard's display names in Ycode boots with two and with five published displays (`foldable.md` §10.2) |
+| Under SwiftCode, swaps are not held back by completions; SwapBegin's target equals the call time (§7 item 7) | 3 | SwiftCode runs on the Thor with the library's swap timing log (`display-stream.md` §10.2) |
+| CADisplay numbering by list position under SwiftCode (§10) | 3 | SpringBoard's display names in SwiftCode boots with two and with five published displays (`foldable.md` §10.2) |
 
 No disassembly or decompilation was used (level 5 not used); no Xcode
 binary, `research/dirty/`, or Ghidra project was opened. Crash reports and

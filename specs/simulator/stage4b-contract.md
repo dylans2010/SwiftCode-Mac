@@ -2,9 +2,9 @@
 
 Status: **done (2026-10-12)**; the §1 exit criterion is met on the Thor (§10). Stage 4b of `docs/SIMULATOR-LINUX.md`.
 Reference semantics: `specs/simulator/processes.md` (level 1, xnu). This
-document pins the Ycode design, the interfaces between agents, file
+document pins the SwiftCode design, the interfaces between agents, file
 ownership, and the exit criterion. Where this contract and `processes.md`
-disagree on Ycode design, this contract wins; on observed Darwin
+disagree on SwiftCode design, this contract wins; on observed Darwin
 behavior, `processes.md` wins.
 
 Read with: `processes.md`, `mach-ipc.md`, `threads-and-events.md`,
@@ -12,11 +12,11 @@ Read with: `processes.md`, `mach-ipc.md`, `threads-and-events.md`,
 
 ## 1. Exit criterion
 
-New probes in `ycode/SimShim/guest-tests/stage4b/` (our own code, built for
+New probes in `swiftcode/SimShim/guest-tests/stage4b/` (our own code, built for
 the iOS simulator by `build-stage4b.sh` on macOS, copied to the Thor). Each
 probe re-executes **its own path** (`argv[0]`) with a mode argument to make
 its child. On the Thor, no debug flags, each prints its `ok` line and the
-host process `ycode-simd` exits 0:
+host process `swiftcode-simd` exits 0:
 
 | Probe | What it proves | Prints |
 |---|---|---|
@@ -35,7 +35,7 @@ every test suite passes on macOS, x86-64 Linux, and the Thor.
 
 ## 2. Execution model (orchestrator decisions)
 
-1. **One host process, many VMs.** `ycode-simd` runs every guest process of
+1. **One host process, many VMs.** `swiftcode-simd` runs every guest process of
    a device in one host process: one KVM VM per guest *image*, one vCPU per
    guest thread (as in 4a). The host process exits when the **root
    process** (the `--exec` program, whatever image it currently runs)
@@ -135,8 +135,8 @@ guest code. Once all vCPUs of the image are gone, V destroys the VM.
 
 ### 3.5 Descriptor objects (owner F)
 
-- `DarwinDescriptorObject` (YcodeDarwinABI): `fileType`, `lastReferenceClosed()`.
-- `KernelDescriptorObject` (YcodeDarwinKernel): read/write readiness and
+- `DarwinDescriptorObject` (SwiftCodeDarwinABI): `fileType`, `lastReferenceClosed()`.
+- `KernelDescriptorObject` (SwiftCodeDarwinKernel): read/write readiness and
   readiness observers. P's kevent uses only this protocol for
   `EVFILT_READ`/`EVFILT_WRITE` on pipes and sockets (and on kqueue fds).
 - F adds to `DarwinFileSystem` (pinned names, for P and M):
@@ -186,7 +186,7 @@ on `MachIPC` (pinned names, for P):
 - task-port traps `task_name_for_pid` (−44), `task_for_pid` (−45),
   `pid_for_task` (−46) are handled in `MachIPC.handleTrap`; M looks
   processes up with `system.kernel(forPID:)`.
-- Ycode-private Mach routines (`host-libraries.md` §10): **n = 8**
+- SwiftCode-private Mach routines (`host-libraries.md` §10): **n = 8**
   `mach_ports_register3(task, p0, p1, p2)`, **n = 9**
   `mach_ports_lookup3(task, &p0, &p1, &p2)`; the task argument may name
   another task's control port.
@@ -236,10 +236,10 @@ wiring:
    3/4/11/13/17/18/21 as far as it has data, DIRTYCONTROL, TERMINATE).
 10. `pid_suspend`/`pid_resume` and START_SUSPENDED: optional.
 
-Owns: `Sources/YcodeDarwinKernel/DarwinKernel.swift`, `ExtendedBSD.swift`,
+Owns: `Sources/SwiftCodeDarwinKernel/DarwinKernel.swift`, `ExtendedBSD.swift`,
 `KEvent.swift`, `KernelSync.swift`, `Threads.swift`, `Workqueue.swift`,
 `ULock.swift`, `Semaphores.swift`, everything in `Process/`, and new tests
-`Tests/YcodeDarwinKernelTests/Process*Tests.swift`.
+`Tests/SwiftCodeDarwinKernelTests/Process*Tests.swift`.
 
 ## 5. Mach between tasks (agent M)
 
@@ -265,8 +265,8 @@ Implements `processes.md` §3 and §4:
 6. `terminateTask()` (§4.6), exec (§4.7), exception ports stored only
    (§4.8), fileports (§4.9), task-port traps (§3.5).
 
-Owns: `Sources/YcodeDarwinKernel/MachIPC*.swift` (all of them, including
-`MachIPCSystem.swift`), and new tests `Tests/YcodeDarwinKernelTests/MachTask*Tests.swift`
+Owns: `Sources/SwiftCodeDarwinKernel/MachIPC*.swift` (all of them, including
+`MachIPCSystem.swift`), and new tests `Tests/SwiftCodeDarwinKernelTests/MachTask*Tests.swift`
 (existing `MachIPC*Tests`/`MachRoutineTests` may be updated by M).
 
 ## 6. Descriptors (agent F)
@@ -289,7 +289,7 @@ Implements `processes.md` §5 plus pipes and dup:
    time). A bound path creates a visible socket node in the guest VFS
    (`stat` shows `S_IFSOCK` is ideal; a placeholder file is acceptable) and
    `unlink` removes the binding. `AF_INET`/`AF_INET6`: host-backed IP
-   sockets since NET-IMPL (`networking-ycode.md` §2; before: EAFNOSUPPORT).
+   sockets since NET-IMPL (`networking-swiftcode.md` §2; before: EAFNOSUPPORT).
    `sendto` keeps 4a's log-the-text behavior only for unconnected
    `AF_UNIX` datagrams to `/var/run/syslog`-like paths that have no binder
    (it must not break `hello`).
@@ -297,11 +297,11 @@ Implements `processes.md` §5 plus pipes and dup:
    EINTR when interrupted.
 5. Readiness observers for P's kevent.
 
-Owns: `Sources/YcodeDarwinABI/DarwinFileSystem.swift`,
-`Sources/YcodeDarwinABI/DescriptorObject.swift`, everything in
-`Sources/YcodeDarwinKernel/Descriptors/`, and new tests
-`Tests/YcodeDarwinKernelTests/Descriptor*Tests.swift`,
-`Tests/YcodeDarwinABITests/FileSystem*Tests.swift` (may update the
+Owns: `Sources/SwiftCodeDarwinABI/DarwinFileSystem.swift`,
+`Sources/SwiftCodeDarwinABI/DescriptorObject.swift`, everything in
+`Sources/SwiftCodeDarwinKernel/Descriptors/`, and new tests
+`Tests/SwiftCodeDarwinKernelTests/Descriptor*Tests.swift`,
+`Tests/SwiftCodeDarwinABITests/FileSystem*Tests.swift` (may update the
 existing `FileSystemTests`).
 
 ## 7. VMM (agent V)
@@ -326,12 +326,12 @@ existing `FileSystemTests`).
 5. `apple[]` gets `executable_path=<guest path>` and whatever 4a already
    puts there; `ProcessImageRequest.apple` strings are appended.
 
-Owns: `Sources/ycode-simd/*` (may split `main.swift` into several files),
-`Sources/YcodeHypervisor/*`, `Sources/CKVM/*`.
+Owns: `Sources/swiftcode-simd/*` (may split `main.swift` into several files),
+`Sources/SwiftCodeHypervisor/*`, `Sources/CKVM/*`.
 
 ## 8. Host library and probes (agent L)
 
-1. `libsystem_kernel` (`ycode/SimHostLibs/kernel/`): `posix_spawn`,
+1. `libsystem_kernel` (`swiftcode/SimHostLibs/kernel/`): `posix_spawn`,
    `posix_spawnp`? (only if the surface lists it), every
    `posix_spawnattr_*`/`posix_spawn_file_actions_*` the surface lists with
    importers, per `processes.md` §1.14 (defaults, validation, the
@@ -342,28 +342,28 @@ Owns: `Sources/ycode-simd/*` (may split `main.swift` into several files),
    init from `task_get_special_port(TASK_BOOTSTRAP_PORT)` (and the fork/
    spawn child path, if any); any socket/wait wrappers the generated table
    still lacks.
-2. Probes of §1 under `ycode/SimShim/guest-tests/stage4b/` and
+2. Probes of §1 under `swiftcode/SimShim/guest-tests/stage4b/` and
    `build-stage4b.sh` (pattern: `build-stage4.sh`).
 3. Keep `abi_check` green (DarwinPCS on every build).
 
-Owns: `ycode/SimHostLibs/**`, `ycode/SimShim/guest-tests/stage4b/**`,
-`ycode/SimShim/guest-tests/build-stage4b.sh`.
+Owns: `swiftcode/SimHostLibs/**`, `swiftcode/SimShim/guest-tests/stage4b/**`,
+`swiftcode/SimShim/guest-tests/build-stage4b.sh`.
 
 ## 9. Rules for every agent
 
 - Clean room: read only `specs/`, public documentation, Apple open source
-  (xnu etc.), and this repository's `ycode/`. **Never open
+  (xnu etc.), and this repository's `swiftcode/`. **Never open
   `.claude/Xcode.app`, `research/dirty/`, Ghidra projects, or any Apple
-  binary.** No Apple code in `ycode/`.
+  binary.** No Apple code in `swiftcode/`.
 - Edit only the files you own. Need something in another agent's file?
   Write it down in your report (or a `// CONTRACT-REQUEST:` note in your
   own file); the orchestrator routes it. Do not edit `Package.swift`
   (orchestrator) — a new source file in an existing target directory needs
   no manifest change.
 - Builds on macOS: `swift build --scratch-path /tmp/yc-4b-<agent>`. On the
-  Thor: your own checkout `$YCODE_DATA/work/4b-<agent>/`
+  Thor: your own checkout `$SWIFTCODE_DATA/work/4b-<agent>/`
   (rsync from your Mac tree, excluding `.build`); runtime root
-  `$YCODE_DATA/runtimes/iOS-27.1-24A94401/RuntimeRoot`.
+  `$SWIFTCODE_DATA/runtimes/iOS-27.1-24A94401/RuntimeRoot`.
 - SSH with keys only (`<user>@<arm64-linux-host>`,
   `<user>@<x86-64-linux-host>`). Never read `.env`, never use a password, never
   sudo. The Thor is shared: touch only your own work directory.
@@ -402,7 +402,7 @@ Owns: `ycode/SimHostLibs/**`, `ycode/SimShim/guest-tests/stage4b/**`,
   VM's counter, so `mach_absolute_time` agrees across processes.
 - **Known gaps (later stages):** no handler delivery, no stop signals or
   WUNTRACED, no `select`/`poll` (both implemented since: `select.md`,
-  `networking-ycode.md` §2.4), no `pid_suspend`/`pid_resume`, no `#!`
+  `networking-swiftcode.md` §2.4), no `pid_suspend`/`pid_resume`, no `#!`
   scripts, `task_for_pid` of another process fails, exception-port
   routines have no private traps, `task_threads` of another task,
   PIDINFO 1/2/5/6/24/25, socket-cycle garbage collection, and the stub

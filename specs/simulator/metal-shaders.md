@@ -1,7 +1,7 @@
 # Spec: Metal shaders for the simulator host — metallib, AIR, and SPIR-V
 
 Status: **reference** for stage 8a (`stage8-contract.md` §2, agent R8).
-It describes the shader path of Ycode's Metal host service: the
+It describes the shader path of SwiftCode's Metal host service: the
 `.metallib` container and the AIR payload as file formats, the AIR
 intrinsics and metadata that the iOS 27.1 runtime (24A94401) uses, a plan
 to translate AIR to SPIR-V for Vulkan on the Thor, the Vulkan features the
@@ -223,7 +223,7 @@ u32 offset, u32 size, u32 alignment):
 
 A reader picks the `MTLB` slice with the highest subtype.
 
-### 2.9 Reader rules for Ycode
+### 2.9 Reader rules for SwiftCode
 
 1. Accept `MTLB` (and the two universal forms); refuse anything else.
 2. Bound every offset and size by the blob size; refuse overlaps outside
@@ -358,7 +358,7 @@ texture intrinsics. Our toolchain makes it a `[2 x i64]`; the functions
 the guest sends (iOS and visionOS runtimes alike) make it a plain `i64`
 holding word 0 (visionos.md §10.24). A reader takes the initializer's
 bytes through the data layout, whatever aggregate holds them. Until
-§10.24 ycode-airc read only element 0 of an aggregate, so every guest
+§10.24 swiftcode-airc read only element 0 of an aggregate, so every guest
 sampler read as word 0 = 0: nearest filtering, clamp to zero and a LOD
 maximum of 0 (level 0 only). Reflection names where the words came from
 (`state_source`: `initializer`, `zero initializer`, `no initializer`,
@@ -381,7 +381,7 @@ in our own shaders:
 | 58–59 | reduction | 0 weighted average, 1 minimum, 2 maximum |
 | 63 | not known | set in every guest sampler seen (`0x807bff…`), never in ours |
 
-Ycode's host filters bicubic samplers linearly (Vulkan's cubic filter is
+SwiftCode's host filters bicubic samplers linearly (Vulkan's cubic filter is
 an extension).
 
 `air.get_read_sampler()` supplies the sampler operand of texture reads.
@@ -420,11 +420,11 @@ time (level 3); e.g. 2D textures:
 | `air.gather_texture_2d.<T>` | texture, sampler, coordinate, i1 (true), int2 offset, i32 component, i32 (0) |
 | `air.get_width_texture_2d`, `air.get_height_texture_2d` | texture, u32 LOD |
 | `air.get_num_mip_levels_texture_2d` | texture |
-| `air.calculate_clamped_lod_texture_2d` | texture, sampler, float2 coordinate, i32 → float (the form visionOS RealityKit materials send to Ycode's host, visionos.md §10.11.3; the MSL member `calculate_clamped_lod(sampler, coord)`; ycode-airc: `OpImageQueryLod` component 0, fragment functions only; `calculate_unclamped_lod`: component 1) |
+| `air.calculate_clamped_lod_texture_2d` | texture, sampler, float2 coordinate, i32 → float (the form visionOS RealityKit materials send to SwiftCode's host, visionos.md §10.11.3; the MSL member `calculate_clamped_lod(sampler, coord)`; swiftcode-airc: `OpImageQueryLod` component 0, fragment functions only; `calculate_unclamped_lod`: component 1) |
 | `air.get_num_samples.i32` | none → i32 (the fragment function's raster sample count; translated as `air.get_num_samples`) |
-| `air.atomic.global.cmpxchg.weak.i32` (also `.local.`, `.strong.`) | atomic object pointer (address space 1, or 3 for `.local.`), pointer to the expected value (address space 0), i32 desired value, i32, i32, i32, i1 → **i32** (the form visionOS RealityKit's compute functions send to Ycode's host, visionos.md §10.13; operand types reported by ycode-airc's `decls`). The MSL call is `atomic_compare_exchange_weak_explicit(object, &expected, desired, success order, failure order)`, which returns bool and writes the value found into `expected` when it fails; with `expected` passed by pointer the result can only be the success flag, so ycode-airc reads the i32 as success 1 / failure 0 (a Ycode reading, not yet confirmed by a probe of ours; the three i32 operands are taken to be the two orders and the scope, the i1 volatility). ycode-airc: load `*expected`, `OpAtomicCompareExchange` (relaxed, device or workgroup scope), store the value found back into `*expected` (unchanged on success), result = found == expected. The strong form satisfies the weak one |
+| `air.atomic.global.cmpxchg.weak.i32` (also `.local.`, `.strong.`) | atomic object pointer (address space 1, or 3 for `.local.`), pointer to the expected value (address space 0), i32 desired value, i32, i32, i32, i1 → **i32** (the form visionOS RealityKit's compute functions send to SwiftCode's host, visionos.md §10.13; operand types reported by swiftcode-airc's `decls`). The MSL call is `atomic_compare_exchange_weak_explicit(object, &expected, desired, success order, failure order)`, which returns bool and writes the value found into `expected` when it fails; with `expected` passed by pointer the result can only be the success flag, so swiftcode-airc reads the i32 as success 1 / failure 0 (a SwiftCode reading, not yet confirmed by a probe of ours; the three i32 operands are taken to be the two orders and the scope, the i1 volatility). swiftcode-airc: load `*expected`, `OpAtomicCompareExchange` (relaxed, device or workgroup scope), store the value found back into `*expected` (unchanged on success), result = found == expected. The strong form satisfies the weak one |
 
-Ycode's implementation keeps such a catalog (one row per intrinsic
+SwiftCode's implementation keeps such a catalog (one row per intrinsic
 family, from our own probe shaders) as test data; operands marked "(as
 observed)" stay open until a probe varies them.
 
@@ -527,7 +527,7 @@ The PoC (§6) implements steps 1–6 for a subset.
 | **Own emitter on LLVM IR** (LLVM for reading and normalizing only) | **Recommended.** Full control of Metal's resource model (64-bit addresses and handles), varying matching, half widening, and structurization; small (the PoC is about 1000 lines for compute plus render basics) |
 | Khronos SPIRV-LLVM-Translator | No. It emits OpenCL-flavored SPIR-V (`Kernel` capability, `Physical64`/generic pointers, OpenCL.std), which Vulkan cannot load, and knows neither AIR intrinsics nor AIR metadata. Useful only as a reference for LLVM-type to SPIR-V-type mapping |
 | LLVM's SPIR-V back end (`spirv` target; official in LLVM 20, Vulkan shader support for HLSL in progress) | Not now. Not built in Ubuntu's `llvm-18`; its resource model is HLSL's (`target("spirv.*")` handle types); AIR would need the same lowering anyway. Re-evaluate later |
-| Pure-Swift bitcode reader inside Ycode | Later option. The bitcode format is public (LLVM documentation); AIR uses a stable subset from one producer. Removes the LLVM dependency at the cost of writing the reader and the typed-pointer upgrade |
+| Pure-Swift bitcode reader inside SwiftCode | Later option. The bitcode format is public (LLVM documentation); AIR uses a stable subset from one producer. Removes the LLVM dependency at the cost of writing the reader and the typed-pointer upgrade |
 
 ### 4.3 Memory model
 
@@ -592,14 +592,14 @@ mapping, one model for both:
   image. Texture views get storage views too (their composed component
   mapping counts as identity when every component is `IDENTITY` or its
   own channel). Explicit-level storage access to level L of the texture in
-  slot *h* uses slot *h* + L (ycode-airc, reflection `uses:
+  slot *h* uses slot *h* + L (swiftcode-airc, reflection `uses:
   storage_mip_levels`), so a texture with a storage view and n levels owns
   n consecutive slots, the later ones holding one-level storage views.
   **Cube textures** get storage usage and views whenever their format
-  allows, even when Metal marks them `shaderRead` only: ycode-airc reads a
+  allows, even when Metal marks them `shaderRead` only: swiftcode-airc reads a
   cube face (`read()`) through the storage view, since Vulkan cannot fetch
   a face from a sampled cube view (visionos.md §10.24;
-  `YCODE_GPU_CUBE_STORAGE=0` restores the old rule). On
+  `SWIFTCODE_GPU_CUBE_STORAGE=0` restores the old rule). On
   the Thor a write through a descriptor whose image memory was freed never
   completes (stage8-contract.md §15.9).
 - **sRGB textures written through unorm views** (since visionos.md §10.20):
@@ -617,7 +617,7 @@ mapping, one model for both:
   storage views in the unorm format of its layout, and **bit 32 of its
   64-bit texture value** (argument tables, argument-buffer members,
   `gpuResourceID`) marks it; the heap index stays the low 32 bits, which is
-  all `heapImage` uses. For a float texture ycode-airc's storage writes
+  all `heapImage` uses. For a float texture swiftcode-airc's storage writes
   encode linear to sRGB (IEC 61966-2-1: `c ≤ 0.0031308 ? 12.92 c : 1.055
   c^(1/2.4) − 0.055` on red, green and blue after clamping to [0, 1]; alpha
   unchanged) and its storage reads decode (`c ≤ 0.04045 ? c / 12.92 : ((c +
@@ -626,7 +626,7 @@ mapping, one model for both:
   computed and one is chosen with `OpSelect`: the translator adds no
   blocks, and a texture without the bit gets its value unchanged.
   Reflection `uses: srgb_storage` names such functions. Sampled reads keep
-  the sRGB view (hardware decode). `YCODE_GPU_SRGB_STORAGE=0` gives sRGB
+  the sRGB view (hardware decode). `SWIFTCODE_GPU_SRGB_STORAGE=0` gives sRGB
   textures no storage view again.
 - **Visibility results** (record 132, since visionos.md §10.20.8): each
   run of draws with one non-zero mode and slot offset in a render pass is a
@@ -661,7 +661,7 @@ mapping, one model for both:
 | `air.point_size`, `air.clip_distance` | `PointSize`, `ClipDistance` |
 | `air.front_facing`, `air.primitive_id`, `air.sample_mask(_in)`, `air.barycentric_coord` | `FrontFacing`, `PrimitiveId`, `SampleMask`/`SampleMaskIn`, `BaryCoordKHR` (supported) |
 | `air.depth` + qualifier | `FragDepth` + `DepthReplacing`/`DepthGreater`/`DepthLess` |
-| `air.render_target_array_index`, `air.viewport_array_index` | `Layer`, `ViewportIndex` (`VK_EXT_shader_viewport_index_layer`). **A vertex function's `viewport_array_index` output is not written** (since visionos.md §10.13): Ycode's passes have one viewport and one scissor (the host keeps the first of a `setViewports:count:` array), so every primitive uses viewport 0; an index of 1 or more would select a Vulkan viewport and scissor that were never set (undefined). A fragment function that reads the index then reads 0. `AIRC_VIEWPORT_INDEX=1` writes it as before (experiments) |
+| `air.render_target_array_index`, `air.viewport_array_index` | `Layer`, `ViewportIndex` (`VK_EXT_shader_viewport_index_layer`). **A vertex function's `viewport_array_index` output is not written** (since visionos.md §10.13): SwiftCode's passes have one viewport and one scissor (the host keeps the first of a `setViewports:count:` array), so every primitive uses viewport 0; an index of 1 or more would select a Vulkan viewport and scissor that were never set (undefined). A fragment function that reads the index then reads 0. `AIRC_VIEWPORT_INDEX=1` writes it as before (experiments) |
 | `air.vertex_input` the function never reads | No input variable (reflection: `"declared": false`; since visionos.md §10.13). Metal's vertex descriptor need not describe such attributes, and a Vulkan vertex shader input with no vertex attribute behind it is undefined; visionOS RealityKit's `vsUnlit` declares 15 stage-in attributes and reads 2. `AIRC_UNUSED_VERTEX_INPUTS=1` declares them as before |
 | fragment input without a vertex output of the same match string | A linked fragment function's input that the function never reads and the vertex function does not write gets no interface variable (reflection: `"linked": false`); Metal accepts such pipelines (visionOS RealityKit's `fsSFBStencilBreakthrough` declares ten inputs, its `vsUnlit` writes four; uiCALayer pipelines likewise). An input that is read but not written stays an error (`bad-request`) |
 | `half` at a stage boundary | **widened to 32-bit** with `OpFConvert`: the Thor has `storageInputOutput16` = false |
@@ -732,7 +732,7 @@ rejects anything else, so failures are detected, not silently wrong.
 | Feature | Plan |
 |---|---|
 | Imageblocks and tile functions (QuartzCore uses them) | Preferred: report a device family without tile shading so clients take their portable paths (depends on what the capability queries of R7 §4 steer; to test). Fallback: implicit imageblock fields backed by color attachments read with dynamic-rendering local read; explicit imageblocks as storage images; tile dispatches as compute over the render area between render-pass segments |
-| Explicit imageblocks in fragment functions (visionOS RealityKit's `BreakthroughTechniques`, e.g. `fsBreakthroughMeshClearImageBlock`) | Ycode keeps no tile memory in render passes and runs no tile functions there, so nothing can read what a fragment function puts into its imageblock: a fragment result member of kind `air.imageblock_data` is **not written** (no Vulkan output; reflection `uses`: `imageblock_output_dropped`), and a fragment argument of kind `air.imageblock_data` (the pixel's imageblock, passed by value) **reads as zeros** (`imageblock_input_zero`). The function's colour, depth and other outputs are kept. Compute imageblocks are unchanged (workgroup memory). A faithful version needs per-pixel storage that lives for the pass (the fallback above) |
+| Explicit imageblocks in fragment functions (visionOS RealityKit's `BreakthroughTechniques`, e.g. `fsBreakthroughMeshClearImageBlock`) | SwiftCode keeps no tile memory in render passes and runs no tile functions there, so nothing can read what a fragment function puts into its imageblock: a fragment result member of kind `air.imageblock_data` is **not written** (no Vulkan output; reflection `uses`: `imageblock_output_dropped`), and a fragment argument of kind `air.imageblock_data` (the pixel's imageblock, passed by value) **reads as zeros** (`imageblock_input_zero`). The function's colour, depth and other outputs are kept. Compute imageblocks are unchanged (workgroup memory). A faithful version needs per-pixel storage that lives for the pass (the fallback above) |
 | Programmable blending (`[[color(n)]]` inputs) | Input attachments with `VK_KHR_dynamic_rendering_local_read` |
 | Raster order groups | `SPV_EXT_fragment_shader_interlock` around the accesses (pixel and sample interlock supported) |
 | Visible functions, function tables, stitching (RenderBox, IconRendering, CoreMaterial3D) | Metal requires linked functions to be declared at pipeline creation: link every candidate visible function into the pipeline's module and lower `air.get_function_pointer_visible_function_table` calls to a switch on the table index. Stitched graphs are built in the guest (open: what reaches the host) |
@@ -743,7 +743,7 @@ rejects anything else, so failures are detected, not silently wrong.
 ### 4.10 Running on Linux
 
 - **Process model (recommended):** a separate translator process
-  (`ycode-airc`), C++ against LLVM's libraries plus SPIRV-Tools, started
+  (`swiftcode-airc`), C++ against LLVM's libraries plus SPIRV-Tools, started
   by the host service and kept running; requests carry a `functionIR`
   plus pipeline facts, replies carry SPIR-V words or an error. It isolates
   LLVM's global state and crashes on hostile input from the VMM, keeps
@@ -756,14 +756,14 @@ rejects anything else, so failures are detected, not silently wrong.
   read AIR (§3.1). Their target list has no SPIR-V back end (not needed).
   SPIRV-Tools 2025.1 (headers and static libraries), glslang 15.1 and
   Vulkan headers 1.3.275 are installed. No package was installed and no
-  source build was needed; if Ycode later vendors LLVM, build only
+  source build was needed; if SwiftCode later vendors LLVM, build only
   `Core`, `BitReader`, `Analysis`, `TransformUtils` and `Passes` into our
-  directory on the data volume (`$YCODE_DATA`).
+  directory on the data volume (`$SWIFTCODE_DATA`).
 - **Licenses** (checked against the projects' license files):
   LLVM — Apache-2.0 with LLVM Exceptions; SPIRV-Tools — Apache-2.0;
   SPIRV-Cross — Apache-2.0; SPIRV-Headers — MIT-style Khronos license;
   **SPIRV-LLVM-Translator — University of Illinois/NCSA** (not
-  Apache-2.0); MoltenVK — Apache-2.0. All allow use in Ycode with notices;
+  Apache-2.0); MoltenVK — Apache-2.0. All allow use in SwiftCode with notices;
   the recommended design links only LLVM and SPIRV-Tools.
 - **MoltenVK** implements Vulkan on top of Metal (SPIR-V → MSL through
   SPIRV-Cross): the opposite direction. It is not a source for this work.
@@ -773,7 +773,7 @@ rejects anything else, so failures are detected, not silently wrong.
 A Metal function can read a buffer argument that its encoder never bound.
 visionOS's Siri orb renderer (`com.apple.campo`) does this on its first
 command buffer: its kernel `affordanceDynamicPointLight` (`2d634d91`, 3,356
-SPIR-V words) has ten buffer arguments, all `used` in ycode-airc's
+SPIR-V words) has ten buffer arguments, all `used` in swiftcode-airc's
 reflection (`faceIndex` and nine scalar parameters, `float` and `float2`)
 and one write-only cube texture; the encoder binds texture 0 and buffer 0
 only (`setBytes` of the face index, the two records of §5.1 of
@@ -781,9 +781,9 @@ metal-sim-protocol.md, once per face) and dispatches six times, 4 × 8
 threadgroups of 32 × 16 threads over a 128 × 128 face. The hang reports
 of the command buffer show nothing else in its records (commands 0–3
 before the first dispatch: pipeline, texture, the two binding records)
-and Ycode's decoder logged no unknown record for it.
+and SwiftCode's decoder logged no unknown record for it.
 
-Ycode's argument table (§4.4) held 0 for every slot without a binding, so
+SwiftCode's argument table (§4.4) held 0 for every slot without a binding, so
 the kernel's nine parameter loads read device address 0. On the Thor a
 GPU read of an unmapped address **never completes** (stage8-contract.md
 §15.6; our `hangkick` probe, a one-thread kernel reading address 0, still
@@ -794,20 +794,20 @@ kernel has no loop (no `loop_limit` in its reflection), no barrier, no
 threadgroup memory and no subgroup operation; it reads only
 `thread_position_in_grid`.
 
-**Rule (Ycode).** Every buffer entry (0–30) that the function's reflection
+**Rule (SwiftCode).** Every buffer entry (0–30) that the function's reflection
 marks `used` and that the encoder left unbound gets the address of the
 back end's dummy buffer (64 KiB of zeros), so such a load reads zero. The
 reflection's used set is computed once per pipeline stage
 (`StageStatics.usedBuffers`); the argument table is written as before and
 only the unbound used slots are filled, so bound slots cost nothing. An
 unknown (released) buffer handle already pointed at the dummy buffer.
-`YCODE_GPU_UNBOUND_DUMMY=0` restores address 0 (experiments). The first
+`SWIFTCODE_GPU_UNBOUND_DUMMY=0` restores address 0 (experiments). The first
 16 (function, slots) pairs are logged ("reads buffer slots … that its
 command buffer left unbound"), and the stats line counts the tables
 (`tables with unbound buffers read`).
 
 What Apple's GPUs return for such a load is not known (the reference was
-not observed; §8 item 9). Zero is the value Ycode's null-pointer guard
+not observed; §8 item 9). Zero is the value SwiftCode's null-pointer guard
 (§4.3) gives loads through a null pointer, and the orb renders with its
 parameters at zero (visionos.md §10.27). A kernel that
 *writes* through an unbound slot writes the dummy buffer, which later
@@ -864,7 +864,7 @@ start. The PoC refuses, with a message, what it does not handle (e.g.
 threadgroup arguments, SIMD intrinsics, constexpr samplers, textures
 other than sampled 2D).
 
-## 7. What a Ycode translator must implement (derived)
+## 7. What a SwiftCode translator must implement (derived)
 
 1. Container reader (§2.9) and LLVM bitcode reading (§3.1).
 2. Entry metadata parsing for vertex, fragment and kernel functions
@@ -917,17 +917,17 @@ other than sampled 2D).
 | LLVM 18 reads all 34 326 runtime modules | 3 | `air_inventory.py` (llvm-dis-18, no errors) |
 | Triples, data layout, producers, language versions, address-space counts, named metadata, metadata keys, intrinsic names and counts (§3.2–§3.4, §3.10) | 4 | `air_inventory.py`, `addrspace_names.py`, `categorize.py`: names and counts only, text deleted after counting |
 | Address-space meanings, entry metadata structure, argument buffer layout, function constants, sampler-state bits, intrinsic operands (§3.3, §3.5–§3.9) | 3 | our probe shaders (`features.metal`, `kinds.metal`, `tile.metal`, `sampler_bits.py`, the texture probe of Appendix A) compiled with `xcrun -sdk iphonesimulator metal -S -emit-llvm` |
-| Guest constexpr samplers are a plain `i64` (bit 63 set); bicubic is filter value 2; cube textures get storage views for `read()` (§3.7, §4.4) | 3 | ycode-airc's reflection (`state_type`, `state_source`) of the functions visionOS RealityKit and backboardd sent to Ycode's host (dumps kept on the Thor) and of iOS 27 boots' translation cache; our shader `filter::bicubic` compiled with `xcrun -sdk iphonesimulator metal`; `tests/ir/interface-forms.sh` case 8; visionos.md §10.24 |
+| Guest constexpr samplers are a plain `i64` (bit 63 set); bicubic is filter value 2; cube textures get storage views for `read()` (§3.7, §4.4) | 3 | swiftcode-airc's reflection (`state_type`, `state_source`) of the functions visionOS RealityKit and backboardd sent to SwiftCode's host (dumps kept on the Thor) and of iOS 27 boots' translation cache; our shader `filter::bicubic` compiled with `xcrun -sdk iphonesimulator metal`; `tests/ir/interface-forms.sh` case 8; visionos.md §10.24 |
 | Names of runtime functions and bundles (§1, §3.10) | 4 | function-list `NAME` tags; file names in the runtime |
 | SPIR-V, Vulkan and extension semantics (§4) | 1 | SPIR-V 1.6 specification, GLSL.std.450, Vulkan 1.4 specification and registry, Metal Shading Language specification and Metal API documentation (public) |
 | Translator options and licenses (§4.2, §4.10) | 1 | project documentation and license files of LLVM, SPIRV-LLVM-Translator, SPIRV-Tools, SPIRV-Cross, SPIRV-Headers, MoltenVK |
 | Thor packages, Vulkan features and limits (§4.10, §5) | 3 | `dpkg -l`, `llc-18 --version`, `vulkaninfo`, `vkrun --features` (read-only) |
 | Host-memory import (§5) and the PoC results (§6) | 3 | `vkrun`, `vkdraw`, `airc` on the Thor |
-| Design (§4, §7) | — | Ycode design |
-| Compare-exchange operand form; fragment imageblock members and arguments; partially linked varyings; null-pointer reads in RealityKit functions (§3.9, §4.3, §4.5, §4.9) | 3 | ycode-airc `decls` (operand types only) and reflection of the functions visionOS RealityKit sent to Ycode's host (dumps kept on the Thor), visionos.md §10.13; our AIR test modules `tests/ir/interface-forms.sh`; GPU tests `CompareExchangeGPUTests`, `NullPointerGPUTests` |
+| Design (§4, §7) | — | SwiftCode design |
+| Compare-exchange operand form; fragment imageblock members and arguments; partially linked varyings; null-pointer reads in RealityKit functions (§3.9, §4.3, §4.5, §4.9) | 3 | swiftcode-airc `decls` (operand types only) and reflection of the functions visionOS RealityKit sent to SwiftCode's host (dumps kept on the Thor), visionos.md §10.13; our AIR test modules `tests/ir/interface-forms.sh`; GPU tests `CompareExchangeGPUTests`, `NullPointerGPUTests` |
 | Compare-exchange semantics (§3.9) | 1 | Metal Shading Language specification (atomic functions); SPIR-V `OpAtomicCompareExchange` |
-| Storage slots (§4.4): writes through a freed image's descriptor never complete on the Thor; texture views lacked storage views; explicit-level storage slots | 3 | `scripts/gpu-probes/imgoob.c` (our GLSL); Ycode boots and tests of stage8-contract.md §15.9; ycode-airc's own reflection (`storage_mip_levels`) |
-| Unbound used buffer slots (§4.11): the Siri orb kernel's ten used buffers and one binding, its loop-free reflection; a read of address 0 never completes on the Thor; the dummy-buffer rule keeps the dispatch short | 3 | ycode-airc's own reflection of the kernel (the GPU cache of the XR-VIEWER run, kept on the Thor); hang reports and dispatch tables of `xr-viewer/runs/x7` and GPU-SIRI's boots; `hangkick.c` (our GLSL); `GPURecoveryTests.unboundBufferReadsZerosInsteadOfHanging` |
+| Storage slots (§4.4): writes through a freed image's descriptor never complete on the Thor; texture views lacked storage views; explicit-level storage slots | 3 | `scripts/gpu-probes/imgoob.c` (our GLSL); SwiftCode boots and tests of stage8-contract.md §15.9; swiftcode-airc's own reflection (`storage_mip_levels`) |
+| Unbound used buffer slots (§4.11): the Siri orb kernel's ten used buffers and one binding, its loop-free reflection; a read of address 0 never completes on the Thor; the dummy-buffer rule keeps the dispatch short | 3 | swiftcode-airc's own reflection of the kernel (the GPU cache of the XR-VIEWER run, kept on the Thor); hang reports and dispatch tables of `xr-viewer/runs/x7` and GPU-SIRI's boots; `hangkick.c` (our GLSL); `GPURecoveryTests.unboundBufferReadsZerosInsteadOfHanging` |
 
 No disassembly or decompilation was used (level 5 not used). No
 `.claude/Xcode.app`, `research/dirty/`, or Ghidra project was opened. The
@@ -957,8 +957,8 @@ binaries. `poc.sh SCRATCH` reproduces §6 end to end.
 | `build-thor.sh`, `poc.sh` | build on the Thor (system packages only) and run everything |
 
 Method notes: the inventory ran on the Thor over the runtime copy at
-`$YCODE_DATA/runtimes/iOS-27.1-24A94401/RuntimeRoot`, with
-outputs in `$YCODE_DATA/work/8-R8/`. The texture-intrinsic
+`$SWIFTCODE_DATA/runtimes/iOS-27.1-24A94401/RuntimeRoot`, with
+outputs in `$SWIFTCODE_DATA/work/8-R8/`. The texture-intrinsic
 probe of §3.9 was a scratch shader of ours with one fragment function per
 `sample`/`read`/`gather`/query variant. No simulator device was created.
 

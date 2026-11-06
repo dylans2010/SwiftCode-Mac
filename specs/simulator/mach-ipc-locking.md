@@ -8,7 +8,7 @@ every L0 holder took for writing and every fast path for reading) was
 slower than no split: every L0 acquisition drained the fast paths in
 flight and stopped new ones (§6.3); the version below has no gate.
 
-This is Ycode's own design for Ycode's own kernel personality. It names no
+This is SwiftCode's own design for SwiftCode's own kernel personality. It names no
 Apple internals. The Mach semantics it must keep (message order per port,
 rights accounting, notifications, port death, queue limits, blocking) are
 those of `mach-ipc.md`, `threads-and-events.md` and `processes.md`, whose
@@ -27,7 +27,7 @@ Mach IPC round trips between daemons (§6.3 there): each round trip is a
 handful of traps (`mach_msg2` send and sync receive, the server's
 `workq_kernreturn` and `kevent_id`), and each of them queued for L0.
 
-The trap profile (`YCODE_TRAP_PROFILE`, 250 s of a boot) before this work:
+The trap profile (`SWIFTCODE_TRAP_PROFILE`, 250 s of a boot) before this work:
 
 | Trap | Acquisitions | Mean hold | Summed hold | Mean wait |
 |---|---|---|---|---|
@@ -39,12 +39,12 @@ The trap profile (`YCODE_TRAP_PROFILE`, 250 s of a boot) before this work:
 ## 2. Where the IPC hold time went
 
 A new diagnostic samples the kernel-lock holder's call stack
-(`YCODE_TRAP_PROFILE_STACKS=<µs>` with `YCODE_TRAP_PROFILE`): every interval
+(`SWIFTCODE_TRAP_PROFILE_STACKS=<µs>` with `SWIFTCODE_TRAP_PROFILE`): every interval
 the holder's host thread gets SIGPROF, its handler records the return
 addresses (`backtrace`), and the sample is kept only when the same hold is
 still in progress afterwards. The table `<profile>.stacks` lists each stack
 with its count and trap; `<profile>.stacks.maps` holds the process's
-mappings so that `llvm-symbolizer` can name Ycode's own frames. Findings
+mappings so that `llvm-symbolizer` can name SwiftCode's own frames. Findings
 (70,902 samples of one boot):
 
 1. `mach_msg2_trap`: 74 % of its hold samples were in `enqueue`, and 38 % in
@@ -65,7 +65,7 @@ mappings so that `llvm-symbolizer` can name Ycode's own frames. Findings
 
 ## 3. Hold-time reductions (on by default)
 
-### 3.1 C22: EVFILT_MACHPORT knotes indexed by port name (`YCODE_KNOTE_INDEX`)
+### 3.1 C22: EVFILT_MACHPORT knotes indexed by port name (`SWIFTCODE_KNOTE_INDEX`)
 
 Each image keeps `KEventState.machportIndex`: port name → its
 EVFILT_MACHPORT knotes, in the order a scan of all kqueues finds them
@@ -81,9 +81,9 @@ it instead of scanning. The index is built on first use and dropped
 - a snapshot restore rebuilds the kqueues.
 
 The hooks then do exactly what the scan did for the same knotes in the
-same order. `YCODE_KNOTE_INDEX=0` scans as before.
+same order. `SWIFTCODE_KNOTE_INDEX=0` scans as before.
 
-### 3.2 C23: wakeups signalled after the lock is released (`YCODE_DEFERRED_WAKE`)
+### 3.2 C23: wakeups signalled after the lock is released (`SWIFTCODE_DEFERRED_WAKE`)
 
 `WaitQueue.Waiter.finish` called by the holder of the waiter's lock records
 the result at once (under the lock, as before) but queues the condition
@@ -109,13 +109,13 @@ operation-name table is built only for traced calls.
 instead of the full-list lock, so the full image list (read by the
 milestone note) never waits for that parse.
 
-## 4. The lock split (C25; on by default, `YCODE_IPC_LOCKS=0` turns it off)
+## 4. The lock split (C25; on by default, `SWIFTCODE_IPC_LOCKS=0` turns it off)
 
 ### 4.1 Locks and order
 
 | Level | Lock | Guards |
 |---|---|---|
-| 0 | L0, the kernel lock | BSD, process and VM bookkeeping state; every L0 wait queue (semaphores, ulocks, pipes, signals; the timer thread only with `YCODE_TIMER_L0=1`) |
+| 0 | L0, the kernel lock | BSD, process and VM bookkeeping state; every L0 wait queue (semaphores, ulocks, pipes, signals; the timer thread only with `SWIFTCODE_TIMER_L0=1`) |
 | 1 | L_P, one per image ("event lock") | the image's kevent engine (`KEventState`, kqueues, knotes, the timer registry), its workqueue (`WorkqueueState`, `WorkerState`), its thread table `threadsByPort` (for writes) and thread registration; the timer thread's wait queue (`frame-profile.md` §5.3) |
 | 2 | G, one per system ("port lock") | every `MachIPC` space (names, special reply ports, task slots), every port, port set and queued message, `MachIPCSystem` counters, mk_timer fields, port importance counts and `DarwinProcess.importanceBoosts` |
 | 3 | L1 per address space, then leaf locks | as before |
@@ -123,7 +123,7 @@ milestone note) never waits for that parse.
 **Order.** A thread takes locks in strictly increasing level, never two locks
 of one level (two images' L_P). Re-entering a held lock is a no-op (nesting
 depth), as for L0 before. Blocking waits release every lock (4.4). A debug
-check (`YCODE_LOCK_ORDER_CHECK=1`, on in the tests) records each thread's
+check (`SWIFTCODE_LOCK_ORDER_CHECK=1`, on in the tests) records each thread's
 held locks in thread-local storage, stops the process on an out-of-order
 acquisition, and checks that the kevent and workqueue entry points and every
 wait-queue wake hold the queue's lock.
@@ -187,8 +187,8 @@ read must be the target's whole trap frame. Without the entry frame's lock
 the first test stopped the test process in 5 of 5 runs on the x86-64
 workstation (a register array retained after it was freed, or freed
 twice); with it, 5 of 5 runs pass, as do the full suite and the kernel
-suite (322 tests) with `YCODE_IPC_LOCKS_TESTS=1 YCODE_LOCK_ORDER_CHECK=1`
-and with `YCODE_IPC_LOCKS=0`.
+suite (322 tests) with `SWIFTCODE_IPC_LOCKS_TESTS=1 SWIFTCODE_LOCK_ORDER_CHECK=1`
+and with `SWIFTCODE_IPC_LOCKS=0`.
 
 The other routines that name a thread or task were checked and need no
 change: `thread_get_exception_ports`/`thread_set_exception_ports` (the
@@ -266,7 +266,7 @@ and at the end of the trap, before it returns to the guest).
 | Starting a new workqueue thread (vCPU, thread record) | `pumpWorkqueue` without L0 | L0 + L_P: `retryPendingWorkqueue` |
 | Re-evaluating a kqueue with descriptor knotes | knote activation without L0 | L0 + L_P |
 | A dying port's payload: a semaphore (its waiters are L0 queues), a fileport's open file, a memory entry | `portDeath` without L0 | L0: the payload is released there (the port drops it at once) |
-| The timer thread's start and wakeup (only with `YCODE_TIMER_L0=1`; by default the timer thread waits on L_P and is woken at once, `frame-profile.md` §5.3), notifying a kqueue descriptor's observers, removing a dropped knote's readiness observer | kevent fast paths | L0 |
+| The timer thread's start and wakeup (only with `SWIFTCODE_TIMER_L0=1`; by default the timer thread waits on L_P and is woken at once, `frame-profile.md` §5.3), notifying a kqueue descriptor's observers, removing a dropped knote's readiness observer | kevent fast paths | L0 |
 | Start-hold release and class refresh after an importance change; a thread's class refresh | `changeImportance`, `refreshSchedClass` without L0 | L0 (re-checked there; `importanceBoosts` itself changes at once, under G) |
 
 Running deferred work can queue more (a hook that starts a thread); the
@@ -290,7 +290,7 @@ microseconds later only delays an activation that the holder would have
 evaluated anyway.
 
 Fine locks are glibc adaptive mutexes (`PTHREAD_MUTEX_ADAPTIVE_NP`; a
-contender spins briefly before it sleeps); `YCODE_FINE_LOCK_SPIN=0` makes
+contender spins briefly before it sleeps); `SWIFTCODE_FINE_LOCK_SPIN=0` makes
 them plain.
 
 ### 4.7 Snapshots
@@ -338,8 +338,8 @@ locked path's handler under G alone:
 
 | Trap | |
 |---|---|
-| Ycode's `thread_get_state` (0x7963_2011), `task_threads` (0x7963_200D) | the caller's event lock (the thread table changes only with L0 and it held), then G; a target's entry frame under its own lock (§4.2) |
-| Ycode's `mach_make_memory_entry_64` (0x7963_200A), `mach_vm_map` with a memory object (0x7963_200B), `mach_vm_remap` (0x7963_200C), `mach_port_get_context`/`set_context` (0x7963_200E/F) | G; the memory-entry and VM-map routines do their address-space and shared-object work with G released, as before (§4.2), so they now hold no lock for it (on L0 a profiled boot held L0 0.5–2.5 ms per memory entry, mostly in the host `mmap`) |
+| SwiftCode's `thread_get_state` (0x7963_2011), `task_threads` (0x7963_200D) | the caller's event lock (the thread table changes only with L0 and it held), then G; a target's entry frame under its own lock (§4.2) |
+| SwiftCode's `mach_make_memory_entry_64` (0x7963_200A), `mach_vm_map` with a memory object (0x7963_200B), `mach_vm_remap` (0x7963_200C), `mach_port_get_context`/`set_context` (0x7963_200E/F) | G; the memory-entry and VM-map routines do their address-space and shared-object work with G released, as before (§4.2), so they now hold no lock for it (on L0 a profiled boot held L0 0.5–2.5 ms per memory entry, mostly in the host `mmap`) |
 | −16 `mach_port_allocate`, −18 `deallocate`, −19 `mod_refs`, −20 `move_member`, −21 `insert_right`, −22 `insert_member`, −23 `extract_member`, −24 `construct`, −25 `destruct`, −26 `mach_reply_port`, −27 `thread_self`, −28 `task_self`, −29 `host_self`, −40 `get_attributes`, −41 `guard`, −42 `unguard`, −50 `thread_get_special_reply_port`, −70 `host_create_mach_voucher`, −72 `mach_voucher_extract_attr_recipe`, −76 `mach_port_type`, −77 `request_notification` | G only |
 
 What they do beyond Mach state is what a fast `mach_msg` already does
@@ -349,7 +349,7 @@ EVFILT_MACHPORT hooks run under the receiving image's event lock, both as
 deferred work (§4.5); importance counts change under G. The pid-to-task
 traps (−44 … −46) read the process table and stay on L0. A traced image
 uses the locked path (its trace lines). Switch:
-`YCODE_PORT_ROUTINES_FAST=0`. Test:
+`SWIFTCODE_PORT_ROUTINES_FAST=0`. Test:
 `MachIPCLockSplitTests.portRoutinesOnTheFastPathKeepRightsBalanced` (four
 threads make, arm, use and destroy ports with the routines, fast or locked
 at random, while they send to a server on the fast path; every
@@ -393,7 +393,7 @@ is L0 state. In a cold boot that sent 41,000 traps to L0 (most of
 Without the escalation a worker parked on a fast path, handed a bucket
 whose only event is a ready pipe, could not deliver it off L0 and would be
 woken again by the deferred re-evaluation, forever. Switch:
-`YCODE_DESCRIPTOR_ESCALATION=0` (the old decline). Test:
+`SWIFTCODE_DESCRIPTOR_ESCALATION=0` (the old decline). Test:
 `WorkqueueKEventTests.descriptorKnoteIsDeliveredToAParkedWorker` (a pipe's
 EVFILT_READ|EV_DISPATCH knote on the workqueue kqueue, three rounds of
 park, write, delivery, read and EV_ENABLE; with the split on, the scans
@@ -416,16 +416,16 @@ escalated).
   another thread holds L0.
 - The whole kernel suite also runs with the split in every test system and
   the test helpers trying the fast paths first, as the VMM does
-  (`YCODE_IPC_LOCKS_TESTS=1`, about 6,000 fast traps per run), with
-  `YCODE_LOCK_ORDER_CHECK=1`: 315 tests pass on the Thor (arm64) and the
+  (`SWIFTCODE_IPC_LOCKS_TESTS=1`, about 6,000 fast traps per run), with
+  `SWIFTCODE_LOCK_ORDER_CHECK=1`: 315 tests pass on the Thor (arm64) and the
   x86-64 workstation, as do the full suite with the default settings and
-  the kernel suite with `YCODE_IPC_LOCKS=0`.
+  the kernel suite with `SWIFTCODE_IPC_LOCKS=0`.
 
 ## 6. Measurements
 
-Thor, harness full boots (device in RAM, `YCODE_LEAN_BOOT` unset), one boot
+Thor, harness full boots (device in RAM, `SWIFTCODE_LEAN_BOOT` unset), one boot
 at a time, the three arms alternating in each round; base = main line
-34e5bb1; "hold time" = this branch with `YCODE_IPC_LOCKS=0` (§3 only);
+34e5bb1; "hold time" = this branch with `SWIFTCODE_IPC_LOCKS=0` (§3 only);
 "split" = this branch's defaults.
 
 ### 6.1 Time to the home screen (no profiling; load average 8–14)
@@ -456,7 +456,7 @@ with the probe app installs it at 58 s and launches it at 79 s.
 | Poster extension batch: median gap between launches | 1.24–2.04 s | 0.81–1.31 s | 0.48–0.73 s |
 | Batch span (20 launches) | 27–39 s | 18–23 s | 10–18 s |
 
-### 6.3 Locks (profiled boots, `YCODE_TRAP_PROFILE`)
+### 6.3 Locks (profiled boots, `SWIFTCODE_TRAP_PROFILE`)
 
 | | base | hold time | split (gate, first version) | split |
 |---|---|---|---|---|
@@ -487,7 +487,7 @@ from 35–42 k to 0; 1.0–1.1 k scans escalated to L0), and the port routine
 traps (78–80 k a boot) left L0. The IPC locks took the load: G's summed
 waits rose from 21–26 s to 41–61 s, the event locks' from 23–24 s to
 35–37 s. Time to the home screen did not improve (`bsd-locking.md` §16.2).
-Ablation in place (series X, 4 rounds, `YCODE_PORT_ROUTINES_FAST=0` against
+Ablation in place (series X, 4 rounds, `SWIFTCODE_PORT_ROUTINES_FAST=0` against
 the defaults): 39, 39, 36, 40 s against 35, 42, 34, 42 s (paired −4, +3,
 −2, +2): no effect.
 
@@ -529,7 +529,7 @@ latency 2.9 s), behind host-CPU oversubscription and guest code.
 | The restore's rebuild under L0 alone and its observers without the event lock (§4.7) | 3 | Host backtraces of restored runs (a dictionary of `KEventState` freed with a bad pointer in `DarwinKernel.deinit`; a bad reference in a capture), the lock-order checker's stop in every restore before the fix, `SnapshotKernelRoundTripTests` (`snapshot.md` §12.5) |
 | Where hold time went (§1, §2) | 3 | Trap profiles and holder stacks of Thor boots (`SX/SPIPC/runs/s1`, `a1`) |
 | Measurements (§6) | 3 | Thor harness boots `SX/SPIPC/{base/,}runs/f*`, `m*`, `x1`, `y5` |
-| §4.10, §4.11 and §6.4: port routines under G, descriptor-readiness escalation, their measurements | — / 3 | Ycode design; Thor timed boots of Ycode's simulator (`ide-remote/klock/runs/{P,X}-*`), kernel tests |
+| §4.10, §4.11 and §6.4: port routines under G, descriptor-readiness escalation, their measurements | — / 3 | SwiftCode design; Thor timed boots of SwiftCode's simulator (`ide-remote/klock/runs/{P,X}-*`), kernel tests |
 | Level-triggered EVFILT_READ/WRITE readiness, EV_DISPATCH re-enable | 1 | xnu `bsd/kern/kern_event.c` (via `threads-and-events.md`) |
 
 Level 5 was not used. The reference tools folder, `research/` and Ghidra

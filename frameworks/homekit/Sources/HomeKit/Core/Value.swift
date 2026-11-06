@@ -4,15 +4,15 @@
 import Foundation
 
 /// A characteristic value as stored and sent across the store boundary.
-public enum YcodeHomeValue: Codable, Hashable, Sendable {
+public enum SwiftCodeHomeValue: Codable, Hashable, Sendable {
     case bool(Bool)
     case int(Int64)
     case uint(UInt64)
     case float(Double)
     case string(String)
     case data(Data)
-    case array([YcodeHomeValue])
-    case dictionary([String: YcodeHomeValue])
+    case array([SwiftCodeHomeValue])
+    case dictionary([String: SwiftCodeHomeValue])
 
     /// The value as the API shows it: booleans and numbers as `NSNumber`,
     /// strings as `String`, TLV8 and data as `Data`.
@@ -45,19 +45,19 @@ public enum YcodeHomeValue: Codable, Hashable, Sendable {
     public init?(any value: Any?) {
         guard let value else { return nil }
         switch value {
-        case let v as YcodeHomeValue: self = v
+        case let v as SwiftCodeHomeValue: self = v
         case let b as Bool where type(of: value) == Bool.self: self = .bool(b)
         case let s as String: self = .string(s)
         case let d as Data: self = .data(d)
         case let n as NSNumber:
             if let i = n as? Int64, Double(i) == n.doubleValue { self = .int(i) } else { self = .float(n.doubleValue) }
         case let a as [Any]:
-            var out: [YcodeHomeValue] = []
-            for e in a { guard let v = YcodeHomeValue(any: e) else { return nil }; out.append(v) }
+            var out: [SwiftCodeHomeValue] = []
+            for e in a { guard let v = SwiftCodeHomeValue(any: e) else { return nil }; out.append(v) }
             self = .array(out)
         case let d as [String: Any]:
-            var out: [String: YcodeHomeValue] = [:]
-            for (k, e) in d { guard let v = YcodeHomeValue(any: e) else { return nil }; out[k] = v }
+            var out: [String: SwiftCodeHomeValue] = [:]
+            for (k, e) in d { guard let v = SwiftCodeHomeValue(any: e) else { return nil }; out[k] = v }
             self = .dictionary(out)
         default:
             if let n = Self.number(value) {

@@ -1,6 +1,6 @@
 # Spec: reference IDE behavior, pass 5 — fidelity audit: menus and shortcuts, launch, window chrome, navigators, editor commands, inspectors, settings
 
-**Status:** boundary spec. It comes from a fidelity audit of Ycode
+**Status:** boundary spec. It comes from a fidelity audit of SwiftCode
 (commit aa1bf7c) against the reference release, Xcode 27.1.
 
 **What the audit observed.** It used black-box observation of the
@@ -16,10 +16,10 @@ so every shortcut here is a factory default. One file format was studied
 - Where they conflict, this spec wins. The earlier specs carry
   correction notes that point here.
 - It records labels, order, shortcuts, defaults and behavior only. It
-  records no colors and copies no assets. Ycode picks its own icons
+  records no colors and copies no assets. SwiftCode picks its own icons
   (SF Symbols).
-- Apple product names are left out of Ycode's UI (`AGENTS.md` rule 5).
-  Where the reference shows one, the Ycode wording is given.
+- Apple product names are left out of SwiftCode's UI (`AGENTS.md` rule 5).
+  Where the reference shows one, the SwiftCode wording is given.
 
 **Use by implementers.**
 
@@ -45,21 +45,21 @@ the menu tables, so R30 starts from R29's `CommandTable`.
 
 | Round | Priority | Scope (gap IDs → sections) | Areas and files |
 |---|---|---|---|
-| **R29 Menu bar** | P0 | M1–M4, M8–M13, M20–M26 → §1, §2.0–§2.6, §2.9–§2.13 (structure, titles, shortcuts; the Product and Debug actions themselves are R36 and R34) | `Model/CommandTable.swift`, `App/AppSupport.swift` (menu builder: alternates, section labels, conditional items, dynamic titles), `Model/KeyBindings`, `validateMenuItem` in `Window/WorkspaceWindowController.swift`; a golden test of the whole menu bar against §2. Commands Ycode can't perform are still listed disabled (`menus.md` rule). |
+| **R29 Menu bar** | P0 | M1–M4, M8–M13, M20–M26 → §1, §2.0–§2.6, §2.9–§2.13 (structure, titles, shortcuts; the Product and Debug actions themselves are R36 and R34) | `Model/CommandTable.swift`, `App/AppSupport.swift` (menu builder: alternates, section labels, conditional items, dynamic titles), `Model/KeyBindings`, `validateMenuItem` in `Window/WorkspaceWindowController.swift`; a golden test of the whole menu bar against §2. Commands SwiftCode can't perform are still listed disabled (`menus.md` rule). |
 | **R30 Editor menu and text commands** | P0 / P1 | M5–M7, M14–M17, M12 (editor items), E3 → §2.7, §2.8, §6.3–§6.5 | `Model/EditorMenu.swift` (one menu per editor kind), `Editor/SourceEditorController.swift`, `Editor/GutterView.swift`, `Model/FoldRegions.swift`, `Model/Counterparts.swift`, the git diff used by Code Review, `Editor/PlistEditorController.swift`, `Editor/InterfaceBuilderController.swift`, `Editor/AssetCatalogEditorController.swift`. Uses the open-source `swift-format` tool for the Format commands. |
-| **R31 Launch, Welcome, recents, first view** | P0 / P1 | L1–L5, L8, L9, T1, T4, N1–N5 → §3, §4.3, §5.1 | `App/AppSupport.swift`, a new `Window/WelcomeWindowController.swift`, `Window/WorkspaceWindowController.swift`, `Window/ActivityView.swift`, `Model/NavigatorTree.swift`, `Model/Preferences.swift`, `Model/DestinationMenu.swift` and the destination default in `YcodeBuild` |
+| **R31 Launch, Welcome, recents, first view** | P0 / P1 | L1–L5, L8, L9, T1, T4, N1–N5 → §3, §4.3, §5.1 | `App/AppSupport.swift`, a new `Window/WelcomeWindowController.swift`, `Window/WorkspaceWindowController.swift`, `Window/ActivityView.swift`, `Model/NavigatorTree.swift`, `Model/Preferences.swift`, `Model/DestinationMenu.swift` and the destination default in `SwiftCodeBuild` |
 | **R32 Window chrome** | P1 | T2, T3, T5–T7, E1, E2, E4–E6, I1–I5, N6–N8, N11–N14, D1, D2 → §4, §5.2–§5.3, §6.1–§6.2, §7, §8 | `Window/WorkspaceWindowController.swift` (toolbar), `+ToolbarRight.swift`, `Editor/SourceEditorController.swift` (jump bars), `Inspector/InspectorAreaController.swift`, `Navigator/NavigatorAreaController.swift` and `+Debug`, `Debug/DebugAreaController.swift` |
 | **R33 Settings** | P1 | S1–S6 → §9 | `App/SettingsPanes.swift`, `App/SettingsWindow.swift`, `Model/Preferences.swift`, and navigation routing in the window controller |
 | **R34 Debugger menus and breakpoint persistence** | P1 | L6, M19, N10, D3 → §2.10, §10 | `Model/WorkspaceModel.swift` (breakpoint store), `Session/WorkspaceSession.swift`, `Debug/*`, the Debug menu entries; the breakpoint file of §10.1 |
-| **R35 Project editor and catalog leftovers** | P2 (P1 for P1) | P1–P8, P10–P12, P14, P16, I6 → §11 | `Project/ProjectEditorController.swift`, `ProjectEditorTabs.swift`, `ProjectEditorReference.swift`, `ProjectEditorModel.swift`, `Editor/AssetCatalogEditorController.swift`, `YcodePlist` (binary key order), `Window/NewItemSheets.swift`, `Schemes/SchemeEditorController.swift`, `Window/ReportViews.swift` |
-| **R36 Product actions** *(build-system work)* | P1 / P2 | M18, T8, P9, P13 → §2.9, §11.4 | `Session/WorkspaceSession.swift`, `YcodeBuild` (build for running/testing/profiling, run without building, compile one file, test again, clean immediately), the destination submenu, project-level checks for the issue capsule |
+| **R35 Project editor and catalog leftovers** | P2 (P1 for P1) | P1–P8, P10–P12, P14, P16, I6 → §11 | `Project/ProjectEditorController.swift`, `ProjectEditorTabs.swift`, `ProjectEditorReference.swift`, `ProjectEditorModel.swift`, `Editor/AssetCatalogEditorController.swift`, `SwiftCodePlist` (binary key order), `Window/NewItemSheets.swift`, `Schemes/SchemeEditorController.swift`, `Window/ReportViews.swift` |
+| **R36 Product actions** *(build-system work)* | P1 / P2 | M18, T8, P9, P13 → §2.9, §11.4 | `Session/WorkspaceSession.swift`, `SwiftCodeBuild` (build for running/testing/profiling, run without building, compile one file, test again, clean immediately), the destination submenu, project-level checks for the issue capsule |
 | **R37 Simulator-side items** *(simulator work)* | P2 | D4, P15, R1, R2 → §11.5 | `Session/RemoteRun.swift`, `Session/SimulatorRun.swift`, the destination menu, the preview activity text; Debug View Hierarchy and Memory Graph stay placeholders until the simulator supports them |
 
 **P0 items** (13). Each fails in the first minute:
 
 - **L1** Launching with no document shows the Welcome window, not an Open
   panel (§3.1).
-- **L2** Window ▸ Welcome to Ycode is ⇧⌘1 (§3.1, §2.12).
+- **L2** Window ▸ Welcome to SwiftCode is ⇧⌘1 (§3.1, §2.12).
 - **L3** File ▸ Open Recent works (§3.2).
 - **M1** Shortcut conflicts are fixed (§2.0):
   - ⇧⌘A = Show Quick Actions…;
@@ -97,14 +97,14 @@ the menu tables, so R30 starts from R29's `CommandTable`.
 ## 1. Menu conventions
 
 1. **Listed but disabled.** Every item in §2 is present. An item whose
-   command Ycode does not implement is shown disabled, under the rule in
+   command SwiftCode does not implement is shown disabled, under the rule in
    `menus.md`. It keeps its reference shortcut, so the shortcut can't be
    taken by something else.
 2. **Alternates.** An item marked *alt(⌥)* (or *alt(⌃)*, *alt(⌃⇧)*, …) is an
    alternate of the item just above it. It is hidden until that modifier is
    held, and then it replaces the item above it in place (AppKit's
    alternate items: the same key, more modifiers). Marked "(seen)" means
-   the visible menu was observed without it. Ycode must not list alternates
+   the visible menu was observed without it. SwiftCode must not list alternates
    as separate visible items.
 3. **Dynamic titles.** A title shown as "A / B" changes with state. A title
    containing `<file>` names the focused document by its file name with
@@ -117,17 +117,17 @@ the menu tables, so R30 starts from R29's `CommandTable`.
    it is hidden, the separators around it collapse to one.
 6. **System items.** Items marked *system* come from macOS (Services,
    AutoFill, Start Dictation…, Emoji & Symbols, the window-tiling items,
-   Touch Bar, the window list). Ycode must not add its own copies. Where
+   Touch Bar, the window list). SwiftCode must not add its own copies. Where
    the system adds an item whose shortcut collides with §2, the system
-   item is removed or its shortcut cleared, never the §2 item. Ycode today
+   item is removed or its shortcut cleared, never the §2 item. SwiftCode today
    gets "Close All ⌥⇧⌘W" and a fn-F full-screen item this way.
 7. **Separators.** "—" is a separator.
 8. **Shortcut notation.**
    - ⌃⌥⇧⌘ order; keys are written as on a US keyboard.
-   - "⇧⌘[" and "⌘{" are the same keystroke. Ycode should store the shifted
+   - "⇧⌘[" and "⌘{" are the same keystroke. SwiftCode should store the shifted
      character the way AppKit expects for that key.
    - F-keys carry no implicit modifier.
-9. **Test.** One golden test walks Ycode's menu bar and compares titles
+9. **Test.** One golden test walks SwiftCode's menu bar and compares titles
    (the generic forms), order, separators, alternates and shortcuts with
    this section. A second test checks that no two enabled-or-disabled items
    share a shortcut, alternates excepted. Developer Documentation ⇧⌘0 is
@@ -135,12 +135,12 @@ the menu tables, so R30 starts from R29's `CommandTable`.
 
 ## 2. Menu bar (normative)
 
-Menus in order: Ycode, File, Edit, View, Find, Navigate, Editor, Product,
+Menus in order: SwiftCode, File, Edit, View, Find, Navigate, Editor, Product,
 Debug, Integrate, Window, Help.
 
 ### 2.0 Shortcut corrections (P0, M1, M2, M7)
 
-| Shortcut | Reference command (this spec) | Ycode today |
+| Shortcut | Reference command (this spec) | SwiftCode today |
 |---|---|---|
 | ⇧⌘A | View ▸ Show Quick Actions… | Editor ▸ Show Coding Tools ▸ Show Code Actions |
 | ⌘0 | View ▸ Navigators ▸ Show Coding Assistant | View ▸ Navigators ▸ Show/Hide Navigator |
@@ -154,17 +154,17 @@ Debug, Integrate, Window, Help.
 
 - Show/Hide Navigator and Show/Hide Inspector have **no** default
   shortcut. The toolbar buttons and View menu items toggle them.
-- Ycode's "Show Code Actions" keeps no shortcut. It moves to the source
+- SwiftCode's "Show Code Actions" keeps no shortcut. It moves to the source
   editor's context menu and stays reachable through Editor ▸ Show Coding
   Tools ▸ Show Coding Tools… (§2.7).
 - ⌘0 and Show Coding Assistant switch the left area to the Coding
   Assistant pane, as the toolbar segment does (§4.1;
   `coding-assistant.md` §4).
 
-### 2.1 Ycode (application menu)
+### 2.1 SwiftCode (application menu)
 
-1. About Ycode
-2. Ycode Extensions…
+1. About SwiftCode
+2. SwiftCode Extensions…
 3. —
 4. Settings… ⌘,
 5. Behaviors ▸: one item per custom behavior, or "No Custom Behaviors"
@@ -177,9 +177,9 @@ Debug, Integrate, Window, Help.
    Apple's public downloads page). Choosing a tool opens that app.
 8. Services ▸ *system*
 9. —
-10. Hide Ycode ⌘H, Hide Others ⌥⌘H, Show All
+10. Hide SwiftCode ⌘H, Hide Others ⌥⌘H, Show All
 11. —
-12. Quit Ycode ⌘Q, Quit and Keep Windows ⌥⌘Q *alt(⌥)*
+12. Quit SwiftCode ⌘Q, Quit and Keep Windows ⌥⌘Q *alt(⌥)*
 
 ### 2.2 File
 
@@ -290,7 +290,7 @@ Debug, Integrate, Window, Help.
 3. Show/Hide Editor Tab Bar; Pin Editor Tab ⇧⌘P; Change Editor
    Orientation; Reset Editor Sizes; Reset Assistant Selection ⌥⇧⌘Z
 4. —
-5. Show Quick Actions… ⇧⌘A. Ycode: a command palette that lists every
+5. Show Quick Actions… ⇧⌘A. SwiftCode: a command palette that lists every
    enabled menu command by title and runs the chosen one. Its layout is
    still to observe (§12).
 6. —
@@ -476,7 +476,7 @@ and "Package" in a package (§5.4).
     - —
     - Fold Comment Blocks ⌃⇧⌘←; Unfold Comment Blocks ⌃⇧⌘→
 21. Syntax Coloring ▸: Default for File Type (checked); None; —; one item per
-    language Ycode can color, alphabetical. The effective language of a
+    language SwiftCode can color, alphabetical. The effective language of a
     "Default" file carries the mixed-state mark.
 22. Font Size ▸: Increase ⌘+; Decrease ⌘-; —; Reset ⌃⌘0
 23. Choose Theme...
@@ -491,7 +491,7 @@ and "Package" in a package (§5.4).
 32. —
 33. Show Last Change for Line; Create Code Snippet…
 
-**Ycode differences to remove.**
+**SwiftCode differences to remove.**
 
 - "Line Numbers" is not in this menu; it lives in Settings ▸ Editing ▸
   Display.
@@ -542,7 +542,7 @@ item is titled **Preview** here); Assistant ⌃⌥⌘↩; Code Review ⌥⇧⌘�
   - —
   - Snap to Guides (checked); Guides ▸ (Add Horizontal Guide ⌘_, Add
     Vertical Guide ⌃⌘|)
-  - Ycode's existing "Add New Constraints…" belongs here, after Update
+  - SwiftCode's existing "Add New Constraints…" belongs here, after Update
     Frames.
 - **Asset catalog:**
   - —
@@ -681,7 +681,7 @@ The project editor's Editor menu was not observed (§12).
     - View Memory ⌃⌥⇧⌘M
     - Interrupt Debugger Operation ⌃C
 
-    Ycode's "View Process by Queue" moves out of this menu into the Debug
+    SwiftCode's "View Process by Queue" moves out of this menu into the Debug
     navigator's process view options (`reference-ui-4.md` §5.3).
 14. —
 15. Attach to Process by PID or Name…; Attach to Process ▸ (filled with
@@ -736,7 +736,7 @@ rules in `source-control.md` stay.
 18. —
 19. Clone…; New Git Repository…
 20. —
-21. **Cloud** *label* (the reference names its CI service here; Ycode
+21. **Cloud** *label* (the reference names its CI service here; SwiftCode
     writes "Cloud"); Create Workflow…; Manage Workflows… (disabled)
 
 **Titles.**
@@ -757,7 +757,7 @@ rules in `source-control.md` stay.
 5. Rename Window Tab… ⌥⇧⌘T; Show Previous Window Tab ⌃⇧⇥; Show Next Window
    Tab ⌃⇥; Move Tab to New Window; Merge All Windows
 6. —
-7. Developer Documentation ⇧⌘0; Welcome to Ycode ⇧⌘1; Downloads ⇧⌘9;
+7. Developer Documentation ⇧⌘0; Welcome to SwiftCode ⇧⌘1; Downloads ⇧⌘9;
    Organizer ⌥⇧⌘O
 8. —
 9. Touch Bar ▸ *system*
@@ -768,11 +768,11 @@ rules in `source-control.md` stay.
 13. The window list *system*. Each workspace window is "<workspace> —
     <document>" (§3.4), and the key window is checked.
 
-Ycode lists none of the *system* items itself. Today it adds Minimize All
+SwiftCode lists none of the *system* items itself. Today it adds Minimize All
 and Zoom All a second time.
 
 Developer Documentation opens Apple's public developer documentation web
-site in the default browser; Ycode has no documentation viewer. Downloads
+site in the default browser; SwiftCode has no documentation viewer. Downloads
 opens Settings ▸ Components.
 
 ### 2.13 Help
@@ -780,7 +780,7 @@ opens Settings ▸ Components.
 1. Developer Documentation ⇧⌘0 (the same command as in the Window menu)
 2. Human Interface Guidelines ⇧⌘H (opens Apple's public HIG pages)
 3. —
-4. Ycode Help; What's New in Ycode; Release Notes; The Swift Programming
+4. SwiftCode Help; What's New in SwiftCode; Release Notes; The Swift Programming
    Language (swift.org); Provide Feedback… (the project's issue tracker)
 5. —
 6. Show / Hide Keyboard Hints ⌥⌘? (behavior still to observe, §12; disabled
@@ -791,7 +791,7 @@ opens Settings ▸ Components.
 8. Search Documentation for Selected Text ⌃⌥⌘/ (opens a documentation
    search for the selection)
 
-Ycode omits the reference's two account and service help items (they name
+SwiftCode omits the reference's two account and service help items (they name
 Apple services).
 
 ## 3. Launch, Welcome window, recents, window identity
@@ -799,14 +799,14 @@ Apple services).
 ### 3.1 Welcome window (L1, L2)
 
 1. **When it shows.**
-   - Launching Ycode with no document to open shows the Welcome window and
+   - Launching SwiftCode with no document to open shows the Welcome window and
      no Open panel.
-   - Window ▸ Welcome to Ycode (⇧⌘1) shows it at any time.
-2. **Window.** 480 × 632 points, titled "Welcome to Ycode" (accessibility
+   - Window ▸ Welcome to SwiftCode (⇧⌘1) shows it at any time.
+2. **Window.** 480 × 632 points, titled "Welcome to SwiftCode" (accessibility
    title). No title text is drawn. It opens centered. From top to bottom:
    - a round close button at the top left;
-   - Ycode's application icon (Ycode's own artwork);
-   - "Ycode", then "Version <short version>";
+   - SwiftCode's application icon (SwiftCode's own artwork);
+   - "SwiftCode", then "Version <short version>";
    - three buttons in one row: "Open…" (the Open panel), "Clone…"
      (Integrate ▸ Clone…), and a pull-down "New Project" with a chevron
      (its items are the New Project compact picker rows of
@@ -838,7 +838,7 @@ Apple services).
      "ObsApp.xcodeproj") or the package folder name ("Obs").
    - When two entries have the same title, each becomes "<title> —
      <parent folder name>", with an em dash and two spaces before the
-     folder name exactly as observed ("ObsApp.xcodeproj —  ycode-observe-
+     folder name exactly as observed ("ObsApp.xcodeproj —  swiftcode-observe-
      ide-audit").
 3. Then —, then Clear Menu.
 4. Entries survive relaunch. An entry whose file is missing is removed.
@@ -850,7 +850,7 @@ and Clear Menu empties the list and the Welcome list.
 ### 3.3 Window size and areas
 
 - The default frame is 1400 × 900 **including** the toolbar. Today
-  Ycode's content area is 1400 × 900, so the frame is 949 tall (L5).
+  SwiftCode's content area is 1400 × 900, so the frame is 949 tall (L5).
 - At first open the navigator (Project) and the inspector are shown and
   the debug area is hidden.
 
@@ -874,7 +874,7 @@ and Clear Menu empties the list and the Welcome list.
 
 - The reference shows the editor area's jump bar with "No Selection" and
   an empty editor.
-- Ycode lays its Start Page (Open Quickly + Recent Files) over the whole
+- SwiftCode lays its Start Page (Open Quickly + Recent Files) over the whole
   editor, hiding the jump bar.
 - Until the live check (§12): keep the Start Page, but below the jump bar,
   not over it.
@@ -924,7 +924,7 @@ and Clear Menu empties the list and the Welcome list.
 ### 4.3 Center and title (T1, T4–T7)
 
 1. **Title area.** The workspace's icon and name, with no subtitle while
-   idle: Ycode's "Ready" is removed. The activity subtitle appears only
+   idle: SwiftCode's "Ready" is removed. The activity subtitle appears only
    while an action runs or after it finishes (`reference-ui-2.md` §2.3).
 2. **Run / Stop.** Tooltips "Build and then run the current scheme" and
    "Stop the running scheme or application". **Go Back / Go Forward**:
@@ -988,7 +988,7 @@ it has a leading filter-options pull-down.
 | Navigator | Header | Left button (tooltip) | In-field toggles (title, tooltip, default) | Empty state (two lines) |
 |---|---|---|---|---|
 | Project | — | "+" | "Recent files" — "Show only recent files" (off); "Files with source-control status" — "Show only files with source-control status" (off) | — |
-| Source Control | Changes \| Repositories | a pull-down (contents to observe) | — | Ycode keeps its "No Repository" |
+| Source Control | Changes \| Repositories | a pull-down (contents to observe) | — | SwiftCode keeps its "No Repository" |
 | Bookmarks | — | "…" (more) pull-down | "Incomplete Items" — "Show only incomplete items" (off) | "No Bookmarks" / "Click the '…' button to add bookmarks" |
 | Find | Find › Text › Containing, Aa ("Case Sensitive"), field, scope | — | — (plain filter) | none |
 | Issues | — | — (the filter takes the full width) | "Show only latest issues" — "Show only issues from open documents and recently built sources" (off); "Only errors" — "Show only errors" (off) | "No Issues" |
@@ -1000,12 +1000,12 @@ it has a leading filter-options pull-down.
 **Toggle behavior.**
 
 - **Incomplete Items.** Bookmarks gain a done state, toggled from the
-  bookmark's context menu. Ycode stores it as `done: true` in its
+  bookmark's context menu. SwiftCode stores it as `done: true` in its
   bookmarks file. The toggle hides done bookmarks.
 - **Show Only Included Tests** hides tests that the active test plan
   skips.
 - **Recent Tests** keeps tests of open files and of the last run.
-- **Show compressed stack frames** is Ycode's existing system-frame
+- **Show compressed stack frames** is SwiftCode's existing system-frame
   folding.
 - **Show only interesting content** keeps the stopped thread and threads
   with user frames.
@@ -1150,7 +1150,7 @@ swift-testing tags, with "Untagged Tests" last.
       Path** (the path inside it).
    2. **On Demand Resource Tags:** a disabled field with the placeholder
       "Only resources are taggable". For resources it is a tag token field
-      editing the file's `ASSET_TAGS`; Ycode shows it disabled for all
+      editing the file's `ASSET_TAGS`; SwiftCode shows it disabled for all
       files for now.
    3. **Target Membership:** one row per target that includes the file:
       the target's icon and name, with the membership kind under it
@@ -1190,8 +1190,8 @@ swift-testing tags, with "Untagged Tests" last.
 ## 9. Settings (S1–S6)
 
 Pane rows marked "(stored)" are kept in the user defaults and shown, but
-change nothing in Ycode yet. Every other row must take effect. Where only
-the default value was observed, Ycode offers that value plus the
+change nothing in SwiftCode yet. Every other row must take effect. Where only
+the default value was observed, SwiftCode offers that value plus the
 alternatives named here, pending the live pass (§12).
 
 ### 9.1 General
@@ -1209,12 +1209,12 @@ alternatives named here, pending the live pass (§12).
 | | Stop build on first error | toggle, on | Cancels the build at the first error |
 | Test Parallelization | Testing on Mac / Testing on Simulator | pop-ups: Automatic (default), Off | Passed to the test runner (stored until R36) |
 | Report Navigator | Local report history | pop-up: Up to 10 / 20 / 50 / 100 Reports; default Up to 20 | Prunes older reports |
-| Settings Import & Export | Export…, Import… | buttons | Writes / reads Ycode's user settings as one JSON file ("Keep a copy in iCloud" is left out) |
-| Reset Ycode | Reset Settings: Reset…; "Don't ask me" warnings: Reset All | buttons | Clears Ycode's user defaults / suppression flags after a confirmation |
+| Settings Import & Export | Export…, Import… | buttons | Writes / reads SwiftCode's user settings as one JSON file ("Keep a copy in iCloud" is left out) |
+| Reset SwiftCode | Reset Settings: Reset…; "Don't ask me" warnings: Reset All | buttons | Clears SwiftCode's user defaults / suppression flags after a confirmation |
 
 ### 9.2 Navigation
 
-This replaces Ycode's "Activation" and "Navigation Style" rows.
+This replaces SwiftCode's "Activation" and "Navigation Style" rows.
 
 | Row | Default | Effect |
 |---|---|---|
@@ -1233,7 +1233,7 @@ This replaces Ycode's "Activation" and "Navigation Style" rows.
 
 ### 9.3 Editing
 
-**Main page:** Ycode's current rows, plus:
+**Main page:** SwiftCode's current rows, plus:
 
 - "Convert existing files on save" (off): when on, saving converts the
   file to the default encoding and line endings;
@@ -1253,7 +1253,7 @@ This replaces Ycode's "Activation" and "Navigation Style" rows.
 7. Scope guides: pop-up None (default)
 8. Reformat code at column: 80, used by Reformat To Width and the guide
 9. Show reformatting guide (off): the page guide at that column. It
-   replaces Ycode's "Page guide at column"
+   replaces SwiftCode's "Page guide at column"
 10. Automatically reformat when completing (off, stored)
 11. Dim inactive code (on): inactive `#if` branches drawn dimmed
 12. Highlight instances of selected symbol (on) and Highlighting delay
@@ -1276,7 +1276,7 @@ The minimap is **not** a Display row; it is the Editor ▸ Minimap toggle
   control.
 - A live code preview follows them.
 - Theme: a "Choose…" button and the theme name, then one color row per
-  token kind (Plain Text, Comments, Documentation Comments, … in Ycode's
+  token kind (Plain Text, Comments, Documentation Comments, … in SwiftCode's
   token set).
 - Fonts: one font row per token kind.
 
@@ -1328,21 +1328,21 @@ with these attributes, in this order:
 
 **Rules.**
 
-- Ycode reads and writes this file.
+- SwiftCode reads and writes this file.
 - It writes `landmarkName` and `landmarkType` only for function and method
   landmarks.
 - Elements and attributes it does not understand (other breakpoint kinds,
   conditions, actions) are kept unchanged on rewrite.
-- Ycode's own kinds without an observed encoding (symbolic, exception,
+- SwiftCode's own kinds without an observed encoding (symbolic, exception,
   Swift error, test failure) and conditions and actions are stored in
-  `ycode-breakpoints.json` next to the bookmarks file until their encoding
+  `swiftcode-breakpoints.json` next to the bookmarks file until their encoding
   is observed.
 - The file is rewritten only when the breakpoint set changes.
 
 **Acceptance.**
 
 - Set a breakpoint, quit, reopen: it is there.
-- Opening the project in the reference shows the line breakpoint Ycode
+- Opening the project in the reference shows the line breakpoint SwiftCode
   saved (manual check).
 
 ### 10.2 Debug menu commands
@@ -1371,7 +1371,7 @@ The §2.10 items work as follows:
 ### 11.1 Project editor (P1–P6)
 
 1. The Build Settings tab opens with **Basic** selected (`reference-ui-3.md`
-   §1.8). Ycode opens on Customized today.
+   §1.8). SwiftCode opens on Customized today.
 2. The left column has a footer: "+" (add a target, opening the target
    template sheet), "−" (delete the selected target after a confirmation)
    and a Filter. It also has a collapse button at its top.
@@ -1431,12 +1431,12 @@ The §2.10 items work as follows:
 5. **Show All Run Destinations** (Product ▸ Destination) opens the
    destination menu with Incompatible expanded.
 
-### 11.5 Ycode's remote simulator destination (R1, R2)
+### 11.5 SwiftCode's remote simulator destination (R1, R2)
 
-- The remote "Ycode Simulator" device is listed in the **Simulators**
+- The remote "SwiftCode Simulator" device is listed in the **Simulators**
   section, not in a section of its own. Its row reads "<device name>
   <runtime version>" and sorts with the newest runtime.
-- Ycode's three-step activity text stays until the reference's simulator
+- SwiftCode's three-step activity text stays until the reference's simulator
   run strings are observed (§12, item 12). Then it adopts them, keeping a
   step counter only if the reference has one. *Pass 6: observed; the
   reference has no counter. See `reference-ui-6.md` §3.3.*
@@ -1486,7 +1486,7 @@ The exact steps are in the audit notes, §5.
 
 ## 13. Deliberate deviations (not gaps)
 
-- **Coding assistant (updated 2026-10-27).** Ycode now has one
+- **Coding assistant (updated 2026-10-27).** SwiftCode now has one
   (`coding-assistant.md`): the toolbar segment, ⌘0, the New Conversation
   button, File ▸ New ▸ Conversation, Navigate ▸ Jump to Next Active
   Conversation and Editor ▸ Show Coding Tools ▸ Explain / Document /
@@ -1499,15 +1499,15 @@ The exact steps are in the audit notes, §5.
   - no conversation groups, history slider, `@` references, issue
     "Generate Fix" button, reasoning pop-up, MCP tools or ACP agents;
   - changes are always proposed and reviewed; agent tools run read-only;
-  - the settings pane is "Coding Assistant", with Ycode's own rows
+  - the settings pane is "Coding Assistant", with SwiftCode's own rows
     (`coding-assistant.md` §6), not "Intelligence".
-- Ycode has no cloud CI service. Its menu items are present and disabled.
+- SwiftCode has no cloud CI service. Its menu items are present and disabled.
 - Apple service names are not used. The Settings pane is "Accounts", not
   "Apple Accounts". The Integrate section label is "Cloud". The Help menu
-  leaves out the service help items. The application is named Ycode
-  everywhere the reference says Xcode ("Welcome to Ycode", "Ycode Help",
-  "Quit Ycode").
-- Settings ▸ Simulators (Ycode's remote simulator) stays, before
+  leaves out the service help items. The application is named SwiftCode
+  everywhere the reference says Xcode ("Welcome to SwiftCode", "SwiftCode Help",
+  "Quit SwiftCode").
+- Settings ▸ Simulators (SwiftCode's remote simulator) stays, before
   Locations.
 
 ## Evidence
@@ -1522,28 +1522,28 @@ The exact steps are in the audit notes, §5.
 | §3.2 Open Recent titles, disambiguation, Clear Menu | 3 | Menu listing with two same-named projects |
 | §3.3–§3.4 frame, window title | 3 | Window accessibility title and Window-menu entries |
 | §4.1–§4.3 toolbar control kinds, exclusivity, tooltips | 3 | Accessibility tree, and background clicks on the segments with the resulting state read back |
-| §4.3.5 default destination rule | 3 / — | The reference chose an iOS simulator for an iOS app with no user data; the ordered rule is Ycode's design |
+| §4.3.5 default destination rule | 3 / — | The reference chose an iOS simulator for an iOS app with no user data; the ordered rule is SwiftCode's design |
 | §5.1 Products hidden, expansion, letters on files only | 3 | Project navigator accessibility tree of a fresh copy; the `productRefGroup` is in the file (level 2) |
 | §5.1 Hide All is the factory default | 3 | The setting showed Hide All while the user's preferences hold no file-extension key (only key names were checked) |
 | §5.2 per-navigator bars, tooltips, defaults, empty states | 3 | Accessibility tree and screenshots of each navigator, opened by clicking its selector tab |
-| §5.2 toggle behaviors | — | Ycode's reading of the tooltip texts |
+| §5.2 toggle behaviors | — | SwiftCode's reading of the tooltip texts |
 | §5.3.1 fileless issues at the root | 3 | Issue navigator tree with the project-level issue |
-| §5.3.2 stale-issue replacement on the next build | 3 / — | `reference-ui-2.md` §1.5 observation; the per-file rule is Ycode's reading |
+| §5.3.2 stale-issue replacement on the next build | 3 / — | `reference-ui-2.md` §1.5 observation; the per-file rule is SwiftCode's reading |
 | §5.4 "In Project" | 3 | Find navigator scope pop-up |
 | §6.1–§6.2 jump bar and debug bar order, tooltips | 3 | Accessibility tree with a Swift file and a plist open, and the assistant split |
-| §6.2 branch menu behavior, §7.4 history row selection, §3.1 New Project pull-down use | — | Ycode's design; the menu contents are to observe |
+| §6.2 branch menu behavior, §7.4 history row selection, §3.1 New Project pull-down use | — | SwiftCode's design; the menu contents are to observe |
 | §2.10 "Load Symbols… (shown while debugging)", §2.11 "Create Pull Request… when the repository has a remote" | — | Inferred: present in the no-workspace listing, absent in the project listing |
 | §6.1.3 ⌃1–⌃6 open the jump-bar menus | 3 / — | Item titles and shortcuts observed; the mapping to components follows the titles |
-| §6.3 change gutter | 3 | The gutter's accessibility elements (column, bar description, tooltip) with an unstaged modification; refresh timing and click action are Ycode's design |
-| §6.4 command behaviors | 1 / — | Multiple insertion points and column selection: Xcode 10's public release notes; Swift Markup doc comments: public documentation; swift-format: open-source tool; the rest is Ycode's reading of the titles |
+| §6.3 change gutter | 3 | The gutter's accessibility elements (column, bar description, tooltip) with an unstaged modification; refresh timing and click action are SwiftCode's design |
+| §6.4 command behaviors | 1 / — | Multiple insertion points and column selection: Xcode 10's public release notes; Swift Markup doc comments: public documentation; swift-format: open-source tool; the rest is SwiftCode's reading of the titles |
 | §6.5 minimap width | 3 | Minimap frames in three editor widths |
 | §7 inspector sections, tooltips, history rows, Quick Help empty state | 3 | Accessibility tree of each inspector tab |
 | §8 debug area bars | 3 | Accessibility tree with the debug area shown while idle |
 | §9 rows and defaults | 3 | `reference-ui.md` §4; alternative pop-up values not observed |
-| §9 effects | — | Ycode's design from the row titles and their explanations |
+| §9 effects | — | SwiftCode's design from the row titles and their explanations |
 | §10.1 breakpoint file path and format | 2 | A `Breakpoints_v2.xcbkptlist` the reference wrote for our sample package, studied as a file format |
-| §10.1 storage rules for unobserved kinds | — | Ycode's design |
+| §10.1 storage rules for unobserved kinds | — | SwiftCode's design |
 | §10.2 DAP mappings | 1 | Debug Adapter Protocol specification (`singleThread`, `granularity`, `column`) |
 | §11.4 ordering, Vision titles, Incompatible reasons | 3 | Product ▸ Destination submenu listing |
-| §11.1–§11.3, §11.5–§11.6 | 3 / — | Earlier passes' observations restated as requirements, plus Ycode's design where marked |
-| §0 plan, priorities, file lists | — | Audit of Ycode at aa1bf7c (source and a running debug build) against this and the earlier specs |
+| §11.1–§11.3, §11.5–§11.6 | 3 / — | Earlier passes' observations restated as requirements, plus SwiftCode's design where marked |
+| §0 plan, priorities, file lists | — | Audit of SwiftCode at aa1bf7c (source and a running debug build) against this and the earlier specs |

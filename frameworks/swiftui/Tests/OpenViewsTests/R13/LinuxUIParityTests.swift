@@ -11,7 +11,7 @@ import Testing
 #endif
 
 // LINUX-UI-PARITY (docs/PARITY.md §5.10): what OpenViews needed so the Linux
-// IDE shell lays out like Ycode's macOS IDE — desktop text-style sizes, a
+// IDE shell lays out like SwiftCode's macOS IDE — desktop text-style sizes, a
 // flexible frame's ideal size, an app-chosen UI font family (Inter, bundled)
 // and the symbols the workspace window's chrome uses.
 

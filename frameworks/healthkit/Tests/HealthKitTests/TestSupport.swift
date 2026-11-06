@@ -19,8 +19,8 @@ enum T {
     }
     /// A was granted "Past 30 Days and Future Data" at 2026-10-19 23:55:40Z (`plan.md` §3.2).
     static let grantA: Date = utc.date(from: DateComponents(year: 2026, month: 10, day: 19, hour: 23, minute: 55, second: 40))!
-    static let clientA = YcodeHealthClient(bundleIdentifier: "dev.ycode.healthprobe", name: "HealthProbe", version: "7")
-    static let clientB = YcodeHealthClient(bundleIdentifier: "dev.ycode.healthprobe.b", name: "HealthProbe B", version: "7")
+    static let clientA = SwiftCodeHealthClient(bundleIdentifier: "dev.swiftcode.healthprobe", name: "HealthProbe", version: "7")
+    static let clientB = SwiftCodeHealthClient(bundleIdentifier: "dev.swiftcode.healthprobe.b", name: "HealthProbe B", version: "7")
 
     static func q(_ id: HKQuantityTypeIdentifier) -> HKQuantityType { HKQuantityType(id) }
     static func c(_ id: HKCategoryTypeIdentifier) -> HKCategoryType { HKCategoryType(id) }
@@ -60,12 +60,12 @@ enum T {
         ])
     }
 
-    static func daemon() throws -> YcodeHealthDaemon { try YcodeHealthDaemon(databaseURL: nil) }
+    static func daemon() throws -> SwiftCodeHealthDaemon { try SwiftCodeHealthDaemon(databaseURL: nil) }
 
     /// A temporary on-disk store location (removed by the caller).
     static func tempStoreURL() -> URL {
         FileManager.default.temporaryDirectory
-            .appendingPathComponent("ycode-healthkit-tests-\(UUID().uuidString)/healthdb.sqlite")
+            .appendingPathComponent("swiftcode-healthkit-tests-\(UUID().uuidString)/healthdb.sqlite")
     }
 }
 
@@ -74,10 +74,10 @@ enum T {
 extension HKHealthStore {
     /// Request authorization, answering the consent with `answer` (Select All by default).
     func grant(share: Set<HKSampleType> = T.allShare, read: Set<HKObjectType> = T.allRead,
-               range: YcodeHistoricalRange = .allRecordedData, at date: Date? = nil,
+               range: SwiftCodeHistoricalRange = .allRecordedData, at date: Date? = nil,
                readOff: Set<String> = []) async throws {
         daemon.setConsentResponder { req in
-            var a = YcodeConsentAnswer.allowAll(req, historicalRange: range, date: date)
+            var a = SwiftCodeConsentAnswer.allowAll(req, historicalRange: range, date: date)
             a.read.subtract(readOff)
             return a
         }
@@ -125,7 +125,7 @@ extension HKHealthStore {
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
             let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate, options: options,
                                                 anchorDate: anchor, intervalComponents: interval)
-            q.ycodeCalendar = T.utc
+            q.swiftcodeCalendar = T.utc
             q.initialResultsHandler = { _, c, e in
                 box.withLock { $0 = e.map { .failure($0) } ?? .success(c) }
                 k.resume()
@@ -180,7 +180,7 @@ func close(_ a: Double?, _ b: Double, _ tolerance: Double = 1e-4) -> Bool {
 // MARK: - The golden data set (`plan.md` §3.1)
 
 struct Golden {
-    let daemon: YcodeHealthDaemon
+    let daemon: SwiftCodeHealthDaemon
     let a: HKHealthStore
     let b: HKHealthStore?
     var workout: HKWorkout!
@@ -192,13 +192,13 @@ struct Golden {
     ///   - later: add the samples saved "later in the run" (sync 7/8/9, deleted again; 11 @22:00).
     static func make(withB: Bool = false, later: Bool = false) async throws -> Golden {
         let daemon = try T.daemon()
-        let a = HKHealthStore(ycodeDaemon: daemon, client: T.clientA)
+        let a = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientA)
         try await a.grant(range: .past30Days, at: T.grantA)
         var g = Golden(daemon: daemon, a: a, b: nil)
         try await g.seedA()
         if later { try await g.seedLater() }
         if withB {
-            let b = HKHealthStore(ycodeDaemon: daemon, client: T.clientB)
+            let b = HKHealthStore(swiftcodeDaemon: daemon, client: T.clientB)
             try await b.grant(range: .allRecordedData, at: T.grantA.addingTimeInterval(3600),
                               readOff: [HKQuantityTypeIdentifier.heartRate.rawValue])
             try await b.save([T.stepSample(400, T.at(0, 8, 0), T.at(0, 8, 10)),
@@ -215,8 +215,8 @@ struct Golden {
             T.stepSample(1000, T.at(0, 8, 0), T.at(0, 8, 10)),
             T.stepSample(500, T.at(0, 8, 5), T.at(0, 8, 15)),
             T.stepSample(3000, T.at(0, 12, 0), T.at(0, 12, 30), [
-                HKMetadataKeyExternalUUID: "ycode-s3", "YcodeProbe": "golden", "YcodeNumber": 42,
-                "YcodeQuantity": HKQuantity(unit: .meter(), doubleValue: 3), "YcodeDate": T.d0,
+                HKMetadataKeyExternalUUID: "swiftcode-s3", "SwiftCodeProbe": "golden", "SwiftCodeNumber": 42,
+                "SwiftCodeQuantity": HKQuantity(unit: .meter(), doubleValue: 3), "SwiftCodeDate": T.d0,
             ]),
             T.stepSample(2000, T.at(1, 9, 0), T.at(1, 9, 30)),
             T.stepSample(600, T.at(0, 23, 50), T.at(1, 0, 10)),
@@ -267,7 +267,7 @@ struct Golden {
     func seedLater() async throws {
         for (v, ver) in [(7.0, 1), (8.0, 2), (9.0, 1)] {
             try await a.save(T.stepSample(v, T.at(0, 20), T.at(0, 20, 1),
-                                          [HKMetadataKeySyncIdentifier: "ycode-sync", HKMetadataKeySyncVersion: ver]))
+                                          [HKMetadataKeySyncIdentifier: "swiftcode-sync", HKMetadataKeySyncVersion: ver]))
         }
         let n = try await a.deleteObjects(of: T.steps, predicate: HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier))
         #expect(n == 1)

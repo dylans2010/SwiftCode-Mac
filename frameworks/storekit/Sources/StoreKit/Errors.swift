@@ -5,7 +5,7 @@ import StoreKitEngine
 import StoreKitSigning
 
 /// A `URLError.Code` from its raw value (the initializer is failable on some platforms).
-@_spi(Ycode) public func urlErrorCode(_ raw: Int) -> URLError.Code {
+@_spi(SwiftCode) public func urlErrorCode(_ raw: Int) -> URLError.Code {
     let code: URLError.Code? = URLError.Code(rawValue: raw)
     return code ?? .unknown
 }
@@ -27,8 +27,8 @@ public enum StoreKitError: Error, Sendable {
         case .unknown: self = .unknown
         case .userCancelled: self = .userCancelled
         case .networkError(let code): self = .networkError(URLError(urlErrorCode(code)))
-        case .systemError(.noAccount): self = .systemError(YcodeStoreSystemError.noAccount)
-        case .systemError(.unknown): self = .systemError(YcodeStoreSystemError.unknown)
+        case .systemError(.noAccount): self = .systemError(SwiftCodeStoreSystemError.noAccount)
+        case .systemError(.unknown): self = .systemError(SwiftCodeStoreSystemError.unknown)
         case .notAvailableInStorefront: self = .notAvailableInStorefront
         case .notEntitled: self = .notEntitled
         case .unsupported: self = .unsupported
@@ -36,7 +36,7 @@ public enum StoreKitError: Error, Sendable {
     }
 
     /// The kind without its payload, for comparisons.
-    public var ycodeKind: String {
+    public var swiftcodeKind: String {
         switch self {
         case .networkError: return "networkError"
         case .systemError: return "systemError"
@@ -109,15 +109,15 @@ public enum VerificationResult<SignedType: Sendable>: Sendable {
     }
 }
 
-/// A value that carries its compact JWS (Ycode's link between a signed
+/// A value that carries its compact JWS (SwiftCode's link between a signed
 /// value and its `VerificationResult`).
-public protocol YcodeSignedValue: Sendable {
-    var ycodeJWS: String { get }
+public protocol SwiftCodeSignedValue: Sendable {
+    var swiftcodeJWS: String { get }
 }
 
-extension VerificationResult where SignedType: YcodeSignedValue {
+extension VerificationResult where SignedType: SwiftCodeSignedValue {
     /// The compact JWS.
-    public var jwsRepresentation: String { unsafePayloadValue.ycodeJWS }
+    public var jwsRepresentation: String { unsafePayloadValue.swiftcodeJWS }
 
     private var parts: [Substring] { jwsRepresentation.split(separator: ".", omittingEmptySubsequences: false) }
 

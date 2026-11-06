@@ -1,17 +1,17 @@
 # Debug: the Debug Adapter Protocol session
 
-Ycode module: `YcodeDebug`. Ycode debugs through `lldb-dap`, LLVM's open
+SwiftCode module: `SwiftCodeDebug`. SwiftCode debugs through `lldb-dap`, LLVM's open
 source Debug Adapter Protocol (DAP) server, never through private IDE
 interfaces.
 
 ## Locating the adapter
 
-1. `YCODE_LLDB_DAP` environment variable, if set.
+1. `SWIFTCODE_LLDB_DAP` environment variable, if set.
 2. macOS: `xcrun -f lldb-dap`.
 3. `lldb-dap`, then `lldb-vscode` (older LLVM name), on `PATH`.
 
 The adapter runs as a child process; DAP messages travel over its stdin and
-stdout. Its stderr goes to Ycode's stderr.
+stdout. Its stderr goes to SwiftCode's stderr.
 
 ## Wire format
 
@@ -26,7 +26,7 @@ answered with `success: false` for now.
 
 ## Session sequence
 
-1. `initialize` (client `Ycode`, lines and columns start at 1, path format
+1. `initialize` (client `SwiftCode`, lines and columns start at 1, path format
    `path`); keep the returned capabilities.
 2. `launch` (`program`, `args`, `env` as `NAME=value` list, `cwd`,
    `stopOnEntry`) or `attach` (`pid` or `program` + `waitFor`).
@@ -54,7 +54,7 @@ If the adapter exits, all waiting requests fail and the event stream ends.
 - Debug navigator (⌘7), per `reference-ui-4.md` §5.3: a process row
   "<product>  PID n" with gauge rows (CPU, Memory, Energy Impact, Disk,
   Network; sampled once a second — Energy Impact is derived from CPU and
-  Network reads "Zero KB/s", Ycode's approximations); thread rows
+  Network reads "Zero KB/s", SwiftCode's approximations); thread rows
   "Thread N  Queue: <label> (serial|concurrent)" (serial/concurrent is
   inferred from the label); the stopped thread's frames "index function",
   user frames first, then a dotted separator and the first system frame
@@ -78,12 +78,12 @@ Sent with `setBreakpoints` per file:
 | condition | `condition` |
 | ignore count N > 0 | `hitCondition` "N" (lldb-dap: ignore N hits) |
 | One Log Message + automatically continue, no `%B`/`%H` | `logMessage` (a log point: `@expr@` is sent as `{expr}`, execution continues) |
-| Any other actions, or automatically continue alone | not sent; Ycode runs them at the stop (below) |
+| Any other actions, or automatically continue alone | not sent; SwiftCode runs them at the stop (below) |
 
-Actions Ycode runs (B2-DEBUG2): when a `stopped` event with reason
+Actions SwiftCode runs (B2-DEBUG2): when a `stopped` event with reason
 `breakpoint` names (in `hitBreakpointIds`, else "breakpoint n.m" in its
 description) a line breakpoint whose actions the adapter does not run,
-Ycode runs its actions in order in the top frame before showing the stop:
+SwiftCode runs its actions in order in the top frame before showing the stop:
 **Log Message** prints the message to the console, `@expr@` and `{expr}`
 evaluated with `evaluate` context `watch`, `%B` as `<file>:<line>`, `%H` as
 the hit count (this stop included); **Debugger Command** is sent as
@@ -91,9 +91,9 @@ the hit count (this stop included); **Debugger Command** is sent as
 **Sound** plays a sound of the computer's (freedesktop's stereo sound
 theme through `pw-play`, `paplay` or `canberra-gtk-play` on Linux, the
 system sounds through `afplay` on macOS; offered only when there are
-sounds and a player). With "Automatically continue" Ycode then sends
+sounds and a player). With "Automatically continue" SwiftCode then sends
 `continue` and the stop is not shown (no Debug navigator, no annotation,
-the hit is still counted). Stored in `ycode-breakpoints.json` as
+the hit is still counted). Stored in `swiftcode-breakpoints.json` as
 `{"log": …}`, `{"command": …}`, `{"sound": …}`.
 
 Debug ▸ Breakpoints holds the reference's commands (Create Breakpoint at
@@ -156,12 +156,12 @@ lists. All three are re-sent on `initialized` and on every change.
 ## Watchpoints
 
 Watch Variable: `dataBreakpointInfo` (container reference + name) gives a
-`dataId`; Ycode then sends `setDataBreakpoints` with every watchpoint
+`dataId`; SwiftCode then sends `setDataBreakpoints` with every watchpoint
 (access type `write` when offered). The Breakpoint navigator shows a
 "Watchpoints" group (`<name> (<access>)`, "— not set" when the adapter
 did not verify it). A hit stops with reason `data breakpoint`; lldb-dap
 reports it as reason `breakpoint` with description `watchpoint N`
-(observed), and Ycode's activity view shows "Paused <product>:
+(observed), and SwiftCode's activity view shows "Paused <product>:
 watchpoint N" (a stop whose reason is not breakpoint, step, pause, entry
 or goto appends the reason to the `reference-ui-4.md` §5.1 title).
 
@@ -181,7 +181,7 @@ or goto appends the reason to the `reference-ui-4.md` §5.1 title).
 
 ## Disassembly
 
-Debug ▸ Debug Workflow ▸ Always Show Disassembly: at each stop, Ycode
+Debug ▸ Debug Workflow ▸ Always Show Disassembly: at each stop, SwiftCode
 sends `disassemble` (the frame's `instructionPointerReference`,
 `instructionOffset` -8, 40 instructions, symbols resolved) and shows
 `<address>  <instruction>    ; <symbol>` lines read-only in the editor,
@@ -189,10 +189,10 @@ with the program counter's line marked as the current line. While it is
 on, Step Over / Step Into send `next` / `stepIn` with `granularity:
 "instruction"`.
 
-## Remote: apps on the Ycode simulator (SIM-DEBUG, 2026-10-30)
+## Remote: apps on the SwiftCode simulator (SIM-DEBUG, 2026-10-30)
 
-A run on a Ycode simulator destination (`run.md` §Remote Ycode simulator)
-runs under the debugger, as a run on a Mac simulator does. ycode-simd
+A run on a SwiftCode simulator destination (`run.md` §Remote SwiftCode simulator)
+runs under the debugger, as a run on a Mac simulator does. swiftcode-simd
 serves a gdb-remote stub for the launched app (`--debug-server`,
 `specs/simulator/debug-stub.md`); ssh forwards its socket to a loopback
 port of the Mac; lldb-dap attaches with its `gdb-remote-port` and
@@ -206,7 +206,7 @@ attach stop, `stopped` events, the variables view, the debug bar.
   until the attach, then "Running <app> on <device>".
 - Stop detaches (`disconnect` with `terminateDebuggee: false`): the
   launcher ends the app at its save.
-- The defaults key `Ycode.remote.debugger` = false runs without the
+- The defaults key `SwiftCode.remote.debugger` = false runs without the
   debugger; a Gauge profile run never attaches.
 - What the stub offers (and so what LLDB can do) is in `debug-stub.md`:
   registers (general purpose and FP/SIMD), software breakpoints, single
@@ -226,19 +226,19 @@ attach stop, `stopped` events, the variables view, the debug bar.
 
 The debug bar's **Environment Overrides** and **Simulate Location**
 buttons (after Step Out, `reference-ui-4.md` §1.2) act on an app running
-on the Ycode simulator (`run.md` §Remote Ycode simulator). Until SIM-DEBUG
+on the SwiftCode simulator (`run.md` §Remote SwiftCode simulator). Until SIM-DEBUG
 no debugger attached to such a run, so the reference's way — the debugger
 running code in the app (`specs/simulator/simulator-features.md` §7.3) —
 was not available, and the library below stays the way (it needs no
-expression evaluation in the app). **Ycode decision:** the remote run launches the app with
-`--environment-overrides`: ycode-simd inserts Ycode's overrides library
+expression evaluation in the app). **SwiftCode decision:** the remote run launches the app with
+`--environment-overrides`: swiftcode-simd inserts SwiftCode's overrides library
 into the app (`DYLD_INSERT_LIBRARIES`) and names a directory of the device
 for its overrides file; changing an override rewrites the app's file and
 the library applies it inside the app at once. Only the app changes; the
 device's settings and other apps stay as they are. A new run of the app
-starts with no overrides (ycode-simd removes the file at the launch).
+starts with no overrides (swiftcode-simd removes the file at the launch).
 
-- **Environment Overrides** opens a pop-over (Ycode's layout; the
+- **Environment Overrides** opens a pop-over (SwiftCode's layout; the
   reference's was not observed, §7.3 Q11): three sections with a switch
   each — **Appearance** (Light | Dark), **Dynamic Type** (a 12-step
   slider, X Small … Accessibility 5, with the size's name under it),
@@ -250,26 +250,26 @@ starts with no overrides (ycode-simd removes the file at the launch).
   Reduced; unchecked = Disabled or Default). Every change is sent at once
   as one control command, `overrides <bundle id> <item>=<value>…` (or
   `clear`); the line under the sections says "Applied to the running app",
-  "No overrides" or the error. Without a run on the Ycode simulator the
+  "No overrides" or the error. Without a run on the SwiftCode simulator the
   button shows a short note instead.
 - **Simulate Location** opens a menu: Don't Simulate Location, the 14
   places of `simulator-features.md` §7.1, then City Run, City Bicycle
   Ride, Freeway Drive, Apple; the item last chosen is checked; choosing one
   sends `location set …`, `location run …` or `location clear` to the
   run's device. Without such a run the menu says "Location simulation
-  needs a run on the Ycode simulator".
+  needs a run on the SwiftCode simulator".
 
 **The Debug menu (IDE-QUICKWINS, 2026-10-30).** The same features from the
 menu bar: **Debug ▸ Simulate Location ▸** is filled with the debug bar's
-menu each time it opens (the note alone without a run on the Ycode
+menu each time it opens (the note alone without a run on the SwiftCode
 simulator). **View Debugging ▸ Disable All Environment Overrides** sends
 `overrides <id> clear` (enabled while overrides are set). **View Debugging
-▸ Appearance ▸** changes the overrides (Ycode decision): System Appearance
+▸ Appearance ▸** changes the overrides (SwiftCode decision): System Appearance
 removes the appearance and Increase Contrast overrides; Light and Dark
 set the appearance and remove Increase Contrast; High Contrast Light and
 High Contrast Dark set the appearance and Increase Contrast. The item
 matching the overrides is checked; all are disabled without a run on the
-Ycode simulator. Code: `YcodeIDECore` `DebugAppearanceMenu`, `YcodeUI`
+SwiftCode simulator. Code: `SwiftCodeIDECore` `DebugAppearanceMenu`, `SwiftCodeUI`
 `WorkspaceWindowController+SimulatorDebugMenu.swift`. Tests:
 `IDEQuickWinsUITests.simulateLocationSubmenu`,
 `appearanceAndDisableAllOverrides`.
@@ -281,20 +281,20 @@ trait collection, SwiftUI's environment and Dynamic Type fonts follow; the
 accessibility switches answer UIKit's public status functions
 (`UIAccessibilityIsReduceMotionEnabled` and the others, through dyld
 interposing) and their public change notifications are posted. Code:
-`YcodeUI` `EnvironmentOverridesPanel.swift`, `DebugBarExtras.swift`,
+`SwiftCodeUI` `EnvironmentOverridesPanel.swift`, `DebugBarExtras.swift`,
 `WorkspaceWindowController+SimulatorDebugBar.swift`; model
-`YcodeSimFeatures.EnvironmentOverrides`. Tests: `SimulatorSettingsUITests`,
-`SimFeaturesTests`; verified on the Linux host with Ycode's probe app
-(`simulator-features.md` "Ycode implementation" §I.8).
+`SwiftCodeSimFeatures.EnvironmentOverrides`. Tests: `SimulatorSettingsUITests`,
+`SimFeaturesTests`; verified on the Linux host with SwiftCode's probe app
+(`simulator-features.md` "SwiftCode implementation" §I.8).
 
 ## The Linux IDE (B2-DEBUG, 2026-11-04)
 
-`ycode-ide` debugs Swift packages through the same `WorkspaceSession` and
-lldb-dap session as the macOS IDE; `YcodeIDEShell.ShellDebugModel` mirrors
+`swiftcode-ide` debugs Swift packages through the same `WorkspaceSession` and
+lldb-dap session as the macOS IDE; `SwiftCodeIDEShell.ShellDebugModel` mirrors
 it for the OpenViews views.
 
-- **Adapter.** `YCODE_LLDB_DAP`; in the Flatpak the package's host-tool
-  wrapper (`libexec/ycode-host/lldb-dap`, run on the host through
+- **Adapter.** `SWIFTCODE_LLDB_DAP`; in the Flatpak the package's host-tool
+  wrapper (`libexec/swiftcode-host/lldb-dap`, run on the host through
   `flatpak-spawn`); else `PATH`, then swiftly's folders
   (`~/.local/share/swiftly/bin`, `~/.swiftly/bin`).
 - **Gutter.** A click on a line number adds a breakpoint or enables or
@@ -332,7 +332,7 @@ it for the OpenViews views.
   shows no metadata columns, so "visible" is the bare row). The text goes
   to the system clipboard through OpenViews (`OpenViewsClipboard`).
 - Tests: `ShellDebugTests` (a scripted adapter), `LLDBDAPLocateTests`;
-  end to end on x86-64 Linux with `YCODE_IDE_DEBUG` (`DebugDriver.swift`).
+  end to end on x86-64 Linux with `SWIFTCODE_IDE_DEBUG` (`DebugDriver.swift`).
 
 ### Editing (B2-DEBUG2, 2026-11-04)
 
@@ -372,7 +372,7 @@ it for the OpenViews views.
   top of the view. Edit Value (also a double-click) turns the value into a
   field; Return sends `setVariable` in the row's container. Swift 6.4's
   lldb-dap on Linux answers `setVariable` on Swift integers with "Invalid
-  encoding." (observed); Ycode then sends `evaluate` context `repl`
+  encoding." (observed); SwiftCode then sends `evaluate` context `repl`
   `expression -- <expr> = <value>`; a failure is printed in the console.
   The clipboard: the editor's text surface, else `wl-copy` / `xclip`
   (until OpenViews has a clipboard API).
@@ -393,25 +393,25 @@ it for the OpenViews views.
   the address (16 hex digits), the bytes in two groups of eight, and the
   printable ASCII; "??" for unreadable bytes. DAP `readMemory`.
 - Tests: `ShellDebugEditingTests` (a scripted adapter); end to end on
-  x86-64 Linux with `YCODE_IDE_DEBUG2` (`DebugEditingDriver.swift`).
+  x86-64 Linux with `SWIFTCODE_IDE_DEBUG2` (`DebugEditingDriver.swift`).
 
 ### Apps on the simulator (B3-SIMDEBUG, 2026-11-05)
 
-Product ▸ Run on a Ycode simulator destination (a device of a paired
-`ycode-simhost`, `specs/simulator/sim-link.md` §10) runs the app under
+Product ▸ Run on a SwiftCode simulator destination (a device of a paired
+`swiftcode-simhost`, `specs/simulator/sim-link.md` §10) runs the app under
 the debugger when the host is this computer, as Run on a Mac simulator
 does on macOS. The debug UI is the one above (gutter, Debug and Breakpoint
 navigators, variables view, console, debug bar, Debug menu).
 
 1. Run builds the app here and uploads it; the link's `run` request
-   carries `debug: true`, and the host starts the app with ycode-simd's
+   carries `debug: true`, and the host starts the app with swiftcode-simd's
    debug stub on `<home>/run/<device>.debug.sock` (`sim-link.md` §6,
    `specs/simulator/debug-stub.md`). The response names the socket.
 2. The activity reads "Launching <app>" while the device boots or
    restores and installs the app; the IDE asks the host's log (the link's
    `log`, once a second) for "ylaunch: launched <bundle id> pid N".
 3. Then "Configuring Debugger Actions": a loopback forward
-   (`YcodeDebug.StubForward`, 127.0.0.1 and a port the system picks; it
+   (`SwiftCodeDebug.StubForward`, 127.0.0.1 and a port the system picks; it
    accepts one connection and closes its listener, so no other user of a
    shared host reaches the stub through it) carries lldb-dap's gdb-remote
    connection to the socket. lldb-dap attaches with `gdb-remote-port`,
@@ -442,13 +442,13 @@ navigators, variables view, console, debug bar, Debug menu).
   SIGCHLD" in lldb's own output; the IDE shows Pause's stop as paused).
   OPEN QUESTION: where lldb on Linux takes the signal table of a remote
   Darwin process from (a fix there would show the right names).
-- **Symbols.** An app built on Linux (`scripts/ycode-ios-build-linux`,
+- **Symbols.** An app built on Linux (`scripts/swiftcode-ios-build-linux`,
   `DEBUG_INFORMATION_FORMAT=dwarf`) keeps its debug information in the
   object files its debug map names, under the derived data on this
   computer; lldb reads them there (no dSYM: the Linux toolchains have no
   `dsymutil`). The system images are read from the process's memory
   ("libobjc.A.dylib is being read from process memory"), as on a Mac.
-- **Off:** `YCODE_IDE_SIM_DEBUGGER=0` runs without the debugger. A host on
+- **Off:** `SWIFTCODE_IDE_SIM_DEBUGGER=0` runs without the debugger. A host on
   another computer runs the app without it, with the console line "The
   debugger attaches only to a simulator host on this computer; <host>
   runs <app> without it." until the link carries the stub (#50).
@@ -456,11 +456,11 @@ navigators, variables view, console, debug bar, Debug menu).
   scripted lldb-dap attach: activities, the attach arguments, the stop,
   Continue, the detach), `StubForwardTests`, `SimLinkTests` (the `debug`
   field, the stub's socket); end to end on the arm64 Linux host with
-  `SimulatorDebugEndToEndTests` (gated by `YCODE_SIM_DEBUG_E2E`) and the
-  `YCODE_IDE_SIMDEBUG` walk (`SimDebugDriver.swift`).
+  `SimulatorDebugEndToEndTests` (gated by `SWIFTCODE_SIM_DEBUG_E2E`) and the
+  `SWIFTCODE_IDE_SIMDEBUG` walk (`SimDebugDriver.swift`).
 - **Results** (2026-11-05; the arm64 Linux host loaded by other agents,
   load 30-100; iPhone Duo, iOS 27.1; TapCounter built on the x86-64 PC
-  with `ycode-ios-build-linux` into the same derived-data path, since the
+  with `swiftcode-ios-build-linux` into the same derived-data path, since the
   host has no user SDK or Apple-capable `ld64.lld`; Swift 6.4's lldb-dap):
   Run → "Launching TapCounter" (cold boot, home screen at 226 s) →
   "Configuring Debugger Actions" (the attach: about 70 s, lldb reading the
@@ -514,7 +514,7 @@ navigators, variables view, console, debug bar, Debug menu).
   Swift 6.4.2's lldb-dap (LLDB 21) on x86-64 Linux (level 3). The log
   message tokens and action kinds: Apple's public Xcode Help (level 1).
   Watch rows without a badge, the editor's field order and the memory
-  browser's layout are Ycode design (OPEN QUESTION: the reference's).
+  browser's layout are SwiftCode design (OPEN QUESTION: the reference's).
 - Breakpoint editing (condition, ignore, actions, auto-continue,
   exception/symbolic from the + menu): Apple's public Xcode Help (level 1);
   DAP fields from the DAP specification (level 1); verified against
@@ -524,7 +524,7 @@ navigators, variables view, console, debug bar, Debug menu).
 - Debug area layout and bars (50/50 split; variables bar with the "Auto"
   scope pop-up, two toggles and a filter; console bar with two output
   toggles, filter, clear and show/hide buttons; "Line: N Col: N" in the
-  debug bar): `specs/ide/reference-ui.md` §5 (level 3). Ycode's scopes:
+  debug bar): `specs/ide/reference-ui.md` §5 (level 3). SwiftCode's scopes:
   Auto (everything the adapter returns), Local Variables (hides `$`
   names), All Variables (with the registers toggle).
 - OPEN QUESTION: how Xcode's Auto scope maps to lldb-dap's Locals/Globals/
@@ -533,7 +533,7 @@ navigators, variables view, console, debug bar, Debug menu).
   Variables, Registers, Globals and Statics"; Quick Look and info buttons
   (Quick Look shows the value in a popover). Console bar: Quick Look, an
   output-options popover (Metadata switch on; Type, Timestamp, Library,
-  PID:TID, Subsystem, Category off — Ycode records Type and Timestamp,
+  PID:TID, Subsystem, Category off — SwiftCode records Type and Timestamp,
   prefixing "[Target]"/"[Debugger]" and "HH:mm:ss.SSS"; the others are
   disabled), the output filter (All / Debugger / Target Output), the text
   filter, clear, and the two halves' toggles. "Program ended with exit
@@ -559,12 +559,12 @@ navigators, variables view, console, debug bar, Debug menu).
   level 1); the stub and its evidence: `specs/simulator/debug-stub.md`.
 - Environment Overrides and Simulate Location (FEAT-IMPL): items, values
   and categories from `specs/simulator/simulator-features.md` §7.3 (level
-  4 there); the pop-over layout and the in-app library are Ycode design
+  4 there); the pop-over layout and the in-app library are SwiftCode design
   (public UIKit trait overrides and status functions, level 1).
 - Simulator apps in the Linux IDE (B3-SIMDEBUG): lldb's signal handling
   of a remote Darwin process on Linux, the attach stop restarted as
   SIGCHLD and the `process handle` settings kept from before the attach,
   observed with Swift 6.4's lldb and lldb-dap on arm64 Linux against
-  ycode-simd's stub (level 3); `process handle` and lldb-dap's
-  `preRunCommands`: LLDB's documentation (level 1). The rest is Ycode
+  swiftcode-simd's stub (level 3); `process handle` and lldb-dap's
+  `preRunCommands`: LLDB's documentation (level 1). The rest is SwiftCode
   design.

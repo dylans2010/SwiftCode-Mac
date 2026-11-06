@@ -10,7 +10,7 @@ import SwiftUICore
 // Split views (round R9 and PARITY §5.4 R12): `HSplitView`, `VSplitView`
 // (the macOS names, for the IDE) and `NavigationSplitView` (06 §2.2).
 //
-// Panes (Ycode's rules; the reference measured only the collapsed iPhone
+// Panes (SwiftCode's rules; the reference measured only the collapsed iPhone
 // case): panes sit side by side (or one above the other) with 1-point
 // dividers; each divider can be dragged within an 8-point band. A pane's
 // limits are its answers to a zero and an infinite proposal along the axis

@@ -1,4 +1,4 @@
-// Ycode extension (design.md §2–§3, §6): the backend interface the service
+// SwiftCode extension (design.md §2–§3, §6): the backend interface the service
 // engine plans requests for. Not part of Apple's API; apps that only use
 // `WeatherService.shared` never see it.
 import Foundation

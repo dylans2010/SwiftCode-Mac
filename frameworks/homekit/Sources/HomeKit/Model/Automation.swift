@@ -14,11 +14,11 @@ open class HMAction: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMAction)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    func apply(_ r: YcodeActionRecord, characteristic: HMCharacteristic?) {}
-    func record() -> Result<YcodeActionRecord, HMError> { .failure(HMError(.invalidClass)) }
+    func apply(_ r: SwiftCodeActionRecord, characteristic: HMCharacteristic?) {}
+    func record() -> Result<SwiftCodeActionRecord, HMError> { .failure(HMError(.invalidClass)) }
 
     /// A mirror for an action another client created.
-    static func make(_ r: YcodeActionRecord, characteristic: HMCharacteristic?) -> HMAction {
+    static func make(_ r: SwiftCodeActionRecord, characteristic: HMCharacteristic?) -> HMAction {
         guard let c = characteristic else { return HMAction(id: r.id) }
         switch r.targetValue {
         case .string(let s): return HMCharacteristicWriteAction(id: r.id, characteristic: c, targetValue: s as NSString)
@@ -48,14 +48,14 @@ open class HMCharacteristicWriteAction<TargetValueType: NSCopying>: HMAction, @u
         super.init(id: id)
     }
 
-    override func apply(_ r: YcodeActionRecord, characteristic c: HMCharacteristic?) {
+    override func apply(_ r: SwiftCodeActionRecord, characteristic c: HMCharacteristic?) {
         if let c { characteristic = c }
         if let v = r.targetValue.apiValue as? TargetValueType { targetValue = v }
     }
 
-    override func record() -> Result<YcodeActionRecord, HMError> {
-        YcodeValueValidation.validate(targetValue, metadata: characteristic.metadata?.record).map {
-            YcodeActionRecord(id: uniqueIdentifier, characteristicID: characteristic.uniqueIdentifier, targetValue: $0)
+    override func record() -> Result<SwiftCodeActionRecord, HMError> {
+        SwiftCodeValueValidation.validate(targetValue, metadata: characteristic.metadata?.record).map {
+            SwiftCodeActionRecord(id: uniqueIdentifier, characteristicID: characteristic.uniqueIdentifier, targetValue: $0)
         }
     }
 
@@ -66,8 +66,8 @@ open class HMCharacteristicWriteAction<TargetValueType: NSCopying>: HMAction, @u
             onMain { completion(nil) }
             return
         }
-        let checked: YcodeHomeValue
-        switch YcodeValueValidation.validate(targetValue, metadata: characteristic.metadata?.record) {
+        let checked: SwiftCodeHomeValue
+        switch SwiftCodeValueValidation.validate(targetValue, metadata: characteristic.metadata?.record) {
         case .success(let v): checked = v
         case .failure(let e): onMain { completion(e) }; return
         }
@@ -105,7 +105,7 @@ open class HMActionSet: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMActionSet)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    func apply(_ r: YcodeActionSetRecord) {
+    func apply(_ r: SwiftCodeActionSetRecord) {
         name = r.name
         actionSetType = r.type
         isExecuting = r.isExecuting
@@ -121,7 +121,7 @@ open class HMActionSet: NSObject, @unchecked Sendable {
     public func addAction(_ action: HMAction, completionHandler completion: @escaping (Error?) -> Void) {
         guard let home else { fail(completion, .objectNotAssociatedToAnyHome); return }
         if let owner = action.actionSet, owner !== self { fail(completion, .actionInAnotherActionSet); return }
-        let record: YcodeActionRecord
+        let record: SwiftCodeActionRecord
         switch action.record() {
         case .success(let r): record = r
         case .failure(let e): onMain { completion(e) }; return
@@ -168,15 +168,15 @@ open class HMTrigger: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HMTrigger)?.uniqueIdentifier == uniqueIdentifier }
     open override var hash: Int { uniqueIdentifier.hashValue }
 
-    func record() -> YcodeTriggerRecord? { nil }
+    func record() -> SwiftCodeTriggerRecord? { nil }
 
-    func apply(_ r: YcodeTriggerRecord, home: HMHome) {
+    func apply(_ r: SwiftCodeTriggerRecord, home: HMHome) {
         name = r.name
         isEnabled = r.isEnabled
         actionSets = r.actionSetIDs.compactMap { id in home.actionSets.first { $0.uniqueIdentifier == id } }
     }
 
-    static func make(_ r: YcodeTriggerRecord) -> HMTrigger {
+    static func make(_ r: SwiftCodeTriggerRecord) -> HMTrigger {
         switch r.kind {
         case .timer(let fire, let recurrence):
             return HMTimerTrigger(id: r.id, name: r.name, fireDate: fire, recurrence: recurrence)
@@ -253,12 +253,12 @@ open class HMTimerTrigger: HMTrigger, @unchecked Sendable {
         super.init(id: id, name: name)
     }
 
-    override func record() -> YcodeTriggerRecord? {
-        YcodeTriggerRecord(id: uniqueIdentifier, name: name, isEnabled: isEnabled, actionSetIDs: actionSets.map(\.uniqueIdentifier),
+    override func record() -> SwiftCodeTriggerRecord? {
+        SwiftCodeTriggerRecord(id: uniqueIdentifier, name: name, isEnabled: isEnabled, actionSetIDs: actionSets.map(\.uniqueIdentifier),
                            kind: .timer(fireDate: fireDate, recurrence: recurrence), activationState: 0)
     }
 
-    override func apply(_ r: YcodeTriggerRecord, home: HMHome) {
+    override func apply(_ r: SwiftCodeTriggerRecord, home: HMHome) {
         super.apply(r, home: home)
         if case .timer(let f, let rec) = r.kind { fireDate = f; recurrence = rec }
     }
@@ -308,17 +308,17 @@ open class HMEventTrigger: HMTrigger, @unchecked Sendable {
 
     override init(id: UUID, name: String) { super.init(id: id, name: name) }
 
-    override func record() -> YcodeTriggerRecord? {
+    override func record() -> SwiftCodeTriggerRecord? {
         let es = events.compactMap { $0.record() }
         let ends = endEvents.compactMap { $0.record() }
         guard es.count == events.count, ends.count == endEvents.count else { return nil }
-        return YcodeTriggerRecord(id: uniqueIdentifier, name: name, isEnabled: isEnabled,
+        return SwiftCodeTriggerRecord(id: uniqueIdentifier, name: name, isEnabled: isEnabled,
                                   actionSetIDs: actionSets.map(\.uniqueIdentifier),
                                   kind: .event(events: es, endEvents: ends, recurrences: recurrences, executeOnce: executeOnce),
                                   activationState: triggerActivationState.rawValue)
     }
 
-    override func apply(_ r: YcodeTriggerRecord, home: HMHome) {
+    override func apply(_ r: SwiftCodeTriggerRecord, home: HMHome) {
         super.apply(r, home: home)
         triggerActivationState = HMEventTriggerActivationState(rawValue: r.activationState) ?? .disabled
         guard case .event(let es, let ends, let rec, let once) = r.kind else { return }
@@ -328,7 +328,7 @@ open class HMEventTrigger: HMTrigger, @unchecked Sendable {
         executeOnce = once
     }
 
-    private func merge(_ old: [HMEvent], _ records: [YcodeEventRecord], _ home: HMHome) -> [HMEvent] {
+    private func merge(_ old: [HMEvent], _ records: [SwiftCodeEventRecord], _ home: HMHome) -> [HMEvent] {
         records.compactMap { r in
             if let e = old.first(where: { $0.uniqueIdentifier == r.id }) { return e }
             return HMEvent.make(r, home: home)

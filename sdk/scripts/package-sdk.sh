@@ -5,7 +5,7 @@ set -euo pipefail
 # - SDK_ROOT is now this repo's sdk/; the scripts live in sdk/scripts/
 #   (lowercase), so the verify step calls "$SDK_ROOT/scripts/verify-sdk.sh".
 # - The packaged binary (bin/swiftcode-sdk) comes from the Swift SDK
-#   migration (ledger: ycode/Package.swift NOT STARTED, other wave);
+#   migration (ledger: swiftcode/Package.swift NOT STARTED, other wave);
 #   the clean-room extraction test below fails until that wave lands.
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$SDK_ROOT/Distribution"

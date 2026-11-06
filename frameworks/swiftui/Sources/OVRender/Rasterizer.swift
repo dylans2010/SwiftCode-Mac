@@ -478,7 +478,7 @@ public final class SoftwareRasterizer {
     }
 
     /// Maps stops of a sweep shorter than a full turn onto ThorVG's full
-    /// turn. Ycode's choice for the uncovered part: the end colour up to the
+    /// turn. SwiftCode's choice for the uncovered part: the end colour up to the
     /// middle of the gap, the start colour after it.
     static func conicStops(_ s: [RenderGradientStop], sweep: Double) -> [RenderGradientStop] {
         let turn = 2 * Double.pi

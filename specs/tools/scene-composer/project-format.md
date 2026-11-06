@@ -2,7 +2,7 @@
 
 Status: draft round 0 (OBS-RCP, 2026-10-29). Reference: Reality Composer
 Pro 3.0 (`3.0 (1A153)`, engine build 75.0.14.500.1), Xcode 27.1
-(27A9269) and its `realitytool`. Ycode's tool gets its own name; "RCP"
+(27A9269) and its `realitytool`. SwiftCode's tool gets its own name; "RCP"
 below names only the reference.
 
 Evidence tags: **[tmpl]** format study of templates and data shipped
@@ -22,9 +22,9 @@ SwiftPM / the MIT RCP plug-in interface; **[str]** binary metadata names
 Both B and C use the extension `.realitycomposerpro`; §5 says how to
 tell them apart.
 
-**Ycode policy (proposal).** Ycode's native format is **B** (USD source,
+**SwiftCode policy (proposal).** SwiftCode's native format is **B** (USD source,
 built by stock Xcode, readable by every USD tool, migrated by RCP 3 on
-open). Ycode reads A and B fully, imports USD exported by RCP 3, and
+open). SwiftCode reads A and B fully, imports USD exported by RCP 3, and
 treats C as a later read-only import round (§4.6). It never writes C.
 
 ## 2. Shape A: USD directly in the app target
@@ -92,11 +92,11 @@ importer expects ("did not find .rkassets folder at expected path")
   published in public sample projects maps package-relative scene paths
   to UUID strings (`{"pathsToIds": {"/<Package>/Sources/<Package>/<Package>.rkassets/Scene.usda": "<UUID>", …}}`).
   That key form is **unverified** here (no RCP 1/2 is installed; no run
-  could show it) — open question Q1. Ycode writes it in that form and
+  could show it) — open question Q1. SwiftCode writes it in that form and
   never depends on reading it.
 - `WorkspaceData/` holds per-user and per-workspace editor state (file
   names in public samples: `SceneMetadataList.json`,
-  `Settings.rcprojectdata`, `<user>.rcuserdata`) — unverified, Q1. Ycode
+  `Settings.rcprojectdata`, `<user>.rcuserdata`) — unverified, Q1. SwiftCode
   writes nothing there and preserves whatever exists.
 - Neither folder is read by `realitytool` or Xcode **[oss]**: the build
   sees only the `.rkassets` folder (swift-build compiles every
@@ -178,7 +178,7 @@ Per source layer (`tm_usd_asset`):
 
 | Key | Content |
 |---|---|
-| `source_path` | the **absolute** path of the source `.usda` (a machine path; Ycode must strip or ignore it) |
+| `source_path` | the **absolute** path of the source `.usda` (a machine path; SwiftCode must strip or ignore it) |
 | `settings` | `tm_scene_optimizer` (a graph interface with inputs `scene_optimizer_settings__merging_mode`, `scene_optimizer_settings__keep_entities_list`; `output` = buffer id) and `tm_lod_generator` |
 | `pro_settings` | `tm_usd_purpose_settings`, `tm_usd_dev_settings` (`mesh_creation_graph` → a core-library creation graph) |
 | `variants` | one `Default` entry: `root_entity` (the full entity), `proxy_entity` (the proxy), `session` (buffer id) |
@@ -205,22 +205,22 @@ The default `tm_re_collision_component` in the type index has
 component's default"; the full mode enumeration, including trigger, is
 still open: `scene-usd.md` Q1).
 
-Consequences for Ycode:
+Consequences for SwiftCode:
 
-- An RCP 3 user who migrates a Ycode-written package ends up with two
+- An RCP 3 user who migrates a SwiftCode-written package ends up with two
   sources of truth in one folder (the untouched `.rkassets` and the new
-  directory project). Ycode should detect a sibling
+  directory project). SwiftCode should detect a sibling
   `<Name>.realitycomposerpro/` with `project.rcp` inside a package and
   warn that edits made in RCP 3 are no longer reflected in the USD.
 - The RCP 3 importer bakes `Cube`/`Sphere` primitives to meshes and
   converts colours to ACES2065-1; a round trip back to USD will not
   reproduce the original prims.
 
-### 3.5 What the editor writes (shape B), as Ycode should do it
+### 3.5 What the editor writes (shape B), as SwiftCode should do it
 
 | User action | Files touched |
 |---|---|
-| New scene | new `<Name>.usda` in `.rkassets` (layer per `scene-usd.md` §1, empty `Root`); a `main.json` path→UUID entry (Ycode choice: random UUID, upper case) |
+| New scene | new `<Name>.usda` in `.rkassets` (layer per `scene-usd.md` §1, empty `Root`); a `main.json` path→UUID entry (SwiftCode choice: random UUID, upper case) |
 | Import an asset (USDZ, image, audio) | copy the file into `.rkassets` (default: next to the scene, or an `Assets/` folder); scenes reference it by relative path; `main.json` entry for USD files |
 | Add an asset to a scene | a referencing prim (`scene-usd.md` §2) |
 | Add a component | a `RealityKitComponent` child prim (`scene-usd.md` §4) |
@@ -300,7 +300,7 @@ Folder and asset names may contain spaces.
 - Hashes stored in graph assets are 64-bit MurmurHash64A (seed 0) of the
   identifier string (`materials.md` §10) **[run]**.
 - Shipped data contained an absolute source path from the authoring
-  machine in an image asset (`filename`). Ycode must never write
+  machine in an image asset (`filename`). SwiftCode must never write
   absolute paths and must tolerate them on read.
 
 ### 4.4 Entities and components
@@ -341,7 +341,7 @@ types (`tm_transform_component`, `tm_render_component`,
   `*.realitycomposerpro/**` to it and exclude `*.tm_buffers/**` (binary)
   **[run]** (its `--help`).
 
-### 4.6 Round for Ycode
+### 4.6 Round for SwiftCode
 
 A read-only importer for shape C can now be specified from §4.3 and
 §4.7: text grammar, defaults from the project's type index, prototype
@@ -349,7 +349,7 @@ resolution against `core.lib/`, `tm_re_*` components mapped onto the
 `scene-usd.md` component catalogue (mapping table in
 `scene-usd.md` §4.5), buffers for textures and audio. Still missing for
 it: imported meshes in a project made in the app, and non-empty
-animation graphs and behavior trees. Until then Ycode imports what RCP 3
+animation graphs and behavior trees. Until then SwiftCode imports what RCP 3
 exports as USD (`editor-behavior.md` §7) or `.reality`.
 
 ### 4.7 A project made in the app (observed, OBS-RCP4)
@@ -495,7 +495,7 @@ the default), `__asset_labels: ["<hash of Image>"]`. The processed
 #### 4.7.5 Imported audio
 
 `tm_audio_file_asset`: `source_filename` (here an **absolute** machine
-path — the same project stores the texture's path relatively; Ycode
+path — the same project stores the texture's path relatively; SwiftCode
 must accept both and write neither), `source_audio` (buffer: the
 original file, byte-identical), `sample_data` (buffer: the decoded
 samples as little-endian 32-bit float, interleaved; 44 100 frames of
@@ -515,7 +515,7 @@ mono = 176 400 bytes, values = 16-bit sample / 32768), `sample_rate`
   derived data has none.
 - `core.lib/` is the same in every project apart from per-project
   `__asset_uuid`s, thumbnail validity hashes and one regenerated icon
-  buffer; Ycode's importer can treat it as a known library keyed by
+  buffer; SwiftCode's importer can treat it as a known library keyed by
   object `__uuid`.
 - The type index of a new project and of a migrated one hold the same
   916 type names but are not byte-identical (a few defaults differ,
@@ -588,7 +588,7 @@ parameters with values were not observed (the assets were empty).
 
 ## 6. Content versus user state
 
-| Path | Kind | Ycode |
+| Path | Kind | SwiftCode |
 |---|---|---|
 | `.rkassets/**` | content (build input) | read/write |
 | `Package.swift`, `Sources/**/*.swift` | content | read/write (via the IDE) |
@@ -596,7 +596,7 @@ parameters with values were not observed (the assets were empty).
 | `Package.realitycomposerpro/WorkspaceData/**` | per-user editor state | preserve, do not write; suggest `.gitignore` for `*.rcuserdata` |
 | RCP 3 `*.tm_*`, `*.tm_buffers/**`, `__*.tm_meta` | content | read later (§4.6), never write |
 | RCP 3 window layouts, recent files, settings | per-user, outside the project, in the app's sandbox container: `Library/Application Support/Reality Composer Pro/settings.json` (keys `window_layouts`, `recent_files` with absolute paths and time stamps, `last_opened_project`, `docking_settings`, `settings_owner`, workspace templates) and `Project Settings/<decimal MurmurHash64A of the project's absolute path>.json` (last opened scene as an asset uuid `{a, b}`, scene settings, window layouts): JSON forms of the same object model (`__type`, `__uuid`) **[run]** | n/a |
-| Ycode's own editor state | per-user | `<Package>.ycomposer/` next to the package, git-ignored by default (Ycode-original) |
+| SwiftCode's own editor state | per-user | `<Package>.ycomposer/` next to the package, git-ignored by default (@@SWIFTCODE_ORIGINAL@@) |
 
 ## Open questions
 

@@ -8,17 +8,17 @@ import Testing
 struct CatalogTests {
     @Test("HK-B14: 255 public constants, all distinct (type-identifiers.md §2–§4)")
     func counts() {
-        #expect(YcodeHomeCatalog.serviceTypes.count == 46)
-        #expect(YcodeHomeCatalog.characteristicTypes.count == 138)
-        #expect(YcodeHomeCatalog.serviceTypes.count + YcodeHomeCatalog.characteristicTypes.count == 184)
-        #expect(YcodeHomeCatalog.accessoryCategoryTypes.count == 33)
-        #expect(YcodeHomeCatalog.metadataFormats.count == 12)
-        #expect(YcodeHomeCatalog.metadataUnits.count == 8)
-        #expect(YcodeHomeCatalog.characteristicProperties.count == 5)
-        #expect(YcodeHomeCatalog.actionSetTypes.count == 6)
-        #expect(YcodeHomeCatalog.significantEvents.count == 2)
-        #expect(YcodeHomeCatalog.keyPaths.count == 3)
-        let all = YcodeHomeCatalog.allConstants
+        #expect(SwiftCodeHomeCatalog.serviceTypes.count == 46)
+        #expect(SwiftCodeHomeCatalog.characteristicTypes.count == 138)
+        #expect(SwiftCodeHomeCatalog.serviceTypes.count + SwiftCodeHomeCatalog.characteristicTypes.count == 184)
+        #expect(SwiftCodeHomeCatalog.accessoryCategoryTypes.count == 33)
+        #expect(SwiftCodeHomeCatalog.metadataFormats.count == 12)
+        #expect(SwiftCodeHomeCatalog.metadataUnits.count == 8)
+        #expect(SwiftCodeHomeCatalog.characteristicProperties.count == 5)
+        #expect(SwiftCodeHomeCatalog.actionSetTypes.count == 6)
+        #expect(SwiftCodeHomeCatalog.significantEvents.count == 2)
+        #expect(SwiftCodeHomeCatalog.keyPaths.count == 3)
+        let all = SwiftCodeHomeCatalog.allConstants
         #expect(all.count == 255)
         #expect(Set(all.map(\.identifier)).count == 255, "no two public constants share a value (§1)")
         #expect(Set(all.map(\.constantName)).count == 255)
@@ -26,14 +26,14 @@ struct CatalogTests {
 
     @Test("§1 UUID scheme: HAP types are 0000XXXX-0000-1000-8000-0026BB765291, uppercase")
     func uuidScheme() {
-        for e in YcodeHomeCatalog.serviceTypes + YcodeHomeCatalog.characteristicTypes {
+        for e in SwiftCodeHomeCatalog.serviceTypes + SwiftCodeHomeCatalog.characteristicTypes {
             let short = String(format: "%08X", e.shortID!)
             #expect(e.identifier == short + "-0000-1000-8000-0026BB765291")
             #expect(e.identifier == e.identifier.uppercased())
         }
-        for e in YcodeHomeCatalog.accessoryCategoryTypes {
+        for e in SwiftCodeHomeCatalog.accessoryCategoryTypes {
             #expect(UUID(uuidString: e.identifier) != nil)
-            #expect(!e.identifier.hasSuffix(YcodeHomeCatalog.hapBaseSuffix), "§1: categories are not HAP numbers")
+            #expect(!e.identifier.hasSuffix(SwiftCodeHomeCatalog.hapBaseSuffix), "§1: categories are not HAP numbers")
         }
     }
 
@@ -84,43 +84,43 @@ struct CatalogTests {
 
     @Test("§1: four characteristic constants deprecated since iOS 11 still resolve")
     func deprecatedConstants() {
-        let deprecated = YcodeHomeCatalog.characteristicTypes.filter { $0.deprecated != nil }
+        let deprecated = SwiftCodeHomeCatalog.characteristicTypes.filter { $0.deprecated != nil }
         #expect(Set(deprecated.map(\.name)) == ["Manufacturer", "Model", "SerialNumber", "FirmwareVersion"])
         #expect(deprecated.allSatisfy { $0.deprecated == "11.0" })
-        #expect(YcodeHomeCatalog.characteristicType("00000020-0000-1000-8000-0026BB765291")?.name == "Manufacturer")
+        #expect(SwiftCodeHomeCatalog.characteristicType("00000020-0000-1000-8000-0026BB765291")?.name == "Manufacturer")
     }
 
     @Test("§1: short and full forms are accepted, the full uppercase form is exposed")
     func normalization() {
-        #expect(YcodeHomeCatalog.normalizedTypeUUID("43") == HMServiceTypeLightbulb)
-        #expect(YcodeHomeCatalog.normalizedTypeUUID("0x25") == HMCharacteristicTypePowerState)
-        #expect(YcodeHomeCatalog.normalizedTypeUUID("00000043-0000-1000-8000-0026bb765291") == HMServiceTypeLightbulb)
-        #expect(YcodeHomeCatalog.normalizedTypeUUID("not a type") == nil)
-        #expect(YcodeHomeCatalog.wireTypeString(HMServiceTypeLightbulb) == "43")
-        #expect(YcodeHomeCatalog.wireTypeString(HMServiceTypeWiFiSatellite) == "20F")
+        #expect(SwiftCodeHomeCatalog.normalizedTypeUUID("43") == HMServiceTypeLightbulb)
+        #expect(SwiftCodeHomeCatalog.normalizedTypeUUID("0x25") == HMCharacteristicTypePowerState)
+        #expect(SwiftCodeHomeCatalog.normalizedTypeUUID("00000043-0000-1000-8000-0026bb765291") == HMServiceTypeLightbulb)
+        #expect(SwiftCodeHomeCatalog.normalizedTypeUUID("not a type") == nil)
+        #expect(SwiftCodeHomeCatalog.wireTypeString(HMServiceTypeLightbulb) == "43")
+        #expect(SwiftCodeHomeCatalog.wireTypeString(HMServiceTypeWiFiSatellite) == "20F")
         let custom = "E863F10A-079E-48FF-8F27-9C2605A29F52"
-        #expect(YcodeHomeCatalog.wireTypeString(custom) == custom, "custom types travel as full UUIDs")
-        #expect(YcodeHomeCatalog.serviceType("43")?.constantName == "HMServiceTypeLightbulb")
-        #expect(YcodeHomeCatalog.localizedDescription(forType: HMServiceTypeGarageDoorOpener) == "Garage Door Opener")
-        #expect(YcodeHomeCatalog.localizedDescription(forType: HMCharacteristicTypePM2_5Density) == "PM2.5 Density")
-        #expect(YcodeHomeCatalog.localizedDescription(forType: custom) == nil)
+        #expect(SwiftCodeHomeCatalog.wireTypeString(custom) == custom, "custom types travel as full UUIDs")
+        #expect(SwiftCodeHomeCatalog.serviceType("43")?.constantName == "HMServiceTypeLightbulb")
+        #expect(SwiftCodeHomeCatalog.localizedDescription(forType: HMServiceTypeGarageDoorOpener) == "Garage Door Opener")
+        #expect(SwiftCodeHomeCatalog.localizedDescription(forType: HMCharacteristicTypePM2_5Density) == "PM2.5 Density")
+        #expect(SwiftCodeHomeCatalog.localizedDescription(forType: custom) == nil)
     }
 
     @Test("accessory-protocols.md §2.5: HAP category numbers map to category strings")
     func hapCategories() {
-        #expect(YcodeHomeCatalog.categoryType(forHAPCategory: 2) == HMAccessoryCategoryTypeBridge)
-        #expect(YcodeHomeCatalog.categoryType(forHAPCategory: 5) == HMAccessoryCategoryTypeLightbulb)
-        #expect(YcodeHomeCatalog.categoryType(forHAPCategory: 6) == HMAccessoryCategoryTypeDoorLock)
-        #expect(YcodeHomeCatalog.categoryType(forHAPCategory: 17) == HMAccessoryCategoryTypeIPCamera)
-        #expect(YcodeHomeCatalog.categoryType(forHAPCategory: 30) == HMAccessoryCategoryTypeShowerHead)
-        #expect(YcodeHomeCatalog.categoryType(forHAPCategory: 18) == HMAccessoryCategoryTypeOther, "not in the ADK enum")
-        #expect(Set(YcodeHomeCatalog.hapCategories.keys) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+        #expect(SwiftCodeHomeCatalog.categoryType(forHAPCategory: 2) == HMAccessoryCategoryTypeBridge)
+        #expect(SwiftCodeHomeCatalog.categoryType(forHAPCategory: 5) == HMAccessoryCategoryTypeLightbulb)
+        #expect(SwiftCodeHomeCatalog.categoryType(forHAPCategory: 6) == HMAccessoryCategoryTypeDoorLock)
+        #expect(SwiftCodeHomeCatalog.categoryType(forHAPCategory: 17) == HMAccessoryCategoryTypeIPCamera)
+        #expect(SwiftCodeHomeCatalog.categoryType(forHAPCategory: 30) == HMAccessoryCategoryTypeShowerHead)
+        #expect(SwiftCodeHomeCatalog.categoryType(forHAPCategory: 18) == HMAccessoryCategoryTypeOther, "not in the ADK enum")
+        #expect(Set(SwiftCodeHomeCatalog.hapCategories.keys) == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                                                              19, 20, 21, 22, 23, 28, 29, 30])
     }
 
     @Test("§5 characteristic value enumerations (60, golden members)")
     func valueEnumerations() {
-        #expect(YcodeHomeCatalog.valueEnumerations.count == 60)
+        #expect(SwiftCodeHomeCatalog.valueEnumerations.count == 60)
         #expect(HMCharacteristicValueDoorState.stopped.rawValue == 4)
         #expect(HMCharacteristicValueLockMechanismState.unknown.rawValue == 3)
         #expect(HMCharacteristicValueRemoteKey.home.rawValue == 16)
@@ -154,7 +154,7 @@ struct CatalogTests {
     func fullComparisonWithSpec() throws {
         guard let url = Self.specURL else { return }
         let text = try String(contentsOf: url, encoding: .utf8)
-        let byName = Dictionary(uniqueKeysWithValues: YcodeHomeCatalog.allConstants.map { ($0.constantName, $0.identifier) })
+        let byName = Dictionary(uniqueKeysWithValues: SwiftCodeHomeCatalog.allConstants.map { ($0.constantName, $0.identifier) })
         let prefixes: [String: String] = [
             "Service types": "HMServiceType", "Characteristic types": "HMCharacteristicType",
             "Accessory category types": "HMAccessoryCategoryType", "Metadata formats": "HMCharacteristicMetadataFormat",
@@ -177,7 +177,7 @@ struct CatalogTests {
             if inEnums {
                 guard cells[0] != "Enumeration" else { continue }
                 enumRows += 1
-                let entry = YcodeHomeCatalog.valueEnumerations.first { $0.name == "HMCharacteristicValue" + cells[0] }
+                let entry = SwiftCodeHomeCatalog.valueEnumerations.first { $0.name == "HMCharacteristicValue" + cells[0] }
                 #expect(entry != nil, "enumeration \(cells[0])")
                 let pairs = cells[2].split(separator: ",").map { item -> (Int, String) in
                     let parts = item.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1)

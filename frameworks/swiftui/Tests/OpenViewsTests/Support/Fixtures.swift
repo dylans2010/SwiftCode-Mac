@@ -48,7 +48,7 @@ enum Fixture {
         // the control rules of README "Controls design (R8)" — inputs, like
         // the rows above; the other proposals of each row are the checks.
         "Tap": th(27.67),                  // button.default (borderless: the label)
-        "Ycode": th(47.33),                // link
+        "SwiftCode": th(47.33),                // link
         "Title": 33,                       // label: 63 = 22 (star) + 8 + title
         "On": th(22.33),                   // toggle: 91.33 = title + 8 + 61
         "S": th(10.67),                    // stepper: 112.67 = title + 8 + 94
@@ -62,7 +62,7 @@ enum Fixture {
     /// Typesets with the reference font tables (ReferenceFont.swift).
     static let measurer = TypesetTextMeasurer(fonts: ReferenceFontProvider())
 
-    /// Symbols: Ycode's own provider (round R5) in reference-parity mode
+    /// Symbols: SwiftCode's own provider (round R5) in reference-parity mode
     /// (unknown names lay out 0 × 0). Its boxes are the spec's: `star` /
     /// `star.fill` at body size 22 × 20.67, baseline 3.67 above the bottom,
     /// natural (resizable) size 18.67 × 18 (07 §3, 04 §2).

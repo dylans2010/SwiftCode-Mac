@@ -150,7 +150,7 @@ container's coordinate space are not reliable (use the global frames in `06-app-
 | `secureField` | `SecureField("Password", text: .constant(""))` | 300×500 | 73.33x21 | 0x21 | ∞x21 | 100x21 | 73.33x21 | 100x21 | 300x21 |  |
 | `datePicker.compact` | `DatePicker("D", selection: .constant(Date(timeIntervalSince1970: 0)), displayedComponents: .date)` | 300×500 | 142.67x34.33 | 130.67x34.33 | ∞x34.33 | 130.67x34.33 | 142.67x34.33 | 130.67x34.33 | 300x34.33 |  |
 | `gauge` | `Gauge(value: 0.5) { Text("G") }` | 300×500 | 12.33x46.98 | 0x26.64 | ∞x46.98 | 100x46.98 | 12.33x46.98 | 100x46.98 | 300x46.98 | baselines 16.33/16.33 |
-| `link` | `Link("Ycode", destination: URL(string: "https://example.com")!)` | 300×500 | 47.33x20.33 | 0x0 | 47.33x20.33 | 47.33x20.33 | 47.33x20.33 | 47.33x20.33 | 47.33x20.33 |  |
+| `link` | `Link("SwiftCode", destination: URL(string: "https://example.com")!)` | 300×500 | 47.33x20.33 | 0x0 | 47.33x20.33 | 47.33x20.33 | 47.33x20.33 | 47.33x20.33 | 47.33x20.33 |  |
 | `scrollView` | `ScrollView { VStack { Text("A").probe("a"); Color.red.frame(height: 1000).probe("c") } }` | 300×500 | 11.33x1030.98 | 0x0 | ∞x∞ | 100x1030.98 | 11.33x100 | 100x100 | 300x500 | c=(0,30.98,300,1000); a=(144.33,0,11.33,20.33); baselines 500/500 |
 | `scrollView.horizontal` | `ScrollView(.horizontal) { HStack { Text("A").probe("a"); Color.red.frame(width: 1000).probe("c") } }` | 300×500 | 1019.33x20.33 | 0x20.33 | ∞x∞ | 100x20.33 | 1019.33x100 | 100x100 | 300x500 | c=(19.33,0,1000,500); a=(0,239.83,11.33,20.33); baselines 500/500 |
 | `list.two` | `List { Text("A").probe("a"); Text("B").probe("b") }` | 300×500 | 0x0 | – | – | – | – | – | 300x500 | b=(40,102.83,11,20.33); a=(40,50.83,11.33,20.33); baselines 0/500 |

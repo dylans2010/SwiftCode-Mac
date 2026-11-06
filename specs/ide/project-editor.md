@@ -1,7 +1,7 @@
 # Project editor
 
-Ycode modules: `YcodeProject` (typed mutations), `YcodeSettings` (levels),
-`YcodeUI` (`ProjectEditorController`).
+SwiftCode modules: `SwiftCodeProject` (typed mutations), `SwiftCodeSettings` (levels),
+`SwiftCodeUI` (`ProjectEditorController`).
 
 Selecting a project's row in the project navigator opens the project in the
 editor area (instead of a text file).
@@ -19,7 +19,7 @@ editor area (instead of a text file).
 - Build Phases has "(N items)" titles and the "+" phase menu;
 - Build Rules has Process / Using lines and Copy to Target.
 
-`reference-ui-5.md` §11.1 lists what Ycode still lacks (left-column
+`reference-ui-5.md` §11.1 lists what SwiftCode still lacks (left-column
 footer, real controls on Resource Tags / Build Rules / Project Info /
 Package Dependencies, Run Build Tool Plug-ins, Info's readable names). The
 sections below keep the setting and mutation rules, which stay valid.
@@ -96,7 +96,7 @@ filters by setting name (case-insensitive substring). Editing a value in
 the Combined view or the Target column writes the setting at target level
 in every configuration (project level for the project's own settings);
 an empty value removes the assignment. Values are resolved with
-YcodeSettings for the chosen configuration.
+SwiftCodeSettings for the chosen configuration.
 
 Levels view details: columns Setting | Resolved | <target> | Target
 xcconfig | <project> | Project xcconfig | Defaults (the target columns only
@@ -105,7 +105,7 @@ tooltip shows the full value. The cell of the level that provides the
 resolved value — the first assigned level in the order target, target
 xcconfig, project, project xcconfig, defaults — is tinted green.
 
-**Defaults source.** When the `ycode-swb` helper is available (`YCODE_SWB`,
+**Defaults source.** When the `swiftcode-swb` helper is available (`SWIFTCODE_SWB`,
 `PATH`), the Defaults column is swift-build's exported value for a copy of
 the project in which every configuration keeps only `SDKROOT` and
 `SUPPORTED_PLATFORMS` (no xcconfig files): with nothing else assigned, the
@@ -113,7 +113,7 @@ build system's specifications provide every value. Paths under the copy's
 folder are mapped back to the project's folder. Results are cached per
 (target, configuration). A setting not assigned at any project level then
 resolves to its default, and the All filter lists every exported setting.
-Without the helper the column shows YcodeSettings' `defaults` level
+Without the helper the column shows SwiftCodeSettings' `defaults` level
 (empty unless a defaults table is loaded).
 
 ### Build Phases
@@ -127,7 +127,7 @@ removes the selected build file.
 ### Build Rules
 Each `PBXBuildRule`: file type / pattern, compiler or script; read-only.
 
-## Mutations (YcodeProject)
+## Mutations (SwiftCodeProject)
 
 All edits change the object graph through typed functions; the writer
 then serializes the whole file, and untouched objects keep their exact
@@ -144,9 +144,9 @@ bytes (sections and order are deterministic).
 
 New object IDs are 24 uppercase hex digits not already used. The project
 navigator's file operations (groups, folders, Add Files, delete, rename,
-move, sort) are further graph edits, in `YcodeIDECore`
+move, sort) are further graph edits, in `SwiftCodeIDECore`
 (`ProjectGraphEdits`, `ProjectFileOperations`); see `navigators.md`
-§Ycode implementation.
+§SwiftCode implementation.
 
 ## Evidence
 

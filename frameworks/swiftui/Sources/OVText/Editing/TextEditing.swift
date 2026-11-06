@@ -9,7 +9,7 @@
 // Offsets count grapheme clusters (`Character`s), the unit OVText shapes and
 // lays out in, so a caret can never fall inside a cluster.
 //
-// Ycode rules (no reference measurements; public platform conventions):
+// SwiftCode rules (no reference measurements; public platform conventions):
 // - A word is a run of letters, digits and underscores; any other non-space
 //   character is a word of its own; whitespace separates words.
 // - Typing coalesces into one undo step while each insertion continues the

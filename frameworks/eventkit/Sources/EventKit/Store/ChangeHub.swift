@@ -28,7 +28,7 @@ final class ChangeHub: @unchecked Sendable {
 
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
-    private let pollQueue = DispatchQueue(label: "org.ycode.eventkit.change-poll")
+    private let pollQueue = DispatchQueue(label: "org.swiftcode.eventkit.change-poll")
 
     func register(_ store: EKEventStore, path: String, currentSeq: Int64) {
         lock.lock(); defer { lock.unlock() }

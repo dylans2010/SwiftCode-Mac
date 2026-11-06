@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the bundled fixture set of ycode-weatherkit.
+"""Writes the bundled fixture set of swiftcode-weatherkit.
 
 All values are made up by this script (smooth curves and fixed patterns);
 they describe no real place or time. The files follow the Codable archive
@@ -273,7 +273,7 @@ def minutes():
 
 def alerts():
     return [{
-        "summary": "Fixture Winter Weather Advisory", "source": "Ycode Fixture Weather Office",
+        "summary": "Fixture Winter Weather Advisory", "source": "SwiftCode Fixture Weather Office",
         "region": "Fixture County", "severity": "moderate",
         "detailsURL": "https://fixtures.invalid/weatherkit/alerts/1",
         "metadata": metadata(ANCHOR, ANCHOR + timedelta(minutes=10)),

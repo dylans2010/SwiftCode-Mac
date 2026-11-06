@@ -318,7 +318,7 @@ public struct EngineQuirks: Hashable, Sendable {
 
     /// The reference's observed behavior.
     public static let reference = EngineQuirks()
-    /// Ycode's cleaned-up behavior.
+    /// SwiftCode's cleaned-up behavior.
     public static let none = EngineQuirks(declinedAskToBuyIsDelivered: false, expireLeavesFailedTransaction: false)
 }
 

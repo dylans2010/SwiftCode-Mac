@@ -100,7 +100,7 @@ package enum AccessibilityAnnouncements {
     package static var posted: [String] = []
 }
 
-/// The role of an element (Ycode's set; it maps onto AT-SPI and AccessKit
+/// The role of an element (SwiftCode's set; it maps onto AT-SPI and AccessKit
 /// roles).
 package enum AccessibilityRole: String, Sendable, Hashable {
     case window, group, staticText, image, button, toggle, slider, stepper, link, textField, secureTextField,
@@ -129,7 +129,7 @@ package struct AccessibilityRangeValue {
 // MARK: - Annotations
 
 /// What the modifiers of one view say (merged; the modifier nearest the
-/// view wins — Ycode's rule).
+/// view wins — SwiftCode's rule).
 package struct AccessibilityAttributes {
     package var label: String?
     package var value: String?
@@ -296,11 +296,11 @@ extension View {
     }
 }
 
-// MARK: - Default labels of Ycode's symbols
+// MARK: - Default labels of SwiftCode's symbols
 
 package enum SymbolAccessibilityLabels {
-    /// Ycode's labels for its symbol set: "star.fill" is the reference's
-    /// (08 §2: "Favorite"); the others are Ycode's words, or the name's first
+    /// SwiftCode's labels for its symbol set: "star.fill" is the reference's
+    /// (08 §2: "Favorite"); the others are SwiftCode's words, or the name's first
     /// component in title case.
     static let table: [String: String] = [
         "star.fill": "Favorite", "star": "Favorite", "heart": "Love", "heart.fill": "Love",

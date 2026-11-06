@@ -1,10 +1,10 @@
 # Refactoring and code navigation (language server)
 
-Ycode modules: `YcodeLanguage` (`LSPClient` requests, `TextEdit`,
-`WorkspaceEdit`, `CodeAction`, `CallHierarchyItem`), `YcodeUI`
+SwiftCode modules: `SwiftCodeLanguage` (`LSPClient` requests, `TextEdit`,
+`WorkspaceEdit`, `CodeAction`, `CallHierarchyItem`), `SwiftCodeUI`
 (`WorkspaceWindowController+Refactoring`, `SourceEditorController`,
 `GutterView`). All of it goes through the Language Server Protocol to
-sourcekit-lsp; Ycode adds no semantic analysis of its own.
+sourcekit-lsp; SwiftCode adds no semantic analysis of its own.
 
 ## Client capabilities added
 
@@ -109,11 +109,11 @@ Conformance"; on an expression "Extract Expression", "Extract Method",
   specification (level 1); sourcekit-lsp's open source for
   `codeActionsInline`, `semantic.refactor.command` and the action list
   (level 1); behavior checked against the real server in
-  `RefactoringTests` (level 3, Ycode).
+  `RefactoringTests` (level 3, SwiftCode).
 - Menu names and shortcuts: Apple's published Xcode shortcut reference
   (level 1).
 - OPEN QUESTION: the reference's in-place multi-cursor rename look and
   its cross-file preview layout; caller levels shown by default; whether
   Fix All Issues also covers build issues of other files.
 - The Linux IDE's rename sheet and preview, and references and callers in
-  its Find navigator: Ycode's own design (no observation).
+  its Find navigator: SwiftCode's own design (no observation).

@@ -1,13 +1,13 @@
-# Layout probe: Ycode's macOS IDE on other macOS versions
+# Layout probe: SwiftCode's macOS IDE on other macOS versions
 
-Ycode's spacing was tuned on macOS 27.2. The layout probe built into
-Ycode.app measures the IDE's chrome on any Mac, with no developer tools
+SwiftCode's spacing was tuned on macOS 27.2. The layout probe built into
+SwiftCode.app measures the IDE's chrome on any Mac, with no developer tools
 (`specs/ide/metrics.md` §14 describes it and the fixes it led to).
 
 ## Running it
 
 ```sh
-cd ycode
+cd swiftcode
 scripts/layout-probe.sh local                     # this Mac
 scripts/layout-probe.sh <user>@<other-mac>        # another Mac over SSH (keys only)
 python3 -I scripts/layout-probe-table.py \
@@ -15,20 +15,20 @@ python3 -I scripts/layout-probe-table.py \
     .build-ide/layout-probe/<user>_<other-mac>/probe.json
 ```
 
-The script builds `.build-ide/probe-app/Ycode.app` (`YCODE_APP_MINIMAL=1
+The script builds `.build-ide/probe-app/SwiftCode.app` (`SWIFTCODE_APP_MINIMAL=1
 scripts/make-app.sh`) when it is missing, copies it to the other Mac's
-`~/ycode-layout-probe/`, launches it in the logged-in GUI session with
-`open -n --env YCODE_LAYOUT_PROBE=...`, waits for the report (ending the
-probe's own process after `YCODE_PROBE_TIMEOUT` seconds) and copies back
+`~/swiftcode-layout-probe/`, launches it in the logged-in GUI session with
+`open -n --env SWIFTCODE_LAYOUT_PROBE=...`, waits for the report (ending the
+probe's own process after `SWIFTCODE_PROBE_TIMEOUT` seconds) and copies back
 `probe.json`, `probe.log` and the snapshots in `shots/`. The other Mac
-needs only a GUI session for the SSH user. `YCODE_PROBE_SHOW=1` orders the
+needs only a GUI session for the SSH user. `SWIFTCODE_PROBE_SHOW=1` orders the
 windows in; a smaller screen then shortens them.
 
 The first launch of a newly copied app can take minutes while the system
 checks it (about 4 minutes on a macOS 26.6 virtual machine); later launches
 take about 20 seconds. After each rebuild, run once with
-`YCODE_PROBE_TIMEOUT=400`. When `open` refuses the app (LaunchServices
-error -10810, seen for local runs on a Mac with many copies of Ycode.app),
+`SWIFTCODE_PROBE_TIMEOUT=400`. When `open` refuses the app (LaunchServices
+error -10810, seen for local runs on a Mac with many copies of SwiftCode.app),
 `layout-probe-run.sh` runs the executable directly, which works from a shell
 in the GUI session (a local run), not over SSH.
 
@@ -36,12 +36,12 @@ The app reads:
 
 | Variable | Meaning |
 |---|---|
-| `YCODE_LAYOUT_PROBE` | where the JSON report goes (the probe runs only with it) |
-| `YCODE_LAYOUT_PROBE_PROJECT` | the project to open (default: a package "Demo" in a temporary folder) |
-| `YCODE_LAYOUT_PROBE_SHOTS` | a folder for `cacheDisplay` snapshots |
-| `YCODE_LAYOUT_PROBE_SETTLE` | seconds per state (default 1.5) |
-| `YCODE_LAYOUT_PROBE_SHOW` | `1`: order the windows in |
-| `YCODE_LAYOUT_PROBE_APPEARANCE` | `dark` for the dark appearance (default light) |
+| `SWIFTCODE_LAYOUT_PROBE` | where the JSON report goes (the probe runs only with it) |
+| `SWIFTCODE_LAYOUT_PROBE_PROJECT` | the project to open (default: a package "Demo" in a temporary folder) |
+| `SWIFTCODE_LAYOUT_PROBE_SHOTS` | a folder for `cacheDisplay` snapshots |
+| `SWIFTCODE_LAYOUT_PROBE_SETTLE` | seconds per state (default 1.5) |
+| `SWIFTCODE_LAYOUT_PROBE_SHOW` | `1`: order the windows in |
+| `SWIFTCODE_LAYOUT_PROBE_APPEARANCE` | `dark` for the dark appearance (default light) |
 
 The report holds the macOS version, the backing scale, the screen size,
 every frame (`frames`) and each measure against its spec value
@@ -103,10 +103,10 @@ identical values on both.
 | editor.debugBar.maxY | 900 (±0.5) | 900 | 0 | 900 | 0 | metrics.md §4 |
 | editor.debugBar.h | 36 (±0.5) | 36 | 0 | 36 | 0 | metrics.md §4 |
 | inspector.area.w | 260 (±0.5) | 260 | 0 | 260 | 0 | metrics.md §5 |
-| inspector.tabs.x | 1146 (±0.5) | 1146 | 0 | 1146 | 0 | LiquidGlassTests, liquid-glass-ycode.md §3 |
-| inspector.tabs.y | 51 (±0.5) | 51 | 0 | 51 | 0 | LiquidGlassTests, liquid-glass-ycode.md §3 |
-| inspector.tabs.maxX | 1394 (±0.5) | 1394 | 0 | 1394 | 0 | LiquidGlassTests, liquid-glass-ycode.md §3 |
-| inspector.tabs.h | 30 (±0.5) | 30 | 0 | 30 | 0 | LiquidGlassTests, liquid-glass-ycode.md §3 |
+| inspector.tabs.x | 1146 (±0.5) | 1146 | 0 | 1146 | 0 | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
+| inspector.tabs.y | 51 (±0.5) | 51 | 0 | 51 | 0 | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
+| inspector.tabs.maxX | 1394 (±0.5) | 1394 | 0 | 1394 | 0 | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
+| inspector.tabs.h | 30 (±0.5) | 30 | 0 | 30 | 0 | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
 | inspector.tabPill.w | 78 (±0.5) | 78 | 0 | 78 | 0 | metrics.md §5 |
 | inspector.tabPill.h | 24 (±0.5) | 24 | 0 | 24 | 0 | metrics.md §5 |
 | inspector.name.trailingInset | 7 (±1) | 6 | -1 | 6 | -1 | metrics.md §12.4, UISpacingTests |
@@ -222,10 +222,10 @@ out as above; all are met on both systems.
 | editor.debugBar.maxY | 900 (±0.5) | 900 | 0 | 900 | 0 | metrics.md §4 |
 | editor.debugBar.h | 36 (±0.5) | 36 | 0 | 27 | 0 | metrics.md §4 |
 | inspector.area.w | 260 (±0.5) | 260 | 0 | 260 | 0 | metrics.md §5 |
-| inspector.tabs.x | 1146 (±0.5) | 1146 | 0 | - | - | LiquidGlassTests, liquid-glass-ycode.md §3 |
-| inspector.tabs.y | 51 (±0.5) | 51 | 0 | - | - | LiquidGlassTests, liquid-glass-ycode.md §3 |
-| inspector.tabs.maxX | 1394 (±0.5) | 1394 | 0 | - | - | LiquidGlassTests, liquid-glass-ycode.md §3 |
-| inspector.tabs.h | 30 (±0.5) | 30 | 0 | - | - | LiquidGlassTests, liquid-glass-ycode.md §3 |
+| inspector.tabs.x | 1146 (±0.5) | 1146 | 0 | - | - | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
+| inspector.tabs.y | 51 (±0.5) | 51 | 0 | - | - | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
+| inspector.tabs.maxX | 1394 (±0.5) | 1394 | 0 | - | - | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
+| inspector.tabs.h | 30 (±0.5) | 30 | 0 | - | - | LiquidGlassTests, liquid-glass-swiftcode.md §3 |
 | inspector.tabPill.w | 78 (±0.5) | 78 | 0 | - | - | metrics.md §5 |
 | inspector.tabPill.h | 24 (±0.5) | 24 | 0 | - | - | metrics.md §5 |
 | inspector.name.trailingInset | 7 (±1) | 6 | -1 | 6 | -1 | metrics.md §12.4, UISpacingTests |

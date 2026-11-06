@@ -1,13 +1,13 @@
-# GitHub service — the `YcodeGitHub` client, the GitHub tools, and remote git
+# GitHub service — the `SwiftCodeGitHub` client, the GitHub tools, and remote git
 
-Wave 10 of the Legacy → Mac migration. Before this wave, Ycode's MCP
+Wave 10 of the Legacy → Mac migration. Before this wave, SwiftCode's MCP
 host had no GitHub API client and no GitHub credential flow: `github_repo`
 (Wave 3, §71.4 of the Assist catalogue), the seven Agentic GitHub tools,
 and `git_pull` / `git_push` / `git_clone` (Wave 8) were all registered
 but honestly failing, and `version_control_operator` rejected every
 remote action. This wave removes all of those prerequisites:
 
-- **Part 1** — the new `YcodeGitHub` SwiftPM target: a small `URLSession`
+- **Part 1** — the new `SwiftCodeGitHub` SwiftPM target: a small `URLSession`
   client for `api.github.com`, with Keychain-stored token, rate-limit
   handling, pagination, and typed errors.
 - **Part 2** — the seven Agentic GitHub tools plus `github_repo`, wired
@@ -24,7 +24,7 @@ a GitHub personal access token (Settings ▸ Coding Assistant ▸ GitHub)
 to enable the authenticated tools; public reads work without one at
 GitHub's lower rate limit.
 
-## Part 1 — The `YcodeGitHub` client
+## Part 1 — The `SwiftCodeGitHub` client
 
 `public struct GitHubClient: Sendable` is the single `api.github.com`
 client the assistant's GitHub tools and the settings pane share. It is
@@ -32,7 +32,7 @@ a value type with no stored token: the token is read from the secret
 store on every request through a `@Sendable () -> String?`
 `tokenProvider`, so a token saved or removed in Settings takes effect
 without rebuilding the client. Implementation:
-`ycode/Sources/YcodeGitHub/` (`GitHubClient.swift`, `GitHubModels.swift`,
+`swiftcode/Sources/SwiftCodeGitHub/` (`GitHubClient.swift`, `GitHubModels.swift`,
 `GitHubError.swift`, `GitHubRepoReference.swift`).
 
 - Base URL is the constant `https://api.github.com` — not
@@ -42,7 +42,7 @@ without rebuilding the client. Implementation:
 - `lastRateLimit` is `public private(set)`; the mutable state lives in
   a locked box (`RateLimitBox`) because a struct's computed setter is
   implicitly mutating — the setter is `nonmutating set`, following the
-  `YcodeDarwinKernel` precedent (`ExtendedBSD.swift` `ioPolicies`).
+  `SwiftCodeDarwinKernel` precedent (`ExtendedBSD.swift` `ioPolicies`).
 - Decoding is one shared `JSONDecoder`:
   `.convertFromSnakeCase` + `.iso8601`, as in Legacy's
   `snakeCaseDecoder()`. Nested objects (`owner.login`, `head.ref`,
@@ -60,7 +60,7 @@ without rebuilding the client. Implementation:
 |---|---|
 | `Accept` | `application/vnd.github+json` |
 | `X-GitHub-Api-Version` | `2022-11-28` |
-| `User-Agent` | `Ycode` |
+| `User-Agent` | `SwiftCode` |
 | `Authorization` | `Bearer <token>` — only when the provider returns a non-empty token |
 | `Content-Type` | `application/json` — POST/PATCH only |
 
@@ -236,13 +236,13 @@ public enum GitHubRepoReference: Sendable {
 }
 ```
 
-Package wiring: `YcodeGitHub` library product + target, plus
-`YcodeGitHubTests`; `YcodeMCP` and `YcodeUI` (the settings pane
-imports it) depend on `YcodeGitHub`.
+Package wiring: `SwiftCodeGitHub` library product + target, plus
+`SwiftCodeGitHubTests`; `SwiftCodeMCP` and `SwiftCodeUI` (the settings pane
+imports it) depend on `SwiftCodeGitHub`.
 
 ## Part 2 — The GitHub tools, wired to the client
 
-Host helpers live in `ycode/Sources/YcodeMCP/YcodeGitHubHost.swift`
+Host helpers live in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeGitHubHost.swift`
 (135 lines): `gitHubClient()` (token provider = `secretStore.string(for: .githubToken)`),
 `resolveGitHubRepo` (explicit `repository` argument → workspace git
 remote origin → a clear error naming the missing repository),
@@ -353,7 +353,7 @@ port). No token required for a public search. Success:
 ### 2.8 `github_repo` — GitHub Repository Inspector (Assist)
 
 All seven operations now run against the live GitHub API through
-`YcodeGitHub`; the Wave 3 honest failure is gone. The tool keeps
+`SwiftCodeGitHub`; the Wave 3 honest failure is gone. The tool keeps
 its Legacy ID, title, description, and schema (Assist catalogue
 §82), and the same repository resolution as the Agentic tools
 (`owner`+`repo`, `url`, or the workspace git remote origin).
@@ -398,7 +398,7 @@ An unknown operation fails with
 
 `git_pull`, `git_push`, and `git_clone` are now real. They keep their
 Legacy IDs, schemas, and descriptions, run through the existing git
-runner (`YcodeTools+Git.swift`, argument vector, never a shell, the
+runner (`SwiftCodeTools+Git.swift`, argument vector, never a shell, the
 same non-interactive environment as the local tools), and are
 approval-gated. All three are now registered `writes: true` with
 `annotations: safeMutation` (a remote write is still a safe
@@ -428,7 +428,7 @@ git's own error.
 
 ### 3.2 `version_control_operator` remote sub-ops
 
-The Wave 3 rejection is replaced by real sub-ops. These are a Ycode
+The Wave 3 rejection is replaced by real sub-ops. These are a SwiftCode
 addition, not a Legacy port — Legacy implements no remote sub-ops
 and its schema accepts only `status, commit, branch, rollback,
 diff`. The `action` enum gains `push`, `pull`, `fetch`, `clone`,
@@ -473,7 +473,7 @@ not cached.
 
 The test seam is `agenticGitTestSecretStore` (settable from tests,
 nil in production), matching the existing `agenticGitTestHost`
-pattern in `YcodeTools+AgenticGit.swift`.
+pattern in `SwiftCodeTools+AgenticGit.swift`.
 
 ### 3.5 What is NOT in this wave
 

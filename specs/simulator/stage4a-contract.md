@@ -59,7 +59,7 @@ In addition:
     finish (and the VM cannot be destroyed) while a creation is in flight.
     A creation that fails ends the process like any other vCPU failure
     (status 1); a process that ends meanwhile drops the reservation.
-    `YCODE_VCPU_CREATORS=0` restores inline creation (diagnostics).
+    `SWIFTCODE_VCPU_CREATORS=0` restores inline creation (diagnostics).
 - **The kernel's shared state** (port spaces, the thread table, ulock
   queues, workqueues, kevent queues, the VFS, the address space) lives in
   one Swift object per VM.
@@ -82,7 +82,7 @@ In addition:
 - **FP/SIMD state** stays in each vCPU's own registers. KVM preserves it
   across exits, so the shim never saves it.
 
-## 3. Shim changes (`ycode/SimShim/shim.S`)
+## 3. Shim changes (`swiftcode/SimShim/shim.S`)
 
 - **Per-vCPU boot info.** Each vCPU starts at the shim entry with `x0` = the
   address of its **own** boot-info block (the stage-2 §4 layout). The block
@@ -124,7 +124,7 @@ Each 64 KiB slot holds:
 - vCPU 0 (the main thread) **moves to slot 0**. The stage-2 single-frame
   addresses remain only for the stage-2 self-test mode.
 
-## 5. Threads (`YcodeDarwinKernel` + hypervisor)
+## 5. Threads (`SwiftCodeDarwinKernel` + hypervisor)
 
 Following `threads-and-events.md` §1–§2:
 
@@ -194,7 +194,7 @@ Following `threads-and-events.md` §1–§2:
     the manager bucket, following the spec. A delivered event is suppressed
     until the worker returns it.
 
-## 6. Mach IPC inside one process (`YcodeDarwinKernel`)
+## 6. Mach IPC inside one process (`SwiftCodeDarwinKernel`)
 
 Following `mach-ipc.md` §1–§5:
 
@@ -242,12 +242,12 @@ Following `mach-ipc.md` §1–§5:
 
 | Agent | Files |
 |---|---|
-| **S2** (shim) | `ycode/SimShim/shim.S`, `SimShim/README.md` (§3) |
-| **V** (hypervisor) | `ycode/Sources/CKVM/`, `ycode/Sources/YcodeHypervisor/`, `ycode/Sources/ycode-simd/main.swift`, and new `ycode/SimShim/guest-tests/` build entries for the stage-4 probes (copy the probe sources into `guest-tests/stage4/`; the originals stay in research). Covers §2, §4, and the vCPU pool and run loops, integration, and the probe runs |
-| **T2** (threads and events) | In `YcodeDarwinKernel`: new `Threads.swift`, `Workqueue.swift`, `KEvent.swift`, `ULock.swift`, `Semaphores.swift`, plus `DarwinKernel.swift` dispatch and `ExtendedBSD.swift` (§5). Tests in `Tests/YcodeDarwinKernelTests/` (new files) |
-| **I** (Mach IPC) | In `YcodeDarwinKernel`: new `MachIPC*.swift`, replacing `MachPortTable.swift` (§6). Tests in new test files |
-| **Q2** (pthread) | `ycode/SimHostLibs/pthread/` (§7) |
-| **K2** (kernel library) | `ycode/SimHostLibs/kernel/` (§7) |
+| **S2** (shim) | `swiftcode/SimShim/shim.S`, `SimShim/README.md` (§3) |
+| **V** (hypervisor) | `swiftcode/Sources/CKVM/`, `swiftcode/Sources/SwiftCodeHypervisor/`, `swiftcode/Sources/swiftcode-simd/main.swift`, and new `swiftcode/SimShim/guest-tests/` build entries for the stage-4 probes (copy the probe sources into `guest-tests/stage4/`; the originals stay in research). Covers §2, §4, and the vCPU pool and run loops, integration, and the probe runs |
+| **T2** (threads and events) | In `SwiftCodeDarwinKernel`: new `Threads.swift`, `Workqueue.swift`, `KEvent.swift`, `ULock.swift`, `Semaphores.swift`, plus `DarwinKernel.swift` dispatch and `ExtendedBSD.swift` (§5). Tests in `Tests/SwiftCodeDarwinKernelTests/` (new files) |
+| **I** (Mach IPC) | In `SwiftCodeDarwinKernel`: new `MachIPC*.swift`, replacing `MachPortTable.swift` (§6). Tests in new test files |
+| **Q2** (pthread) | `swiftcode/SimHostLibs/pthread/` (§7) |
+| **K2** (kernel library) | `swiftcode/SimHostLibs/kernel/` (§7) |
 
 **The kernel lock and the blocking primitive are defined by T2** in a new
 `KernelSync.swift`:
@@ -289,7 +289,7 @@ The orchestrator owns `Package.swift`, the specs, and the commits.
 
 - `threads-and-events.md` and `mach-ipc.md` (level 1, xnu-12377.121.6).
 - `launchd-sim.md` (levels 3–4).
-- The execution model is Ycode design, using the KVM facts in
+- The execution model is SwiftCode design, using the KVM facts in
   `threads-and-events.md` §6.
 
 

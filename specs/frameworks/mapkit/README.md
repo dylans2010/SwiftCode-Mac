@@ -16,7 +16,7 @@ used through MapKit (`MKGeocodingRequest`, `MKReverseGeocodingRequest`, and
 snapshots, opening Maps, string constants and errors. It records what
 Apple's simulator does today — MapKit **works fully there without any
 account**, but it **needs the network** (through the `geod` daemon) and
-**Metal in the app process** — which is the baseline Ycode's simulator
+**Metal in the app process** — which is the baseline SwiftCode's simulator
 must match first.
 
 Not covered: MapKit JS, the Maps app itself, the private GeoServices wire
@@ -31,7 +31,7 @@ protocol and data formats (we never decode Apple's map data), navigation
 | `interface.md` | Module layout, value types, `MKMapView` state, configurations, delegate order, ornaments, annotations, clustering, overlays and renderers, camera, user location, SwiftUI `Map`, snapshots, Look Around, opening maps, string constants |
 | `geometry.md` | Golden values and our fitted formulas: projection, meters per map point, distances, regions, rect algebra, overlay shapes, viewport fitting and field of view, camera relations and clamps, overlay/annotation placement, snapshot geometry, SwiftUI framing, distance formatter |
 | `services.md` | Map items and addresses, local search, completer, directions and ETA, geocoding, errors (`MKErrorDomain` codes and userInfo keys) |
-| `design.md` | **Ycode-original design note**: the dependencies of Target A (Apple's MapKit in Ycode's simulator, A1–A12) and the architecture of an open MapKit (MapLibre Native, open data services, licenses) |
+| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: the dependencies of Target A (Apple's MapKit in SwiftCode's simulator, A1–A12) and the architecture of an open MapKit (MapLibre Native, open data services, licenses) |
 | `plan.md` | Simulator-parity rounds R1–R6, open-MapKit rounds R7–R15, conformance tests, how to rerun the probe |
 | `api-inventory.md` | Generated appendix: every class, protocol, enumeration, constant, function and SwiftUI/Swift-overlay name with introduction versions |
 
@@ -59,7 +59,7 @@ Generators: `research/experiments/mapkit/{extract_objc_names,extract_swift_names
 
 Level 1: public documentation (summarized in our words). Level 2: the
 runtime's launchd plists and bundle Info.plists read as files. Level 3:
-`MKProbe` on `ycode-test-mapkit-271` and `ycode-test-mapkit-270`, `geod`'s
+`MKProbe` on `swiftcode-test-mapkit-271` and `swiftcode-test-mapkit-270`, `geod`'s
 unified log, our `svctrace` interposer in our own app. Level 4: SDK names,
 enum raw values and availability, runtime class names of views. Level 5
 (disassembly/decompilation) was **not** used; no IPSW was opened; Ghidra was

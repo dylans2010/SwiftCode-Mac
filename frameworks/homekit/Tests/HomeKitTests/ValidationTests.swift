@@ -5,15 +5,15 @@ import Foundation
 import Testing
 @testable import HomeKit
 
-private typealias M = YcodeCharacteristicMetadata
+private typealias M = SwiftCodeCharacteristicMetadata
 
 private func code(_ value: Any?, _ m: M) -> Int? {
-    if case .failure(let e) = YcodeValueValidation.validate(value, metadata: m) { return e.code.rawValue }
+    if case .failure(let e) = SwiftCodeValueValidation.validate(value, metadata: m) { return e.code.rawValue }
     return nil
 }
 
-private func value(_ v: Any?, _ m: M) -> YcodeHomeValue? {
-    try? YcodeValueValidation.validate(v, metadata: m).get()
+private func value(_ v: Any?, _ m: M) -> SwiftCodeHomeValue? {
+    try? SwiftCodeValueValidation.validate(v, metadata: m).get()
 }
 
 @Suite("T-O2 value validation (object-model.md §7)")
@@ -101,12 +101,12 @@ struct ValidationTests {
 
     @Test("API form: numbers and booleans as NSNumber, strings as String, data as Data")
     func apiForm() {
-        #expect(YcodeHomeValue.bool(true).apiValue as? Bool == true)
-        #expect(YcodeHomeValue.bool(true).apiValue is NSNumber)
-        #expect(YcodeHomeValue.int(42).apiValue as? Int == 42)
-        #expect(YcodeHomeValue.uint(7).apiValue as? NSNumber == NSNumber(value: 7))
-        #expect(YcodeHomeValue.float(1.5).apiValue as? Double == 1.5)
-        #expect(YcodeHomeValue.string("x").apiValue as? String == "x")
-        #expect(YcodeHomeValue.data(Data([9])).apiValue as? Data == Data([9]))
+        #expect(SwiftCodeHomeValue.bool(true).apiValue as? Bool == true)
+        #expect(SwiftCodeHomeValue.bool(true).apiValue is NSNumber)
+        #expect(SwiftCodeHomeValue.int(42).apiValue as? Int == 42)
+        #expect(SwiftCodeHomeValue.uint(7).apiValue as? NSNumber == NSNumber(value: 7))
+        #expect(SwiftCodeHomeValue.float(1.5).apiValue as? Double == 1.5)
+        #expect(SwiftCodeHomeValue.string("x").apiValue as? String == "x")
+        #expect(SwiftCodeHomeValue.data(Data([9])).apiValue as? Data == Data([9]))
     }
 }

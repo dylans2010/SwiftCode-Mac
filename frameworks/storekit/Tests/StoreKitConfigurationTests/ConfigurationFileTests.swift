@@ -120,9 +120,9 @@ struct KeyTests {
         #expect(c.extra.isEmpty)
         #expect(!c.isSynchronized)
         #expect(c.allProducts.map(\.productID) == [
-            "dev.ycode.skprobe.coins100", "dev.ycode.skprobe.pro", "dev.ycode.skprobe.season",
-            "dev.ycode.skprobe.plus.monthly", "dev.ycode.skprobe.plus.yearly", "dev.ycode.skprobe.plus.lite",
-            "dev.ycode.skprobe.extra.weekly",
+            "dev.swiftcode.skprobe.coins100", "dev.swiftcode.skprobe.pro", "dev.swiftcode.skprobe.season",
+            "dev.swiftcode.skprobe.plus.monthly", "dev.swiftcode.skprobe.plus.yearly", "dev.swiftcode.skprobe.plus.lite",
+            "dev.swiftcode.skprobe.extra.weekly",
         ])
     }
 
@@ -130,7 +130,7 @@ struct KeyTests {
     func product() {
         let coins = c.products![0]
         #expect(coins.type == .consumable)
-        #expect(coins.productID == "dev.ycode.skprobe.coins100")
+        #expect(coins.productID == "dev.swiftcode.skprobe.coins100")
         #expect(coins.referenceName == "100 Probe Coins")
         #expect(coins.internalID == "100000001")
         #expect(coins.displayPrice == "0.99")
@@ -150,7 +150,7 @@ struct KeyTests {
         let plus = c.subscriptionGroups![0]
         #expect(plus.id == "200000001")
         #expect(plus.name == "Plus")
-        #expect(plus.localizations?.first?.displayName == "Ycode Plus")
+        #expect(plus.localizations?.first?.displayName == "SwiftCode Plus")
         let monthly = plus.subscriptions![0]
         #expect(monthly.type == .recurringSubscription)
         #expect(monthly.subscriptionGroupID == "200000001")

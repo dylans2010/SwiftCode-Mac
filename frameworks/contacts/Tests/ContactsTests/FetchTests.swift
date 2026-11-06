@@ -17,11 +17,11 @@ final class ProbeData {
 
     init() throws {
         // c1: the Avery with an organization, nickname "Ave", job title
-        // "ycode-probe" and a UK phone. Its phonetic names are an
+        // "swiftcode-probe" and a UK phone. Its phonetic names are an
         // assumption of this test (see README, spec question 3).
         c1 = person("Avery", "Example", org: "Example Widgets LLC")
         c1.nickname = "Ave"
-        c1.jobTitle = "ycode-probe"
+        c1.jobTitle = "swiftcode-probe"
         c1.phoneticGivenName = "AY-ver-ee"
         c1.phoneticFamilyName = "ig-ZAM-pul"
         c1.phoneNumbers = [phone("+44 20 7946 0000", CNLabelWork)]
@@ -35,14 +35,14 @@ final class ProbeData {
         c5 = person("Pixel", "Probe")
         c6 = CNMutableContact()
         c6.contactType = .organization
-        c6.organizationName = "Ycode Probe Widgets"
+        c6.organizationName = "SwiftCode Probe Widgets"
         c7 = person("太郎", "山田")
         c7.phoneticGivenName = "たろう"
         c7.phoneticFamilyName = "やまだ"
         noaccess = person("Noaccess", "Example")
         try save(t.store) { $0.add(noaccess, toContainerWithIdentifier: nil) }
         let all = [c1, c2, c3, c4, c5, c6, c7]
-        try save(t.store, author: "ycode-probe") { r in all.forEach { r.add($0, toContainerWithIdentifier: nil) } }
+        try save(t.store, author: "swiftcode-probe") { r in all.forEach { r.add($0, toContainerWithIdentifier: nil) } }
     }
 
     func ids(_ predicate: NSPredicate) throws -> Set<String> {
@@ -65,7 +65,7 @@ struct PredicateTests {
         #expect(try byName("Example Avery") == averys)
         #expect(try byName("Ave") == averys)
         #expect(try byName("Widgets") == [d.c6.identifier, d.c1.identifier])
-        #expect(try byName("Ycode Probe Widgets") == [d.c6.identifier, d.c1.identifier])
+        #expect(try byName("SwiftCode Probe Widgets") == [d.c6.identifier, d.c1.identifier])
         #expect(try byName("山田") == [d.c7.identifier])
         #expect(try byName("やまだ") == [d.c7.identifier])
         #expect(try byName("Avéry") == averys)
@@ -130,14 +130,14 @@ struct SortTests {
     func givenOrder() throws {
         let d = try ProbeData()
         #expect(try order(d, .givenName) == ["Avery/Example", "Avery/Example/Example Widgets LLC", "Blake/Example",
-                                             "Casey/Sample", "Pixel/Probe", "//Ycode Probe Widgets", "太郎/山田"])
+                                             "Casey/Sample", "Pixel/Probe", "//SwiftCode Probe Widgets", "太郎/山田"])
     }
 
     @Test("sortOrder 3 family name and 1 user default (= family)")
     func familyOrder() throws {
         let d = try ProbeData()
         let expected = ["Avery/Example", "Blake/Example", "Avery/Example/Example Widgets LLC", "Pixel/Probe",
-                        "Casey/Sample", "//Ycode Probe Widgets", "太郎/山田"]
+                        "Casey/Sample", "//SwiftCode Probe Widgets", "太郎/山田"]
         #expect(try order(d, .familyName) == expected)
         #expect(try order(d, .userDefault) == expected)
     }
@@ -180,7 +180,7 @@ struct FetchCallTests {
         let e = expectCode(.unauthorizedKeys) { _ = try t.store.unifiedContacts(matching: nil, keysToFetch: keys(CNContactNoteKey)) }
         #expect(e?.keyPaths == ["note"])
         #expect((e as NSError?)?.userInfo[CNErrorUserInfoAffectedRecordsKey] != nil)
-        let withNotes = try YcodeContactsEnvironment.$notesOverride.withValue(true) {
+        let withNotes = try SwiftCodeContactsEnvironment.$notesOverride.withValue(true) {
             try t.store.unifiedContacts(matching: nil, keysToFetch: keys(CNContactNoteKey))
         }
         #expect(withNotes.count == 6)

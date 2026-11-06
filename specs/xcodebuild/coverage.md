@@ -1,6 +1,6 @@
 # xcodebuild: code coverage in result bundles
 
-Ycode: `YcodeXcodebuild` (`Coverage`, `CoverageData`). Related:
+SwiftCode: `SwiftCodeXcodebuild` (`Coverage`, `CoverageData`). Related:
 `test-actions.md` §1 (profiles), `result-bundle.md` (the store).
 
 When a test run collects coverage (the scheme's "Gather coverage" setting
@@ -91,7 +91,7 @@ lines, executable lines, line number, executable lines, execution count,
 0; then the names in the same order, each followed by a NUL byte.
 
 **Archive structure** (the keyed-archive format, so any reader of it
-decodes the report; ycodebuild writes it itself, without a platform
+decodes the report; swiftcodebuild writes it itself, without a platform
 archiver, so every platform gives the same bytes): top-level keys
 `$archiver` = `NSKeyedArchiver`, `$version` = 100000, `$top` = {`root`:
 UID 1}, `$objects`. `$objects[0]` is `$null`; an object is a dictionary of
@@ -114,7 +114,7 @@ test bundle: `<target>-<UUID>-Configuration-Test Scheme
 Action-Iteration-1/<target>-<UUID>/StandardOutputAndStandardError.txt`
 with the runner's console output. (The reference tool adds a session log,
 `scheduling.log` and a `My Mac_<device id>/testmanagerd.log` from its test
-daemon; ycodebuild has no such daemon.)
+daemon; swiftcodebuild has no such daemon.)
 
 ## Evidence
 
@@ -126,12 +126,12 @@ daemon; ycodebuild has no such daemon.)
 - Function line counts equal `llvm-cov report -show-functions`, and line
   counts and subranges equal the rules above, on every line of the sample
   files: `xccov view --report --json` and `--archive --json --file` give
-  identical output for the reference's and ycodebuild's bundles
+  identical output for the reference's and swiftcodebuild's bundles
   (`conformance.md`). LLVM line rules, `llvm-cov` and `swift-demangle`:
   open source (level 1).
 - Archive structure: the reference's report studied as a file (level 2);
   the object order is the one a keyed archiver gives for these keys, so
-  a report ycodebuild writes has the same `$objects` layout as one from
+  a report swiftcodebuild writes has the same `$objects` layout as one from
   the macOS archiver for the same data (checked with `plutil -p`), and
   `xccov` reads it (`conformance.md`, `test-coverage`). `bplist00`:
   CoreFoundation open source (level 1). Unit test

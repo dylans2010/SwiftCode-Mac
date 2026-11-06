@@ -16,7 +16,7 @@ import SwiftUICore
 // item closes the whole chain. Escape closes the pop-up, the arrow keys move
 // between items, Space and Return choose; a press outside closes it.
 //
-// Look (Ycode, 09 §4.2): a rectangle in the menu background colour with a
+// Look (SwiftCode, 09 §4.2): a rectangle in the menu background colour with a
 // hairline outline, 5 points above and below the rows; rows 26 points high
 // with an 18-point slot for check marks.
 
@@ -279,7 +279,7 @@ public struct MenuStyleConfiguration {
 
 @MainActor @preconcurrency
 public protocol MenuStyle {
-    /// Ycode's style identifier: 0 borderless (automatic), 1 button.
+    /// SwiftCode's style identifier: 0 borderless (automatic), 1 button.
     var _ovStyleKind: Int { get }
 }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Ycode's own SQLite schema (`design.md` §4). `user_version` tracks it.
+/// SwiftCode's own SQLite schema (`design.md` §4). `user_version` tracks it.
 enum Schema {
     static let version = 1
 

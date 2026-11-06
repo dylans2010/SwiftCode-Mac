@@ -1,10 +1,10 @@
 # Library
 
-Ycode module: `YcodeUI` (`LibraryContent`, `LibraryController`,
+SwiftCode module: `SwiftCodeUI` (`LibraryContent`, `LibraryController`,
 `SourceEditorController.insertLibraryText`).
 
 View ▸ Show Library (⇧⌘L) shows the Library: a floating utility panel
-near the top of the workspace window that hides when Ycode is inactive.
+near the top of the workspace window that hides when SwiftCode is inactive.
 View ▸ Open Library (⌥⇧⌘L) opens it so that it stays open. Correction
 (2026-10-19): the reference's default toolbar has no Library button; the
 "+" there is the Add Editor menu (`reference-ui-5.md` §2.4, §4).
@@ -15,11 +15,11 @@ A segmented control (Snippets, Symbols, and Objects while an Interface
 Builder document is the focused editor), a filter field, a list, and a
 detail area showing the selected item's text.
 
-- Objects: the UIKit or AppKit object kinds Ycode can insert into the
+- Objects: the UIKit or AppKit object kinds SwiftCode can insert into the
   focused document (the insertion rules are in `interface-builder.md`
-  "Inserting objects"), with their class names; Ycode's own icons.
+  "Inserting objects"), with their class names; SwiftCode's own icons.
 
-- Snippets: Ycode's own code snippets (written for Ycode from scratch):
+- Snippets: SwiftCode's own code snippets (written for SwiftCode from scratch):
   title in bold, then summary and language. Filter matches title, summary
   or language, case-insensitively.
 - Symbols: a hand-written list of generic symbol names, each drawn through
@@ -38,7 +38,7 @@ detail area showing the selected item's text.
   in the editor inserts it at the drop point.
 
 Placeholders use the `<#text#>` token form documented for code snippets;
-Ycode does not yet draw them as tokens or move between them with Tab.
+SwiftCode does not yet draw them as tokens or move between them with Tab.
 
 ## Reference Objects library for UIKit documents (observed 2026-11-05)
 
@@ -81,7 +81,7 @@ them.
   - long description, in a scrollable text area 381 × 339 at
     (278, 152).
 
-  Ycode writes its own summaries and descriptions. The reference's text
+  SwiftCode writes its own summaries and descriptions. The reference's text
   is not copied.
 - **Selection.** The detail area shows the selected item. Filtering
   selects the first match.
@@ -298,7 +298,7 @@ each object is still OPEN. What is known:
    | Long Press Gesture Recognizer | `allowableMovement="10" minimumPressDuration="0.5"` | — |
    | Swipe / Pan / Screen Edge Pan | `direction="right"` / `minimumNumberOfTouches="1"` / `minimumNumberOfTouches="1"` | — |
 
-   Values that Ycode should not take from this table because they are
+   Values that SwiftCode should not take from this table because they are
    only seen in older files: every size marked "(older)", and anything
    marked OPEN. The attribute sets are safer: the reference kept them
    unchanged when it saved our test document.
@@ -310,7 +310,7 @@ each object is still OPEN. What is known:
    - `<autoresizingMask key="autoresizingMask" flexibleMaxX="YES"
      flexibleMaxY="YES"/>`.
 
-   This combination was found in 133 of 134 such views. Ycode's current
+   This combination was found in 133 of 134 such views. SwiftCode's current
    insert writes only `translatesAutoresizingMaskIntoConstraints="NO"`.
    Adding `fixedFrame="YES"` and that autoresizing mask matches the
    files. Whether the reference writes `fixedFrame` at insert or only

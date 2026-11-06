@@ -10,7 +10,7 @@ import Testing
 @testable import SwiftUI
 #endif
 
-// What the Linux IDE's polish pass needed from OpenViews (Ycode beta 2): a
+// What the Linux IDE's polish pass needed from OpenViews (SwiftCode beta 2): a
 // clipboard views can use, Ctrl+Y left to an app's shortcut, menus that stay
 // inside the window near its edges, `preferredColorScheme` for the whole
 // window (menu bar included), the `.columns` form and the Symbol

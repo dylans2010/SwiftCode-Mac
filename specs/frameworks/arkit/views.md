@@ -53,7 +53,7 @@ and `ARSCNDebugOptionShowFeaturePoints` / `.showFeaturePoints` (draw the
 frame's raw feature points). Values (64-bit `SCNDebugOptions` bits, chosen
 high so they do not collide with SceneKit's own options): show-feature-points
 is `0x40000000` (1 << 30); show-world-origin is `0xFFFFFFFF80000000` (bit 31
-sign-extended to 64 bits). Ycode must use the same values.
+sign-extended to 64 bits). SwiftCode must use the same values.
 
 ### 2.1 `ARSCNViewDelegate` (inherits `SCNSceneRendererDelegate` and `ARSessionObserver`)
 
@@ -113,7 +113,7 @@ own UI), `coachingOverlayViewDidDeactivate:`,
 not implemented, the overlay itself reruns the session's current
 configuration with reset-tracking and remove-anchors).
 
-The overlay's artwork, animations and strings are Apple's. Ycode draws its own
+The overlay's artwork, animations and strings are Apple's. SwiftCode draws its own
 (original artwork, own wording) with the same states: hidden, coaching for the
 goal, relocalizing with a reset button.
 
@@ -136,6 +136,6 @@ compositing). Create one generator and reuse it every frame.
 | Debug option values | 3 | `ARProbe -probe consts` |
 | Renderer behaviors, defaults, delegate meanings, coaching behavior and reset fallback | 1 | ARKit documentation (`ARSCNView`, `ARCoachingOverlayView` pages) and header documentation (summarized) |
 | One scene unit = one meter | 1 | ARKit world tracking documentation (meters) applied to SceneKit's world |
-| Renderer pattern (§1) | 1 | "Displaying an AR experience with Metal" documentation and the header contracts; Ycode wording |
+| Renderer pattern (§1) | 1 | "Displaying an AR experience with Metal" documentation and the header contracts; SwiftCode wording |
 | `ARSCNFaceGeometry` nil, `ARSCNPlaneGeometry` non-nil, matte generator creatable in the simulator | 3 | `ARProbe` |
 | SceneKit delegate callbacks on the rendering queue | 1 | SceneKit renderer-delegate documentation; **confirm on hardware** for ARKit's node callbacks |

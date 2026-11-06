@@ -1,6 +1,6 @@
 # Agentic tools — behaviour (Wave 8)
 
-Ycode module: `YcodeMCP` (the MCP server and its tools).
+SwiftCode module: `SwiftCodeMCP` (the MCP server and its tools).
 
 This spec is the behaviour contract for the 141 Legacy Agentic tools
 ported in Wave 8. The companion spec `agentic-tool-catalogue.md` is
@@ -17,16 +17,16 @@ registry is a separate registry from the 291-tool Assist registry;
 the two registries share names but are different tools with different
 schemas, and this wave keeps them distinct.
 
-Implementation: `ycode/Sources/YcodeMCP/YcodeTools+AgenticFiles.swift`
-(`agenticFilesTools`, 6 tools), `YcodeTools+AgenticExecution.swift`
+Implementation: `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AgenticFiles.swift`
+(`agenticFilesTools`, 6 tools), `SwiftCodeTools+AgenticExecution.swift`
 (`agenticExecutionTools`, 9 tools),
-`YcodeTools+AgenticGit.swift` (`agenticGitTools`, 19 tools),
-`YcodeTools+AgenticNetwork.swift` (`agenticNetworkTools`, 19 tools),
-`YcodeTools+AgenticCLI.swift` (`agenticCLITools`, 21 tools),
-`YcodeTools+AgenticCode.swift` (`agenticCodeTools`, 16 tools),
-`YcodeTools+AgenticData.swift` (`agenticDataTools`, 19 tools),
-`YcodeTools+AgenticPlanning.swift` (`agenticPlanningTools`, 8 tools).
-Tests: `ycode/Tests/YcodeMCPTests/YcodeAgentic*Tests.swift` (one file
+`SwiftCodeTools+AgenticGit.swift` (`agenticGitTools`, 19 tools),
+`SwiftCodeTools+AgenticNetwork.swift` (`agenticNetworkTools`, 19 tools),
+`SwiftCodeTools+AgenticCLI.swift` (`agenticCLITools`, 21 tools),
+`SwiftCodeTools+AgenticCode.swift` (`agenticCodeTools`, 16 tools),
+`SwiftCodeTools+AgenticData.swift` (`agenticDataTools`, 19 tools),
+`SwiftCodeTools+AgenticPlanning.swift` (`agenticPlanningTools`, 8 tools).
+Tests: `swiftcode/Tests/SwiftCodeMCPTests/SwiftCodeAgentic*Tests.swift` (one file
 per slice).
 
 ## Host conventions
@@ -46,7 +46,7 @@ through the shared resolvers:
   Results report workspace-relative paths where Legacy reported
   absolute ones.
 - The git tools use the same resolver for `repositoryPath`, which is
-  **optional** in the Ycode schema (Legacy requires it). Omitted, the
+  **optional** in the SwiftCode schema (Legacy requires it). Omitted, the
   tool operates on the session workspace root; given, it must resolve
   inside the workspace. `git_clone` is the exception: it has no
   `repositoryPath` in Legacy and keeps both of its params required.
@@ -127,7 +127,7 @@ Every command runs as a fixed argument vector — never a shell:
   map). The port returns `MCPToolResult.structured(_:summary:)`,
   which emits two text blocks: the structured data and a
   human-readable summary. Structured keys are the port's own, typed
-  JSON values (integers, booleans, numbers) the way Ycode's other
+  JSON values (integers, booleans, numbers) the way SwiftCode's other
   tools do. Tools whose Legacy result carries no data beyond the
   string return a plain text result only where the catalogue says
   so.
@@ -157,11 +157,11 @@ Schemas are Legacy's verbatim (same property names, same types,
 same `required` lists), plus the `workspace` parameter Wave 1 adds
 to every tool, and short descriptions on the parameters (Legacy
 declares none, except `code_analysis.path` and
-`project_indexing.root_path`). Ycode's `additionalProperties` is
+`project_indexing.root_path`). SwiftCode's `additionalProperties` is
 `false`: aliases pass arguments through unchanged, so an Agentic
 argument unknown to the alias target is rejected by validation
 before the handler runs. Legacy parameter-name aliases are NOT
-supported: Ycode's argument validation rejects unknown arguments
+supported: SwiftCode's argument validation rejects unknown arguments
 before the handler runs.
 
 ### Shared state (planning slice)
@@ -176,10 +176,10 @@ Slice-local state, all prefixed `agenticPlanning`:
 - `AgenticPlanningTask` / `AgenticPlanningPlan` — Codable plan model.
 - `AgenticPlanningTodo` — Codable todo item, persisted in
   `.assist_temp/memory/todos.json`.
-- `YcodeCheckpoints/` — Application Support checkpoint store
+- `SwiftCodeCheckpoints/` — Application Support checkpoint store
   (catalogue §§137–138).
 - Reused Wave 4 stores, no second store invented:
-  `YcodeMemoryGraphStore` (key `ai_context_memory`) for
+  `SwiftCodeMemoryGraphStore` (key `ai_context_memory`) for
   `ai_context_memory`; `PlanningPlanStore` (`"plan:<planId>"`) for
   `task_planner` interop with `intel_breakdown_task`;
   `.assist_temp/memory/` directory for the todo file.
@@ -216,7 +216,7 @@ and never output matched secret values, as `secrets_scan` does.
 | Missing required argument (any tool) | `<tool>: missing the required argument "<name>"` (the server's argument-validation message; the handler's own `Missing required parameter: <name>` fires for a present-but-empty string) |
 | Path escapes the workspace (any tool) | `<path> is outside the workspace folder <root>` |
 | Approval refused (any gated tool) | The server's rejection message; nothing runs and nothing is written |
-| Writes in `readOnly` server mode (any `writes: true` tool) | `<tool> changes files, and this Ycode MCP server is read-only. Start it with \`ycode mcp --allow-writes\`, or use agent mode in the Ycode IDE, where each change is reviewed as a proposal.` |
+| Writes in `readOnly` server mode (any `writes: true` tool) | `<tool> changes files, and this SwiftCode MCP server is read-only. Start it with \`swiftcode mcp --allow-writes\`, or use agent mode in the SwiftCode IDE, where each change is reviewed as a proposal.` |
 
 ### Files slice (catalogue §§12–18)
 
@@ -238,7 +238,7 @@ and never output matched secret values, as `secrets_scan` does.
 | `run_linter` / `run_formatter` binary absent | Honest failure naming the missing binary and how to install it |
 | `run_type_checker` / `run_static_analysis` / `run_benchmark` / `run_application` non-zero exit | Failure with the exit code and tail |
 | `run_application` bad `target` (whitespace / leading `-`) | Refused before `swift` runs |
-| `stop_running_process` PID ≤ 1 or Ycode's own PID | Refused before `kill` runs |
+| `stop_running_process` PID ≤ 1 or SwiftCode's own PID | Refused before `kill` runs |
 | `stop_running_process` non-zero `kill` exit | Failure carrying the exit code and `kill`'s message |
 | `read_build_logs` missing log | Failure telling the caller to run a build first |
 | `get_process_logs` any valid `pid` | Honest failure naming the per-process log buffer prerequisite |
@@ -379,7 +379,7 @@ entry it applies to. The full list:
   `accessibility_inspector` (§§124–126) fail honestly instead of
   returning Legacy's canned strings.
 - The planning tools (§§133–141) implement the behaviour the stub
-  strings promise, grounded in real Ycode state, rather than copying
+  strings promise, grounded in real SwiftCode state, rather than copying
   stub bodies: `ai_context_memory` stores in the Wave 4 memory
   graph; `task_planner` mints real plans; `todo_manager` keeps a
   real todo file; `progress_tracker` computes real progress;
@@ -389,8 +389,8 @@ entry it applies to. The full list:
 ### Stores
 
 - `checkpoint_creator` / `rollback_changes` (§§137–138) use their
-  own `YcodeCheckpoints/` store, separate from Wave 7's
-  `YcodeSnapshots/` — a checkpoint can never be mistaken for a
+  own `SwiftCodeCheckpoints/` store, separate from Wave 7's
+  `SwiftCodeSnapshots/` — a checkpoint can never be mistaken for a
   project snapshot, and `rollback_changes` refuses snapshot IDs.
 
 ### Secrets
@@ -445,7 +445,7 @@ entry it applies to. The full list:
 - `run_application` (§27): Legacy returned the combined output even
   on failure; the port reports a non-zero exit as a failure.
 - `stop_running_process` (§28): Legacy called `kill()` with no guard
-  and no approval; the port refuses PID ≤ 1 and Ycode's own PID,
+  and no approval; the port refuses PID ≤ 1 and SwiftCode's own PID,
   gates through approval, and goes through `/bin/kill` instead of
   the C API.
 - `read_build_logs` (§30): over 8000 characters the port returns the
@@ -593,8 +593,8 @@ through unchanged and `Schema.object` rejects unknown keys).
 
 ### `git_cherry_pick` aligned in place
 
-`git_cherry_pick` is NOT in `YcodeTools+AgenticGit.swift`: it is the
-Wave 3 Assist tool in `YcodeTools+Git.swift`, aligned in place to
+`git_cherry_pick` is NOT in `SwiftCodeTools+AgenticGit.swift`: it is the
+Wave 3 Assist tool in `SwiftCodeTools+Git.swift`, aligned in place to
 accept Agentic spellings. Optional `hash` + `repositoryPath`
 properties were added, `required` changed from `["commit"]` to `[]`,
 and the handler uses `commit ?? hash`, with the repo resolved from
@@ -724,10 +724,10 @@ register records each caveat exactly as found.
 
 | Claim | Level | Source |
 |---|---|---|
-| Host conventions (cwd model, resolvers, approval gate, subprocess shape, result envelope, error style) | 1 | Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run`, `readOnlyMessage`, `toolAliases`), `YcodeTools+Content.swift` (`commit`), `YcodeTools+TerminalSupport.swift` (`terminalRunFixed`, `terminalResolveProgram`, `terminalEnvironment`, `terminalApproveChange`), `YcodeTools+FileReading.swift` (`resolveFileReadingPath`), and the eight `YcodeTools+Agentic*.swift` implementation files, read directly |
+| Host conventions (cwd model, resolvers, approval gate, subprocess shape, result envelope, error style) | 1 | SwiftCode `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`MCPWritePolicy`, `run`, `readOnlyMessage`, `toolAliases`), `SwiftCodeTools+Content.swift` (`commit`), `SwiftCodeTools+TerminalSupport.swift` (`terminalRunFixed`, `terminalResolveProgram`, `terminalEnvironment`, `terminalApproveChange`), `SwiftCodeTools+FileReading.swift` (`resolveFileReadingPath`), and the eight `SwiftCodeTools+Agentic*.swift` implementation files, read directly |
 | Approval gate shapes (`commit()`, explicit `MCPChange` + `approve()`, `approveChangeWithoutFile()`, `approveFileWritingChange`, `gitApproveChange`, `terminalApproveChange`) | 1 | The implementation files above and `specs/ide/assist-approval-model.md` §6 |
 | Per-slice conventions, error tables, and deviations | 1 | The eight Wave 8 slice specifications (merged into the catalogue and this spec) and the Wave 8 implementation files, read directly |
-| 7 git aliases removed and 5 Agentic aliases added in Wave 8; 6 exact-ID duplicates; `git_cherry_pick` aligned in place | 1 | `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases` and its Wave 8 comment) and `ycode/Sources/YcodeMCP/YcodeTools+Git.swift` (`git_cherry_pick` registration), read directly; live `tool("…")` counts in the eight `YcodeTools+Agentic*.swift` files |
-| Param-caveat register entries | 1 | `MCPServer.toolAliases` and the target tools' schemas in `ycode/Sources/YcodeMCP/YcodeTools+*.swift`, read directly; the slice specifications' per-tool param tables |
-| Near-duplicate rejections | 1 | Target tools' schemas in `ycode/Sources/YcodeMCP/YcodeTools+*.swift`, read directly; the slice specifications' alias-compatibility checks |
+| 7 git aliases removed and 5 Agentic aliases added in Wave 8; 6 exact-ID duplicates; `git_cherry_pick` aligned in place | 1 | `swiftcode/Sources/SwiftCodeMCP/MCPServer.swift` (`toolAliases` and its Wave 8 comment) and `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Git.swift` (`git_cherry_pick` registration), read directly; live `tool("…")` counts in the eight `SwiftCodeTools+Agentic*.swift` files |
+| Param-caveat register entries | 1 | `MCPServer.toolAliases` and the target tools' schemas in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+*.swift`, read directly; the slice specifications' per-tool param tables |
+| Near-duplicate rejections | 1 | Target tools' schemas in `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+*.swift`, read directly; the slice specifications' alias-compatibility checks |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |

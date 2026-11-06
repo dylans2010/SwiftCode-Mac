@@ -1,6 +1,6 @@
 # Code of Conduct
 
-Ycode is a project people work on together, so we want it to be welcoming and respectful for everyone,
+SwiftCode is a project people work on together, so we want it to be welcoming and respectful for everyone,
 whatever their background, identity or level of experience.
 
 ## What we expect

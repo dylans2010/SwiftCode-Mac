@@ -86,7 +86,7 @@ iOS 8/9; later introductions are marked. Our one-phrase meaning is level 1
 | 104 | PartialCommunicationFailure (iOS 17.4) | |
 | 105 | HomeUpgradeRequired (iOS 18.4) | Home not on the current home architecture |
 
-## 2. Observed errors (level 3) — Ycode must reproduce these exactly
+## 2. Observed errors (level 3) — SwiftCode must reproduce these exactly
 
 | Situation | Domain / code | userInfo |
 |---|---|---|
@@ -102,7 +102,7 @@ open implementation writes its own text with the same meaning.
 
 HAP-IP reports per-characteristic status codes (`accessory-protocols.md`
 §2.3). An open implementation should map them onto public codes. This
-table is our proposal (Ycode-original), to be checked against the reference
+table is our proposal (@@SWIFTCODE_ORIGINAL@@), to be checked against the reference
 with the HomeKit Accessory Simulator (`plan.md` HK-A20):
 
 | HAP status | Meaning | Proposed `HMErrorCode` |
@@ -125,4 +125,4 @@ with the HomeKit Accessory Simulator (`plan.md` HK-A20):
 Level 4: code names, values, introduction versions. Level 3: §2 and the
 remarks marked level 3 in §1. Level 1: meanings in §1 and HAP status
 meanings in §3 (Apple's HomeKit ADK, Apache-2.0). §3 mapping column is a
-Ycode-original proposal. No level 5.
+@@SWIFTCODE_ORIGINAL@@ proposal. No level 5.

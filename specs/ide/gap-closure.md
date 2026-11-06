@@ -46,7 +46,7 @@ live runs are pending on Dylan's Mac for everything.
   deploy console, CI dashboard, VM console (Allocate/Release, no guest
   kernel/display), sandboxed terminal (argv-only, allowlist, workspace-
   confined — NOT a Seatbelt sandbox); Artboards format (57 component
-  types, not 60) + `.ycode-artboard` persistence + `fix_artboards`
+  types, not 60) + `.swiftcode-artboard` persistence + `fix_artboards`
   pass 2.
 
 ## Coordinator incident — Wave 18 reset wiped tracked-file edits
@@ -83,9 +83,9 @@ cloud `Info.plist.in` URL schemes; windows P1
   no exact text), P4 (view-host surface actions — deletion half only,
   additions undescribed), P5 (GitHub client workflow/Pages endpoints
   — description, not exact text; deploy/CI services work without
-  them), P6 (`Package.swift`: `"YcodeHypervisor"` in `YcodeUI` deps).
+  them), P6 (`Package.swift`: `"SwiftCodeHypervisor"` in `SwiftCodeUI` deps).
 - Correctness `Package.swift` wiring: add `SwiftSyntax` +
-  `SwiftParser` products to the `YcodeMCP` target (swift-syntax
+  `SwiftParser` products to the `SwiftCodeMCP` target (swift-syntax
   604.0.0 is already a package dependency).
 
 ## Honestly unavailable / still open (exact remainder)

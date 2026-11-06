@@ -1,4 +1,4 @@
-# ycode-swiftui ("OpenViews")
+# swiftcode-swiftui ("OpenViews")
 
 A clean-room, Linux-buildable implementation of SwiftUI, written only from
 `specs/frameworks/swiftui/` under the protocol in `AGENTS.md`. The spec's
@@ -47,8 +47,8 @@ PNG.
 |---|---|---|
 | `SwiftUICore` | `OpenViewsCore` | Value types, `Layout` and the built-in stacks, the layout engine; `View`, `ViewBuilder`, `ViewModifier`, primitive views, the view graph, state and data flow, environment, preferences, transactions; animation (animations, keyframes, transitions, animator views); since R9 lazy containers (`LazyVStack`, `LazyHStack`, the item enumeration lists build on), `ScrollGeometry`, `ScrollTarget`, subtree suspension |
 | `OVText` | `OVText` | Fonts and text layout without view types (R4): OpenType reader, font catalog and matching, shaping, UAX #14 line breaking, UAX #9 bidi, paragraph typesetter; bundles Noto Sans; since R8 the text editing core (`Editing/TextEditing.swift`) |
-| `SwiftUI` | `OpenViews` | Re-exports the core; `GridLayout`, `GridItem`, `Grid`/`GridRow`, lazy grids, `Divider`, `ViewThatFits`, `EquatableView`, `ScenePhase`; since R7 the app model, the application host, `DragGesture`/`LongPressGesture`/`SpatialTapGesture`/`SequenceGesture`, `@GestureState`, hover, `@FocusState`, keyboard shortcuts; since R8 the controls (`Controls/`) and pop-up windows (`App/Popups.swift`); since R9 the containers and presentations (`Containers/`); since R10 the live environment (`App/PlatformEnvironment.swift`), `@AppStorage`/`@SceneStorage` (`App/Persistence.swift`) and accessibility (`Accessibility/`); since R11 commands and the menu bar (`App/Commands.swift`, `App/MenuBar.swift`), focused values and context menus (`Input/`), window toolbars (`Containers/Toolbar.swift`), `Settings` (`App/Settings.swift`); `OpenViewsAutomation` (`App/Automation.swift`, not SwiftUI API): public hooks so apps in other packages can be driven and photographed (texts and identified views with frames, screenshots with pop-ups, synthetic input, pointer moves, quit), used by Ycode's `ycode-ide`; since R13 tooltips (`Input/Help.swift`), key presses (`Input/KeyPress.swift`), file dialogs and `UTType` (`Containers/FileDialog.swift`), `Table` (`Containers/Table.swift`) |
-| `OVRender` | `OVRender` | No view types (R5): the display list, its diffing (damage), the ThorVG rasteriser, PNG output, the compositor surface interface (`Compositor.swift`, the boundary with R7's `OVPlatform`), the software and Vulkan compositors, Ycode's symbol artwork |
+| `SwiftUI` | `OpenViews` | Re-exports the core; `GridLayout`, `GridItem`, `Grid`/`GridRow`, lazy grids, `Divider`, `ViewThatFits`, `EquatableView`, `ScenePhase`; since R7 the app model, the application host, `DragGesture`/`LongPressGesture`/`SpatialTapGesture`/`SequenceGesture`, `@GestureState`, hover, `@FocusState`, keyboard shortcuts; since R8 the controls (`Controls/`) and pop-up windows (`App/Popups.swift`); since R9 the containers and presentations (`Containers/`); since R10 the live environment (`App/PlatformEnvironment.swift`), `@AppStorage`/`@SceneStorage` (`App/Persistence.swift`) and accessibility (`Accessibility/`); since R11 commands and the menu bar (`App/Commands.swift`, `App/MenuBar.swift`), focused values and context menus (`Input/`), window toolbars (`Containers/Toolbar.swift`), `Settings` (`App/Settings.swift`); `OpenViewsAutomation` (`App/Automation.swift`, not SwiftUI API): public hooks so apps in other packages can be driven and photographed (texts and identified views with frames, screenshots with pop-ups, synthetic input, pointer moves, quit), used by SwiftCode's `swiftcode-ide`; since R13 tooltips (`Input/Help.swift`), key presses (`Input/KeyPress.swift`), file dialogs and `UTType` (`Containers/FileDialog.swift`), `Table` (`Containers/Table.swift`) |
+| `OVRender` | `OVRender` | No view types (R5): the display list, its diffing (damage), the ThorVG rasteriser, PNG output, the compositor surface interface (`Compositor.swift`, the boundary with R7's `OVPlatform`), the software and Vulkan compositors, SwiftCode's symbol artwork |
 | `CThorVG` | `CThorVG` | ThorVG 1.1.3 (MIT), vendored: CPU engine, PNG/JPEG loaders, C API |
 | `COVVulkan` | `COVVulkan` | The Vulkan compositor's C side; loads `libvulkan` at run time; Khronos headers 1.3.275 (Apache-2.0) |
 | `OVPlatform` | `OVPlatform` | (R7) Windows, input events, run loop and display link, clipboard, the Vulkan surface interface; SDL3 and headless back ends; (R10) desktop settings (`Settings.swift`: environment variables, a watched settings file, the settings portal, SDL's system theme) |
@@ -77,7 +77,7 @@ licensed sources built by SwiftPM (no system libraries are needed to build):
 | Code | Version | Licence | Provenance | Use |
 |---|---|---|---|---|
 | ThorVG (`Sources/CThorVG/thorvg/`) | 1.1.3 (tag `v1.1.3`, commit `589bc412…`, released 2026-10-15) | MIT (`thorvg/LICENSE`, © 2020–2026 ThorVG Project; notices kept in every file) | `git clone --branch v1.1.3 https://github.com/thorvg/thorvg` on 2026-10-30; subset copied unmodified: `inc/thorvg.h`, `src/common`, `src/renderer` and `cpu_engine`, loaders `raw`, `png` (its bundled lodepng) and `jpg` (its bundled jpgd), `bindings/capi`; our `config/config.h` replaces meson's | the rasteriser (`SoftwareRasterizer`), PNG/JPEG decoding |
-| Khronos Vulkan headers (`Sources/COVVulkan/vulkan/`) | 1.3.275 | Apache-2.0 (SPDX line in each file) | the copy already in `ycode/Sources/CVulkan/vulkan/` (Ubuntu `libvulkan-dev`) | types and constants for the compositor; Vulkan itself is loaded at run time |
+| Khronos Vulkan headers (`Sources/COVVulkan/vulkan/`) | 1.3.275 | Apache-2.0 (SPDX line in each file) | the copy already in `swiftcode/Sources/CVulkan/vulkan/` (Ubuntu `libvulkan-dev`) | types and constants for the compositor; Vulkan itself is loaded at run time |
 | SDL3 (`libsdl-org/SDL`) public headers, 37 of them (`Sources/COVSDL/include/SDL3/`) | 3.4.18 (tag `release-3.4.18`, commit `829a65d7`) | zlib (`Sources/COVSDL/SDL3-LICENSE.txt`, read 2026-10-30) | `git clone --depth 1 --branch release-3.4.18 https://github.com/libsdl-org/SDL` on 2026-10-30; only the headers `ov_sdl.h` includes, unmodified | (R7) types for the run-time SDL function table |
 | libSDL3 (the library) | 3.4.18 | zlib | **not vendored and not linked**: opened with `dlopen` at run time (`OV_SDL3_LIBRARY`, the loader's search path, `~/.local/lib`, Homebrew) | (R7) windows and input; without it the package builds and the app host runs headless |
 
@@ -125,7 +125,7 @@ Bundled font data (runtime resources of `OVText`, `Sources/OVText/Resources/Font
 | Noto Sans Regular and Bold (`NotoSans-Regular.ttf`, `NotoSans-Bold.ttf`) | 2.004 (sha256 `89c3c497…2909d`, `e83493c9…272ac5`) | SIL Open Font License 1.1 (`OFL.txt` next to the files; © 2015 Google LLC) | Upstream Noto fonts (github.com/notofonts), as packaged by Ubuntu `fonts-noto-core` 20201225-2build1; unmodified |
 | (R13) Noto Sans Mono Regular and Bold (`NotoSansMono-Regular.ttf`, `NotoSansMono-Bold.ttf`) | 2.006 (sha256 `6b692c4b…af7e29f`, `b22563d5…88e21e`) | SIL Open Font License 1.1 (the same `OFL.txt`; © 2015 Google LLC) | Upstream Noto fonts, as packaged by Ubuntu `fonts-noto-mono` 20201225-2build1 (copied from the x86 workstation's `/usr/share/fonts/truetype/noto/`); unmodified. Used for `Font.Design.monospaced` and `.monospaced()` (the catalog's first monospaced family) |
 
-Symbol artwork: Ycode's own drawings (`Sources/OVRender/SymbolArtwork.swift`,
+Symbol artwork: SwiftCode's own drawings (`Sources/OVRender/SymbolArtwork.swift`,
 the repository's MIT licence, no third-party artwork); Apple's SF Symbols are
 never used or shipped. See "Rendering design (R5)".
 
@@ -435,7 +435,7 @@ sources in `Sources/OVPlatform/`, `Sources/COVSDL/`,
   `PrimitiveButtonStyle`, `ToggleStyle`, `LabelStyle`, `ProgressViewStyle`,
   `GaugeStyle`, `LabeledContentStyle`); `PickerStyle`, `TextFieldStyle`,
   `MenuStyle`, `DatePickerStyle` and `FormStyle` expose no requirement in the
-  reference API and are identified by a Ycode-internal kind.
+  reference API and are identified by a SwiftCode-internal kind.
 - **Sizes** (all 21 golden rows reproduced): borderless, plain and automatic
   buttons are their label; bordered, prominent and glass add 12 × 7 (20 × 15
   at `.large`; mini 7 × 2, small 10 × 4, extra large 24 × 18 are ours);
@@ -461,7 +461,7 @@ sources in `Sources/OVPlatform/`, `Sources/COVSDL/`,
   Return activate buttons, toggles and rows, arrows change sliders,
   steppers and segmented pickers, a menu picker opens on Space, Return or the
   arrows. Disabled controls take no gestures and no focus. A focused control
-  shows Ycode's focus ring (2.5 pt tint outline, 3 pt outside). Decorative
+  shows SwiftCode's focus ring (2.5 pt tint outline, 3 pt outside). Decorative
   strokes and outlines take no hits (QA B2).
 - **Pickers.** The options are the content's views with a `tag(_:)` whose
   type matches the selection (or the IDs of a `ForEach`); the content stays
@@ -489,7 +489,7 @@ sources in `Sources/OVPlatform/`, `Sources/COVSDL/`,
   sections. Loose rows form sections of their own. Rows are the layout nodes
   a section's content produces, so `ForEach`, groups and conditionals
   flatten. No scrolling yet (R9).
-- **Look** (Ycode's palette, `09-open-design.md` §4.2): the spec's system
+- **Look** (SwiftCode's palette, `09-open-design.md` §4.2): the spec's system
   colours where 07 §4 has them (fills, separators, grouped backgrounds,
   placeholder and secondary label), neutral choices elsewhere, light and
   dark; the accent is the environment's tint.
@@ -606,9 +606,9 @@ Vulkan is loaded (NVIDIA's GLX exit handler aborted after `SDL_Quit`).
   edges, row content 20 more (x = 40, 06 §2.1), the first row 13.33 below
   the top (06 §3's `scrollTo` offset 500 × 52 + 13.33), separators inset like
   the content, footnote headers, 20 points between sections; plain: rows inset
-  20 (golden `list.plain`); grouped: full-width groups; sidebar (Ycode's
+  20 (golden `list.plain`); grouped: full-width groups; sidebar (SwiftCode's
   desktop navigator): 28-point rows, 16 points per outline level, a rounded
-  selection. Selection (Ycode's desktop rules): a click selects and focuses
+  selection. Selection (SwiftCode's desktop rules): a click selects and focuses
   the list; with a multiple selection Ctrl/Super toggles and Shift extends
   from the last clicked row; Up/Down (Shift extends), Home/End, Right/Left
   expand, collapse, go to the first child or the parent; the row is scrolled
@@ -733,7 +733,7 @@ Vulkan is loaded (NVIDIA's GLX exit handler aborted after `SDL_Quit`).
   window is the root (role window, labelled with its title); texts are static
   text elements; images are image elements labelled by `accessibilityLabel`,
   their own label (`Image(_:bundle:label:)`), the symbol's default label
-  (08 §2: "star.fill" → "Favorite"; Ycode's words for the rest of its symbol
+  (08 §2: "star.fill" → "Favorite"; SwiftCode's words for the rest of its symbol
   set) or the asset name; decorative images and `accessibilityHidden(true)`
   subtrees are left out, as are suspended subtrees and views that are not
   laid out. Controls annotate themselves and combine the elements of their
@@ -862,7 +862,7 @@ Starting: `App.main()` starts the export on window-system back ends;
 `OV_ATSPI=0` turns it off, `OV_ATSPI=1` turns it on for the headless back
 end too, `OV_ATSPI_TRACE=1` (or `OV_TRACE`) traces it on stderr.
 
-Role mapping (Ycode's table; `ATSPIMapping` in `ATSPIBridge.swift`):
+Role mapping (SwiftCode's table; `ATSPIMapping` in `ATSPIBridge.swift`):
 
 | OpenViews role (traits) | AT-SPI role (number) | States and interfaces beyond the common ones |
 |---|---|---|
@@ -948,7 +948,7 @@ each time; inserted text through EditableText and received
 
 Public API names (level 1); sources in `Sources/SwiftUI/App/{Commands,MenuBar,
 WindowChrome,Settings}.swift`, `Sources/SwiftUI/Input/{FocusedValues,
-ContextMenu}.swift` and `Containers/Toolbar.swift`. All of it is Ycode's
+ContextMenu}.swift` and `Containers/Toolbar.swift`. All of it is SwiftCode's
 design; nothing of the reference's menus was measured (the reference is an
 iOS device).
 
@@ -1038,9 +1038,9 @@ reproduces the case: it fails with the old rule and passes now).
 
 ### Shell gaps and editor support design (R13; PARITY §5.8, §5.9)
 
-The Linux IDE shell (`ycode/Sources/ycode-ide`, milestone L1) listed what
+The Linux IDE shell (`swiftcode/Sources/swiftcode-ide`, milestone L1) listed what
 OpenViews lacked; R13 closes those gaps and adds what EditorKit (L2) needs.
-Behaviour follows Apple's public SwiftUI documentation; the rest is Ycode's
+Behaviour follows Apple's public SwiftUI documentation; the rest is SwiftCode's
 design, stated here.
 
 - **Custom toolbar content.** `ToolbarContent` has a `body`
@@ -1105,11 +1105,11 @@ design, stated here.
 - **Symbols.** `chevron.left.forwardslash.chevron.right`,
   `folder.badge.gearshape`, `square.stack.3d.up(.fill)`, `sidebar.right`
   (and `.leading`/`.trailing`), `gearshape.2(.fill)`,
-  `list.bullet.rectangle`, `list.bullet`, `tablecells`: Ycode's drawings.
+  `list.bullet.rectangle`, `list.bullet`, `tablecells`: SwiftCode's drawings.
 - **`hammer` redrawn** (for the build bezel's 80–120-point glyph): a claw
   hammer outline — a striking face, a head, a claw curving to a point and a
   tapered handle with a rounded end — turned 45° (the handle to the lower
-  left), stroked, and filled for `hammer.fill`; Ycode's own geometry.
+  left), stroked, and filled for `hammer.fill`; SwiftCode's own geometry.
 - **Monospace.** Noto Sans Mono (bundled) is the monospaced design's face.
 - **`onKeyPress`** (key, key set, characters, any key; phases down, repeat
   and up): handlers get the window's keys while their view or a view inside
@@ -1147,7 +1147,7 @@ design, stated here.
   and `width(min:ideal:max:)`, single or multiple selection and a
   `sortOrder` binding. As documented, the table does not sort its data: a
   header click puts that column's comparator first (or reverses it when it
-  is first already) and the app sorts. Ycode's look: a 28-point header with
+  is first already) and the app sorts. SwiftCode's look: a 28-point header with
   the first sort column's chevron and dividers, 24-point rows with
   alternating backgrounds; fixed widths are kept and the other columns
   share the rest within their limits (minimum 40); dragging a header
@@ -1162,7 +1162,7 @@ design, stated here.
   swallowed a press on other views (a button clicked at once after a row);
   such a press now ends the waiting gesture.
 
-### Desktop polish (Ycode beta 2)
+### Desktop polish (SwiftCode beta 2)
 
 What the Linux IDE's polish pass needed (`Tests/OpenViewsTests/R13/DesktopPolishTests.swift`):
 
@@ -1327,7 +1327,7 @@ spaces, width 339). Those cases are checked as relations with Noto Sans in
 - **Shapes and styles**: `Path` (all building, arc and transform members,
   `trimmedPath`, `contains`, `boundingRect`), `Shape` (requirements
   `nonisolated`, so user shapes need no annotations), the built-in shapes
-  (continuous corners are Ycode's own curve, see 09 §3.6), `InsettableShape`,
+  (continuous corners are SwiftCode's own curve, see 09 §3.6), `InsettableShape`,
   `fill`/`stroke`/`strokeBorder`/`trim`/`offset`/`scale`/`rotation`/
   `transform`, `AnyShape`; `ShapeStyle` (colours, `Color.Resolved`, the four
   gradients, `.foreground`, the hierarchical levels, `.tint`, `.background`,
@@ -1353,7 +1353,7 @@ spaces, width 339). Those cases are checked as relations with Noto Sans in
   `resizable`, `interpolation`, `renderingMode(.template)` (the image's alpha
   filled with the foreground style). PNG and JPEG pixels are decoded by
   ThorVG's loaders, once per image.
-- **Symbols** (`Image(systemName:)`): `OpenSymbolProvider` with Ycode's own
+- **Symbols** (`Image(systemName:)`): `OpenSymbolProvider` with SwiftCode's own
   artwork (`SymbolArtwork.all`: 73 names, geometric outlines on a 24 × 24
   grid, filled variants with knock-outs). Each symbol has a body-size box;
   sizes scale with the point size and weight, `imageScale` factors and the
@@ -1376,7 +1376,7 @@ spaces, width 339). Those cases are checked as relations with Noto Sans in
   deterministic.
 - **Headless back end**: `HeadlessRenderer.render(view, size:scale:)` (a
   window-layout graph rasterised on the CPU) and the public
-  `ImageRenderer` (`pngData`, a Ycode addition since Linux has no
+  `ImageRenderer` (`pngData`, a SwiftCode addition since Linux has no
   `CGImage`; `render(rasterizationScale:renderer:)` draws into a
   `GraphicsContext`). `PNGCodec` encodes PNG (our DEFLATE: fixed Huffman
   codes, hash-chain LZ77, per-row filter choice).
@@ -1418,7 +1418,7 @@ Results (macOS and Linux identical):
 | Layout cases run | 108 of 138 | all pass: 97 fully, 11 with some checks skipped |
 | Checks in those cases | 927 | 885 pass, 42 skipped, 0 fail |
 | — of which R4's 32 text cases (`text.*`, `font.*`, `dyn.*`) | 250 | 234 pass, 16 skipped (where `longText` wraps or is truncated) |
-| — of which R5's 4 symbol cases (`image.symbol`, `.scaleSmall`, `.scaleLarge`, `.wide`) | 28 | 28 pass (Ycode's symbol provider) |
+| — of which R5's 4 symbol cases (`image.symbol`, `.scaleSmall`, `.scaleLarge`, `.wide`) | 28 | 28 pass (SwiftCode's symbol provider) |
 | — of which the 72 earlier cases | 649 | 623 pass, 26 skipped (wrapping of unmeasured text: `longText`, grid cells, `hstack.flex`) |
 | Cases disabled | 30 | `image.symbol.largeTitle` (R5, see open questions), the 21 control rows (R8: built from views only, below), scroll views, lists, forms, navigation, tabs (R9) |
 | Spacing matrix | 64 | all pass (R8: pairs with a button, toggle or text field are built from views) |
@@ -1733,7 +1733,7 @@ implementations, `LayoutValueKey`, `AnyLayout`, stack details).
   modifier that is not an element apply to the elements its content makes;
   `.combine` joins labels and values with ", " (08 §2) and unites traits;
   controls are combined elements with their own role; a stepper is an
-  adjustable element (08 §2 found none); a text field has no label; Ycode's
+  adjustable element (08 §2 found none); a text field has no label; SwiftCode's
   default labels for its symbols except "star.fill" (the reference's
   "Favorite").
 
@@ -1920,11 +1920,11 @@ implementations, `LayoutValueKey`, `AnyLayout`, stack details).
     `.largeTitle` is 44 × 41.67, the linear rule gives 44 × 41.33 (an
     optical-size step); and the sizes of symbols the spec did not measure.
 28. (R5) Whether a missing symbol name should lay out 0 × 0 (the
-    reference) or show a placeholder (Ycode's default, see 09 §3.6).
+    reference) or show a placeholder (SwiftCode's default, see 09 §3.6).
 29. (R5) The shadow radius → blur σ mapping (we use σ = radius / 2) and
     `blur(radius:)` (σ = radius / 2): no pixel measurements in the spec.
 30. (R5) The geometry of continuous rounded corners and the default
-    hierarchical opacities for custom foreground styles (Ycode's choices).
+    hierarchical opacities for custom foreground styles (SwiftCode's choices).
 31. (R7) The tap movement tolerance, multi-tap interval and distance, and the
     button's release slop (06 §7 measured a 120 ms double tap only).
 32. (R7) Whether `LongPressGesture`'s `onChanged`/`updating` see `true` at
@@ -1949,7 +1949,7 @@ implementations, `LayoutValueKey`, `AnyLayout`, stack details).
     measured; whether `onScrollGeometryChange` reports its first value; the
     scroll indicators' look and timing; the back swipe's completion
     threshold; rubber-banding at the edges (we clamp).
-39. (R9) Desktop metrics with no reference at all (Ycode's): 44-point bars,
+39. (R9) Desktop metrics with no reference at all (SwiftCode's): 44-point bars,
     sidebar rows of 28 points, split-view column widths and the 600-point
     collapse width, desktop sheet and alert cards.
 

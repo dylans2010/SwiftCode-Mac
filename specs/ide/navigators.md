@@ -1,18 +1,18 @@
 # Navigators
 
-Ycode modules: `YcodeUI` (`NavigatorAreaController`), `YcodeIDECore`
+SwiftCode modules: `SwiftCodeUI` (`NavigatorAreaController`), `SwiftCodeIDECore`
 (`NavigatorTree`, the project navigator's file operations).
 
 ## Selector bar
 
 Nine navigators, in this order, selected by ⌘1 … ⌘9:
 
-| # | Navigator | Ycode status |
+| # | Navigator | SwiftCode status |
 |---|---|---|
 | 1 | Project | implemented |
 | 2 | Source Control | implemented (Changes and Repositories trees; `SourceControlNavigatorModel`) |
 | 3 | Bookmarks | implemented |
-| 4 | Find | implemented (Find and Replace; every kind but Asset References; see "Ycode implementation" below) |
+| 4 | Find | implemented (Find and Replace; every kind but Asset References; see "SwiftCode implementation" below) |
 | 5 | Issue | implemented |
 | 6 | Test | implemented (discovered tests by target and suite, with result glyphs; `TestDiscovery`) |
 | 7 | Debug | implemented (see debug.md) |
@@ -50,8 +50,8 @@ first. Navigate ▸ Jump to Next / Previous Bookmark moves among the
 focused file's line bookmarks, wrapping; the "In Workspace" variants
 continue through all files in path order. Bookmarks are saved per user as
 JSON (`[{file, line?, label}]`, sorted keys) at
-`<container>/xcuserdata/<user>.xcuserdatad/ycode-bookmarks.json`
-(packages: under `.swiftpm/xcode/`), a Ycode-own file name.
+`<container>/xcuserdata/<user>.xcuserdatad/swiftcode-bookmarks.json`
+(packages: under `.swiftpm/xcode/`), a SwiftCode-own file name.
 
 ## Project navigator
 
@@ -82,7 +82,7 @@ order. Each row shows the severity symbol and the message, wrapped to at
 most three lines; the selected row grows to show all of it. Selecting it
 opens the file at the line. Notes are not rows. ⌘' and ⇧⌘' step through
 issues. Bottom bar: the filter, "Show only issues from open documents and
-recently built sources" (Ycode: files opened in this window, plus issues
+recently built sources" (SwiftCode: files opened in this window, plus issues
 with no file) and "Show only errors". Not yet: stale-issue (grey) rows
 and the filter-token menu. Stale issues are replaced by the next build,
 not only by Clean (`reference-ui-5.md` §5.3).
@@ -99,7 +99,7 @@ Match", with an "Aa" match-case toggle (off) at the right; the query field
 under it; then the scope pop-up "In <scope>". Mode: Find, Replace. Kind:
 Text, Multiple Words, Regular Expression, Symbols, Ancestor Types,
 Descendent Types, Conforming Types, Call Hierarchy, Asset References;
-Ycode implements all but Asset References (listed disabled). Match:
+SwiftCode implements all but Asset References (listed disabled). Match:
 Containing (default), Matching Word, Starting With, Ending With. Scope:
 Package or Project (default), its dependencies and both (disabled),
 Current Find Results (the files of the last workspace search; disabled
@@ -112,15 +112,15 @@ the last search. Results: one row per file, "name (N)", with one child
 per match showing the trimmed line; selecting a match opens the file
 and selects the match. Find in Workspace (Shift-Command-F) shows this
 navigator and searches for the editor's selection, if any. The rest is
-Ycode's own design, below.
+SwiftCode's own design, below.
 
-### Ycode implementation
+### SwiftCode implementation
 
-Modules: `YcodeIDECore/Find` (portable: `FindQuery`, `FindEngine`,
+Modules: `SwiftCodeIDECore/Find` (portable: `FindQuery`, `FindEngine`,
 `FindScope` and `FindScopeResolver`, `FindIgnoreRules`, `ReplacePlan`
 and `ReplaceHistory`, `SemanticFind`, `FindNavigatorModel`),
-`YcodeLanguage/LSPFind.swift` (`workspace/symbol`, type hierarchy),
-`YcodeUI` (`Navigator/FindNavigator.swift`, `FindScopeEditor.swift`,
+`SwiftCodeLanguage/LSPFind.swift` (`workspace/symbol`, type hierarchy),
+`SwiftCodeUI` (`Navigator/FindNavigator.swift`, `FindScopeEditor.swift`,
 `Window/WorkspaceWindowController+Find.swift`,
 `Editor/SourceEditorController+FindCommands.swift`).
 
@@ -146,7 +146,7 @@ and `ReplaceHistory`, `SemanticFind`, `FindNavigatorModel`),
 
 - Scopes (`FindScope`): the workspace (every file of the project
   navigator's tree); one project; a group, folder or file (Containing
-  Groups, Find in Selected Groups…); Open Files (Ycode's addition: the
+  Groups, Find in Selected Groups…); Open Files (SwiftCode's addition: the
   files open in this window's editor tabs); Current Find Results; a custom
   scope.
 - Folders are listed on disk: synchronized folders, package directories,
@@ -219,7 +219,7 @@ pull-down).
   only the buttons replace.
 
 **Semantic kinds (language server).** They use sourcekit-lsp, which
-has the whole project through Ycode's build server (`language.md`
+has the whole project through SwiftCode's build server (`language.md`
 §Build server).
 
 - The query names the symbol. `workspace/symbol` finds candidates, kept
@@ -228,7 +228,7 @@ has the whole project through Ycode's build server (`language.md`
   come first, at most 20. Each candidate's position is moved onto its
   name in its line.
 - Symbols: the Match pop-up lists **Definitions** and **References**
-  (Ycode's items; open question below).
+  (SwiftCode's items; open question below).
   - Definitions: names containing the query, by file, with the kind's
     letter badge and the container as detail.
   - References: the exact name; `textDocument/references` (with the
@@ -266,7 +266,7 @@ has the whole project through Ycode's build server (`language.md`
 - Location's value is a folder or group path ("is" means inside it), or
   "Open Files".
 - Save keeps the scopes that have a name and at least one rule. They are
-  stored in the user's preferences (`Ycode.findCustomScopes`, every
+  stored in the user's preferences (`SwiftCode.findCustomScopes`, every
   workspace).
 - The scope menu lists Open Files, then the saved scopes, then Custom
   Scopes….
@@ -278,7 +278,7 @@ has the whole project through Ycode's build server (`language.md`
 - Find Next / Previous in Workspace: enabled with results.
 - Find Selected Text in Workspace: the selection as Text, Containing.
 - Find Selected Words in Workspace: the selection as Text, Matching Word
-  (Ycode's reading).
+  (SwiftCode's reading).
 - Find Ancestor / Descendent / Conforming Types: enabled in a source
   editor with a language server.
 - In the file:
@@ -303,7 +303,7 @@ the Mac is shared with other agents, the Linux workstation is x86-64 with
 | Common literal, 40,000 matches | 0.14 s | 0.07 s |
 | Matching Word with case, 10,000 matches | 0.12 s | 0.04 s |
 | Regular expression with a group, 40,000 matches | 0.13 s | 0.07 s |
-| This repository's checkout: list | 0.43 s (2,500 files, `.gitignore` applied) | 0.03 s (1,369 files of `ycode/`) |
+| This repository's checkout: list | 0.43 s (2,500 files, `.gitignore` applied) | 0.03 s (1,369 files of `swiftcode/`) |
 | The same: rare literal / common literal / regex | 0.29 / 0.33 / 0.27 s | 0.03 / 0.06 / 0.05 s |
 
 ## Symbols (jump bar and Open Quickly)
@@ -337,7 +337,7 @@ Only" (All Issues), Export…, a filter; the section "Build target <name>"
 with "<Project|Package> <name> | Configuration <c> | Destination <d>"; the
 footer "Build <succeeded|failed> <M/D/YY>, <time>  <n> seconds" and "N
 errors, M warnings"). A test run shows its summary; Tests and Coverage
-show those pages (reference-ui-2.md §6; Ycode records no durations or
+show those pages (reference-ui-2.md §6; SwiftCode records no durations or
 coverage yet, shown as "—" and "No coverage data"). Not yet: the
 Package group, nested step rows in the log, the SDK in the subtitle.
 
@@ -346,11 +346,11 @@ Package group, nested step rows in the log, the SDK in the subtitle.
 **Decision** (orchestrator, beta 2): the Linux IDE has a Symbol navigator
 at the third place of the selector bar (⌘3, where the reference has
 Bookmarks; the Linux IDE has no Bookmarks navigator yet), titled
-"Symbols". `SymbolNavigatorModel` (`YcodeIDEShell`) reads the scan above
+"Symbols". `SymbolNavigatorModel` (`SwiftCodeIDEShell`) reads the scan above
 for every source file of the workspace (an edited open file as edited),
 off the main thread, when the navigator appears:
 
-- Selector button: Ycode's own symbol `list.bullet.indent` (a type's badge
+- Selector button: SwiftCode's own symbol `list.bullet.indent` (a type's badge
   with two members under a tree line, drawn for OpenViews), the tooltip
   "Show the Symbol navigator" and the title "Symbols" (`ShellNavigator.
   selectorButtons`); the other places keep the reference's.
@@ -380,14 +380,14 @@ target compiling the file), then suites and test functions with
 parentheses. Plan and target rows add "N Tests, M Failing"; status
 diamonds show passed and failed.
 
-## Ycode implementation: project navigator file operations
+## SwiftCode implementation: project navigator file operations
 
-Modules: `YcodeIDECore` (`ProjectFileOperations`, `ProjectGraphEdits`,
-`FileSystemJournal`; portable, no AppKit) and `YcodeUI`
+Modules: `SwiftCodeIDECore` (`ProjectFileOperations`, `ProjectGraphEdits`,
+`FileSystemJournal`; portable, no AppKit) and `SwiftCodeUI`
 (`NavigatorAreaController+ProjectOps`,
 `WorkspaceWindowController+ProjectNavigatorOps`, `AddFilesAccessory`).
-This section is Ycode's design. Where the reference's behavior has not
-been observed, the choice is Ycode's own and is listed under the open
+This section is SwiftCode's design. Where the reference's behavior has not
+been observed, the choice is SwiftCode's own and is listed under the open
 questions in Evidence.
 
 ### Items, places and names
@@ -490,7 +490,7 @@ use (tests use `PBXProj.idSequence`).
 - Drag and drop: rows onto a group, a folder or between rows; a drop on
   a file goes after it in its group; not into itself or while the filter
   is active.
-- Context menu on project rows (Ycode's order, until the reference's
+- Context menu on project rows (SwiftCode's order, until the reference's
   menu is observed): Show in Finder; New File from Template…, New Empty
   File, Add Files to “<project>”…; Rename, Delete; New Group, New Group
   without Folder, New Group from Selection, New Group from Selection
@@ -521,7 +521,7 @@ and a `Models` folder of 48 Swift files. Row geometry is in `metrics.md`
    "folders first or mixed" (Evidence) for synchronized folders. Plain
    groups were not observed. **Correction to "Project navigator" above:**
    "folders and files mixed" holds for packages and plain directory
-   listings until observed; synchronized folders put folders first. Ycode
+   listings until observed; synchronized folders put folders first. SwiftCode
    mixed them (ContentView, GlassScrollApp, Long, Models, Stripes).
 2. **Names** show without extensions ("Long", "Stripes"), in both apps.
 3. **The open file's row is selected.** At rest, with Long.swift in the
@@ -529,13 +529,13 @@ and a `Models` folder of 48 Swift files. Row geometry is in `metrics.md`
    both sides, corners about 8, #E7E7E8 on #F2F2F3 in an inactive window
    with the outline unfocused (`metrics.md` §12.1). Opening another file
    moves the band to it in the same frame as the editor change
-   (`editor-area.md` §C.6). Ycode drew no selection band. The selection
+   (`editor-area.md` §C.6). SwiftCode drew no selection band. The selection
    colour in an active window with the outline focused is to measure in
    round 2.
-4. **Icon colour families.** Ycode draws its own icons, so only the
+4. **Icon colour families.** SwiftCode draws its own icons, so only the
    colour family matters. Values are inactive-window sRGB.
 
-   | Row | Reference | Ycode in the session |
+   | Row | Reference | SwiftCode in the session |
    |---|---|---|
    | Project | blue rounded-square badge (#78AFF2) | blue |
    | Folders, synchronized root folder | light blue (#9ACBF6) | blue |
@@ -545,7 +545,7 @@ and a `Models` folder of 48 Swift files. Row geometry is in `metrics.md`
 5. **Expanding a folder** (an accessibility "disclosing" set on the
    Models row) shows all child rows in **one frame**, with no animation,
    in both apps. The reference's change came 63 ms after the input began,
-   Ycode's 40 ms after.
+   SwiftCode's 40 ms after.
 6. **Scrolling under the bars.** Rows scroll beneath the selector capsule
    and beneath the bottom filter capsule, out to the area's edges:
    1. Under the **filter capsule** the rows stay visible, moderately
@@ -556,10 +556,10 @@ and a `Models` folder of 48 Swift files. Row geometry is in `metrics.md`
    3. Nothing shows above the selector capsule.
    4. The first row below the selector, and the last above the filter
       bar, are at full contrast, with no fade.
-   5. Ycode's rows stop at its bars (its change region began at y 88).
+   5. SwiftCode's rows stop at its bars (its change region began at y 88).
 7. **Scrolling** moved the rows with the input 1:1 within a frame
    (`editor-area.md` §C.8). The longest pause between changed frames was
-   23 ms in the reference and 48 ms in Ycode.
+   23 ms in the reference and 48 ms in SwiftCode.
 
 ## Council round 2 measurements (2026-11-04)
 
@@ -575,28 +575,28 @@ exists on disk) whose `children` list
    Zeta, Sub (with Inner), alpha, Beta. That is the `children` order: not
    sorted, and not folders first. This answers round 1's open question
    for plain groups. Synchronized folders still sort folders first
-   (round 1, §1). Ycode matches.
+   (round 1, §1). SwiftCode matches.
 2. **Group glyph:** a `PBXGroup` (and its subgroups) gets a neutral grey
    filled folder (#7B7B80), even when it has a folder on disk. A
    synchronized folder (`PBXFileSystemSynchronizedRootGroup`) and the
-   folders inside it are blue. Ycode draws plain groups as light-blue
+   folders inside it are blue. SwiftCode draws plain groups as light-blue
    outline folders.
 3. **Selection after a click** stays on the clicked row, drawn **#0070F5
    with a white label and icon**, while the editor shows the file. Opening
    the file does not move focus out of the outline, so the band stays
-   accent-coloured. Ycode's band came up 248–519 ms after the click. In
+   accent-coloured. SwiftCode's band came up 248–519 ms after the click. In
    step 01 it disappeared 357 ms later, apparently when focus moved to
    the editor, and no after-still shows it. Keep the outline focused after
    a click, and keep a visible selection when it is not. The reference's
    unfocused colour in an active window was not captured.
 4. **Accessibility.** The harness found every reference row as an
    `AXRow` by its title ("Stripes" or "Stripes.png"). It could not find
-   Ycode's Stripes row, so every row must be exposed as an outline row
+   SwiftCode's Stripes row, so every row must be exposed as an outline row
    with its title.
 5. **Expanding** Models or Plain showed the new rows in one frame in both
    apps (round 1, §5).
 6. **Clipping.** The outline draws only below the selector capsule's top
-   edge. Ycode drew rows over the toolbar band and the window buttons
+   edge. SwiftCode drew rows over the toolbar band and the window buttons
    (`liquid-glass.md` §8.4).
 
 ## Council round 3 measurements (2026-11-05)
@@ -614,7 +614,7 @@ band was seen through the glass:
 | | Before the split (outline focused) | After (editor focused) |
 |---|---|---|
 | Reference, through the filter capsule | accent blue glow (#85D0FF) | **neutral grey** (#EBEBEC): the band has switched to the unfocused selection colour |
-| Ycode | blue | **still blue** |
+| SwiftCode | blue | **still blue** |
 
 Target: when focus leaves the outline (to an editor, a split pane, the
 inspector), the selection band changes from the accent colour (#0070F5,
@@ -630,7 +630,7 @@ Conflict session step 01 (a repository with branches `main`, current, and
 `feature`; no tags, stashes or remotes). Rows are on a 22-point pitch in
 both apps.
 
-| Element | Reference | Ycode now |
+| Element | Reference | SwiftCode now |
 |---|---|---|
 | Changes / Repositories control | spans the navigator: **x 9–281** (9 in from each side), 16 tall (y 90–106), two equal segments; the selected segment filled with the accent colour (#0075FA), white label | a compact control centred (x 59.5–230.5, 171 wide), 21 tall |
 | Repository row | a grey filled square symbol with a source-control mark, the name, then the current branch in secondary grey ("project main") | a blue outline drive symbol |
@@ -649,18 +649,18 @@ Recents in the reference lists recently checked-out branches (here
 ## Evidence
 
 - Find, Symbol and Report navigator roles: Apple's public Xcode Help
-  (level 1). Row formats, badges and the symbol rules are Ycode's own.
+  (level 1). Row formats, badges and the symbol rules are SwiftCode's own.
 - Find options (modes, kinds, match styles, case toggle, scope menu):
   `specs/ide/reference-ui-2.md` §3 (level 3).
 - OPEN QUESTION: Find result row text and the result limit.
-- Find "Ycode implementation": the search engine, ignore rules, binary
+- Find "SwiftCode implementation": the search engine, ignore rules, binary
   detection, count line, Replace mode's preview and checkboxes, undo
   grouping, custom-scope editor and the Symbols kind's Definitions /
-  References items are Ycode's own design (no reference observation).
+  References items are SwiftCode's own design (no reference observation).
   The LSP requests and results: the Language Server Protocol 3.17
   specification (`workspace/symbol`, `textDocument/references`,
   `callHierarchy/*`, `typeHierarchy/*`; level 1). Their behavior on
-  sourcekit-lsp is checked in `SourceKitLSPFindTests` (level 3, Ycode).
+  sourcekit-lsp is checked in `SourceKitLSPFindTests` (level 3, SwiftCode).
   `.gitignore` syntax: Git's public documentation (level 1).
 - OPEN QUESTION (Find): the reference's semantics of Multiple Words, the
   Symbols kind's Match items, Find Selected Words in Workspace, and the
@@ -687,7 +687,7 @@ Recents in the reference lists recently checked-out branches (here
   §1 (level 3).
 - OPEN QUESTION: icons for each navigator (ours are SF Symbols chosen by
   us at runtime).
-- Project navigator file operations (Ycode implementation): the pbxproj
+- Project navigator file operations (SwiftCode implementation): the pbxproj
   classes and keys (`PBXGroup` `path`/`name`,
   `PBXFileSystemSynchronizedRootGroup`, exception sets'
   `membershipExceptions`, targets' `fileSystemSynchronizedGroups`,
@@ -697,18 +697,18 @@ Recents in the reference lists recently checked-out branches (here
   the file types added to `PBXProj.fileType` follow CocoaPods Xcodeproj's
   `FILE_TYPES_BY_EXTENSION` (MIT, level 1); git staging follows git's
   documentation (level 1). Each operation's output is checked against
-  hand-written fixtures (`ycode/Tests/YcodeIDECoreTests/Fixtures/NavigatorOps`)
-  and, opt-in (`YCODE_NAV_OPS_BUILD=1`), by building the result with
-  `ycode build`.
-- OPEN QUESTION (navigator file operations; Ycode's choices stand until
-  observed): where the reference inserts new groups and files (Ycode:
+  hand-written fixtures (`swiftcode/Tests/SwiftCodeIDECoreTests/Fixtures/NavigatorOps`)
+  and, opt-in (`SWIFTCODE_NAV_OPS_BUILD=1`), by building the result with
+  `swiftcode build`.
+- OPEN QUESTION (navigator file operations; SwiftCode's choices stand until
+  observed): where the reference inserts new groups and files (SwiftCode:
   after the selected file, or at the end of a selected group); the
   default names ("New Group", "New Group 2"?); whether New Folder in a
-  group adds the new synchronized folder to targets (Ycode: the targets
+  group adds the new synchronized folder to targets (SwiftCode: the targets
   of the group's files); whether Add Files writes `name` for paths
   outside the group; Add Files' options and their defaults; the Delete
   sheet's wording; Move to Trash for a group with a folder that still
-  holds other files (Ycode keeps the folder); Sort by Type's order; the
+  holds other files (SwiftCode keeps the folder); Sort by Type's order; the
   project rows' context menu; whether a move between folders keeps the
   file in the targets of a destination folder it was not in; what the
   reference's Convert ▸ To Folder accepts and how Preflight reports it.
@@ -718,9 +718,9 @@ Recents in the reference lists recently checked-out branches (here
   `research/tools/council-r1/measure_captures.py`,
   `research/notes/council-r1-2026-11-04.md`. The test project's group
   classes come from its own `project.pbxproj` (level 2).
-- The Linux IDE's Symbol navigator: Ycode's own design (the reference has
+- The Linux IDE's Symbol navigator: SwiftCode's own design (the reference has
   none). swift-build's progress-line form in build logs is from SwiftPM
-  6.4's own output (level 3, Ycode's builds on Linux).
+  6.4's own output (level 3, SwiftCode's builds on Linux).
 - Council round 2 section, level 3: the round 2 session's 1x stills and
   recordings of the reference (row order, colours, per-frame selection
   pixels); the harness's Accessibility lookups from its manifest; the plain

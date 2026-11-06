@@ -19,7 +19,7 @@
 # What it does NOT do (needs Dylan's Mac): run `assemble-sdk.sh`
 # end-to-end — step 2 needs `swift build` for the `swiftcode-sdk` binary
 # and the five tools, and `build-sdk.sh` needs the `sdk-test-runner`
-# product, which does not exist in `ycode/Package.swift` yet.
+# product, which does not exist in `swiftcode/Package.swift` yet.
 #
 # Usage: bash sdk/scripts/smoke-sdk-scripts.sh   (from the repo root)
 set -euo pipefail
@@ -38,7 +38,7 @@ ok "all five scripts parse (bash -n)"
 # 2. Assemble inputs exist.
 for p in sdk/package sdk/cli sdk/runtime-adapter sdk/templates \
          sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json \
-         sdk/Contracts/Manifest/ExampleManifests ycode/Package.swift; do
+         sdk/Contracts/Manifest/ExampleManifests swiftcode/Package.swift; do
     [ -e "$REPO_ROOT/$p" ] || fail "assemble input missing: $p"
 done
 ok "all assemble-sdk.sh source trees exist"

@@ -1,10 +1,10 @@
-# SwiftUI 2: conformance checklist for Ycode's simulator
+# SwiftUI 2: conformance checklist for SwiftCode's simulator
 
 Status: reference, round 0 (KIT-SWIFTUI, 2026-10-19). Each item: probe mode
 (our app `SUIProbe`, `research/experiments/swiftui/SUIProbe/`), what the
 driver does, and the result Apple's iOS 27.1 simulator produced (level 3;
 reference logs in `research/experiments/swiftui/results/`). An item passes
-on Ycode when the same mode prints the same lines (values within the
+on SwiftCode when the same mode prints the same lines (values within the
 stated tolerance; order of `t=` lines as stated).
 
 ## How to run
@@ -14,9 +14,9 @@ stated tolerance; order of `t=` lines as stated).
    deployment target, ad-hoc signed).
 2. Install on the device under test and run one mode:
    `run.sh <udid> <out> <logdir> <mode> [launch args]` (Apple's simulator).
-   For Ycode, launch the same app with the same arguments through Ycode's
+   For SwiftCode, launch the same app with the same arguments through SwiftCode's
    launch path and the same environment (`DYLD_INSERT_LIBRARIES` =
-   `svctrace.dylib` for the service items), and drive input through Ycode's
+   `svctrace.dylib` for the service items), and drive input through SwiftCode's
    display stream / HID path at the same ratios (`SUP target.<name>=x,y`
    lines give the touch points as screen ratios).
 3. Compare `SUP` lines with the reference log (`diff` after stripping

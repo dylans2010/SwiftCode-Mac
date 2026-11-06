@@ -88,7 +88,7 @@ struct StatisticsTests {
 
     /// Two body-temperature or heart-rate samples (value, start, end) on a fresh store.
     static func pair(_ type: HKQuantityType, _ unit: HKUnit, _ samples: [(Double, Date, Date)]) async throws -> HKStatistics {
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
         try await store.save(samples.map { T.qs(type, $0.0, unit, $0.1, $0.2) })
         return try #require(await store.statistics(type, nil, [.discreteAverage, .discreteMin, .discreteMax, .mostRecent, .duration]).0)
@@ -130,7 +130,7 @@ struct StatisticsTests {
     func dayThree() async throws {
         // The spec gives the results, not the layout; this layout reproduces all of them (spec question).
         let c = HKUnit.degreeCelsius()
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant()
         try await store.save([T.qs(T.bodyTemperature, 10, c, T.at(3, 6, 46), T.at(3, 7, 5)),
                               T.qs(T.bodyTemperature, 20, c, T.at(3, 7, 5), T.at(3, 7, 15))])
@@ -149,7 +149,7 @@ struct StatisticsTests {
     func equivalentContinuousLevel() async throws {
         let db = HKUnit.decibelAWeightedSoundPressureLevel()
         let type = T.q(.environmentalAudioExposure)
-        let store = HKHealthStore(ycodeDaemon: try T.daemon(), client: T.clientA)
+        let store = HKHealthStore(swiftcodeDaemon: try T.daemon(), client: T.clientA)
         try await store.grant(share: [type], read: [type])
         try await store.save([T.qs(type, 60, db, T.at(0, 8), T.at(0, 8, 10)), T.qs(type, 80, db, T.at(0, 9), T.at(0, 9, 10))])
         let s = try #require(await store.statistics(type, nil, .discreteAverage).0)
@@ -180,7 +180,7 @@ struct CollectionTests {
             if s.startDate == T.at(-1) { #expect(s.sumQuantity() == nil) }
         }
         #expect(visited == 4)
-        #expect(c.sources().map(\.bundleIdentifier) == ["dev.ycode.healthprobe"])
+        #expect(c.sources().map(\.bundleIdentifier) == ["dev.swiftcode.healthprobe"])
     }
 
     @Test("daily buckets anchored at 06:00 (anchor D0−5d 06:00): 5100, 2000")
@@ -237,7 +237,7 @@ struct MergeTests {
         #expect(value(s.sumQuantity(), .count()) == 4911)
         #expect(value(s.sumQuantity(for: T.clientB.source), .count()) == 1300)
         #expect(value(s.sumQuantity(for: T.clientA.source), .count()) == 5111)
-        #expect(Set(s.sources?.map(\.bundleIdentifier) ?? []) == ["dev.ycode.healthprobe", "dev.ycode.healthprobe.b"])
+        #expect(Set(s.sources?.map(\.bundleIdentifier) ?? []) == ["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"])
     }
 
     @Test("cross-source [08:00, 08:10]: merged 400; A 1500; B 400")
@@ -263,7 +263,7 @@ struct MergeTests {
     func explicitPriority() async throws {
         let g = try await Golden.make(withB: true, later: true)
         let b = try #require(g.b)
-        g.daemon.setSourcePriority(["dev.ycode.healthprobe", "dev.ycode.healthprobe.b"], for: T.steps)
+        g.daemon.setSourcePriority(["dev.swiftcode.healthprobe", "dev.swiftcode.healthprobe.b"], for: T.steps)
         let s = try #require(await b.statistics(T.steps, HKQuery.predicateForSamples(withStart: T.at(0, 8), end: T.at(0, 8, 10)),
                                                 .cumulativeSum).0)
         #expect(value(s.sumQuantity(), .count()) == 1500)

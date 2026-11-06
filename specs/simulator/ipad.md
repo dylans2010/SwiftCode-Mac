@@ -1,11 +1,11 @@
-# Spec: iPad device types in the Ycode simulator
+# Spec: iPad device types in the SwiftCode simulator
 
 Status: **proposed** (IPAD-SPEC, 2026-10-19); rounds 1 (DEVTYPE) and 2
 (IPAD-BOOT) **done** on the 27.1 runtime (IPAD-DEVTYPE, 2026-10-20; results
 in §9.1). It says what an iPad device
 type is as a file format, which simulator runtime can run one, how a booted
-iPad differs from an iPhone, and what Ycode must change so that
-`ycode-simd` boots and runs an iPad. Observations behind it:
+iPad differs from an iPhone, and what SwiftCode must change so that
+`swiftcode-simd` boots and runs an iPad. Observations behind it:
 `research/notes/ipad-observations.md`. It builds on
 `device-capabilities.md`, `first-boot.md`, `home-screen.md`, `home-apps.md`,
 `hid-input.md`, `display-stream.md` and `simframebuffer.md`; it does not
@@ -14,7 +14,7 @@ repeat them.
 Facts come from device-type and runtime bundles read as file formats (level
 2), throwaway simulators on this Mac and our own probes run in them (level
 3), and bundle structure and shared-cache image lists (level 4). No
-disassembly or decompilation was used. **Ycode decision** marks design
+disassembly or decompilation was used. **SwiftCode decision** marks design
 choices.
 
 Terms: **RR** (RuntimeRoot), **DEV** (device directory), as in
@@ -30,7 +30,7 @@ type (§3).
    as `idiom` = pad), the main-screen variables, the model identifier,
    product class and asset suffix. No iPad-only host service, launchd job
    or environment variable exists (§5).
-2. **The iOS 27.1 runtime (24A94401) that Ycode runs is restricted by
+2. **The iOS 27.1 runtime (24A94401) that SwiftCode runs is restricted by
    CoreSimulator to the iPhone Duo device type** (§2). Xcode's simulator
    cannot create an iPad on it, so there is no Apple reference for an iPad
    on 27.1. The newest runtime that accepts iPads is iOS 27.0 (24A434).
@@ -38,8 +38,8 @@ type (§3).
    it an iPad identity (level 3, §2.3): iPadOS system name, iPad home-screen
    layout, the iPad-only dock folder service, no crashes. Its app set is the
    reduced 27.1 set (Settings, Safari; `home-apps.md`).
-4. **Recommendation (Ycode decision):** implement device types in
-   `ycode-simd` first and boot the iPad identity on the 27.1 runtime that
+4. **Recommendation (SwiftCode decision):** implement device types in
+   `swiftcode-simd` first and boot the iPad identity on the 27.1 runtime that
    the Thor already has (rounds 1–4, §9). In parallel, bring up the 27.0
    runtime on the Thor as a second runtime (round 5), because only 27.0 has
    an Apple reference for iPad behavior and the full app set; parity
@@ -81,21 +81,21 @@ that 27.0 and 27.1 both ship has the same `UIDeviceFamily`, and 27.1 keeps
 its `~ipad` resources (1981 files; 2113 in 27.0, the rest belonging to the
 17 apps 27.1 lacks).
 
-### 2.2 Runtime layout differences that matter to `ycode-simd` (27.0 vs 27.1)
+### 2.2 Runtime layout differences that matter to `swiftcode-simd` (27.0 vs 27.1)
 
-| Item | 27.0 (24A434) | 27.1 (24A94401) | Consequence for Ycode |
+| Item | 27.0 (24A434) | 27.1 (24A94401) | Consequence for SwiftCode |
 |---|---|---|---|
-| `restrictedToDeviceTypes` | absent | [V68] | none for `ycode-simd` (it does not read the profile); the IDE's destination list must not hide iPads because of it when Ycode runs its own identity (§8) |
+| `restrictedToDeviceTypes` | absent | [V68] | none for `swiftcode-simd` (it does not read the profile); the IDE's destination list must not hide iPads because of it when SwiftCode runs its own identity (§8) |
 | Apps with Info.plist (`Applications`, `CoreServices`) | 180 | 163 | the first boot registers 17 more apps (lsd seeding, `first-boot.md` §1 item 5) and builds more icons and widgets; expect a longer first boot on the Thor |
 | launchd job labels (LaunchDaemons/Agents/Angels) | 363 | 363, identical set | job handling is unchanged; lean-boot lists (`lean-boot.md`) apply by label |
 | `RR/System/Library/Caches/com.apple.dyld/` | `dyld_sim_shared_cache_arm64` (2.04 GB) + `.01` (1.79 GB) + `.atlas` + `.map`; 1826 images | same file names; 2.04 GB + 1.75 GB; 1819 images | same layout and names (`dyld-sim-handoff.md`); the cache is a different build, so cache UUIDs, image offsets and any recorded addresses differ |
-| `usr/lib/dyld_sim`, `sbin/launchd_sim` | present | present | different builds (file hashes differ). Everything Ycode learned from 27.1's `dyld_sim` and `launchd_sim` (`dyld-sim-handoff.md`, `launchd-sim.md`, `bootstrap-wire.md`) must be re-checked on 27.0 |
-| `GPUCompiler.framework/Versions/32023/Libraries/libLLVM.dylib` | inside the shared cache, no file | a 39 MB file on disk, not in the cache | the Metal compiler service loads it from a different place; Ycode's file prefixes and memory accounting must cope with both |
+| `usr/lib/dyld_sim`, `sbin/launchd_sim` | present | present | different builds (file hashes differ). Everything SwiftCode learned from 27.1's `dyld_sim` and `launchd_sim` (`dyld-sim-handoff.md`, `launchd-sim.md`, `bootstrap-wire.md`) must be re-checked on 27.0 |
+| `GPUCompiler.framework/Versions/32023/Libraries/libLLVM.dylib` | inside the shared cache, no file | a 39 MB file on disk, not in the cache | the Metal compiler service loads it from a different place; SwiftCode's file prefixes and memory accounting must cope with both |
 | Images only in one cache | 12 (Mail, Notes, Maps, Calendar support; `libLLVM`) | 5 (clock-face and calendar posters, ShellSceneKit) | none known |
-| Runtime volume size (used) | 17 GiB | 16 GiB | disk on `$YCODE_DATA` |
-| `SystemVersion.plist` | 27.0 / 24A434 | 27.1 / 24A94401 | `ycode-simd` already reads version and build from it (`SIMULATOR_RUNTIME_*`, migration marker) |
+| Runtime volume size (used) | 17 GiB | 16 GiB | disk on `$SWIFTCODE_DATA` |
+| `SystemVersion.plist` | 27.0 / 24A434 | 27.1 / 24A94401 | `swiftcode-simd` already reads version and build from it (`SIMULATOR_RUNTIME_*`, migration marker) |
 
-Per-runtime state that Ycode keeps must be keyed by runtime build: golden
+Per-runtime state that SwiftCode keeps must be keyed by runtime build: golden
 devices (`lean-boot.md` §5), warm-start snapshots (`snapshot.md` §12, which
 already boots cold on a new runtime), the LaunchServices store in DEV
 (`first-boot.md` §2: a device migrates when `LastSystemVersion` changes).
@@ -119,7 +119,7 @@ our headless framebuffer prototype sized from `SIMULATOR_MAINSCREEN_*`.
 | Running | SpringBoard, PosterBoard and poster extensions, **DockFolderViewService**, fileproviderd |
 | Crash reports for the device | none |
 
-This is what Ycode's iPad on 27.1 is expected to show, with no Apple
+This is what SwiftCode's iPad on 27.1 is expected to show, with no Apple
 reference to compare pixels against.
 
 ## 3. The device-type file format
@@ -130,7 +130,7 @@ reference to compare pixels against.
 holds `Info.plist` (`CFBundleIdentifier` =
 `com.apple.CoreSimulator.SimDeviceType.<id>`), `Resources/profile.plist`,
 `Resources/capabilities.plist`, framebuffer-mask PDFs named by UUID (host
-chrome; Ycode does not need them) and a localized name. Ycode reads none of
+chrome; SwiftCode does not need them) and a localized name. SwiftCode reads none of
 these files at run time and ships none of them; it carries the values it
 needs as its own data (§4).
 
@@ -169,9 +169,9 @@ Key-set differences against iPhone Duo: the iPad files have no
 `bluetooth-le`, `cellular-data`, **`hardware-keyboard`** or `shoebox`; the
 iPad (A16) and iPad Pro 13-inch (M5) files add `graphicsClass` = 3.
 
-## 4. The two device types Ycode supports first
+## 4. The two device types SwiftCode supports first
 
-**Ycode decision:** iPad (A16) — Xcode's default iPad: created by default
+**SwiftCode decision:** iPad (A16) — Xcode's default iPad: created by default
 for every 27.x runtime, no enhanced multitasking, Touch ID, sRGB — and
 iPad Pro 13-inch (M5) (12 GB) — the largest current screen, Face ID,
 enhanced multitasking (Stage Manager), P3. Others (iPad Pro 11-inch (M5),
@@ -193,10 +193,10 @@ observations note's table §2.2 and can be added as data.
 Every other variable (`launchd-sim.md` §3) is the same for both idioms.
 `SIMULATOR_VERSION_INFO` names the model identifier, as today.
 
-### 4.2 Capabilities (`DEV/ycode-capabilities.plist`, written every boot)
+### 4.2 Capabilities (`DEV/swiftcode-capabilities.plist`, written every boot)
 
 `capabilities` dictionary for the two types (values as in the device type's
-file, level 2; Ycode leaves out `displays`, `iconState` and
+file, level 2; SwiftCode leaves out `displays`, `iconState` and
 `marketing-name` as it does for the iPhone):
 
 | Key | iPad (A16) | iPad Pro 13-inch (M5) |
@@ -253,16 +253,16 @@ Absent (not false) in both: `hardware-keyboard`, `MainScreenClass`,
 the reference iPad; that is the reference behavior, and a hardware keyboard
 is still attached through HID (§7.3).
 
-### 4.3 Required changes in `ycode-simd` (observable requirements)
+### 4.3 Required changes in `swiftcode-simd` (observable requirements)
 
-R1. `ycode-simd --device` accepts a device-type choice (**Ycode decision**:
+R1. `swiftcode-simd --device` accepts a device-type choice (**SwiftCode decision**:
 `--device-type <id>` with ids `iphone-duo` (default), `ipad-a16`,
 `ipad-pro-13-m5`), and every value of §4.1–§4.2 comes from that type's
 data. The guest's environment and capabilities file then equal the
 reference's for that type, key for key, with number types as in §3.3.
 
-R2. A device keeps its type. **Ycode decision:** `ycode-simd` records the
-type in DEV (for example `DEV/ycode-device-type`) on the first boot and
+R2. A device keeps its type. **SwiftCode decision:** `swiftcode-simd` records the
+type in DEV (for example `DEV/swiftcode-device-type`) on the first boot and
 refuses to boot an existing DEV as another type (the LaunchServices store,
 `IconState.plist` and migrated data are per idiom). Golden devices and
 snapshots are keyed by (runtime build, device type).
@@ -316,7 +316,7 @@ device directory is identical for both idioms before the first boot.
 - Started on the iPad and not on the iPhone: `DockFolderViewService` (the
   dock folder), `fileproviderd`, the iCloud Drive file provider and `bird`
   (the Files widget). Started on the iPhone only: `nanoregistryd` (watch
-  pairing). These are on-demand starts, so Ycode needs nothing special for
+  pairing). These are on-demand starts, so SwiftCode needs nothing special for
   them beyond what any job needs.
 - No iPad-only host service: the iPad's environment has no variable the
   iPhone lacks (it lacks two, §4.1), and no new host Mach name was seen.
@@ -328,7 +328,7 @@ device directory is identical for both idioms before the first boot.
   configuration "1032x1376@2x 60Hz p3 SDR", and the framebuffer mode record
   has refresh 6000 (1/100 Hz), as the iPhone.
 - The reference iPad has two displays: `LCD` (built-in, digitizer) and
-  `TVOut` (720 × 480, no digitizer, powered off). Ycode keeps one display
+  `TVOut` (720 × 480, no digitizer, powered off). SwiftCode keeps one display
   (`simframebuffer.md` §8); an external display for Stage Manager is a
   later feature (§10).
 
@@ -353,7 +353,7 @@ support.
 |---|---|---|---|---|
 | Pixels | 1398 × 2034 (2.8 MP) | 1640 × 2360 (3.9 MP) | 2064 × 2752 (5.7 MP) | none in the protocol (sizes are u16; hello carries them, `display-stream.md` §3.1) |
 | Points (touch space) | 466 × 678 | 820 × 1180 | 1032 × 1376 | from hello `pointWidth/Height` |
-| Full-frame encode | 10–15 ms | ≈ 1.4 × | ≈ 2 × | **Ycode decision:** the viewer's default `downscale` is 2 for iPad types; full resolution on request |
+| Full-frame encode | 10–15 ms | ≈ 1.4 × | ≈ 2 × | **SwiftCode decision:** the viewer's default `downscale` is 2 for iPad types; full resolution on request |
 | IOSurface rows | 5632 B | 6592 B | 8256 B | none (`iosurface-remote.md` alignment rule) |
 
 V1. The viewer window takes the device's aspect ratio from hello and must
@@ -376,7 +376,7 @@ rotate. Until it exists the viewer keeps the Rotate control disabled.
 - **More fingers.** iPadOS system gestures use four and five fingers
   (pinch to Home, swipe between apps; level 1, iPad user guide). The host
   transport allows 1…5 contacts (`hid-input.md` §7 item 3); that is enough.
-  **Ycode decision:** the viewer gets a way to produce 3-, 4- and
+  **SwiftCode decision:** the viewer gets a way to produce 3-, 4- and
   5-finger pinch and swipe (for example a modifier that turns a mouse drag
   into n parallel contacts, or n contacts converging on the pointer for a
   pinch).
@@ -384,7 +384,7 @@ rotate. Until it exists the viewer keeps the Rotate control disabled.
   top-right edge for Control Center. Edge marking (`hid-input.md` §8.2)
   applies unchanged; the viewer must let a drag start exactly in a corner.
 - The reference publishes one touch screen for the iPad (one display with a
-  digitizer); Ycode's single touch service matches.
+  digitizer); SwiftCode's single touch service matches.
 
 ### 7.2 Pointer (new; iPad device types only)
 
@@ -395,9 +395,9 @@ service at boot ("Services discovered: []"), so the pointer appears only
 when the host adds a pointer device. Device types that support it declare
 `com.apple.hid.pointer.system` (§3.2).
 
-Requirements (Ycode decision, to be confirmed by round 4's prototype):
+Requirements (SwiftCode decision, to be confirmed by round 4's prototype):
 
-P1. The Ycode HID bundle gains a **pointer service** (fixed service ID
+P1. The SwiftCode HID bundle gains a **pointer service** (fixed service ID
 `0x59434F4400000004`, `PrimaryUsagePage` 1, `PrimaryUsage` 2,
 `DeviceUsagePairs` [{1, 2}], `Built-In` false, `Product` any). It is added
 when the host enables the pointer and removed when it disables it (like
@@ -429,12 +429,12 @@ the dock in an app.
 
 - The reference iPad attaches the same external-keyboard service as the
   iPhone ("Hardware keyboard attached (countryCode:0 type:-1 layout:US)"),
-  although MobileGestalt answers `hardware-keyboard` = 0 (key absent). Ycode
+  although MobileGestalt answers `hardware-keyboard` = 0 (key absent). SwiftCode
   already attaches its keyboard at boot (`hid-input.md` §9); no change.
 - iPadOS gives ⌘, ⌥, ⌃ and Globe combinations system meaning (⌘-Space
   search, ⌘-Tab app switcher, ⌘-H home, holding ⌘ for the shortcut
   overlay; level 1, iPad user guide). The viewer keeps ⌘ shortcuts for
-  itself today (`display-stream.md` §7). **Ycode decision:** K1: in pointer
+  itself today (`display-stream.md` §7). **SwiftCode decision:** K1: in pointer
   capture mode (§7.2 P4) and in a "send ⌘ to device" toggle, every key
   combination except the viewer's release shortcut goes to the guest as
   page-7 usages; K2: the Globe key is sent as Keyboard/Keypad usage of the
@@ -462,8 +462,8 @@ rotated image, is to be checked on 27.0 with an iPad (§10 item 2).
 ## 8. IDE
 
 D1. The run-destination list shows iPad (A16) and iPad Pro 13-inch (M5) for
-Ycode's simulator, with the runtime they run on. **Ycode decision:** on the
-27.1 runtime they are labeled as Ycode identities without an Apple
+SwiftCode's simulator, with the runtime they run on. **SwiftCode decision:** on the
+27.1 runtime they are labeled as SwiftCode identities without an Apple
 reference (CoreSimulator refuses them, §2.1); on 27.0 (round 5) they are
 ordinary.
 
@@ -477,12 +477,12 @@ Xcode's do (build-setting behavior is outside this spec).
 Clean-room agents implement from this spec and the specs it cites; they do
 not open the reference tools or `research/dirty/`.
 
-1. **DEVTYPE** (`ycode-simd`, unit tests): device-type data for
+1. **DEVTYPE** (`swiftcode-simd`, unit tests): device-type data for
    `iphone-duo`, `ipad-a16`, `ipad-pro-13-m5` (§4.1, §4.2, §3.3 number
    types); `--device-type`; capabilities writer and environment from the
    type; the extended-display variables only for iPhone; R2 (type recorded
    in DEV, mismatch refused; golden-device and snapshot keys include the
-   type); `ycode-sim.sh` / `ycode-sim-serve` pass the type. Done when unit
+   type); `swiftcode-sim.sh` / `swiftcode-sim-serve` pass the type. Done when unit
    tests compare the written plist and environment with §4 key by key, and
    the iPhone output is unchanged byte for byte.
 2. **IPAD-BOOT** (Thor, 27.1 runtime): boot `ipad-pro-13-m5` and `ipad-a16`
@@ -499,7 +499,7 @@ not open the reference tools or `research/dirty/`.
    prototype (`research/experiments/simulator/hid/hidproto.m`) with a 1/2
    service on the Mac's iPad simulator and confirm P5, recording the event
    fields that matter in a short addendum to this spec; (b) implementation:
-   P1–P4 in the Ycode HID bundle, transport and viewer. Done when P5 holds
+   P1–P4 in the SwiftCode HID bundle, transport and viewer. Done when P5 holds
    on the Thor.
 5. **RUNTIME-27.0** (Thor): add iOS 27.0 (24A434) as a second runtime (copy
    plan below); boot an iPhone 18 Pro identity (values in
@@ -507,7 +507,7 @@ not open the reference tools or `research/dirty/`.
    the 27.1-derived behaviors (§2.2: `dyld_sim` handoff, `launchd_sim`
    bootstrap routines, host-library imports, Metal compiler load path with
    `libLLVM` in the cache); record differences in the affected specs. Done
-   when both reach the home screen and Ycode screenshots can be compared
+   when both reach the home screen and SwiftCode screenshots can be compared
    with the Mac's 27.0 simulator.
 6. **ROTATION-IPAD**: after the orientation mechanism is specified, O1–O3
    for iPad in landscape (home screen and Settings); viewer Rotate enabled.
@@ -516,23 +516,23 @@ not open the reference tools or `research/dirty/`.
 this spec):** copy the 27.0 `RuntimeRoot` tree — the runtime volume
 `/Library/Developer/CoreSimulator/Volumes/iOS_24A434/…/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot`
 on the Mac, including `System/Library/Caches/com.apple.dyld/` — the same
-way the 27.1 root was copied, to `$YCODE_DATA/runtimes/iOS-27.0-24A434/RuntimeRoot`
+way the 27.1 root was copied, to `$SWIFTCODE_DATA/runtimes/iOS-27.0-24A434/RuntimeRoot`
 (about 17 GiB; symlinks, modes and extended attributes preserved; read-only
-afterwards). Never into the repository. `ycode-simd` already takes the root
-from `--runtime-root` / `YCODE_SIM_RUNTIME` and the version from its
+afterwards). Never into the repository. `swiftcode-simd` already takes the root
+from `--runtime-root` / `SWIFTCODE_SIM_RUNTIME` and the version from its
 `SystemVersion.plist`.
 
-### 9.1 Round results (Ycode, 27.1 runtime 24A94401, the Thor)
+### 9.1 Round results (SwiftCode, 27.1 runtime 24A94401, the Thor)
 
-Observed behaviour of Ycode's own simulator (level 3: Ycode boots, our
+Observed behaviour of SwiftCode's own simulator (level 3: SwiftCode boots, our
 `devprobe` guest probe, the guest's `log stream` and `launchctl list`
-run as one-shots, Ycode screenshots). The host was shared with other boots
+run as one-shots, SwiftCode screenshots). The host was shared with other boots
 (load average 10–21 during the first boots), so absolute times are upper
 bounds.
 
 **Round 1 (DEVTYPE).** `--device-type iphone-duo | ipad-a16 |
 ipad-pro-13-m5`; an unknown id is refused (exit 64) with the list of ids.
-The type is recorded in `DEV/ycode-device-type` (one line, the id) at the
+The type is recorded in `DEV/swiftcode-device-type` (one line, the id) at the
 first prepare. A DEV with no record counts as `iphone-duo` only when it was
 booted before (it has `data/var/run/launchd_bootstrap.plist`); files put
 into a new DEV's `data` before its first boot (a probe in `data/tmp`) do not
@@ -543,10 +543,10 @@ directory, or --device-type ipad-a16)"); the launcher's snapshot
 fingerprint includes the type.
 
 **iPhone Duo unchanged.** For the default type, everything `prepare`
-writes into a new DEV (`ycode-capabilities.plist`,
+writes into a new DEV (`swiftcode-capabilities.plist`,
 `launchd_bootstrap.plist`, the audio plist, the memory-warning file) and
 the Child, Self and launchd environments are byte-identical to main line
-391af58; the only new file is `ycode-device-type` (`iphone-duo`). A full
+391af58; the only new file is `swiftcode-device-type` (`iphone-duo`). A full
 boot of the pristine iPhone Duo device reaches the home screen at 75 s
 (benchmark criterion, frames every 5 s), as before.
 
@@ -602,30 +602,30 @@ above, `POSIXSpawnType` Adaptive, `EnableTransactions` and
 `com.apple.corespotlight.daemon.fileprovider`,
 `com.apple.fileprovider.extension.push`,
 `com.apple.fileprovider.extension.push.development`,
-`com.apple.fileprovider.pushkit`. So in Ycode's `launchctl list` look for
+`com.apple.fileprovider.pushkit`. So in SwiftCode's `launchctl list` look for
 `com.apple.FileProvider`, not a label containing "fileproviderd".
 
-### 9.2 Round 5 results (RUNTIME-27.0; Ycode, iOS 27.0 runtime 24A434, the Thor)
+### 9.2 Round 5 results (RUNTIME-27.0; SwiftCode, iOS 27.0 runtime 24A434, the Thor)
 
-Agent IOS27, 2026-10-27. Level 3: Ycode's own simulator with the copied
-27.0 RuntimeRoot (`$YCODE_DATA/runtimes/iOS-27.0-24A434/RuntimeRoot`, the
+Agent IOS27, 2026-10-27. Level 3: SwiftCode's own simulator with the copied
+27.0 RuntimeRoot (`$SWIFTCODE_DATA/runtimes/iOS-27.0-24A434/RuntimeRoot`, the
 copy plan of §9), the guest's own files read after the boot
-(`IconState.plist`, `com.apple.migration.plist` with `plistlib`), Ycode
+(`IconState.plist`, `com.apple.migration.plist` with `plistlib`), SwiftCode
 screenshots, `ylaunch` one-shots. No Apple simulator, Xcode or reference
 tool was run. The Thor was shared (load average 5–200 during these
 boots), so times are upper bounds except the `timed.sh` row of
 `home-apps.md` §9.3.
 
-**Nothing in Ycode was specific to the 27.1 build.** The items of §2.2
+**Nothing in SwiftCode was specific to the 27.1 build.** The items of §2.2
 that had to be re-checked all worked unchanged on 27.0: the `dyld_sim`
 handoff (a different `dyld_sim` build, mapped and entered as on 27.1),
 `launchd_sim`'s bootstrap and session bind, the host-library imports
-(Ycode's three host libraries, still tagged iOS simulator minos 27.1, load
+(SwiftCode's three host libraries, still tagged iOS simulator minos 27.1, load
 into 27.0 processes), the shared cache (a different build with 1826
 images, opened by name), the Metal compiler service with `libLLVM` inside
 the cache (shaders compiled and translated; icons and widgets drawn), and
 the GPU caches (`--gpu-cache-dir` is keyed by content; the copy used for
-27.1 boots served 27.0 too). Ycode holds no recorded addresses, offsets,
+27.1 boots served 27.0 too). SwiftCode holds no recorded addresses, offsets,
 cache UUIDs or per-build tables for the runtime; the per-runtime state it
 keeps is the device directory, its snapshot and golden devices, which are
 keyed by runtime build already (`lean-boot.md` §5,
@@ -642,20 +642,20 @@ macOS values for both, `cpu-features.md`; the guest takes its version from
 | `IconState.plist` | equal to `home-apps.md` §5 item for item: dock Messages, Safari, Calendar, Photos, Siri; page 1 the large News/Maps/Photos stack, the large Reminders/files stack, the medium Calendar widget, Files, Reminders, Maps, News, Settings; page 2 Contacts, Shortcuts, Passwords, Preview, Health, Fitness, Wallet; `ignored` Remote; Watch not placed; `dockUtilities`, `listMetadata` present |
 | Screen | portrait 2064 × 2752; wallpaper, status bar, the three widgets (News "Apple News Is Offline", Reminders "No Reminders", Calendar in its redacted placeholder form), the five page-1 icons, two page dots, the dock with the App Library tile |
 | Apps | Maps, Calendar, Photos, Messages, Contacts, Files, Reminders, News and Wallet each launched with a pid (`home-apps.md` §9.2) |
-| Guest crashes | `fileindexerd` (ENODEV, as on every Ycode type and runtime) and, in a repeat boot, `AppIntentsLiveEntityService` twice (a trap the reference also reports on 27.0, `iphone-types.md` §6) |
-| Host | no `ycode-simd` crash |
+| Guest crashes | `fileindexerd` (ENODEV, as on every SwiftCode type and runtime) and, in a repeat boot, `AppIntentsLiveEntityService` twice (a trap the reference also reports on 27.0, `iphone-types.md` §6) |
+| Host | no `swiftcode-simd` crash |
 
 **iPhone Duo on 27.0 (diagnostic only).** Before the iPhone 18 Pro type
 existed, a new iPhone Duo device was booted on 27.0 (now refused, see
-below; `YCODE_ALLOW_ANY_DEVICE_TYPE=1` still allows it for diagnostics).
+below; `SWIFTCODE_ALLOW_ANY_DEVICE_TYPE=1` still allows it for diagnostics).
 It reached a home screen (first boot under load, 380 s): SpringBoard chose
 the generic iPhone layout (27.0 has no 466w-678h file) drawn in portrait
 on the 1398 × 2034 display, with the dock Safari, Messages and the page-1
 widgets and apps of `home-apps.md` §4.1; the status bar read "Carrier" with
-no time. This answers `iphone-types.md` §8 Q1 for Ycode; there is no
+no time. This answers `iphone-types.md` §8 Q1 for SwiftCode; there is no
 reference to compare with.
 
-**Changes made in `ycode-simd`** (Ycode decisions, unit tests in
+**Changes made in `swiftcode-simd`** (SwiftCode decisions, unit tests in
 `DeviceRuntimeTests`):
 
 1. **Device type `iphone-18-pro`** from `iphone-types.md` §4 (I1).
@@ -670,11 +670,11 @@ reference to compare with.
    (iPhone Duo) needs runtime 27.1 or later; … is 27.0 (its device types:
    iphone-18-pro, ipad-a16, ipad-pro-13-m5)"), as CoreSimulator refuses it
    with 403 (`iphone-types.md` §1). This narrows `iphone-types.md` §5 I3
-   ("Ycode does not refuse the other combinations") for the one pairing
+   ("SwiftCode does not refuse the other combinations") for the one pairing
    the reference refuses by the type's own range; `restrictedToDeviceTypes`
    is still not applied, so iPads and the iPhone 18 Pro boot on 27.1 as
-   Ycode identities (§8 D1).
-4. **A device keeps its runtime**: `DEV/ycode-runtime` records the
+   SwiftCode identities (§8 D1).
+4. **A device keeps its runtime**: `DEV/swiftcode-runtime` records the
    runtime a device booted (`<ProductName> <version> <build>`, one line).
    Booting it on an older runtime version is refused (exit 66, "the device
    … last booted iOS 27.1 (24A94401); it cannot boot the older runtime iOS
@@ -702,7 +702,7 @@ reference to compare with.
 5. Units of `DeviceCornerRadius` (points or pixels); needed only if the
    viewer draws rounded corners.
 6. Stage Manager on an external display (`TVOut` / `displayport`):
-   needs a second display in Ycode's framebuffer; not planned.
+   needs a second display in SwiftCode's framebuffer; not planned.
 7. Whether the 27.1 runtime's missing apps (Files in particular) matter for
    iPad features that refer to them (the `files` home-screen element of
    §2.3 exists although `Files.app` does not).
@@ -720,11 +720,11 @@ reference to compare with.
    `AppleLanguages` [`en-US`]; whether CoreSimulator copies the Mac's values
    was not varied). After the first boot the file also holds
    `AKLastLocale` `en_US` and `AppleLanguagesSchemaVersion` 5400; the
-   region does not change. Ycode's "Tue 20 Oct" on a first boot is
+   region does not change. SwiftCode's "Tue 20 Oct" on a first boot is
    therefore a difference: the device then had no `AppleLocale` before
    its first boot (or the value arrived only later). The reference
    behavior is a device that starts with the two keys above.
-   **Ycode (APP-FIX, 2026-10-20): implemented.** `prepare` writes that
+   **SwiftCode (APP-FIX, 2026-10-20): implemented.** `prepare` writes that
    file (XML; `AppleLanguages` [`en-US`], `AppleLocale` `en_US`, nothing
    else) into a device that never booted, unless the file exists; a
    booted device and a golden-device copy are left as they are
@@ -755,14 +755,14 @@ reference to compare with.
 | Pointer matching, no pointer service at boot, HID service list (§7.2, §7.3) | 3 | backboardd log on 27.0 (iPad and iPhone) |
 | Pointer and scroll event constructors (§7.2 P2) | 1 | Apple IOHIDFamily open source |
 | Multi-finger and keyboard gestures of iPadOS (§7.1, §7.3) | 1 | Apple iPad User Guide |
-| Ycode round 1 and 2 results (§9.1) | 3 | Ycode boots on the Thor; `devprobe`, `log stream` and `launchctl list` one-shots; Ycode screenshots; byte comparison of `prepare` output with main line 391af58 |
+| SwiftCode round 1 and 2 results (§9.1) | 3 | SwiftCode boots on the Thor; `devprobe`, `log stream` and `launchctl list` one-shots; SwiftCode screenshots; byte comparison of `prepare` output with main line 391af58 |
 | fileproviderd's label and job file (§9.1) | 2, 3 | `launchctl list` and host `ps` on a new iPad (A16) on 27.0; the job plist of both runtimes read with `plutil` (2026-10-20) |
 | Status-bar date on first and later boots, preferences before the first boot (§10 Q8) | 2, 3 | screenshots (scratch only) of a new iPad (A16) on 27.0 before and after a reboot; `.GlobalPreferences.plist` of a new, never-booted device and after its first boot |
-| Ycode's first-boot global preferences (§10 Q8) | 3 | unit tests; Ycode run a1 on the Thor (the device's `.GlobalPreferences.plist` read with `plistlib` after the first boot; screenshot, scratch only), 2026-10-20 |
-| Round 5 results (§9.2) | 3 | Ycode boots on the Thor with the 27.0 runtime, 2026-10-27 (screenshots, `IconState.plist`, migration plist, `ylaunch` outputs) |
-| Round 5 on 27.0: boots, layouts, launches, unchanged 27.1-derived behaviors (§9.2) | 3 | Ycode boots on the Thor with the 27.0 RuntimeRoot copy; `IconState.plist` and `com.apple.migration.plist` read with `plistlib`; Ycode screenshots; `ylaunch` outputs (2026-10-27) |
-| Default type per runtime, minimum runtime per type, runtime record and downgrade refusal (§9.2) | 2, — | device types' `minRuntimeVersion` (§3.2, `iphone-types.md` §3.2); the rest Ycode decisions, `DeviceRuntimeTests` |
-| Device-type choice, `--device-type`, pointer service and transport, viewer behavior, rounds, copy plan | — | Ycode decisions |
+| SwiftCode's first-boot global preferences (§10 Q8) | 3 | unit tests; SwiftCode run a1 on the Thor (the device's `.GlobalPreferences.plist` read with `plistlib` after the first boot; screenshot, scratch only), 2026-10-20 |
+| Round 5 results (§9.2) | 3 | SwiftCode boots on the Thor with the 27.0 runtime, 2026-10-27 (screenshots, `IconState.plist`, migration plist, `ylaunch` outputs) |
+| Round 5 on 27.0: boots, layouts, launches, unchanged 27.1-derived behaviors (§9.2) | 3 | SwiftCode boots on the Thor with the 27.0 RuntimeRoot copy; `IconState.plist` and `com.apple.migration.plist` read with `plistlib`; SwiftCode screenshots; `ylaunch` outputs (2026-10-27) |
+| Default type per runtime, minimum runtime per type, runtime record and downgrade refusal (§9.2) | 2, — | device types' `minRuntimeVersion` (§3.2, `iphone-types.md` §3.2); the rest SwiftCode decisions, `DeviceRuntimeTests` |
+| Device-type choice, `--device-type`, pointer service and transport, viewer behavior, rounds, copy plan | — | SwiftCode decisions |
 
 Level 5 was not used. The reference tools (the Xcode copy, Ghidra, the
 IPSWs) and `research/dirty/` were not opened; restore IPSWs were not

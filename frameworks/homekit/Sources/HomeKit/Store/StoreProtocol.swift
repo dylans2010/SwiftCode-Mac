@@ -1,6 +1,6 @@
 // The home-store boundary (open-design.md §2): the client library talks to a
-// store through `YcodeHomeStore` only, with Codable requests, replies and
-// events, so plan.md R4's `ycode-homed` daemon can take the in-memory store's
+// store through `SwiftCodeHomeStore` only, with Codable requests, replies and
+// events, so plan.md R4's `swiftcode-homed` daemon can take the in-memory store's
 // place behind a socket without changing the model layer.
 //
 // Contract for implementations:
@@ -16,7 +16,7 @@
 import Foundation
 
 /// The identity of the app process behind a session.
-public struct YcodeHomeClient: Codable, Hashable, Sendable {
+public struct SwiftCodeHomeClient: Codable, Hashable, Sendable {
     public var bundleIdentifier: String
     /// `NSHomeKitUsageDescription`; nil means missing.
     public var usageDescription: String?
@@ -26,7 +26,7 @@ public struct YcodeHomeClient: Codable, Hashable, Sendable {
     /// entitlement requirements of simulator-baseline.md §2 are not applied.
     public var enforcesRequirements: Bool
 
-    public init(bundleIdentifier: String, usageDescription: String? = "Ycode test client",
+    public init(bundleIdentifier: String, usageDescription: String? = "SwiftCode test client",
                 hasHomeKitEntitlement: Bool = true, enforcesRequirements: Bool = true) {
         self.bundleIdentifier = bundleIdentifier
         self.usageDescription = usageDescription
@@ -35,32 +35,32 @@ public struct YcodeHomeClient: Codable, Hashable, Sendable {
     }
 
     /// The current process: bundle identifier and usage string from the main
-    /// bundle's Info.plist, or `YCODE_HOMEKIT_BUNDLE_IDENTIFIER` /
-    /// `YCODE_HOMEKIT_USAGE_DESCRIPTION`. A process without an Info.plist is
+    /// bundle's Info.plist, or `SWIFTCODE_HOMEKIT_BUNDLE_IDENTIFIER` /
+    /// `SWIFTCODE_HOMEKIT_USAGE_DESCRIPTION`. A process without an Info.plist is
     /// treated as meeting the requirements (there is no entitlement source
-    /// on Linux; `YCODE_HOMEKIT_ENTITLED=0` turns the entitlement off).
-    public static var processDefault: YcodeHomeClient {
+    /// on Linux; `SWIFTCODE_HOMEKIT_ENTITLED=0` turns the entitlement off).
+    public static var processDefault: SwiftCodeHomeClient {
         let env = ProcessInfo.processInfo.environment
         let info = Bundle.main.infoDictionary ?? [:]
         let hasPlist = info["CFBundleIdentifier"] != nil
-        let bundle = env["YCODE_HOMEKIT_BUNDLE_IDENTIFIER"] ?? Bundle.main.bundleIdentifier
+        let bundle = env["SWIFTCODE_HOMEKIT_BUNDLE_IDENTIFIER"] ?? Bundle.main.bundleIdentifier
             ?? "local.\(ProcessInfo.processInfo.processName)"
-        let usage = env["YCODE_HOMEKIT_USAGE_DESCRIPTION"] ?? info["NSHomeKitUsageDescription"] as? String
-        return YcodeHomeClient(bundleIdentifier: bundle,
-                               usageDescription: usage ?? (hasPlist ? nil : "Ycode command-line client"),
-                               hasHomeKitEntitlement: env["YCODE_HOMEKIT_ENTITLED"] != "0",
+        let usage = env["SWIFTCODE_HOMEKIT_USAGE_DESCRIPTION"] ?? info["NSHomeKitUsageDescription"] as? String
+        return SwiftCodeHomeClient(bundleIdentifier: bundle,
+                               usageDescription: usage ?? (hasPlist ? nil : "SwiftCode command-line client"),
+                               hasHomeKitEntitlement: env["SWIFTCODE_HOMEKIT_ENTITLED"] != "0",
                                enforcesRequirements: hasPlist)
     }
 }
 
-public struct YcodeHomeSession: Codable, Hashable, Sendable {
+public struct SwiftCodeHomeSession: Codable, Hashable, Sendable {
     public var id: UUID
     /// `HMHomeManagerAuthorizationStatus` raw value at connection time.
     public var authorizationStatus: UInt
 }
 
 /// A request from a client (one per mutation or I/O call of object-model.md).
-public enum YcodeHomeRequest: Codable, Hashable, Sendable {
+public enum SwiftCodeHomeRequest: Codable, Hashable, Sendable {
     // Homes (object-model.md §2)
     case addHome(name: String)
     case removeHome(UUID)
@@ -92,38 +92,38 @@ public enum YcodeHomeRequest: Codable, Hashable, Sendable {
     case updateAssociatedServiceType(home: UUID, service: UUID, type: String?)
     // Characteristics (§7)
     case readCharacteristic(home: UUID, characteristic: UUID)
-    case writeCharacteristic(home: UUID, characteristic: UUID, value: YcodeHomeValue)
+    case writeCharacteristic(home: UUID, characteristic: UUID, value: SwiftCodeHomeValue)
     case enableNotification(home: UUID, characteristic: UUID, enabled: Bool)
     case updateAuthorizationData(home: UUID, characteristic: UUID, data: Data?)
     // Action sets (§8)
     case addActionSet(home: UUID, name: String)
     case removeActionSet(home: UUID, actionSet: UUID)
     case renameActionSet(home: UUID, actionSet: UUID, name: String)
-    case addAction(home: UUID, actionSet: UUID, action: YcodeActionRecord)
+    case addAction(home: UUID, actionSet: UUID, action: SwiftCodeActionRecord)
     case removeAction(home: UUID, actionSet: UUID, action: UUID)
-    case updateActionTarget(home: UUID, action: UUID, value: YcodeHomeValue)
+    case updateActionTarget(home: UUID, action: UUID, value: SwiftCodeHomeValue)
     case executeActionSet(home: UUID, actionSet: UUID)
     // Triggers (§9)
-    case addTrigger(home: UUID, trigger: YcodeTriggerRecord)
+    case addTrigger(home: UUID, trigger: SwiftCodeTriggerRecord)
     case removeTrigger(home: UUID, trigger: UUID)
     case renameTrigger(home: UUID, trigger: UUID, name: String)
     case enableTrigger(home: UUID, trigger: UUID, enabled: Bool)
     case addActionSetToTrigger(home: UUID, trigger: UUID, actionSet: UUID)
     case removeActionSetFromTrigger(home: UUID, trigger: UUID, actionSet: UUID)
-    case updateTrigger(home: UUID, trigger: YcodeTriggerRecord)
+    case updateTrigger(home: UUID, trigger: SwiftCodeTriggerRecord)
 }
 
-public enum YcodeHomeResponse: Codable, Hashable, Sendable {
+public enum SwiftCodeHomeResponse: Codable, Hashable, Sendable {
     case done
-    case home(YcodeHomeRecord)
+    case home(SwiftCodeHomeRecord)
     case object(UUID)
-    case value(YcodeHomeValue?)
-    case discovered([YcodeDiscoveredAccessoryRecord])
+    case value(SwiftCodeHomeValue?)
+    case discovered([SwiftCodeDiscoveredAccessoryRecord])
 }
 
 /// What changed inside a home; each case corresponds to one delegate callback
 /// of `HMHomeDelegate` / `HMAccessoryDelegate` (object-model.md §3, §5).
-public enum YcodeHomeChange: Codable, Hashable, Sendable {
+public enum SwiftCodeHomeChange: Codable, Hashable, Sendable {
     case homeName
     case accessoryAdded(UUID)
     case accessoryRemoved(UUID, bridged: [UUID])
@@ -160,25 +160,25 @@ public enum YcodeHomeChange: Codable, Hashable, Sendable {
 }
 
 /// A message from the store to one session.
-public enum YcodeHomeEvent: Codable, Hashable, Sendable {
+public enum SwiftCodeHomeEvent: Codable, Hashable, Sendable {
     case authorizationStatus(UInt)
     /// Initial load (or resync): every home the client may see.
-    case homesLoaded([YcodeHomeRecord])
-    case homeAdded(YcodeHomeRecord, origin: UUID)
+    case homesLoaded([SwiftCodeHomeRecord])
+    case homeAdded(SwiftCodeHomeRecord, origin: UUID)
     case homeRemoved(UUID, origin: UUID)
-    case homeUpdated(YcodeHomeRecord, change: YcodeHomeChange, origin: UUID)
+    case homeUpdated(SwiftCodeHomeRecord, change: SwiftCodeHomeChange, origin: UUID)
     /// A value notification for a characteristic this session subscribed to.
-    case characteristicValue(home: UUID, accessory: UUID, service: UUID, characteristic: UUID, value: YcodeHomeValue?)
-    case accessoryDiscovered(YcodeDiscoveredAccessoryRecord)
+    case characteristicValue(home: UUID, accessory: UUID, service: UUID, characteristic: UUID, value: SwiftCodeHomeValue?)
+    case accessoryDiscovered(SwiftCodeDiscoveredAccessoryRecord)
     case accessoryDiscoveryRemoved(UUID)
     /// The store dropped the session (missing entitlement, simulator-baseline.md §2).
     case disconnected
 }
 
-/// A home store: the in-memory `YcodeLocalHomeStore` now, `ycode-homed` later.
-public protocol YcodeHomeStore: AnyObject, Sendable {
-    func connect(client: YcodeHomeClient, events: @escaping @Sendable (YcodeHomeEvent) -> Void) -> YcodeHomeSession
+/// A home store: the in-memory `SwiftCodeLocalHomeStore` now, `swiftcode-homed` later.
+public protocol SwiftCodeHomeStore: AnyObject, Sendable {
+    func connect(client: SwiftCodeHomeClient, events: @escaping @Sendable (SwiftCodeHomeEvent) -> Void) -> SwiftCodeHomeSession
     func disconnect(_ session: UUID)
-    func perform(_ request: YcodeHomeRequest, session: UUID,
-                 completion: @escaping @Sendable (Result<YcodeHomeResponse, YcodeHomeStoreError>) -> Void)
+    func perform(_ request: SwiftCodeHomeRequest, session: UUID,
+                 completion: @escaping @Sendable (Result<SwiftCodeHomeResponse, SwiftCodeHomeStoreError>) -> Void)
 }

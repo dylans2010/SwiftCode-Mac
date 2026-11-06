@@ -3,7 +3,7 @@
 Status: **partly implemented** (agent APP-LAUNCH, 2026-10-19, 2026-10-20;
 agent APP-FIX, 2026-10-20). §3.1–§3.5 are implemented (§3.5 still with
 the provisional cache-only image files: Q1 answered against them, but the
-root the loader accepts was not found on Ycode, §3.5 last part, Q6); the
+root the loader accepts was not found on SwiftCode, §3.5 last part, Q6); the
 poster-app open requests are answered (§2.1, §8.2); §3.6
 (`thread_suspend`) is fixed (agent THREAD-SUSPEND, 2026-10-28); §3.7 (a GPU
 submission that never completes) and §3.8 (one `dasd` fault) are open, with the questions in §8;
@@ -11,24 +11,24 @@ submission that never completes) and §3.8 (one `dasd` fault) are open, with the
 fixed (agent ICON-FREEZE, 2026-10-29; rechecked by ICON-FREEZE2, 2026-10-30,
 which found a poster's GPU hang behind it, open). Launch times: §9. It records, for every
 app that the iOS 27.1 runtime (24A94401) can launch (`home-apps.md` §2.3),
-what happens when Ycode launches it, why, and what Ycode changed.
+what happens when SwiftCode launches it, why, and what SwiftCode changed.
 
 Terms as in `launchd-sim.md` and `app-install-launch.md` (RR, DEV, TMP,
 ylaunch, one-shot).
 
 ## 1. Method
 
-Ycode runs on the Thor, Apple's runtime as a black box (level 3):
+SwiftCode runs on the Thor, Apple's runtime as a black box (level 3):
 
-- **Cold runs** (`ycode-sim` launcher, no warm boot): a full boot (no lean
+- **Cold runs** (`swiftcode-sim` launcher, no warm boot): a full boot (no lean
   profile), `--launch <bundle id>` (ylaunch `open`, `app-install-launch.md`
   §4), a guest `log stream` one-shot filtered to the app's processes,
   screenshots of the cover display every 120 s.
-- **Warm runs** (the launcher with `YCODE_WARM_BOOT=1`, `snapshot.md` §12):
+- **Warm runs** (the launcher with `SWIFTCODE_WARM_BOOT=1`, `snapshot.md` §12):
   one cold boot saves the device; every later run restores it (home screen
   in seconds), launches one app, keeps the newest frame 40 s after the
   launch result, and stops (the app is ended, the device saved again).
-- **Crash reports**: ycode-simd prints one report per process that ends
+- **Crash reports**: swiftcode-simd prints one report per process that ends
   with a fault or `abort()`: the faulting thread's registers, the image and
   offset of the PC, and the libraries' crash annotation strings
   (`service-fidelity.md` §3.2). Since this change the first line names the
@@ -46,7 +46,7 @@ change. "Launches" means ylaunch's open request completed with a process
 (`app-install-launch.md` §3.4) and the process was alive when the frame was
 taken.
 
-| App | Bundle id | Reference (`home-apps.md`) | Ycode before | Ycode after |
+| App | Bundle id | Reference (`home-apps.md`) | SwiftCode before | SwiftCode after |
 |---|---|---|---|---|
 | Safari | `com.apple.mobilesafari` | launches | **crashes at start** (§3.1): back to the home screen | launches from the home screen (dock tile) and with `ylaunch open`; Start Page; a `data:` URL given with `--app-url` is drawn; WebContent, Networking and GPU processes start once and stay up (§3.5) |
 | Settings | `com.apple.Preferences` | launches; Settings list | launches | launches from the home screen and with `ylaunch open`; Settings list (Apple Account, General, Accessibility, …) |
@@ -71,13 +71,13 @@ the run, mostly the daemons of §7):
 The poster apps are not on the home screen (`home-apps.md` §2.3); whether
 the reference answers an open request for them was Q5: it answers each with
 `FBSOpenApplicationServiceErrorDomain` 1, reason NotFound, after about 12 s
-(§8, §8.2), so Ycode's missing answer is a difference.
+(§8, §8.2), so SwiftCode's missing answer is a difference.
 
 **Cause and fix (APP-FIX, 2026-10-20).** The guest did answer: in run t2
 SpringBoard answered every open request for a poster app at once with
 `FBSOpenApplicationServiceErrorDomain` 4 (InvalidRequest), underlying
 `FBSOpenApplicationErrorDomain` 4, reason NotFound ("Application info
-provider (FBSApplicationLibrary) returned nil"). It was Ycode's `ylaunch`
+provider (FBSApplicationLibrary) returned nil"). It was SwiftCode's `ylaunch`
 that never reported it: it retried every failure every 2 s (a device that
 is still booting also fails), and the run ended before its retry limit.
 `ylaunch open` now treats an answer whose error, or an underlying error,
@@ -96,8 +96,8 @@ Remaining difference: the reference answers with domain code **1**
 ("denied by service delegate (SBMainWorkspace)") after its own 2 s
 retries, because CoreSimulatorBridge's request names the LaunchServices
 record (cache GUID and sequence number, §8.2); `ylaunch`'s request names
-only the bundle identifier, so Ycode's SpringBoard answers code 4 at once,
-as the reference does for an identifier with no record. Making Ycode's
+only the bundle identifier, so SwiftCode's SpringBoard answers code 4 at once,
+as the reference does for an identifier with no record. Making SwiftCode's
 request carry the same record identity needs the bridge's option keys
 (Q7).
 
@@ -112,14 +112,14 @@ SpringBoard then showed the home screen again ("Process exited … signal").
 The same crash ended every other process that loads JavaScriptCore at start
 (one more at boot).
 
-**Cause.** `mach_port_get_refs` was a generated stub in Ycode's
+**Cause.** `mach_port_get_refs` was a generated stub in SwiftCode's
 `libsystem_kernel` (KERN_NOT_SUPPORTED). JavaScriptCore checks the result of
 the call and stops the process when it fails.
 
 **Fix.** `mach_port_get_refs` (and `_kernelrpc_mach_port_get_refs`) is the
 MIG routine 3207 of the `mach_port` subsystem on the task port (xnu
 `mach_port.defs`, level 1): request NDR, name, right (40 bytes); reply
-RetCode and the count (40 bytes), or `mig_reply_error_t` (36 bytes). Ycode's
+RetCode and the count (40 bytes), or `mig_reply_error_t` (36 bytes). SwiftCode's
 task-port server already answered it (`MachIPCKernelServer`); only the
 client was missing. `mach_port_set_mscount` (3210, also served) got its
 client too. Code: `SimHostLibs/kernel/mig.c`.
@@ -133,13 +133,13 @@ pool failed … no free run of 34359738368 bytes`.
 
 **Cause.** JavaScriptCore reserves one 32 GiB region of anonymous memory at
 start (its cage for JavaScript heap memory) and uses only a small part of
-it. Ycode backed every anonymous mapping at once with contiguous guest
+it. SwiftCode backed every anonymous mapping at once with contiguous guest
 physical memory from a 16 GiB pool, so the mapping failed (ENOMEM) and
 JavaScriptCore stopped the process. On Darwin an anonymous mapping costs no
 memory until it is touched (mmap(2), level 1).
 
-**Fix (Ycode design).** An anonymous mapping of at least 256 MiB
-(`GuestAddressSpace.lazyAnonymousThreshold`; `YCODE_LAZY_ANON_MB`, 0 turns it
+**Fix (SwiftCode design).** An anonymous mapping of at least 256 MiB
+(`GuestAddressSpace.lazyAnonymousThreshold`; `SWIFTCODE_LAZY_ANON_MB`, 0 turns it
 off) is *lazy*: it is entered in the address space with its protection but
 without backing and without page-table entries. A page gets backing the
 first time it is touched:
@@ -162,17 +162,17 @@ anonymous region with no pages (`SnapshotSupport`). Mappings below the
 threshold keep the old behavior.
 
 Result: the content process passes its start (no fatal report in three
-runs). Code: `YcodeDarwinABI/AddressSpace.swift`,
-`YcodeDarwinKernel/DarwinKernel.swift`; tests
-`YcodeDarwinABITests/LazyAnonymousTests`.
+runs). Code: `SwiftCodeDarwinABI/AddressSpace.swift`,
+`SwiftCodeDarwinKernel/DarwinKernel.swift`; tests
+`SwiftCodeDarwinABITests/LazyAnonymousTests`.
 
 ### 3.3 A copied device used the original's containers
 
 **Symptom.** Safari's stderr reported "Failed to open cache settings store at
 file:///…/<another agent's device>/data/Containers/Data/Application/…".
 SpringBoard's SplashBoard purged snapshots in the same foreign path. Every
-copy of a booted device (ycode-sim-serve's pristine device, a benchmark's
-golden device, `YCODE_DEVICE_TEMPLATE`) handed its apps the containers of
+copy of a booted device (swiftcode-sim-serve's pristine device, a benchmark's
+golden device, `SWIFTCODE_DEVICE_TEMPLATE`) handed its apps the containers of
 the device it was copied from, so all copies shared Safari's data
 container, and the user's device wrote into another directory.
 
@@ -186,11 +186,11 @@ store, FrontBoard's `applicationState.db` journal, the unified-log files and
 a few daemons' databases and preferences (photo library, replicatord,
 chronod, Spotlight's embedding cache, ManagedSettings).
 
-**Fix (Ycode design, revised 2026-10-23).** The guest path of a device
+**Fix (SwiftCode design, revised 2026-10-23).** The guest path of a device
 directory is a property of its data, not of where the directory lies on
-the host. `ycode-simd --device` serves DEV to the guest at DEV's *guest
+the host. `swiftcode-simd --device` serves DEV to the guest at DEV's *guest
 path*: the path the data was first booted at, recorded in
-`DEV/ycode-device-path`. A copy or a move keeps it: the VMM's prefix for
+`DEV/swiftcode-device-path`. A copy or a move keeps it: the VMM's prefix for
 DEV maps that guest path to the copy's own directory, and everything the
 guest is told about DEV (the bootstrap plist's job paths, `HOME`,
 `CFFIXED_USER_HOME`, `TMPDIR`, `SIMULATOR_HOST_HOME`, `SIMULATOR_LOG_ROOT`,
@@ -204,7 +204,7 @@ needs rebuilding. The rule, before each cold boot:
 1. The guest path is the record; for data without one (made before the
    record existed), the device path the LaunchServices store names in
    front of `/data/Containers/`; for a DEV without data that
-   `YCODE_DEVICE_TEMPLATE` fills, the template's; for new data, DEV's own
+   `SWIFTCODE_DEVICE_TEMPLATE` fills, the template's; for new data, DEV's own
    path. The launcher, the viewer and the harness copy the whole device
    directory (`cp -a`), so the record comes with it.
 2. A guest path the guest cannot be given at its own place (not a
@@ -229,8 +229,8 @@ the host path, so copies get UDIDs of their own). A warm restore uses the
 recorded guest path and never relocates (a snapshot belongs to one device
 path, `snapshot.md` §12.2). Two devices with the same guest path can run
 at once: each VMM has its own prefix table. Code:
-`ycode-simd/DeviceRelocation.swift`, `DeviceLayout.guestPath(_:)`
-(`DeviceMode.swift`); tests `YcodeSimdTests/DeviceRelocationTests`.
+`swiftcode-simd/DeviceRelocation.swift`, `DeviceLayout.guestPath(_:)`
+(`DeviceMode.swift`); tests `SwiftCodeSimdTests/DeviceRelocationTests`.
 
 Cost: none for a copy that keeps its guest path (idle-host benchmark
 boots of copies: 60–70 s to the home screen against 100–105 s with the
@@ -246,17 +246,17 @@ with both, §8.6), so the copy keeps its guest path instead.
 
 Functions that ran as unimplemented stubs during app launches (counts from
 runs r1–r2), now implemented (`SimHostLibs/kernel/appsupport.c`, VMM routine
-in `YcodeDarwinKernel/ThreadInfo.swift`; layouts from the public
+in `SwiftCodeDarwinKernel/ThreadInfo.swift`; layouts from the public
 `mach/thread_info.h`, `thread_policy.h`, `host_info.h`, `vm_statistics.h`
 and libproc's internal header, level 1):
 
-| Function | Caller seen | Ycode answer |
+| Function | Caller seen | SwiftCode answer |
 |---|---|---|
 | `thread_info` | PlugInKit (every extension host), CoreAudio, DialogEngine | Private routine `0x7963_2030`. THREAD_BASIC_INFO (10 words), THREAD_IDENTIFIER_INFO (6: thread id, pthread, the libdispatch queue slot), THREAD_EXTENDED_INFO (28), THREAD_SCHED_TIMESHARE_INFO (5). CPU time for the calling thread only (its host thread's time); priority 31 of 63; run state RUNNING or WAITING (blocked in the kernel); other flavors KERN_INVALID_ARGUMENT, a short count MIG_ARRAY_TOO_SMALL |
 | `thread_policy_set` | QuartzCore (render thread, time constraint), AnimationKit | Accepted, not applied (the host schedules guest threads, `scheduling-policy.md`); unknown flavor or short count KERN_INVALID_ARGUMENT |
 | `thread_policy_get` | Foundation | The default policy, `*get_default` = TRUE |
 | `host_statistics`, `host_statistics64` | FrontBoard (SpringBoard, apps) | HOST_LOAD_INFO zeros; HOST_VM_INFO / HOST_VM_INFO64: the 1 GiB guest as ½ free, ¼ active, ⅛ inactive, ⅛ wired, no paging; HOST_CPU_LOAD_INFO: time since boot as idle ticks |
-| `proc_set_cpumon_params`, `_defaults`, `_params_fatal`, `proc_disable_cpumon`, `proc_resume_cpumon`, `proc_get_cpumon_params`, the wakeup-monitor equivalents, `proc_setcpu_percentage`, `proc_clear_cpulimits`, `proc_setthread_cpupercent` | mediaanalysisd, QuartzCore | Success with no effect (Ycode has no resource monitors); queries report a disabled monitor |
+| `proc_set_cpumon_params`, `_defaults`, `_params_fatal`, `proc_disable_cpumon`, `proc_resume_cpumon`, `proc_get_cpumon_params`, the wakeup-monitor equivalents, `proc_setcpu_percentage`, `proc_clear_cpulimits`, `proc_setthread_cpupercent` | mediaanalysisd, QuartzCore | Success with no effect (SwiftCode has no resource monitors); queries report a disabled monitor |
 
 ### 3.5 WebKit's helper processes could not find WebKit's entry points
 
@@ -293,7 +293,7 @@ paths unchanged, so a prefixed path is never in the cache.
 
 Guest probes (one-shots and `--exec` runs of our own programs, level 3):
 
-| Call in the guest | Result on Ycode before the fix |
+| Call in the guest | Result on SwiftCode before the fix |
 |---|---|
 | `stat("<RR>/System/Library/Frameworks/UIKit.framework/UIKit")` | ENOENT (no such file in the runtime) |
 | `_dyld_shared_cache_contains_path` of the bare path / the `<RR>` path / the `System/Cryptexes/OS` path | 1 / **0** / 1 |
@@ -306,7 +306,7 @@ With `DYLD_PRINT_APIS`, CoreFoundation asks `_dyld_shared_cache_contains_path`
 for `…/WebKit.framework/MacOS/WebKit` and `…/WebKit.framework/WebKit`, both
 with the `<RR>` prefix, after a `stat` of each.
 
-**Fix (Ycode design, provisional until Q1; Q1 answered against it, see the reference answer below).** *Cache-only image files*: a
+**Fix (SwiftCode design, provisional until Q1; Q1 answered against it, see the reference answer below).** *Cache-only image files*: a
 guest `stat`, `lstat`, `access`/`faccessat` or `fstatat` of `<RR> + P`, where
 no host file exists and `P` is the path of an image in the runtime's cache
 (its image table; with or without the `/System/Cryptexes/OS` prefix,
@@ -314,7 +314,7 @@ either as asked or after the path's symbolic links), reports a read-only
 regular file (mode 0555, size 0, uid 0, a stable inode, the runtime root's
 device). Nothing else changes: `open` of the path is still ENOENT, a
 directory listing does not show it, paths below `/usr/lib/system/` are
-excluded. `YCODE_CACHE_IMAGE_FILES=0` turns it off.
+excluded. `SWIFTCODE_CACHE_IMAGE_FILES=0` turns it off.
 
 The loader must not see these files: the 27.1 `dyld_sim` takes a regular
 file at the `<RR>` candidate path for a file that overrides the cache,
@@ -329,10 +329,10 @@ the loaded WebKit, `CFBundleGetFunctionPointerForName` returns the
 initializer (probe p4); the loader's search is as before (only the three
 host libraries override the cache). On a full boot WebContent, Networking
 and GPU start once per Safari process and stay up; Safari draws the
-`data:` page (runs a1, c0, d1). Code: `YcodeDarwinABI/CacheImageFiles.swift`,
+`data:` page (runs a1, c0, d1). Code: `SwiftCodeDarwinABI/CacheImageFiles.swift`,
 `DarwinFileSystem.stat`, `DarwinKernel.isLoaderHelper` (`TaskLocalTraps.swift`,
-`DarwinKernel.handleBSD`); tests `YcodeDarwinABITests/CacheImageFilesTests`,
-`YcodeDarwinKernelTests/TaskLocalTrapTests.cacheImageFilesAreHiddenFromTheLoaderHelper`.
+`DarwinKernel.handleBSD`); tests `SwiftCodeDarwinABITests/CacheImageFilesTests`,
+`SwiftCodeDarwinKernelTests/TaskLocalTrapTests.cacheImageFilesAreHiddenFromTheLoaderHelper`.
 
 This choice is not reference behavior: on the reference the same
 CoreFoundation and loader binaries must get a yes from one of the two
@@ -346,20 +346,20 @@ loader query, not from a file. In a reference simulator process every
 under every spelling, and `_dyld_shared_cache_contains_path` returns 1 for
 the `<RR>`-prefixed spelling. So the cache-only image files above are **not
 reference behavior** and contradict it in one observable point (a guest
-`stat` succeeds on Ycode, fails on the reference). The reference reproduces
-Ycode's original failure exactly when the root spelling in the process
+`stat` succeeds on SwiftCode, fails on the reference). The reference reproduces
+SwiftCode's original failure exactly when the root spelling in the process
 environment differs from the root's symbolic-link-free spelling (§8.1,
-last table), which points at the cause on Ycode: the rooted spelling that
+last table), which points at the cause on SwiftCode: the rooted spelling that
 the loader accepts must be the same string as the one it puts in the
 image names.
 
-**Ycode-side search for the accepted root (2026-10-20, not finished).**
-With the cache-only image files off (`YCODE_CACHE_IMAGE_FILES=0`), an
+**SwiftCode-side search for the accepted root (2026-10-20, not finished).**
+With the cache-only image files off (`SWIFTCODE_CACHE_IMAGE_FILES=0`), an
 `--exec` run of `bundleprobe` with `--trace` (level 3) shows that every
-root string the guest loader can get from Ycode is the same, symbolic-link
+root string the guest loader can get from SwiftCode is the same, symbolic-link
 free spelling `<RR>` (the Thor's runtime root has no symbolic link in it):
 
-| Input to the loader | What Ycode gives |
+| Input to the loader | What SwiftCode gives |
 |---|---|
 | `DYLD_ROOT_PATH`, `IPHONE_SIMULATOR_ROOT`, `SIMULATOR_ROOT` | `<RR>` |
 | `DYLD_SHARED_CACHE_DIR` | `<RR>/System/Library/Caches/com.apple.dyld` |
@@ -370,13 +370,13 @@ free spelling `<RR>` (the Thor's runtime root has no symbolic link in it):
 
 The query makes no trap when it is called (no `realpath` helper call, no
 file call), so it compares against state built at startup. Still, the
-query accepts no rooted spelling on Ycode: with `<RR>`, the cache
+query accepts no rooted spelling on SwiftCode: with `<RR>`, the cache
 directory, the cache file, `<RR>/usr/lib`, `<RR>/System/Cryptexes/OS`, the
 executable's directory or `/` as the prefix, WebKit and UIKit answer 0; the plain and the plain cryptex
 spellings answer 1. Adding `dyld_sim` (path `<RR>/usr/lib/dyld_sim`) to the
-host image list (`dyld-sim-handoff.md` §1.4 step 3; Ycode's list holds only
+host image list (`dyld-sim-handoff.md` §1.4 step 3; SwiftCode's list holds only
 the main executable, §4.5) did not change any answer, and was not kept. So
-the accepted root on Ycode is not one of the strings above; the input the
+the accepted root on SwiftCode is not one of the strings above; the input the
 27.1 loader takes it from is not yet known (Q6). Until it is, the
 cache-only image files stay (design as above), with their one known
 difference from the reference (`stat` succeeds).
@@ -398,7 +398,7 @@ kernel; `thread_resume` at count 0 releases it.
 
 **A visible failure (agent VNODE-EVENTS, 2026-10-28).** `amsengagementd`
 (AppleMediaServicesUI; it runs JavaScript through JetEngine) ends with
-SIGSEGV in JavaScriptCore in about half of the full boots. Ycode's own
+SIGSEGV in JavaScriptCore in about half of the full boots. SwiftCode's own
 fault reports and exit summaries of the FS-HOST and SVC-FULL runs on the
 Linux host (`fsh/runs/*`, `svcfull/runs/*`; 47 amsengagementd processes)
 point at these stubs: every one of the 8 crashed processes had called the
@@ -410,7 +410,7 @@ four different places in JavaScriptCore, reached from JetEngine's script
 thread: the pattern of objects freed while still in use, which is what a
 collector that skips the stacks of threads it could not suspend produces,
 not of one wrong kernel answer (the last traps before each fault are
-ordinary `fstat`, `pread`, `fcntl` calls that succeeded). No other Ycode
+ordinary `fstat`, `pread`, `fcntl` calls that succeeded). No other SwiftCode
 kernel behaviour (the date, `mmap`/JIT, a syscall result) showed up in the
 reports. The fix is the design above, not a small change; until it lands,
 the crash is expected in boots where JetEngine's script runs long enough
@@ -419,7 +419,7 @@ for a collection.
 **The fix (agent THREAD-SUSPEND, 2026-10-28).** Mach suspension is real
 (`threads-and-events.md` §1.6): `thread_suspend` returns once the target
 has stopped (parked at its run gate, or inside a kernel call), and
-`thread_get_state` gives the registers where it stopped. Ycode's own guest
+`thread_get_state` gives the registers where it stopped. SwiftCode's own guest
 probe `p_jsgc` (four threads of one JavaScriptCore context group keep
 objects referenced only from their stacks while they allocate and collect,
 20 s) crashes on the main line (SIGSEGV in run `tsus/pb1`, SIGTRAP in
@@ -433,7 +433,7 @@ to reach a second, older defect: "BUG IN LIBDISPATCH: Invalid wlh state"
 boots. Its cause was the workqueue: when a kevent or workloop worker
 returned with a change list in which one change failed (an `EV_DELETE`
 of a knote whose socket had just been closed with `guarded_close_np`),
-Ycode stopped at that change and returned ENOENT from `workq_kernreturn`;
+SwiftCode stopped at that change and returned ENOENT from `workq_kernreturn`;
 the changes after it were lost. The kernel now applies every change and
 returns a failed one as an EV_ERROR event in the thread's next upcall
 (`threads-and-events.md` §2.7 step 3).
@@ -489,8 +489,8 @@ installed app launches, but the screen stops presenting new frames at the
 launch, input has no effect, and the new app's icon stays blank. A
 snapshot taken then restores frozen.
 
-**Wait chain** (Ycode's thread report, run `r3`: a cold boot of a copy of
-the golden 27.0 device through the warm launcher, YcodeProbe installed and
+**Wait chain** (SwiftCode's thread report, run `r3`: a cold boot of a copy of
+the golden 27.0 device through the warm launcher, SwiftCodeProbe installed and
 launched; the report's new fields are listed below):
 
 1. SpringBoard's main thread waits for the reply to a synchronous request
@@ -522,13 +522,13 @@ and `r2` it did not; their app launches still took 52 s). Nothing in the
 chain is specific to 27.0 or to the icon: 27.1 runs into the same wall
 when its PosterBoard does (the Duo run).
 
-**Cause.** Ycode runs every guest thread on its own vCPU (the 1:1 model,
+**Cause.** SwiftCode runs every guest thread on its own vCPU (the 1:1 model,
 `threads-and-events.md` §6), and its pool had 64 slots
 (`stage4a-contract.md` §4), while Darwin admits up to 512 workqueue
 threads per process and starts a new one for an overcommit or workloop
 request however many are blocked (§2.5 there). A guest that relies on
 that (here: workloop servicers waiting for workloops whose first servicer
-has not started) deadlocks under Ycode's limit and not on the reference.
+has not started) deadlocks under SwiftCode's limit and not on the reference.
 
 **Fix.**
 
@@ -538,10 +538,10 @@ has not started) deadlocks under Ycode's limit and not on the reference.
   Slots cost nothing until a thread uses them.
 - Constrained workers keep Darwin's second bound (constrained threads
   scheduled, blocked or not, below max(64, 5 × CPUs);
-  `threads-and-events.md` §2.5), which Ycode had not implemented, so a
+  `threads-and-events.md` §2.5), which SwiftCode had not implemented, so a
   constrained request whose workers block cannot spread over all 512
   vCPUs.
-- The thread report (SIGUSR1, `YCODE_THREAD_REPORT_AT_S`) now names each
+- The thread report (SIGUSR1, `SWIFTCODE_THREAD_REPORT_AT_S`) now names each
   worker's kind and the workloop it services, the workloop a `kevent_id`
   waits on (servicer, owner, pending request and its history), one
   workqueue line per process (workers running, blocked and idle, requests
@@ -552,7 +552,7 @@ has not started) deadlocks under Ycode's limit and not on the reference.
 **Results** (Thor, release builds, iPhone 18 Pro on 27.0 unless noted;
 other agents' boots in parallel). "Live" means: after the app launched,
 Home, a swipe to the next page and back each produced new frames (input
-to first frame 83–1710 ms), the new app's icon was drawn (YcodeProbe has
+to first frame 83–1710 ms), the new app's icon was drawn (SwiftCodeProbe has
 no icon of its own, so the runtime's generic app icon) and the report
 showed SpringBoard's main thread idle in its run loop and PosterBoard and
 `iconservicesagent` idle:
@@ -578,7 +578,7 @@ com.apple.MercuryPoster" (an `NSInternalInconsistencyException` on an
 AnimationKit thread); launchd started it again and the boot went on to
 the home screen and the app as in the other runs. Before the fix
 PosterBoard never got this far, so the poster snapshot path was not
-reached; no Ycode run on record shows the message. A boot with a guest
+reached; no SwiftCode run on record shows the message. A boot with a guest
 `log stream` of SpringBoard (`g1`) did not crash; it shows PaperBoardUI's
 snapshots of the lock and home posters failing with "Poster scene is not
 ready for snapshotting (mid-update)" and FrontBoard's "Send action timed
@@ -589,7 +589,7 @@ and how long does PosterBoard's first poster update take there?
 
 **Recheck after merging the main line** (agent ICON-FREEZE2, 2026-10-30;
 build of `icon-freeze` with the main line merged; the same check as above:
-install and launch YcodeProbe, Home, a swipe, a swipe back, screenshots,
+install and launch SwiftCodeProbe, Home, a swipe, a swipe back, screenshots,
 a thread report; host load average 5 to 56 from other agents' boots):
 
 | Runtime, device | Runs | Live | Not live |
@@ -643,12 +643,12 @@ iOS 27.0 boot of the reference, WeatherPoster drew only RenderBox
 pipelines and made no argument encoder (§4.3.7 there).
 
 **The GPU hang: fixed by argument buffers built from the layout
-description (agent ARGBUF-IMPL, 2026-10-30).** Ycode now parses op 16's
+description (agent ARGBUF-IMPL, 2026-10-30).** SwiftCode now parses op 16's
 description into a member table, answers op 17 with alignment and then
 length, and writes each op-19 member at its table offset
 (`metal-sim-protocol.md` §4.3.9). Before this change, op 17's reply also
 had its halves swapped, so every encoder looked 8 bytes long with an
-alignment of 24. Under Ycode, WeatherPoster's encoder with members 200, 201,
+alignment of 24. Under SwiftCode, WeatherPoster's encoder with members 200, 201,
 230 and 231 turns out to be a 176-byte layout of 17 members (inline data
 first). Those four members are at 144, 152, 160 and 168, so the writes now
 land inside the argument buffer. Two other layouts (3 and 12 members) come
@@ -658,7 +658,7 @@ learned to skip such a pointee (builds from `d5a` on), those descriptions
 were refused and their encoders fell back to 8 × *n*.
 
 The check was the same as ICON-FREEZE2's above: install and launch
-YcodeProbe, then Home, a swipe and a swipe back, with screenshots and a
+SwiftCodeProbe, then Home, a swipe and a swipe back, with screenshots and a
 thread report. The runs were on the Thor with release builds of
 `argbuf-impl`, on fresh copies of the golden iPhone 18 Pro 27.0 device, at
 a load average of 15 to 100 from other agents' boots:
@@ -694,7 +694,7 @@ check on another new 27.1 device with the final build: home screen at
 **Cost of 512 slots** (cold boots to the home screen of fresh copies of
 the golden 27.0 device, no app; the fix's build and a build of the main
 line it was merged with, started in pairs so they share the host's load;
-home screen from frames every 5 s; host memory of `ycode-simd` 60 s after
+home screen from frames every 5 s; host memory of `swiftcode-simd` 60 s after
 the home screen):
 
 | Pair | Home screen, fix / main line | `Pss_Anon`, fix / main line | Host threads, fix / main line | PosterBoard's threads, fix / main line |
@@ -721,10 +721,10 @@ in 13 boots; not reproduced.
 ## 4. Networking in the guest
 
 *Superseded (NET-IMPL, 2026-10-27): the guest has host passthrough
-networking (`networking-ycode.md`); Safari loads public pages and
+networking (`networking-swiftcode.md`); Safari loads public pages and
 URLSession fetches work. The paragraph below records the state before.*
 
-Ycode's guest had **no IP networking**: `socket(AF_INET/AF_INET6, …)` failed
+SwiftCode's guest had **no IP networking**: `socket(AF_INET/AF_INET6, …)` failed
 with EAFNOSUPPORT (only AF_UNIX exists, `stage4b-contract.md` §6). Name
 lookups failed: Safari's App Store bag fetches end with `NSURLErrorDomain`
 −1003 (host not found). A page from the network cannot load; a `data:` URL
@@ -736,13 +736,13 @@ CFNetwork consults before it connects; it is not part of this change.
 
 ## 5. Tools
 
-- `ycode-simd --app-url <url>` (and the launcher, which passes it like the
+- `swiftcode-simd --app-url <url>` (and the launcher, which passes it like the
   other app options): with `--launch`, the open request carries the URL as
   its payload, as a link opened from another app would
   (`FBSOpenApplicationOptionKeyPayloadURL`, read from FrontBoardServices at
   run time; ylaunch `open --url`).
 - The process name in fatal reports (§1).
-- `ycode-simd` prints "app launch: open request took N ms" for the
+- `swiftcode-simd` prints "app launch: open request took N ms" for the
   `--launch` step (ylaunch's spawn to its exit).
 - `ylaunch open … --relaunch` kills the running instance (SIGKILL) and
   starts a new process; `ylaunch kill <id>` kills the processes whose
@@ -750,7 +750,7 @@ CFNetwork consults before it connects; it is not part of this change.
   one-shots; after "launched … pid N" ylaunch prints "open took N ms" (the
   first open request to its completion with a process).
 - Launch timing harness (in the agent's area on the host, not in the
-  repository): a display-stream client (`scripts/ycode-display-probe`'s
+  repository): a display-stream client (`scripts/swiftcode-display-probe`'s
   `Probe`) taps an icon or the home button, or waits for the app step's
   log line, and times the frames that follow (§9).
 - The warm-run triage loop used for §2 (in the agent's area on the host;
@@ -759,11 +759,11 @@ CFNetwork consults before it connects; it is not part of this change.
 
 ## 6. `home-apps.md` §6 checks
 
-| # | Check | Ycode |
+| # | Check | SwiftCode |
 |---|---|---|
 | 1 | Home screen app set | Settings on page 1, Safari in the dock (`IconState.plist`); no app added |
 | 2 | Today view | `IconState.plist` `today`: Batteries (`small`) and Screen Time (`large`) — as the reference |
-| 3 | `DesiredIconState.plist` | Equal to `DefaultIconState-466w-678h~iphone.plist` apart from `metadata` and a `dockUtilities` key (empty) that SpringBoard adds, **as on the reference** (Q3, §8); not the generic `~iphone` file, so the screen-size answer is right. `listUniqueIdentifiers` are the default file's (rechecked 2026-10-20 on 13 Ycode devices first-booted 10-13 to 10-20: `buttonBar`, `iconLists`, `ignored`, `listUniqueIdentifiers` and `today` equal the default file's; only `metadata` and `dockUtilities` differ). The earlier note that the list identifiers differ was not reproduced; `IconState.plist` (one page) has one list identifier, the default file's first, so a comparison with that file would show a difference. No Ycode change was needed |
+| 3 | `DesiredIconState.plist` | Equal to `DefaultIconState-466w-678h~iphone.plist` apart from `metadata` and a `dockUtilities` key (empty) that SpringBoard adds, **as on the reference** (Q3, §8); not the generic `~iphone` file, so the screen-size answer is right. `listUniqueIdentifiers` are the default file's (rechecked 2026-10-20 on 13 SwiftCode devices first-booted 10-13 to 10-20: `buttonBar`, `iconLists`, `ignored`, `listUniqueIdentifiers` and `today` equal the default file's; only `metadata` and `dockUtilities` differ). The earlier note that the list identifiers differ was not reproduced; `IconState.plist` (one page) has one list identifier, the default file's first, so a comparison with that file would show a difference. No SwiftCode change was needed |
 | 5 | Settings and Safari first screens | §2 |
 | 6 | Poster apps | §2.1 |
 | 8 | Cover display orientation | sideways as the reference: status column at the top right, Safari on a dock tile at the right edge about two thirds down, the search button at the bottom right |
@@ -793,7 +793,7 @@ path with no symbolic links in it.
   path where no file exists). `<RR>/System/Library/Frameworks/WebKit.framework`
   is a symbolic link (mode 0120755, target
   `../../../System/Cryptexes/OS/System/Library/Frameworks/WebKit.framework`),
-  as on Ycode. Details: §8.1.
+  as on SwiftCode. Details: §8.1.
 - **Q2 — answered (level 3), with a limit.** The reference simulator could
   not be cut off from the network (it shares the Mac's network; no sudo),
   so "no network" was not reproduced. What was observed: a WKWebView in our
@@ -804,9 +804,9 @@ path with no symbolic links in it.
   URL fails with `LSApplicationWorkspaceErrorDomain` 115 (no app claims the
   scheme), `openURL:` from an app returns NO, and a URL passed as a launch
   argument (`simctl launch com.apple.mobilesafari <url>`) is ignored (Safari
-  shows its start page). Ycode's `--app-url` open request with a payload URL
+  shows its start page). SwiftCode's `--app-url` open request with a payload URL
   therefore has no `simctl` equivalent; that the page renders without
-  network on Ycode (§3.5) does not conflict with anything observed.
+  network on SwiftCode (§3.5) does not conflict with anything observed.
 - **Q3 — answered (level 2).** Yes. The reference's `DesiredIconState.plist`
   on a new iPhone Duo device has `dockUtilities` = empty array. Its keys:
   `buttonBar`, `dockUtilities`, `iconLists`, `ignored`,
@@ -814,7 +814,7 @@ path with no symbolic links in it.
   `DefaultIconState-466w-678h~iphone.plist` (which has no `dockUtilities`):
   `buttonBar`, `iconLists`, `ignored`, `today` **and `listUniqueIdentifiers`**
   are equal; only `metadata` (`creationDate`) and `dockUtilities` are added.
-  So Ycode's file matches the reference; the difference in list
+  So SwiftCode's file matches the reference; the difference in list
   identifiers that §6 check 3 once noted was not reproduced (§6).
   `IconState.plist` on the reference has no `dockUtilities` key on the iPhone
   (keys `buttonBar`, `defaultDisplayName`, `displayName`, `iconLists`,
@@ -838,12 +838,12 @@ path with no symbolic links in it.
   request was denied by service delegate (SBMainWorkspace) for reason:
   NotFound ("Application "<id>" is unknown to FrontBoard")". No process
   is started. For comparison: Settings launched in 0.46 s; an identifier with
-  no app record (`com.example.ycode.nonexistent`) failed at once (0.16 s,
+  no app record (`com.example.swiftcode.nonexistent`) failed at once (0.16 s,
   same domain, code 4). §8.2 has the sequence in SpringBoard's log.
 
 - **Q6 — open (for a reference observation).** Where does the 27.1
   simulator loader take the root that `_dyld_shared_cache_contains_path`
-  strips? Ycode gives the loader `<RR>` in every input listed in §3.5 (the
+  strips? SwiftCode gives the loader `<RR>` in every input listed in §3.5 (the
   root variables, `F_GETPATH` of the cache directory, `fsgetpath` of the
   cache file) and the query still rejects `<RR>`. Useful observations, all
   black-box: (a) the reference loader's own startup file calls in a
@@ -894,7 +894,7 @@ symbolic link that points at `<RR>` all return 0.
 CFBundle on the reference, with `DYLD_PRINT_APIS`: CoreFoundation asks
 `_dyld_shared_cache_contains_path` for `<RR>/…/WebKit.framework/MacOS/WebKit`
 (answer 0) and then `<RR>/…/WebKit.framework/WebKit` (answer **1**), the same
-two queries Ycode's probe saw (§3.5). It then reports the executable URL as
+two queries SwiftCode's probe saw (§3.5). It then reports the executable URL as
 that rooted path, `CFBundleIsExecutableLoaded` is 1, and
 `CFBundleGetFunctionPointerForName` returns non-NULL for both
 `WebContentServiceInitializer` and `NetworkServiceInitializer`. The same
@@ -930,7 +930,7 @@ with root variables replaced by `L`, a symbolic link to `<RR>`:
 So on the reference the image names follow `DYLD_ROOT_PATH` as written,
 while the rooted spelling that `_dyld_shared_cache_contains_path` accepts
 is the root's real (symbolic-link-free) spelling and does not follow any of
-these variables. When the two differ, the reference fails exactly as Ycode
+these variables. When the two differ, the reference fails exactly as SwiftCode
 did before §3.5's fix (CFBundle finds no executable, no initializer).
 Where the accepted spelling comes from was not determined at levels 1–4:
 the open-source dyld (main branch, `DyldAPIs.cpp`, `DyldProcessConfig.cpp`,
@@ -938,7 +938,7 @@ the open-source dyld (main branch, `DyldAPIs.cpp`, `DyldProcessConfig.cpp`,
 simulator loader differs from that source here. Two candidates fit every
 row above: the root after its symbolic links are resolved, and the
 directory of the cache file as the kernel reports the open file's path.
-For Ycode this means: if the guest's runtime-root string (in
+For SwiftCode this means: if the guest's runtime-root string (in
 `DYLD_ROOT_PATH`) contains a symbolic link, or if the guest's path
 resolution or open-file path for the cache returns another spelling, the
 query fails as observed. The reference-conforming fix is to make the
@@ -955,14 +955,14 @@ retries six times at 2 s intervals, each failing with reason
 `LaunchServicesDataMismatch` (its own LaunchServices state has no GUID and
 sequence 0). It then makes a "final launch request", which fails with
 reason `NotFound`, logs "Exhausted retry attempts", and answers the request
-with the error. Total ≈ 12.2 s. On Ycode the request was not answered
+with the error. Total ≈ 12.2 s. On SwiftCode the request was not answered
 within the run (§2.1, several minutes): the 2 s retries, the 10 s limit or
-the final answer does not happen there. Since APP-FIX (§2.1): Ycode's
+the final answer does not happen there. Since APP-FIX (§2.1): SwiftCode's
 SpringBoard answers at once (code 4, NotFound, no wait, because the
 request names no LaunchServices record); `ylaunch` repeats the request
 every 2 s for 10 s and then answers NotFound, ≈13 s in all.
 
-## 9. Launch times (Ycode, the Thor, iOS 27.1, 1 guest CPU)
+## 9. Launch times (SwiftCode, the Thor, iOS 27.1, 1 guest CPU)
 
 Measured with the timing harness (§5): `--display-server`, a full boot or
 a restore of the warm-boot device (`snapshot.md` §12), one boot at a time
@@ -1010,14 +1010,14 @@ on full boots, none on the restores g1–g4, and once `dasd` (§3.8).
 
 | Claim | Level | Source |
 |---|---|---|
-| Safari's crash, the `mach_port_get_refs` stub before it (§3.1) | 3 | Ycode run r1 (crash report, unimplemented-function line); SpringBoard log lines from the guest `log stream` |
+| Safari's crash, the `mach_port_get_refs` stub before it (§3.1) | 3 | SwiftCode run r1 (crash report, unimplemented-function line); SpringBoard log lines from the guest `log stream` |
 | MIG routine 3207/3210 layouts (§3.1) | 1 | xnu `osfmk/mach/mach_port.defs`, MIG conventions in `mach-ipc.md` §5 |
-| WebContent's 32 GiB mapping failure (§3.2) | 3 | Ycode run r2 (mapping-failure line, crash report) |
+| WebContent's 32 GiB mapping failure (§3.2) | 3 | SwiftCode run r2 (mapping-failure line, crash report) |
 | Darwin anonymous memory is committed on touch (§3.2) | 1 | mmap(2) |
-| Lazy mapping behavior (§3.2) | — | Ycode design; unit tests; runs r3, r4 (no WebContent crash) |
+| Lazy mapping behavior (§3.2) | — | SwiftCode design; unit tests; runs r3, r4 (no WebContent crash) |
 | Foreign container paths in a copied device (§3.3) | 3 | Safari's stderr and SpringBoard log in run r1; byte search of the copied device's files |
 | LaunchServices reseeds a missing store (§3.3) | 3 | `first-boot.md` §1 item 5; run r2 (store removed, home screen and Safari launch afterwards) |
-| A copy that keeps its guest path needs no store rebuild; its apps use its own containers (§3.3) | 3 | Ycode boots of copies of the pristine device (2026-10-23, runs func-settings-1, func-safari-2): "keeps its guest path" line, both stores unchanged, Settings and Safari (a `data:` page) launched and drawn, Safari's stderr without foreign paths, 52 new files in the copy's data containers and none in the original's directory |
+| A copy that keeps its guest path needs no store rebuild; its apps use its own containers (§3.3) | 3 | SwiftCode boots of copies of the pristine device (2026-10-23, runs func-settings-1, func-safari-2): "keeps its guest path" line, both stores unchanged, Settings and Safari (a `data:` page) launched and drawn, Safari's stderr without foreign paths, 52 new files in the copy's data containers and none in the original's directory |
 | A store naming another device path is rebuilt; lsd rewrites the system-only store too, and keeping it does not shorten the rebuild (§3.3) | 3 | run func-reloc-safari-2 (own path recorded over the copied store: one store removed, both rewritten, the new one names the device's path, Safari launched); `frame-profile.md` §8.6 runs e1-2, base-2 |
 | The store check takes milliseconds (§3.3) | 3 | both stores of the pristine device (14 MB) searched in 4 ms by a release build of the routine |
 | Library functions and their callers (§3.4) | 3 | unimplemented-function lines in runs r1, r2; absent after the change (r4) |
@@ -1034,39 +1034,39 @@ on full boots, none on the restores g1–g4, and once `dasd` (§3.8).
 | §3.7's cause: the stuck draw and its feedback read | 3 | GPU-2 runs `SX/GPU2/runs/sa*`, `sd*`, `se*`, `sg*`, `sh*`, `sj*` (hang reports, checkpoint markers, captures of our own translations and their reflection), host kernel log (Xid 109), `scripts/gpu-probes/rprobe.c` |
 | Launch times (§9) | 3 | runs listed in §9 |
 | `thread_suspend` calls from JavaScriptCore (§3.6) | 3 | unimplemented-function counts in runs r2–r4 |
-| amsengagementd's JavaScriptCore crashes come with `thread_suspend` stub calls (§3.6) | 3 | Ycode's fault reports and exit summaries (unimplemented-function counts) of 47 amsengagementd processes in runs `fsh/runs/*`, `svcfull/runs/*` on the Linux host |
+| amsengagementd's JavaScriptCore crashes come with `thread_suspend` stub calls (§3.6) | 3 | SwiftCode's fault reports and exit summaries (unimplemented-function counts) of 47 amsengagementd processes in runs `fsh/runs/*`, `svcfull/runs/*` on the Linux host |
 | JavaScriptCore's collector: suspend, then `thread_get_state` (ARM_THREAD_STATE64), stack copy, resume; a failed suspend skips the thread, a failed state read is fatal (§3.6) | 1 | WebKit `Source/WTF/wtf/posix/ThreadingPOSIX.cpp`, `Source/JavaScriptCore/heap/MachineStackMarker.cpp` |
 | The fix ends amsengagementd's crashes; the "Invalid wlh state" abort and its cause (§3.6) | 3 | Thor runs `ide-remote/tsus/runs/A-*`, `B-*` (fault reports, trap rings, `launchd.log`), probe runs `p1`–`p4`, `pb1`, `pb2` (`p_tsus`, `p_jsgc` output); libpthread `kern/kern_support.c` (level 1) for the return semantics |
-| No AF_INET in the guest; −1003 (§4) | 3 | Ycode source (`SocketCalls.swift`); Safari's log lines in run r2 |
-| `home-apps.md` §6 checks (§6) | 2, 3 | the device's `IconState.plist`/`DesiredIconState.plist` read with `plistlib`; compared with the runtime's SpringBoard default files; Ycode screenshots |
-| Per-app results (§2) | 3 | Ycode warm runs t1 (frames, launch results, crash reports) |
+| No AF_INET in the guest; −1003 (§4) | 3 | SwiftCode source (`SocketCalls.swift`); Safari's log lines in run r2 |
+| `home-apps.md` §6 checks (§6) | 2, 3 | the device's `IconState.plist`/`DesiredIconState.plist` read with `plistlib`; compared with the runtime's SpringBoard default files; SwiftCode screenshots |
+| Per-app results (§2) | 3 | SwiftCode warm runs t1 (frames, launch results, crash reports) |
 | Q1, Q4: no file at any spelling, rooted query 1, cryptex spelling only for cryptex images, exact string match, CFBundle answers, image names (§8, §8.1) | 3 | reference simulator, our probe `cacheprobe` (`simctl spawn`, `DYLD_PRINT_APIS`, re-spawn with changed environment), new iPhone Duo device on 27.1, 2026-10-20 |
 | WebKit bundle is a symbolic link into the OS cryptex; cryptex framework list (§8.1) | 4 | `lstat`/`readlink` in the probe; directory listing of the runtime |
 | Open-source dyld does no prefix handling in the query (§8.1) | 1 | apple-oss-distributions/dyld main: `DyldAPIs.cpp`, `DyldProcessConfig.cpp`, `DyldSharedCache.cpp` |
 | Q2: `data:` in WKWebView renders; Safari gets no `data:` URL from `openurl`, `openURL:` or launch arguments (§8) | 3 | our probe app `webprobe`; `simctl openurl`, `simctl launch`; screenshots (scratch only) |
 | Q3: `dockUtilities` and the other keys of the reference's icon state files (§8) | 2 | `DesiredIconState.plist`, `IconState.plist` of the new device and the runtime's default files, read with `plistlib` |
 | Q5: NotFound after ≈12 s, retry sequence (§8, §8.2) | 3 | `simctl launch` with timings; the device's `log show` |
-| Ycode's loader inputs all spell the root `<RR>`; the query accepts no rooted prefix on Ycode; a `dyld_sim` image-list entry changes nothing (§3.5, last part) | 3 | `--exec` runs of our `bundleprobe` with `--trace` and with chosen prefixes, `YCODE_CACHE_IMAGE_FILES=0` (APP-FIX runs x1, x2 and prefix runs), 2026-10-20 |
-| Ycode's SpringBoard answers poster opens at once with code 4 NotFound; `ylaunch` retried it (§2.1) | 3 | ylaunch output in run t2; APP-FIX runs a1, c1 |
-| Ycode's `DesiredIconState.plist` keeps the default list identifiers (§6) | 2 | 13 Ycode devices compared with the runtime's default file (`plistlib`) |
-| The frozen screen's wait chain: SpringBoard → `iconservicesagent` → a connection whose receive right is queued for PosterBoard → PosterBoard's 63 workloop servicers in sync waits, 90+ workloop requests without a vCPU (§3.9) | 3 | Ycode thread reports (with the fields §3.9 adds) of runs `r1`–`r3` on the Thor (`ide-remote/icon-freeze/proto`, 2026-10-29); PREVIEWS' reports (`ide-remote/previews/proto/run1`–`run3`); exit summaries (peak threads) |
+| SwiftCode's loader inputs all spell the root `<RR>`; the query accepts no rooted prefix on SwiftCode; a `dyld_sim` image-list entry changes nothing (§3.5, last part) | 3 | `--exec` runs of our `bundleprobe` with `--trace` and with chosen prefixes, `SWIFTCODE_CACHE_IMAGE_FILES=0` (APP-FIX runs x1, x2 and prefix runs), 2026-10-20 |
+| SwiftCode's SpringBoard answers poster opens at once with code 4 NotFound; `ylaunch` retried it (§2.1) | 3 | ylaunch output in run t2; APP-FIX runs a1, c1 |
+| SwiftCode's `DesiredIconState.plist` keeps the default list identifiers (§6) | 2 | 13 SwiftCode devices compared with the runtime's default file (`plistlib`) |
+| The frozen screen's wait chain: SpringBoard → `iconservicesagent` → a connection whose receive right is queued for PosterBoard → PosterBoard's 63 workloop servicers in sync waits, 90+ workloop requests without a vCPU (§3.9) | 3 | SwiftCode thread reports (with the fields §3.9 adds) of runs `r1`–`r3` on the Thor (`ide-remote/icon-freeze/proto`, 2026-10-29); PREVIEWS' reports (`ide-remote/previews/proto/run1`–`run3`); exit summaries (peak threads) |
 | Darwin's limits: 512 workqueue threads, constrained workers below max(64, 5 × CPUs), overcommit and workloop requests admitted whatever blocks (§3.9) | 1 | `threads-and-events.md` §2.5 (xnu `kern_workqueue.c`, libpthread) |
-| The fix: frozen in 1 of 3 main-line boots, live in 12 of 13 boots and restores with it (27.0 iPhone 18 Pro, 27.1 iPhone 18 Pro and iPhone Duo); the one exception a GPU hang (§3.9 table) | 3 | runs `f1a`–`f4c`, `d1a`–`d1c`, `n1a`, `n1b`, `n2a`: launcher logs, our display probe (`scripts/ycode-display-probe`: Home, swipes, input-to-frame times, screenshots), thread reports, Metal back-end hang reports |
-| The vCPU slot layout and the constrained cap | — | Ycode design; `VCPUSlotLayoutTests`, `WorkqueueKEventTests.constrainedWorkersStopAtTheSchedulingCap` (fails without the cap) |
+| The fix: frozen in 1 of 3 main-line boots, live in 12 of 13 boots and restores with it (27.0 iPhone 18 Pro, 27.1 iPhone 18 Pro and iPhone Duo); the one exception a GPU hang (§3.9 table) | 3 | runs `f1a`–`f4c`, `d1a`–`d1c`, `n1a`, `n1b`, `n2a`: launcher logs, our display probe (`scripts/swiftcode-display-probe`: Home, swipes, input-to-frame times, screenshots), thread reports, Metal back-end hang reports |
+| The vCPU slot layout and the constrained cap | — | SwiftCode design; `VCPUSlotLayoutTests`, `WorkqueueKEventTests.constrainedWorkersStopAtTheSchedulingCap` (fails without the cap) |
 | SpringBoard's RunningBoard abort at boot with the fix; the poster snapshot failures and FrontBoard timeouts of a boot without it (§3.9) | 3 | crash reports of runs `f1a`, `f2b`; guest `log stream --process SpringBoard` one-shot of run `g1` |
 | The recheck after the merge: 12 of 15 iOS runs live, the 3 others a GPU hang; the chain in none; visionOS reaches its room (§3.9) | 3 | ICON-FREEZE2 runs `a1a`–`a7a`, `a1b`, `a6b`, `b1a`–`b1c`, `b2a`, `b2b`, `v2a` on the Thor (`ide-remote/icon-freeze/proto`, 2026-10-30): launcher logs, display-probe phases and screenshots, thread reports, exit summaries |
-| The GPU hang fixed by argument buffers from the layout description: 0 GPU hangs in 20 cold 27.0 boots (9 with WeatherPoster's encoders), a second boot and a restore; WeatherPoster's layouts as Ycode receives them; the 27.1 check (§3.9) | 3 | ARGBUF-IMPL runs `c1a`–`c8a`, `c1b`–`c1e`, `d1a`–`d6a`, `e1a`–`e6a`, `f1a`, `f2a`, `n1a`, `n2a` on the Thor (`ide-remote/argbuf/proto`, 2026-10-30): launcher logs, display-probe phases and screenshots, thread reports, the host's "argument layout" and "argument encoder" lines; the implementation in `metal-sim-protocol.md` §4.3.9 (Ycode design) |
+| The GPU hang fixed by argument buffers from the layout description: 0 GPU hangs in 20 cold 27.0 boots (9 with WeatherPoster's encoders), a second boot and a restore; WeatherPoster's layouts as SwiftCode receives them; the 27.1 check (§3.9) | 3 | ARGBUF-IMPL runs `c1a`–`c8a`, `c1b`–`c1e`, `d1a`–`d6a`, `e1a`–`e6a`, `f1a`, `f2a`, `n1a`, `n2a` on the Thor (`ide-remote/argbuf/proto`, 2026-10-30): launcher logs, display-probe phases and screenshots, thread reports, the host's "argument layout" and "argument encoder" lines; the implementation in `metal-sim-protocol.md` §4.3.9 (SwiftCode design) |
 | `WeatherPoster`'s skybox command buffer that never completes, the device losses after it, and its dropped argument-encoder writes (ids 200, 201, 230, 231 past the buffer's end) (§3.9) | 3 | Vulkan hang reports and checkpoints, `argument encoder` log lines of runs `a2a`, `a3a`, `fix3`, `n1a` (and `f2a`, `f3b`, `b2a` without a hang); the causal link is not proven |
 | Op 16's layout and the member-offset rule; no argument encoder in the reference's WeatherPoster during a cold iOS 27.0 boot (§3.9 pointer) | 3 | OBS-ARGBUF, 2026-10-30: `metal-sim-protocol.md` §4.3 (our probe under the recorder on the reference); the recorder in WeatherPoster and PosterBoard during reference boot `w1` |
-| Cost of 512 slots: home-screen time and host memory against the main line (§3.9) | 3 | three paired cold boots `fix1`–`fix3`, `base1`–`base3` (`ide-remote/icon-freeze/meas`: frames, `/proc` status and `smaps_rollup` 60 s after the home screen, thread reports); the per-process and per-thread costs follow from Ycode's own layout (`VCPUSlots`, 16 KiB tables) |
+| Cost of 512 slots: home-screen time and host memory against the main line (§3.9) | 3 | three paired cold boots `fix1`–`fix3`, `base1`–`base3` (`ide-remote/icon-freeze/meas`: frames, `/proc` status and `smaps_rollup` 60 s after the home screen, thread reports); the per-process and per-thread costs follow from SwiftCode's own layout (`VCPUSlots`, 16 KiB tables) |
 
 Level 5 was not used. The reference tools, `research/` and Ghidra were not
-opened. ICON-FREEZE (§3.9, 2026-10-29, clean side), ICON-FREEZE2 (2026-10-30, clean side) and ARGBUF-IMPL (2026-10-30, clean side) ran only Ycode's own
+opened. ICON-FREEZE (§3.9, 2026-10-29, clean side), ICON-FREEZE2 (2026-10-30, clean side) and ARGBUF-IMPL (2026-10-30, clean side) ran only SwiftCode's own
 simulator on the Thor with our own app and probes, and did not run or
 observe the reference. Sections §1–§7 and §9: the reference simulator was not run or
 observed. §8 (dirty side, 2026-10-20): the reference simulator was observed
 black-box with our own public-API probes; no decompiling or disassembly; no
-IPSW was opened. APP-FIX (2026-10-20, clean side) ran only Ycode's own
+IPSW was opened. APP-FIX (2026-10-20, clean side) ran only SwiftCode's own
 simulator on the Thor and our probes in it, and read open-source dyld
 (main branch, `DyldAPIs.cpp`, `DyldProcessConfig.cpp`; level 1: the query
 looks the string up in the cache image table, with a `realpath` retry on

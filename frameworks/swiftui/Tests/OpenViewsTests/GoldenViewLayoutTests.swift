@@ -2478,7 +2478,7 @@ struct GoldenViewLayoutTests {
         Golden.run(c) { ViewGraph.layoutNode(for: Gauge(value: 0.5) { Text("G") }) }
     }
 
-    @Test("link — Link(\"Ycode\", destination: URL(string: \"https://example.com\")!)")
+    @Test("link — Link(\"SwiftCode\", destination: URL(string: \"https://example.com\")!)")
     func goldenView_link() {
         let c = GoldenCase(
             id: "view:link", placed: CGSize(width: 300, height: 500),
@@ -2493,7 +2493,7 @@ struct GoldenViewLayoutTests {
             ],
             frames: [:],
             baselines: nil)
-        Golden.run(c) { ViewGraph.layoutNode(for: Link("Ycode", destination: URL(string: "https://example.com")!)) }
+        Golden.run(c) { ViewGraph.layoutNode(for: Link("SwiftCode", destination: URL(string: "https://example.com")!)) }
     }
 
     @Test("scrollView — ScrollView { VStack { Text(\"A\").probe(\"a\"); Color.red.frame(height: 1000).probe(\"c\") } }")

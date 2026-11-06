@@ -1,10 +1,10 @@
 # SwiftUI 1: simulator parity — what SwiftUI apps need from the simulator
 
 Status: reference, round 0 (KIT-SWIFTUI, 2026-10-19). This is the first
-target for Ycode's iOS simulator for SwiftUI: a guest app that uses
-SwiftUI must behave under Ycode as it does under Apple's simulator. Ycode
+target for SwiftCode's iOS simulator for SwiftUI: a guest app that uses
+SwiftUI must behave under SwiftCode as it does under Apple's simulator. SwiftCode
 does **not** implement SwiftUI for this: the guest loads Apple's SwiftUI
-from the iOS 27.1 runtime. Ycode has to provide what that framework uses
+from the iOS 27.1 runtime. SwiftCode has to provide what that framework uses
 at run time — processes, Mach/XPC services, notifications and host
 features. Everything here is level 3 (our own app on Apple's simulator)
 except the service-to-daemon mapping, which reads the runtime's launchd
@@ -17,7 +17,7 @@ job property lists as a file format (level 2).
   `build.sh`, `run.sh`). One mode per launch (`-mode <name>`); it prints
   `SUP key=value` lines; modes and expected results are in
   `02-conformance-checklist.md`.
-- **Device:** throwaway `ycode-test-swiftui-1` (iPhone Duo, iOS 27.1
+- **Device:** throwaway `swiftcode-test-swiftui-1` (iPhone Duo, iOS 27.1
   runtime 24A94401), booted headless with `simctl` (no Simulator.app
   window), one device at a time, deleted after the runs.
 - **Input:** the simulator track's HID driver
@@ -47,7 +47,7 @@ job property lists as a file format (level 2).
   `RenderBox`, `AttributeGraph`, `Gestures`, `CoreMaterial`, `Symbols`,
   `SFSymbols`, `TextInput`, `AXRuntime`, `GraphicsServices`,
   `FrontBoardServices`, `BackBoardServices`, `RunningBoardServices`,
-  `IOSurface`, `Metal`, `libswiftObservation`. Ycode's loader must map all
+  `IOSurface`, `Metal`, `libswiftObservation`. SwiftCode's loader must map all
   of them (`specs/simulator/loader.md`, `host-library-*.md`); the count is a
   useful regression check (±10).
 - Launch timing (Apple's simulator, loaded host): exec → `App.init`
@@ -63,7 +63,7 @@ job property lists as a file format (level 2).
 
 ### 3.1 Services every SwiftUI app used (all modes)
 
-| Service name (as looked up) | Owner (launchd job) | When | Used for (observed or inferred from timing) | Ycode spec |
+| Service name (as looked up) | Owner (launchd job) | When | Used for (observed or inferred from timing) | SwiftCode spec |
 |---|---|---|---|---|
 | `com.apple.system.notification_center` | notifyd | 0.02 s | Darwin notifications (≈ 80 names registered, §3.4) | `launchd-sim.md` |
 | `com.apple.logd` | logd | 0.02 s | unified logging | `service-fidelity.md` |
@@ -103,7 +103,7 @@ snapshots), runningboardd, notifyd, logd, cfprefsd, lsd, fontservicesd,
 intelligencecontextd, pasted, sharingd, configd_sim,
 containermanagerd_system, mobileassetd, AccessibilityUIServer, and
 TextInput's `kbd` on demand. In Apple's simulator all of these were
-running (or started on first use) on the booted device. Ycode's **lean
+running (or started on first use) on the booted device. SwiftCode's **lean
 boot** (`specs/simulator/lean-boot.md`) must not disable any of them for
 SwiftUI parity runs; the parity benchmark uses the full boot anyway.
 
@@ -135,7 +135,7 @@ behaviour:
   `com.apple.LaunchServices.database`, `com.apple.runningboard.daemonstartup`,
   `com.apple.iohideventsystem.available`.
 
-Ycode must deliver these through its notifyd exactly as the reference does
+SwiftCode must deliver these through its notifyd exactly as the reference does
 (names are posted by the daemons that own the settings; `simctl ui` on the
 Mac changes the setting and causes the post).
 

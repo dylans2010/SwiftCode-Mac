@@ -12,7 +12,7 @@
      "subscriptionGroupID": "200000001",
      "referenceName": "Plus Monthly",
      "recurringSubscriptionPeriod": "P1M",
-     "productID": "dev.ycode.skprobe.plus.monthly",
+     "productID": "dev.swiftcode.skprobe.plus.monthly",
      "localizations": [
       {
        "locale": "en_US",
@@ -63,7 +63,7 @@
      "subscriptionGroupID": "200000001",
      "referenceName": "Plus Yearly",
      "recurringSubscriptionPeriod": "P1Y",
-     "productID": "dev.ycode.skprobe.plus.yearly",
+     "productID": "dev.swiftcode.skprobe.plus.yearly",
      "localizations": [
       {
        "locale": "en_US",
@@ -84,7 +84,7 @@
      "subscriptionGroupID": "200000001",
      "referenceName": "Plus Lite",
      "recurringSubscriptionPeriod": "P1M",
-     "productID": "dev.ycode.skprobe.plus.lite",
+     "productID": "dev.swiftcode.skprobe.plus.lite",
      "localizations": [
       {
        "locale": "en_US",
@@ -111,7 +111,7 @@
    "localizations": [
     {
      "locale": "en_US",
-     "displayName": "Ycode Plus",
+     "displayName": "SwiftCode Plus",
      "description": "The Plus plans."
     }
    ],
@@ -125,7 +125,7 @@
      "subscriptionGroupID": "200000002",
      "referenceName": "Extra Weekly",
      "recurringSubscriptionPeriod": "P1W",
-     "productID": "dev.ycode.skprobe.extra.weekly",
+     "productID": "dev.swiftcode.skprobe.extra.weekly",
      "localizations": [
       {
        "locale": "en_US",
@@ -169,7 +169,7 @@
   {
    "type": "Consumable",
    "referenceName": "100 Probe Coins",
-   "productID": "dev.ycode.skprobe.coins100",
+   "productID": "dev.swiftcode.skprobe.coins100",
    "localizations": [
     {
      "locale": "en_US",
@@ -189,7 +189,7 @@
   {
    "type": "NonConsumable",
    "referenceName": "Probe Pro",
-   "productID": "dev.ycode.skprobe.pro",
+   "productID": "dev.swiftcode.skprobe.pro",
    "localizations": [
     {
      "locale": "en_US",
@@ -206,7 +206,7 @@
   {
    "type": "NonRenewingSubscription",
    "referenceName": "Probe Season Pass",
-   "productID": "dev.ycode.skprobe.season",
+   "productID": "dev.swiftcode.skprobe.season",
    "localizations": [
     {
      "locale": "en_US",

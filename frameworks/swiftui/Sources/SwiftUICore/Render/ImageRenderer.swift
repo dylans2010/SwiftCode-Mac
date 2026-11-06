@@ -5,7 +5,7 @@ import OVRender
 // (round R5) and `ImageRenderer`. A view graph is laid out, lowered to a
 // display list and rasterised by ThorVG on the CPU (OVRender).
 
-/// Headless rendering of a view into pixels (tests, previews, `ycode
+/// Headless rendering of a view into pixels (tests, previews, `swiftcode
 /// preview --render`).
 @MainActor
 package enum HeadlessRenderer {
@@ -35,7 +35,7 @@ package enum HeadlessRenderer {
 }
 
 /// Renders a view to an image. OpenViews has no `CGImage`/`UIImage` on
-/// Linux; the image is available as PNG data (`pngData`), a Ycode addition.
+/// Linux; the image is available as PNG data (`pngData`), a SwiftCode addition.
 @MainActor
 public final class ImageRenderer<Content: View>: ObservableObject {
     public var content: Content

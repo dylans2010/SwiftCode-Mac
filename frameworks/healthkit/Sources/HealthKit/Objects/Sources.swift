@@ -1,9 +1,9 @@
 import Foundation
 
 /// Identity of the app (client) that talks to the health store. On Apple's
-/// platforms this comes from the app's entitlements and bundle; in Ycode's open
+/// platforms this comes from the app's entitlements and bundle; in SwiftCode's open
 /// HealthKit it is configured explicitly (see README "Client identity").
-public struct YcodeHealthClient: Hashable, Sendable {
+public struct SwiftCodeHealthClient: Hashable, Sendable {
     public var bundleIdentifier: String
     public var name: String
     public var version: String?
@@ -11,7 +11,7 @@ public struct YcodeHealthClient: Hashable, Sendable {
     public var operatingSystemVersion: (major: Int, minor: Int, patch: Int)
 
     public init(bundleIdentifier: String, name: String? = nil, version: String? = "1",
-                productType: String? = YcodeHealthClient.hostProductType,
+                productType: String? = SwiftCodeHealthClient.hostProductType,
                 operatingSystemVersion: (major: Int, minor: Int, patch: Int)? = nil) {
         self.bundleIdentifier = bundleIdentifier
         self.name = name ?? bundleIdentifier
@@ -33,18 +33,18 @@ public struct YcodeHealthClient: Hashable, Sendable {
     public static let hostProductType: String? = "Mac"
     #endif
 
-    /// The process's own identity: `YCODE_HEALTHKIT_BUNDLE_IDENTIFIER`, else the main
+    /// The process's own identity: `SWIFTCODE_HEALTHKIT_BUNDLE_IDENTIFIER`, else the main
     /// bundle's identifier, else `local.<process name>`.
-    public static let processDefault: YcodeHealthClient = {
+    public static let processDefault: SwiftCodeHealthClient = {
         let env = ProcessInfo.processInfo.environment
-        let id = env["YCODE_HEALTHKIT_BUNDLE_IDENTIFIER"] ?? Bundle.main.bundleIdentifier
+        let id = env["SWIFTCODE_HEALTHKIT_BUNDLE_IDENTIFIER"] ?? Bundle.main.bundleIdentifier
             ?? "local.\(ProcessInfo.processInfo.processName)"
-        let name = env["YCODE_HEALTHKIT_APP_NAME"]
+        let name = env["SWIFTCODE_HEALTHKIT_APP_NAME"]
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
             ?? ProcessInfo.processInfo.processName
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return YcodeHealthClient(bundleIdentifier: id, name: name, version: version)
+        return SwiftCodeHealthClient(bundleIdentifier: id, name: name, version: version)
     }()
 
     var sourceRecord: SourceRecord { SourceRecord(bundleIdentifier: bundleIdentifier, name: name) }
@@ -69,7 +69,7 @@ public final class HKSource: NSObject, NSSecureCoding, NSCopying, @unchecked Sen
     }
 
     /// The calling app's source.
-    public class func `default`() -> HKSource { YcodeHealthClient.processDefault.source }
+    public class func `default`() -> HKSource { SwiftCodeHealthClient.processDefault.source }
 
     public override func isEqual(_ object: Any?) -> Bool {
         (object as? HKSource)?.bundleIdentifier == bundleIdentifier
@@ -163,11 +163,11 @@ public final class HKDevice: NSObject, NSSecureCoding, NSCopying, @unchecked Sen
                                        udiDeviceIdentifier: udiDeviceIdentifier))
     }
 
-    /// The machine this process runs on (Ycode's own description of the host).
+    /// The machine this process runs on (SwiftCode's own description of the host).
     public class func local() -> HKDevice {
         let os = ProcessInfo.processInfo.operatingSystemVersion
-        let model = YcodeHealthClient.hostProductType
-        return HKDevice(name: model, manufacturer: "Ycode", model: model, hardwareVersion: model,
+        let model = SwiftCodeHealthClient.hostProductType
+        return HKDevice(name: model, manufacturer: "SwiftCode", model: model, hardwareVersion: model,
                         firmwareVersion: nil,
                         softwareVersion: "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
                         localIdentifier: nil, udiDeviceIdentifier: nil)

@@ -1,13 +1,13 @@
 # RealityKit 10: implementation rounds and conformance tests
 
-Status: proposal, round 0 (KIT-REALITYKIT, 2026-10-19). Ycode-original
+Status: proposal, round 0 (KIT-REALITYKIT, 2026-10-19). @@SWIFTCODE_ORIGINAL@@
 plan. Clean-room agents implement from files 01–09 only; they must not
 open the reference tools (the Xcode copy, Ghidra, the IPSW),
 `research/dirty/` or Ghidra projects.
 
 ## 1. Rounds (one agent each)
 
-Library location (proposal): a Swift package under `ycode/Frameworks/
+Library location (proposal): a Swift package under `swiftcode/Frameworks/
 RealityKit/` building on macOS and on the Linux workstation (Swift 6.4),
 module `RealityKit` (plus `RealityFoundation` re-export). Each round ends
 with its conformance tests green on Linux.
@@ -29,7 +29,7 @@ team):
 
 | Item | Scope | Exit criterion |
 |---|---|---|
-| S-RK1 | Metal host features RealityKit uses (`08-simulator-baseline.md` §6): texture views with ranges and swizzle, fences, heaps, argument encoders (tier 0), events, cube/3D/MS textures and resolve, vertex textures; identify and implement record opcodes 24, 25, 131, 132, 212 (dirty-room research first) | RKProbe modes rv-basic, rv-mat, rv-mesh, rv-tex, rv-physics render under Ycode on the Thor |
+| S-RK1 | Metal host features RealityKit uses (`08-simulator-baseline.md` §6): texture views with ranges and swizzle, fences, heaps, argument encoders (tier 0), events, cube/3D/MS textures and resolve, vertex textures; identify and implement record opcodes 24, 25, 131, 132, 212 (dirty-room research first) | RKProbe modes rv-basic, rv-mat, rv-mesh, rv-tex, rv-physics render under SwiftCode on the Thor |
 | S-RK2 | Audio output for guest apps | rv-audio completes |
 | S-RK3 (with KIT-ARKIT) | AR: camera feed, world tracking, plane anchors from a simulated environment | arview-ar shows the camera image; plane anchors anchor |
 
@@ -43,7 +43,7 @@ a host app, or on macOS where the API exists) and record the expected
 values; on Linux they run against OpenReality and compare. Expected values
 below come from our probe (`RKProbe`) on iOS 27.1 and are the initial
 golden data. Our probe modes double as the simulator-parity suite: run
-the same app under Apple's simulator and under Ycode and diff logs and
+the same app under Apple's simulator and under SwiftCode and diff logs and
 screenshots.
 
 ### 2.2 Suites and expected results
@@ -61,7 +61,7 @@ screenshots.
 | T-IMG | `RealityRenderer` into a 256×256 texture: background pixel (sRGB 0.1, 0.1, 0.3 → 25, 25, 74), sphere and floor probes; later full images of `rv-basic`, `rv-mat`, `rv-mesh`, `rv-tex` scenes | `06-views-anchoring-input.md` §3; screenshots kept by the round agent | background ±2/255; lit probes ±12/255; whole images SSIM ≥ 0.90 |
 | T-VIEW | projection of fixed points with our camera and the default camera (466×678 and 300×200 views); hit-test order | `06-views-anchoring-input.md` §1, §2; `08-simulator-baseline.md` §3.1 | ±0.5 pt |
 | T-AUD | buffer resource duration; playback completes; controller state | `05-animation-audio.md` §8.2 | state exact |
-| T-SIM | RKProbe under Ycode vs Apple's simulator: every mode's log keys equal (timing keys excluded), screenshots SSIM ≥ 0.9 | `08-simulator-baseline.md` | as listed |
+| T-SIM | RKProbe under SwiftCode vs Apple's simulator: every mode's log keys equal (timing keys excluded), screenshots SSIM ≥ 0.9 | `08-simulator-baseline.md` | as listed |
 
 ### 2.3 Test assets
 

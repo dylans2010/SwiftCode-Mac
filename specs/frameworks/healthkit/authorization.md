@@ -87,7 +87,7 @@ Authorization is per **app (source) × object type × direction**:
 
 Topic labels are Health's display names for types (Steps, Walking + Running
 Distance, Workout Routes, Workouts, Height, Weight, Heart Rate, Mindful
-Minutes, Dietary Energy, Sleep, Body Temperature, …). Ycode writes its own
+Minutes, Dietary Energy, Sleep, Body Temperature, …). SwiftCode writes its own
 labels and artwork.
 
 "Don't Allow" counts as answered: types become presented-and-denied (level 1).
@@ -102,7 +102,7 @@ labels and artwork.
 - Effect (observed): statistics and collection queries ignore samples
   before the bound, **including the app's own**; sample queries still return
   the app's own older samples. Other sources' older samples are hidden from
-  all reads (Ycode assumption consistent with the purpose; not separately
+  all reads (SwiftCode assumption consistent with the purpose; not separately
   measured).
 
 ## 6. What can be requested

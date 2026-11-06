@@ -1,9 +1,9 @@
-# Spec: the visionOS simulator (visionOS 27.0, Apple Vision Pro) — what differs from iOS, and what Ycode must add
+# Spec: the visionOS simulator (visionOS 27.0, Apple Vision Pro) — what differs from iOS, and what SwiftCode must add
 
-Status: **draft, round 0** (agent VISIONOS-SPEC, 2026-10-26); round R1 results under Ycode in §10 (VISIONOS-R1/R1b, 2026-10-27); round R2a in §10.7 (VISIONOS-R2a, 2026-10-27); reference observations for R2b's questions in §10.10 (VISIONOS-OBS3, 2026-10-27); round R3 in §10.11 (VISIONOS-R3, 2026-10-27); reference observations for R3's questions Q18–Q20 in §10.12 (VISIONOS-OBS4, 2026-10-27); round R4b in §10.14 (VISIONOS-R4b, 2026-10-27; new Q21); reference observations for Q21 in §10.15 (VISIONOS-OBS5, 2026-10-27); round R5 in §10.16 (VISIONOS-R5, 2026-10-27; new Q22); round R4a (the GPU hang, the broken pipelines) in §10.13 (VISIONOS-R4a, 2026-10-27; new Q23, Q24); reference observations for Q22 in §10.17 (VISIONOS-OBS6, 2026-10-27); guest audio under Ycode in §10.19 (AUDIO-HOST, 2026-10-27); round R8 (the home view's launch, app compatibility, sRGB storage, snapshot slots) in §10.21 (VISIONOS-R8, 2026-10-29; new Q27); argument buffers by op 16's description and the visibility results behind the missing room parts in §10.22 (ARGBUF-IMPL, 2026-10-30); input formats, the ARKit pose, vhmdd's protocol (§9 Q1–Q3) in §5.5 and the reference's glass and metal in §10.23 (OBS-VISION-INPUT, 2026-10-31); the Digital Crown, immersion and recentering in §5.5.9 (OBS-VISION-CROWN, 2026-11-01); views and stereo in §5.6 (OBS-VISION-STEREO, 2026-11-01); rasterization rate maps and foveation in §5.6.7 (OBS-VISION-RRM, 2026-11-01); round R11 (the home view in every boot, Photos' free space) in §10.26 (VISIONOS-R11, 2026-11-01; new Q28). It describes
+Status: **draft, round 0** (agent VISIONOS-SPEC, 2026-10-26); round R1 results under SwiftCode in §10 (VISIONOS-R1/R1b, 2026-10-27); round R2a in §10.7 (VISIONOS-R2a, 2026-10-27); reference observations for R2b's questions in §10.10 (VISIONOS-OBS3, 2026-10-27); round R3 in §10.11 (VISIONOS-R3, 2026-10-27); reference observations for R3's questions Q18–Q20 in §10.12 (VISIONOS-OBS4, 2026-10-27); round R4b in §10.14 (VISIONOS-R4b, 2026-10-27; new Q21); reference observations for Q21 in §10.15 (VISIONOS-OBS5, 2026-10-27); round R5 in §10.16 (VISIONOS-R5, 2026-10-27; new Q22); round R4a (the GPU hang, the broken pipelines) in §10.13 (VISIONOS-R4a, 2026-10-27; new Q23, Q24); reference observations for Q22 in §10.17 (VISIONOS-OBS6, 2026-10-27); guest audio under SwiftCode in §10.19 (AUDIO-HOST, 2026-10-27); round R8 (the home view's launch, app compatibility, sRGB storage, snapshot slots) in §10.21 (VISIONOS-R8, 2026-10-29; new Q27); argument buffers by op 16's description and the visibility results behind the missing room parts in §10.22 (ARGBUF-IMPL, 2026-10-30); input formats, the ARKit pose, vhmdd's protocol (§9 Q1–Q3) in §5.5 and the reference's glass and metal in §10.23 (OBS-VISION-INPUT, 2026-10-31); the Digital Crown, immersion and recentering in §5.5.9 (OBS-VISION-CROWN, 2026-11-01); views and stereo in §5.6 (OBS-VISION-STEREO, 2026-11-01); rasterization rate maps and foveation in §5.6.7 (OBS-VISION-RRM, 2026-11-01); round R11 (the home view in every boot, Photos' free space) in §10.26 (VISIONOS-R11, 2026-11-01; new Q28). It describes
 the observable behavior and file formats of Xcode 27.1's visionOS 27.0
 simulator runtime and its Apple Vision Pro device type, as deltas from the
-iOS 27.1 runtime that `ycode-simd` boots today, and it states what Ycode
+iOS 27.1 runtime that `swiftcode-simd` boots today, and it states what SwiftCode
 must add, in rounds sized for one agent each. Facts come from the runtime
 and device-type files read as formats (level 2), black-box runs of
 throwaway devices on this Mac (level 3), bundle metadata (level 4: names of
@@ -27,7 +27,7 @@ Terms as in `launchd-sim.md`: **RR** (a runtime's `RuntimeRoot`), **DEV**
    wakeboardd, the head-mounted-display presenter) through the same
    simulator Metal host protocol that iOS uses. The host receives only the
    final 3840 × 2160 BGRA image through the ordinary SimFramebuffer
-   display. Ycode's guest-renders-into-a-framebuffer design therefore
+   display. SwiftCode's guest-renders-into-a-framebuffer design therefore
    suffices; **no host-side compositor is needed** (§4).
 2. The picture is **mono**: one view, one display, 3840 × 2160 at scale 2,
    60 Hz. No stereo, no per-eye rendering, no foveation; the guest's Metal
@@ -98,7 +98,7 @@ Family 7 is the Apple Vision device family (`UIDeviceFamily` 7).
 
 ### 2.3 Layout relative to iOS 27.1
 
-| Item | iOS 27.1 (24A94401) | visionOS 27.0 (24M362) | Consequence for `ycode-simd` |
+| Item | iOS 27.1 (24A94401) | visionOS 27.0 (24M362) | Consequence for `swiftcode-simd` |
 |---|---|---|---|
 | RR top level | `Applications`, `Developer`, `Library`, `System`, `bin`, `sbin`, `usr`, `private`, `etc` → `private/etc` | same structure | the prefix/volume code applies unchanged |
 | Shared cache | `dyld_sim_shared_cache_arm64` 2 035 384 320 B + `.01` 1 748 582 400 B + `.atlas`, `.map`; 1819 images | same file names; 2 039 676 928 B + 1 767 817 216 B; **2907** images in the map | same loader path (`dyld-sim-handoff.md`); different build, so UUIDs, offsets and recorded addresses differ |
@@ -106,7 +106,7 @@ Family 7 is the Apple Vision device family (`UIDeviceFamily` 7).
 | `sbin/launchd_sim`, `launchd_sim_trampoline` | present | present (different builds) | re-check `launchd-sim.md`, `bootstrap-wire.md` |
 | Apps with Info.plist (`Applications`, `System/Library/CoreServices`) | 163 | 133 | lsd seeds fewer apps on the first boot |
 | DataClassMigrators | 35 | 34 | |
-| Runtime volume (used) | 16 GiB | 14 GiB | disk on `$YCODE_DATA` |
+| Runtime volume (used) | 16 GiB | 14 GiB | disk on `$SWIFTCODE_DATA` |
 | Simulated rooms (§2.6) | none | 6, 254 MB | runtime content, used by backboardd |
 
 ### 2.4 launchd jobs
@@ -192,7 +192,7 @@ domain (`DEV/data/Library/Preferences/com.apple.RealityEnvironment.plist`,
 key `activeSyntheticEnvironment`, default `LivingRoomDay`; the same file
 holds `activeEnvironment` = `Wolf` for immersive Environments). PHASE ships
 matching acoustic presets (`ReverbPresets/{Kitchen,LivingRoom,Museum}.bin`).
-These assets are Apple content: Ycode reads them from the owner's runtime
+These assets are Apple content: SwiftCode reads them from the owner's runtime
 copy and never redistributes them.
 
 ### 2.7 Copying the runtime
@@ -203,7 +203,7 @@ copy and never redistributes them.
 Simulator", container 15.2 GB, 14 GiB used. This is the same packaging as
 the iOS 27.1 runtime. The RuntimeRoot tree can be copied the way the iOS
 root was (symlinks, modes and extended attributes preserved) to
-`$YCODE_DATA/runtimes/xrOS-27.0-24M362/RuntimeRoot` (about 14 GiB). No
+`$SWIFTCODE_DATA/runtimes/xrOS-27.0-24M362/RuntimeRoot` (about 14 GiB). No
 decryption is involved. (Nothing was copied for this spec.)
 
 ## 3. The device type
@@ -388,12 +388,12 @@ formats, 32-bit float filtering, barycentrics, pull-model interpolation;
 `supportsVertexAmplificationCount` 1 true, **2 false**;
 `supportsRasterizationRateMap` false (1 and 2 layers); sample count 4 true.
 This is the iOS simulator's profile (`metal-sim-protocol.md` §4.1). The
-system renderer works within it, so Ycode's Metal→Vulkan layer needs no
+system renderer works within it, so SwiftCode's Metal→Vulkan layer needs no
 stereo, multiview or variable-rate features for parity.
 
-### 4.6 What this means for Ycode
+### 4.6 What this means for SwiftCode
 
-- The existing path — guest renders through Ycode's Metal host, a
+- The existing path — guest renders through SwiftCode's Metal host, a
   headless SimFramebuffer replacement receives presented IOSurfaces, the
   display stream sends them to the viewer — **is the right path**. No host
   compositor, no host scene graph.
@@ -408,7 +408,7 @@ stereo, multiview or variable-rate features for parity.
   fifth at an idle home view, and the backboardd SimMetalHost held about
   1.7 GB (top's MEM). This is the main risk for the Thor (§7.3).
 - Frames move between guest processes as IOSurfaces (backboardd's
-  swapchains handed to wakeboardd). Ycode's IOSurface service must support
+  swapchains handed to wakeboardd). SwiftCode's IOSurface service must support
   surfaces created in one process and presented by another
   (`iosurface-remote.md`).
 
@@ -541,7 +541,7 @@ backboardd, and our probe app. Details and raw numbers: §10.23 and
 - The camera pose is **absolute**: identity is the default eye looking along
   −Z; the same pose sent twice gives identical frames.
 
-#### 5.5.2 Events the guest receives (what Ycode's HID bundle must dispatch)
+#### 5.5.2 Events the guest receives (what SwiftCode's HID bundle must dispatch)
 
 All vendor-defined events below have usage page **0xFF00** and version
 **13**. "Translation", "Orientation" (quaternion, orientation type 3),
@@ -559,7 +559,7 @@ numbers, values and construction are in §5.5.10.
 | 06 SelectionStream | gaze, pinch, hands | VendorDefined usage **0x6F**, no data, flags 0x2000003, phase **Changed**; children: left hand, right hand (omitted when the host marks the message selection-only), then gaze — below |
 | — left / right hand | | VendorDefined usage **0x70**, data 3 bytes `{pinching 0/1, chirality (2 left, 1 right), allowDirect 0/1}`, flags `extra << 24 \| 3` (left) and `extra << 24 \| 1` (right) as observed (`extra` is a per-hand 16-bit host value whose meaning is unknown; send 0); children: Translation (relative; hand position, m, stage frame) and Orientation (relative, type 3, made as in §5.5.10) |
 | — gaze | | VendorDefined usage **0x71**, no data, flags 0x3; children: Translation (absolute, flags 0x1; ray origin) and **Rotation** (absolute, flags 0x1; x, y, z = ray direction, need not be unit length) |
-| 07 Manipulator | — | the reference dispatches the same 0x6F event from this service for a target-302 message; nothing in the guest reacted. Ycode need not send it. |
+| 07 Manipulator | — | the reference dispatches the same 0x6F event from this service for a target-302 message; nothing in the guest reacted. SwiftCode need not send it. |
 | 02 DigitalDial | Digital Crown | Scroll (relative, flags 0x10), y = the turn delta |
 | 01 buttons, 03 keyboard | Home, keys | as on iOS (`hid-input.md` §5.4–5.5); Home toggles the home view (SurfBoard "reason: Crown") |
 
@@ -620,7 +620,7 @@ while the device is shut down selects that room at the next boot (V-13).
 | gaze + pinch on an entity with `InputTargetComponent` and collision | `SpatialTapGesture().targetedToAnyEntity()` with the hit point (immersive sphere of radius 0.2 at (0, 1.5, −2): (0, 1.51, −1.8)) |
 | hand moved into an entity with `allowDirect`, no pinch | entity tap (direct touch) |
 
-#### 5.5.6 Indigo wire format (reference only; Ycode does not implement Indigo, `hid-input.md` §7)
+#### 5.5.6 Indigo wire format (reference only; SwiftCode does not implement Indigo, `hid-input.md` §7)
 
 192-byte message, offsets from its start: 0x18 inner size 0xA0, 0x1C type
 byte 1, record from 0x20: kind (32 bits, 1), host `mach_absolute_time`
@@ -639,7 +639,7 @@ plug-in (`IndigoHIDMessageForPalomaPose`, `…Selection` = a collection with
 the selection-only byte set and identity hands, `…Collection`) and by
 SimulatorKit (`IndigoHIDMessageForDigitalDialEvent`).
 
-#### 5.5.7 What Ycode must do
+#### 5.5.7 What SwiftCode must do
 
 1. **HID bundle (V-10)**: publish DigitalDial, PalomaPose, SelectionStream
    and Manipulator with §5.3's usages; dispatch the §5.5.2 events with the
@@ -652,8 +652,8 @@ SimulatorKit (`IndigoHIDMessageForDigitalDialEvent`).
    (translation, quaternion), selection (ray origin and direction, a
    hands-present flag, per hand: pinch, allowDirect, translation,
    quaternion) and dial delta; all values in the stage frame of §5.5.1.
-3. **ARKit pose**: Ycode's guest needs a vhmdd that answers `get_pose`/
-   `set_pose` (the runtime's own vhmdd does, if Ycode's host can open the
+3. **ARKit pose**: SwiftCode's guest needs a vhmdd that answers `get_pose`/
+   `set_pose` (the runtime's own vhmdd does, if SwiftCode's host can open the
    sim-to-host XPC connection of §5.5.4), and the host sends `set_pose`
    with every camera pose. Without it `DeviceAnchor` stays at (0, 1.6, 0).
 4. **Viewer (V-12)**: keep the camera pose; map the pointer to a gaze ray
@@ -667,13 +667,13 @@ SimulatorKit (`IndigoHIDMessageForDigitalDialEvent`).
 5. **Rooms (V-13)**: before boot, write the preference; live, use
    `set_active_environment` and wait for `synthetic_environment_did_load`.
 
-#### 5.5.8 Ycode implementation (round R9, agent VISIONOS-R9, 2026-10-31)
+#### 5.5.8 SwiftCode implementation (round R9, agent VISIONOS-R9, 2026-10-31)
 
-Results and runs: §10.25. Code: `SpatialInput.swift` (YcodeDisplayStream:
+Results and runs: §10.25. Code: `SpatialInput.swift` (SwiftCodeDisplayStream:
 the stage-frame math and `SpatialInteraction`, shared by every viewer and
-by `ycode-simd`), `HIDHostService.swift` (kinds 10, 11), `simhid.c` (the
+by `swiftcode-simd`), `HIDHostService.swift` (kinds 10, 11), `simhid.c` (the
 four services and the events), `VisionHMDClient.swift` (the host end of
-vhmdd), `VisionInput.swift` (ycode-simd: delivery, `vision …` commands,
+vhmdd), `VisionInput.swift` (swiftcode-simd: delivery, `vision …` commands,
 rooms), `DeviceView+Spatial.swift` (macOS viewer and IDE canvas),
 `RemoteDeviceSession.swift` (Linux viewer).
 
@@ -685,7 +685,7 @@ rooms), `DeviceView+Spatial.swift` (macOS viewer and IDE canvas),
    0x8C, negotiated by the hello's `spatial` (`display-stream.md` §17).
    HID transport: kinds 10 and 11, the crown's kind 8
    (`hid-input.md` §17). Values are in the stage frame of §5.5.1.
-3. **ARKit pose.** `ycode-simd` opens the host connection to the guest's
+3. **ARKit pose.** `swiftcode-simd` opens the host connection to the guest's
    `com.apple.vhmdd` itself: the name's send right from launchd_sim's
    control channel (702), the XPC hand-shake of `iosurface-remote.md` §2.2
    (a receive right for the connection, a send right to an event port of
@@ -696,7 +696,7 @@ rooms), `DeviceView+Spatial.swift` (macOS viewer and IDE canvas),
    `set_pose` with the same matrix (§5.5.3); `set_pose` is latest-wins on
    its own thread, so a camera drag never waits for the guest. The
    connection is opened on first use and again after a failure.
-4. **Ycode's choices for the viewers (V-12).** Hands rest at camera-space
+4. **SwiftCode's choices for the viewers (V-12).** Hands rest at camera-space
    (±0.15, −0.35, −0.4) (§5.5.7's example), with the camera's rotation.
    The hand moves 1/700 m per point of pointer motion (0.1 m ≈ 70 points,
    the reference's window drag at 2 m, §5.5.5). The gaze stays at the
@@ -724,9 +724,9 @@ rooms), `DeviceView+Spatial.swift` (macOS viewer and IDE canvas),
    A camera move sends the pose, then the gaze again (it is in the stage
    frame and moves with the camera). The keys go to the device unless
    Option is held, so text fields need no capture mode (the reference's
-   plain W/A/S/D needs Capture Keyboard to type, §5.1; Ycode decision).
-5. **Scripted driver.** The control socket (and `ycode-simd --device DEV
-   --vision …`, `ycode-sim --vision …`) takes `vision state | pose x y z
+   plain W/A/S/D needs Capture Keyboard to type, §5.1; SwiftCode decision).
+5. **Scripted driver.** The control socket (and `swiftcode-simd --device DEV
+   --vision …`, `swiftcode-sim --vision …`) takes `vision state | pose x y z
    [yaw [pitch]] | move f r [u] | turn yaw [pitch] | reset | gaze x y | tap
    x y [hold-ms] | pinch x y | drag x y [steps [ms]] [depth] | release |
    magnify x y factor [steps [ms]] | rotate x y degrees [steps [ms]] | dial
@@ -734,14 +734,14 @@ rooms), `DeviceView+Spatial.swift` (macOS viewer and IDE canvas),
    (points of the 1920 × 1080 display, metres, degrees). It runs the same
    `SpatialInteraction`; a pose from a viewer becomes the camera it goes
    on from.
-6. **Rooms (V-13).** Before the boot: `ycode-simd --room <key>` (also
-   `ycode-sim --room`) writes `activeSyntheticEnvironment` into
+6. **Rooms (V-13).** Before the boot: `swiftcode-simd --room <key>` (also
+   `swiftcode-sim --room`) writes `activeSyntheticEnvironment` into
    `DEV/data/Library/Preferences/com.apple.RealityEnvironment.plist`
    (other keys kept); on a stopped device `--vision room <key>` does the
    same. Live: `vision room <key>` sends `set_active_environment` and waits
    up to 15 s for `synthetic_environment_did_load`. A warm start that
    restores a snapshot switches live once vhmdd answers (the saved run had
-   read the preference). `ycode-sim --room` is not part of the snapshot's
+   read the preference). `swiftcode-sim --room` is not part of the snapshot's
    fingerprint. Viewers: Device ▸ Room (the six rooms) in the macOS viewer
    and the IDE's device menus.
 7. **Previews.** The live preview canvas uses the device stream, so a
@@ -857,14 +857,14 @@ flag with no visible effect. `observe_hand_mode`, `set_hand_mode
 Commands vhmdd does not answer produce an immediate "Connection
 interrupted" reply; send them without waiting.
 
-**What Ycode must do.**
+**What SwiftCode must do.**
 
-1. **Crown turn → vhmdd, not only the dial.** Ycode's host vhmdd client
+1. **Crown turn → vhmdd, not only the dial.** SwiftCode's host vhmdd client
    (§5.5.8 item 3) adds `change_immersion_level` and `get_immersion_level`.
    The viewer keeps an amount a: each crown step (Option-scroll and every
-   other crown input of §5.5.8 item 4) changes a by a fixed step (Ycode
+   other crown input of §5.5.8 item 4) changes a by a fixed step (SwiftCode
    choice: 0.05 per wheel notch, clockwise/up = more), clamps it to [0, 1]
-   and sends **absolute** a, latest-wins like `set_pose`. Ycode may keep
+   and sends **absolute** a, latest-wins like `set_pose`. SwiftCode may keep
    sending the dial scroll event too; it has no effect in the reference.
 2. **Read back.** Send one message (e.g. `get_immersion_level`) when the
    connection opens so that vhmdd sends events; on every
@@ -884,17 +884,17 @@ interrupted" reply; send them without waiting.
    source 1 (0x0C/0x30). Screenshot = sources 1 and 0 pressed together;
    Force Quit = both held ≥ 1.5 s (offer it as a menu item).
 5. **Recenter needs the camera.** Placement uses the rendered camera, and
-   the ARKit stage uses the pose; Ycode already sends both with the same
+   the ARKit stage uses the pose; SwiftCode already sends both with the same
    matrix (§5.5.3), which keeps them consistent. Do not use
    `recenter_open_apps`.
 6. Optional: `set_cursor_visible` as a viewer toggle (the plug-in keeps a
    user-requested cursor visibility, level 4; which menu item drives it
    was not observed). `set_hand_mode` and `set_controls_enabled` have
-   no observable effect; Ycode need not send them.
+   no observable effect; SwiftCode need not send them.
 
 #### 5.5.10 The pose's rotation: the Orientation child at the field level (agent OBS-VISION-POSE, 2026-11-01)
 
-Question from the Quest viewer (XR-VIEWER): under Ycode the camera follows
+Question from the Quest viewer (XR-VIEWER): under SwiftCode the camera follows
 the pose's translation but not its rotation at the plain home view. Answer
 (run on visionOS 27.2 (24N120), the 27.0 runtime could not create a device;
 details in `research/notes/obs-vision-pose-2026-11-01.md`):
@@ -925,7 +925,7 @@ details in `research/notes/obs-vision-pose-2026-11-01.md`):
    No other Orientation field is non-zero. The quaternion arrives in 16.16
    fixed point (0.965926 → 0.965912, 0.258819 → 0.258804). Exactly two
    children, Translation first.
-4. **Why Ycode's event loses the rotation** (cause (b), level 3). Ycode's
+4. **Why SwiftCode's event loses the rotation** (cause (b), level 3). SwiftCode's
    field numbers and order were already right; its *construction* is not.
    An Orientation event made with the generic constructor
    (`IOHIDEventCreate` with type 10) has orientation type 0 (polar), and
@@ -939,16 +939,16 @@ details in `research/notes/obs-vision-pose-2026-11-01.md`):
    and `IOHIDEventCreateDeviceOrientationEventWithUsage`, level 4). Once
    made that way, the float setter does change fields 8–11. Replaying the
    reference's own pose events inside its backboardd with the Orientation
-   child rebuilt Ycode's way (translation kept) gave, at the home view,
+   child rebuilt SwiftCode's way (translation kept) gave, at the home view,
    frames byte-identical to identity for yaw +30° and pitch +20°; inside a
    mixed immersive space the window and the space's cube stayed centred,
    and a matching `set_pose` did not turn the view either: exactly
    XR-VIEWER's symptom. (R9's turned view in a mixed space, §10.25.1, was
    not reproduced this way; it is not explained by the HID event.) The hands' Orientation children
-   (event 0x70) are built the same way in Ycode and lose their rotation
+   (event 0x70) are built the same way in SwiftCode and lose their rotation
    too.
 
-**What Ycode must do.** In the HID bundle, make every Orientation child
+**What SwiftCode must do.** In the HID bundle, make every Orientation child
 (the pose's and both hands') with the runtime's
 `IOHIDEventCreateQuaternionOrientationEvent` (looked up by name like the
 other constructors), arguments w, x, y, z of a normalised quaternion,
@@ -961,7 +961,7 @@ check: the bundle's log (or a read-back of field `10<<16|3` before
 dispatch) must show orientation type 3, and a yaw pose at the plain home
 view must change the frame.
 
-#### 5.5.11 Ycode implementation: the pose's rotation and the headset viewer (agent XR-VIEWER, 2026-11-01)
+#### 5.5.11 SwiftCode implementation: the pose's rotation and the headset viewer (agent XR-VIEWER, 2026-11-01)
 
 - **Rotation.** The HID bundle makes the pose's and both hands'
   Orientation children with `IOHIDEventCreateQuaternionOrientationEvent`
@@ -973,7 +973,7 @@ view must change the frame.
   the plain home view: `vision pose 0 0 0 30 0` turns the view left and
   `vision pose 0 0 0 0 20` looks up (the frames differ from identity;
   before the fix they were byte-identical).
-- **The guest's camera is smoothed** (level 3, Ycode's simulator): after a
+- **The guest's camera is smoothed** (level 3, SwiftCode's simulator): after a
   new pose the picture first changes about 170 ms later and converges over
   about 250 ms more (`xr-viewer.md` §6). Whether the reference does the
   same is `xr-viewer.md` Q-XR5.
@@ -1060,16 +1060,16 @@ host's mach clock, which the guest shares. Details:
    rendered in backboardd, not re-projected by wakeboardd. Where the filter
    sits was not determined (level 4 names only: RealitySimulation asks for
    "a head pose for time" t at a compositor-predicted time; no level 5).
-7. **Ycode compared** (`xr-viewer.md` §6: first change about 170 ms, settled
+7. **SwiftCode compared** (`xr-viewer.md` §6: first change about 170 ms, settled
    about 250 ms later, at 23.5 pictures/s). The reference's first change is
-   3–4 presented frames; at Ycode's 44 ms per picture that is 130–175 ms,
-   so Ycode's extra delay is its frame time, and its convergence (about
+   3–4 presented frames; at SwiftCode's 44 ms per picture that is 130–175 ms,
+   so SwiftCode's extra delay is its frame time, and its convergence (about
    250 ms after the first change) matches the reference's time-based
    smoothing (about 170 ms after the first change to within 0.1°) seen
-   through coarser frames. Ycode's smoothing is the guest's own, as in the
+   through coarser frames. SwiftCode's smoothing is the guest's own, as in the
    reference.
 
-**What Ycode must do.**
+**What SwiftCode must do.**
 1. Keep the guest's smoothing: it is the reference's behaviour (parity) and
    no host input changes it. Do not try overshoot or timestamp tricks.
 2. To cut motion-to-picture time, shorten the pipeline: it is 3–4 of the
@@ -1081,7 +1081,7 @@ host's mach clock, which the guest shares. Details:
    when the head is still: repeating an unchanged pose slows the settle
    from about 230 ms to 300–390 ms. Any rate from 27 to 90 per second gives
    the same delay in motion.
-4. Event timestamps must strictly increase (Ycode's bundle uses guest
+4. Event timestamps must strictly increase (SwiftCode's bundle uses guest
    ticks: keep it so); their value is otherwise irrelevant. No event field
    or flag is needed or helps.
 5. For the headset viewer's tags and reprojection: a picture in continuous
@@ -1183,12 +1183,12 @@ its pose is one device matrix. In 27.2 an unknown command gets a reply
 One `SFBSwapchainSwapAddSurface` per swap, source and destination (0, 0,
 3840, 2160), two surfaces alternating (§10.6.6), in every experiment.
 
-#### 5.6.5 What Ycode must do
+#### 5.6.5 What SwiftCode must do
 
-1. **Parity is one view.** Ycode runs the reference's wakeboardd,
+1. **Parity is one view.** SwiftCode runs the reference's wakeboardd,
    backboardd and CompositorServices unchanged, so the guest decides one
-   view by itself; Ycode must not try to change it, and needs no defaults,
-   environment or SimFramebuffer property for it. Ycode's SimFramebuffer
+   view by itself; SwiftCode must not try to change it, and needs no defaults,
+   environment or SimFramebuffer property for it. SwiftCode's SimFramebuffer
    replacement must keep answering the display type (integrated), current
    mode and device size (3840 × 2160) that wakeboardd asks for.
 2. **Metal for the one-view passes.** The Metal→Vulkan layer must support
@@ -1197,7 +1197,7 @@ One `SFBSwapchainSwapAddSurface` per swap, source and destination (0, 0,
    (Vulkan multiview is not required: no amplification is used), and must
    write slice 1 with the two-instance clear; slice 1 is otherwise never
    read for the picture.
-3. **Stereo is a Ycode feature, not parity (XR-VIEWER).** The guest's
+3. **Stereo is a SwiftCode feature, not parity (XR-VIEWER).** The guest's
    camera is the device pose with an identity eye transform, so a stereo
    viewer gets its two eyes by moving the device pose: alternate frames
    between pose × T(−d/2, 0, 0) and pose × T(+d/2, 0, 0) (d = the viewer's
@@ -1207,12 +1207,12 @@ One `SFBSwapchainSwapAddSurface` per swap, source and destination (0, 0,
    at half the 60 Hz rate. The guest's field of view is 90° × 58.7°
    (tangents 1, 1, 0.5625, 0.5625); the viewer must map it onto each eye's
    own projection (crop or scale). The guest takes no FOV request, but
-   the display size Ycode reports sets the vertical FOV (horizontal fixed
-   at 90°, §5.6.6). Ycode must not send vhmdd commands for IPD, stereo or view
+   the display size SwiftCode reports sets the vertical FOV (horizontal fixed
+   at 90°, §5.6.6). SwiftCode must not send vhmdd commands for IPD, stereo or view
    count: they do not exist (an error reply).
 4. **Diagnostics.** `simctl spawn <dev> wakeboardctl status` (reference)
    prints the HMD type, each layer's layout, textures and per-eye blocks;
-   use it for parity checks of Ycode boots (Right block zero, layout
+   use it for parity checks of SwiftCode boots (Right block zero, layout
    Layered, 3840 × 2160).
 
 #### 5.6.6 Field of view (agent OBS-VISION-FOV, 2026-11-01)
@@ -1266,8 +1266,8 @@ limits it to runtimes up to 2.99 and 27.2, 26.5 and 26.4 refuse it
 4. **The horizontal field of view cannot exceed 90°** through any host
    input found (display size, device type, preferences, vhmdd, §5.6.3).
 
-**What Ycode must do.**
-1. Ycode's display size *is* its field-of-view control: what Ycode's
+**What SwiftCode must do.**
+1. SwiftCode's display size *is* its field-of-view control: what SwiftCode's
    SimFramebuffer replacement reports as the integrated display's size
    (in the tests the device type's `ScreenDimensionsCapability` was
    changed with it) sets the vertical
@@ -1386,20 +1386,20 @@ side compiles (our decoder shader built in the guest), but no map can be
 created, so none reaches the host: the render-pass record
 (`metal-sim-protocol.md` §8.6) has no known field for one.
 
-**What Ycode must do.**
-1. **Parity: nothing.** Ycode runs the reference's guest Metal driver,
-   which answers every rate-map question itself (NO, 0, nil); Ycode's
+**What SwiftCode must do.**
+1. **Parity: nothing.** SwiftCode runs the reference's guest Metal driver,
+   which answers every rate-map question itself (NO, 0, nil); SwiftCode's
    host needs no rate-map support and must not try to advertise any (it
    cannot: no message carries it). The Metal→Vulkan layer needs no
    variable-rate feature. Keep the compositor's answers as they are:
    foveation unsupported, eye tracking disabled.
-2. **Never set `com.apple.compositor.foveation.custom`** in a Ycode
+2. **Never set `com.apple.compositor.foveation.custom`** in a SwiftCode
    device's preferences (wakeboardd crash loop).
-3. **Foveation for the headset viewer is a Ycode feature on the host
+3. **Foveation for the headset viewer is a SwiftCode feature on the host
    side, not a guest feature.** Rate maps cannot be used: the guest will
    not make them. Two host-side options remain, both off by default and
    off in parity runs:
-   - *Foveated shading in the Metal→Vulkan layer*: Ycode may apply
+   - *Foveated shading in the Metal→Vulkan layer*: SwiftCode may apply
      Vulkan fragment shading rate (an attachment-based rate, for example
      `VK_KHR_fragment_shading_rate`) to the guest's render passes into
      the 3840 × 2160 layer colour textures (the textures wakeboardd shares
@@ -1462,7 +1462,7 @@ RealityKit sphere at (0, 1.5, −1.5). Installed with `simctl install`
 (`openImmersiveSpace` result `opened`), both entities rendered, ARKit as in
 §5.4. Taps on entities were not tested (no GUI input).
 
-## 7. What Ycode must add
+## 7. What SwiftCode must add
 
 ### 7.1 Requirements
 
@@ -1470,7 +1470,7 @@ Identity and boot:
 
 - **V-1** A device type `vision-pro`: model `RealityDevice14,1`, class
   `N301`, legacy asset suffix "", main screen 3840 × 2160, scale 2, pitch
-  264; a capabilities file with the §3.3 answers (Ycode's own data, as for
+  264; a capabilities file with the §3.3 answers (SwiftCode's own data, as for
   iPad, `ipad.md` §4); refused on non-xrOS runtimes and vice versa.
 - **V-2** Runtime detection by `SystemVersion.plist` `ProductName`
   (`xrOS`) and build; per-runtime state keyed by build (24M362 and
@@ -1504,12 +1504,12 @@ Rendering:
 
 Input and camera:
 
-- **V-10** The Ycode HID bundle publishes, in addition to the iOS
+- **V-10** The SwiftCode HID bundle publishes, in addition to the iOS
   services, DigitalDial (1/0x37), PalomaPose (0xFF00/0x72),
   SelectionStream (0xFF00/0x71) and Manipulator (0xFF00/0x6F), with the
   IDs and properties of §5.3, and one touch screen for the single display.
 - **V-11** Host messages for pose, selection and manipulation (formats:
-  §5.5.2, §5.5.7), carried by Ycode's HID host service (`hid-input.md` §7);
+  §5.5.2, §5.5.7), carried by SwiftCode's HID host service (`hid-input.md` §7);
   plus vhmdd's `set_pose` for ARKit (§5.5.3).
 - **V-12** Viewer mapping as in §5.1 (interact / pan / dolly / tilt
   modes, WASD/arrows + E/Q, Control-drag, reset camera, pointer and
@@ -1529,14 +1529,14 @@ Apps:
 
 | Round | Name | Work | Done when |
 |---|---|---|---|
-| R0 | VOS-COPY (owner or ops) | copy RR 24M362 to `$YCODE_DATA/runtimes/xrOS-27.0-24M362/RuntimeRoot` as in §2.7 | tree present, read-only, `SystemVersion.plist` reads 24M362 |
-| R1 | **VOS-BOOT** | V-1…V-5 and the parts of V-6 that boot needs; re-check `dyld_sim` handoff, `launchd_sim` bootstrap and host-library imports on this build; first boot runs 34 migration plugins | DEV has `LastSystemVersion` 24M362 and a LaunchServices store; SurfBoard, backboardd, wakeboardd, vhmdd, RealityLauncher running; backboardd logs "Starting render loop"; wakeboardd reaches state Run; the framebuffer receives frames (the boot card at least); no Ycode-only crash reports |
-| R2 | **VOS-RENDER** | V-6…V-8: whatever the Vulkan layer, IOSurface service and framebuffer library lack for the RealityKit renderer and wakeboardd; GPU instruments as in `stage8-contract.md` §14–15 | a Ycode screenshot shows the Living Room (Day) and the home view, structurally like the reference (§4.1); frame time measured at idle |
+| R0 | VOS-COPY (owner or ops) | copy RR 24M362 to `$SWIFTCODE_DATA/runtimes/xrOS-27.0-24M362/RuntimeRoot` as in §2.7 | tree present, read-only, `SystemVersion.plist` reads 24M362 |
+| R1 | **VOS-BOOT** | V-1…V-5 and the parts of V-6 that boot needs; re-check `dyld_sim` handoff, `launchd_sim` bootstrap and host-library imports on this build; first boot runs 34 migration plugins | DEV has `LastSystemVersion` 24M362 and a LaunchServices store; SurfBoard, backboardd, wakeboardd, vhmdd, RealityLauncher running; backboardd logs "Starting render loop"; wakeboardd reaches state Run; the framebuffer receives frames (the boot card at least); no SwiftCode-only crash reports |
+| R2 | **VOS-RENDER** | V-6…V-8: whatever the Vulkan layer, IOSurface service and framebuffer library lack for the RealityKit renderer and wakeboardd; GPU instruments as in `stage8-contract.md` §14–15 | a SwiftCode screenshot shows the Living Room (Day) and the home view, structurally like the reference (§4.1); frame time measured at idle |
 | R3a | VOS-INPUT-R (dirty side) | observe the Indigo payloads of pose/selection/collection and their guest delivery (DeviceHub driven with the owner's GUI approval, or the plug-in's exported builders called from our own Mac tool, as `hidsend` did for iOS); answer §9 questions 1–3 | an input section in this spec with formats and a test plan |
-| R3b | **VOS-INPUT** | V-10, V-11 from R3a's spec | in Ycode: a tap on a home icon opens the app; camera moves change the pose our probe reads |
-| R4 | **VOS-VIEWER** | V-9, V-12, V-13 in `ycode-sim-viewer` and the display stream | the viewer shows the 4K view downscaled, camera modes and keys work, Reset Camera returns to (0, 1.6, 0); room choice works |
-| R5 | **VOS-APPS** | V-14; run VisionProbe and the default apps of §6 under Ycode; record differences | VisionProbe output matches §4.5/§5.4; window, volume and immersive space render |
-| R6 | VOS-AR (Ycode design, later) | the roadmap's AR environment (`docs/FUTURE.md`): Ycode's own providers beyond the reference (planes, meshes from the room geometry, hand pose) and the virtual iPhone in the room (`specs/frameworks/arkit/simulated-world.md`) | its own design note; not reference parity |
+| R3b | **VOS-INPUT** | V-10, V-11 from R3a's spec | in SwiftCode: a tap on a home icon opens the app; camera moves change the pose our probe reads |
+| R4 | **VOS-VIEWER** | V-9, V-12, V-13 in `swiftcode-sim-viewer` and the display stream | the viewer shows the 4K view downscaled, camera modes and keys work, Reset Camera returns to (0, 1.6, 0); room choice works |
+| R5 | **VOS-APPS** | V-14; run VisionProbe and the default apps of §6 under SwiftCode; record differences | VisionProbe output matches §4.5/§5.4; window, volume and immersive space render |
+| R6 | VOS-AR (SwiftCode design, later) | the roadmap's AR environment (`docs/FUTURE.md`): SwiftCode's own providers beyond the reference (planes, meshes from the room geometry, hand pose) and the virtual iPhone in the room (`specs/frameworks/arkit/simulated-world.md`) | its own design note; not reference parity |
 
 R1 and R2 can overlap only after R1's boot reaches backboardd's render
 loop. R3a is dirty-room work and must not be given to a clean agent.
@@ -1557,10 +1557,10 @@ loop. R3a is dirty-room work and must not be given to a clean agent.
 4. **Vendor HID formats unknown** (R3a needed before any camera input).
 5. **Stream bandwidth** at 4K; the viewer must downscale (V-9).
 6. **Boot cost**: about 160 processes and 6–8 GiB of footprint on the Mac;
-   the Thor has room (122 GB) but boot time under Ycode will be several
-   times the Mac's (iPad first boot under Ycode: 200 s, `ipad.md` §9.1).
+   the Thor has room (122 GB) but boot time under SwiftCode will be several
+   times the Mac's (iPad first boot under SwiftCode: 200 s, `ipad.md` §9.1).
 7. **The 133 s first launch** after the first boot (§6) may also appear in
-   Ycode; it is a reference behavior until explained.
+   SwiftCode; it is a reference behavior until explained.
 8. **Two runtimes with one identifier** (§2.1).
 
 Not risks: stereo, foveation, vertex amplification, eye tracking, hand
@@ -1572,7 +1572,7 @@ The destination list must offer "Apple Vision Pro" for the xrOS runtime
 (families [7, 2, 1] on the device type, [7] on the runtime; no
 `restrictedToDeviceTypes`), build with the `xrsimulator` SDK (platform
 `XRSimulator`, target triple `arm64-apple-xros27.0-simulator`), and show
-the canvas controls of §5.1 in Ycode's own design.
+the canvas controls of §5.1 in SwiftCode's own design.
 
 ## 9. Open questions
 
@@ -1603,7 +1603,7 @@ the canvas controls of §5.1 in Ycode's own design.
    links (gaze target or camera gizmo overlays are likely; not needed for
    the device picture).
 9. *(Answered, §10.6.4, level 3: only default-level messages, the same
-   ones Ycode shows; "Device doesn't suport light clustering" is logged in
+   ones SwiftCode shows; "Device doesn't suport light clustering" is logged in
    the reference too; no debug-level message falls in the window; the
    Metal connections, MTLCompilerService and cfprefsd are the only
    services used.)* **(R1 blocker)** In a reference boot, what backboardd logs (debug level;
@@ -1612,38 +1612,38 @@ the canvas controls of §5.1 in Ycode's own design.
    and host server" and "Starting render loop" — is "Device doesn't suport
    light clustering" logged there too? — and which Metal host messages
    (types, ops, reply contents) and other host or guest services backboardd
-   uses in that window. Under Ycode RealityKit's render manager aborts there
+   uses in that window. Under SwiftCode RealityKit's render manager aborts there
    ("Render manager was requested but failed to initialize", §10.4) in
    backboardd and in datamigrator alike.
 10. *(Answered, §10.6.1–§10.6.3, level 3: the same selectors in the same
-   order with the same answers as under Ycode, apart from the z thread
+   order with the same answers as under SwiftCode, apart from the z thread
    limit; the cause of the abort is therefore not a capability answer and
    is still open, Q12.)* Which `MTLDevice` selectors backboardd calls in the reference and their
-   answers (a recorder like Ycode's `mtlwatch.dylib`, §10.3), to compare
+   answers (a recorder like SwiftCode's `mtlwatch.dylib`, §10.3), to compare
    with §10.4's list, including `supportsSeparateDepthStencil` and
    `supportsLayeredRendering`.
 11. *(Answered, §10.6.6, level 3: no swap at all during Pulse; the first
    swap comes from the real-time thread when Pulse ends, which follows
-   SurfBoard's "headset in use"; Ycode's behavior matches.)* Whether wakeboardd submits swaps (`SFBSwapchainSwapBegin` …
+   SurfBoard's "headset in use"; SwiftCode's behavior matches.)* Whether wakeboardd submits swaps (`SFBSwapchainSwapBegin` …
    `SwapSubmit`) while it is in the Pulse state before backboardd's
-   swapchains arrive, or only from the real-time thread; under Ycode it
+   swapchains arrive, or only from the real-time thread; under SwiftCode it
    creates a mode-2 swapchain and never swaps (§10.2). (Extends Q5.)
 12. **(R1 blocker, narrowed in §10.7, still open.)** Which step of the render-manager start
-   (§10.6.2 steps 1–9) returns failure under Ycode. The reference shows it
+   (§10.6.2 steps 1–9) returns failure under SwiftCode. The reference shows it
    is not a capability answer, a missing device-level object, a failed
-   command buffer or slowness (§10.6.3); §10.6.7 lists what Ycode should
-   record to find it. Under Ycode (§10.7.2) every Metal call of the start
+   command buffer or slowness (§10.6.3); §10.6.7 lists what SwiftCode should
+   record to find it. Under SwiftCode (§10.7.2) every Metal call of the start
    succeeds, all steps 1–9 happen, and the start then runs further stages
    (shadows, primitive shapes) and returns failure **without any further
    Metal call, system call or library look-up**, before the VFX command
    queue of step 9 is asked for. The decision uses state the process
    already has. *(Narrowed again in §10.8, level 3: with the same recorder,
    every stage of the reference start up to the shadow render manager
-   matches Ycode's in its calls, counts and answers apart from two heap
+   matches SwiftCode's in its calls, counts and answers apart from two heap
    sizes, and those sizes are shown not to matter. The first stage that
    differs is the next one, the VFX manager joining the render manager:
    the reference reads one default and creates a 64-buffer command queue
-   there; under Ycode that stage does not happen. Why it does not is §9
+   there; under SwiftCode that stage does not happen. Why it does not is §9
    Q14.)*
 13. *(Answered, §10.8, level 3; offsets and symbol names level 4.)* In
    the reference, with the same tools as
@@ -1657,7 +1657,7 @@ the canvas controls of §5.1 in Ycode's own design.
    manager, then the VFX manager joins the render manager (it reads
    `com.apple.re.enableVFXUseRERenderCommandQueue`, which is unset, and
    creates a command queue with `newCommandQueue`, 64 buffers), then the
-   23 primitive-shape buffers (sizes identical to Ycode's), then the reads
+   23 primitive-shape buffers (sizes identical to SwiftCode's), then the reads
    of `com.apple.re.enableCascadedShadowMaps`, `…enableDecals` and
    `…enableSoftShadows` (all unset). The start then returns success and
    "ImportGraphicsResources" is logged about 3 ms later. So nothing follows
@@ -1668,9 +1668,9 @@ the canvas controls of §5.1 in Ycode's own design.
    that differs is the VFX manager's hookup (§10.8.2).
 14. *(Answered on the clean side, §10.9.2–§10.9.3, level 3; the input
    behind it is Q15.)* Why the render-manager start under
-   Ycode skips the VFX manager's hookup (§10.8.2 row 10), and with it
+   SwiftCode skips the VFX manager's hookup (§10.8.2 row 10), and with it
    returns failure. §10.8.4 lists the measurements that answer it under
-   Ycode with Ycode's own recorder: whether the VFX manager is constructed
+   SwiftCode with SwiftCode's own recorder: whether the VFX manager is constructed
    and initialized in the engine start, whether the hookup is entered,
    and whether it reads its default. **Answer:** the VFX manager is
    constructed and initialized as in the reference; the hookup is entered
@@ -1683,18 +1683,18 @@ the canvas controls of §5.1 in Ycode's own design.
    context manager's creation and the CPU-count query, from an input not
    yet found (Q15).
 15. *(Answered, §10.10.1, level 3; the place of the buffer level 5.)* In the reference's backboardd,
-   with Ycode's recorder as in §10.9.1 (`MTLREC_WINDOW_AFTER=MeshManager4init`,
+   with SwiftCode's recorder as in §10.9.1 (`MTLREC_WINDOW_AFTER=MeshManager4init`,
    `MTLREC_WINDOW_MATCH=NoSuchFrame`, `MTLREC_SCAN_AT="Ebb+1984 |,Ebb+2072 |,CALayerContentsCacheC2"`,
    `MTLREC_SCAN_FRAME=RenderManager4init`, `MTLREC_SCAN_BLOCK_SIZE=512`;
    the render manager is the 512-byte block whose word +0x10 points at a
    CoreRE string, `MTLREC_BLOCK_MATCH=0x10=<that address>`, 0x1b073c978
-   under Ycode, where the shared cache is not slid): what are the render manager's
-   bytes +0xd0 to +0xd7 at those three points? Under Ycode they are
+   under SwiftCode, where the shared cache is not slid): what are the render manager's
+   bytes +0xd0 to +0xd7 at those three points? Under SwiftCode they are
    `01 00 00 00 01 01 00 00` at +1984 and `01 00 00 00 00 00 00 00` after
    (+0xd0 is a u32 that becomes `hw.physicalcpu`). If the reference keeps
    +0xd4 and +0xd5 at 1: which input does the render manager's start read
    between return offsets +1984 and +2028 (no call, look-up, preference
-   read, system call or Metal call happens there under Ycode, §10.9.3), and
+   read, system call or Metal call happens there under SwiftCode, §10.9.3), and
    what is its value in the reference? If the reference clears them too:
    what sets them to 1 again before return offset +2996.
    **Answer:** the reference keeps them at 1: `01 00 00 00 01 01 00 00`
@@ -1703,7 +1703,7 @@ the canvas controls of §5.1 in Ycode's own design.
    width of the `hw.physicalcpu` answer. The start asks for it with
    `sysctlbyname`, an 8-byte buffer length, and its own u32 at +0xd0 as
    the buffer, so the flag bytes are bytes 4 and 5 of that buffer. The
-   reference writes 4 bytes; Ycode writes 8, and their zero upper half
+   reference writes 4 bytes; SwiftCode writes 8, and their zero upper half
    clears the flags. An 8-byte answer given to backboardd in the
    reference clears them too and causes the same abort.
 16. *(Answered, §10.10.2, level 3.)* Shared textures
@@ -1730,12 +1730,12 @@ the canvas controls of §5.1 in Ycode's own design.
    that backboardd's DisplayReveal sends to the host-side Mach service
    `com.apple.PowerManagement.control` (MIG, not XPC), and the reply
    that makes "Acquiring wake assertion … Initial Boot User Active"
-   succeed (§10.10.3). Under Ycode it fails with -536870199.
+   succeed (§10.10.3). Under SwiftCode it fails with -536870199.
    *(Resolved without the reference, §10.11.4: the message format is the
    MIG subsystem `powermanagement` of Apple's open-source IOKitUser
-   (`powermanagement.defs`, level 1); Ycode now serves it and grants every
+   (`powermanagement.defs`, level 1); SwiftCode now serves it and grants every
    assertion. The reference's own replies stay unrecorded; they are not
-   needed while the guest accepts Ycode's.)*
+   needed while the guest accepts SwiftCode's.)*
 18. *(Answered, §10.12.1, level 3: 24 is `updateFence:afterStages:` and
    25 `waitForFence:beforeStages:` (u32 fence ref, u32 render stages; `04
    00 00 00 02 00 00 00` is fence 4, fragment stage); 132 is
@@ -1744,11 +1744,11 @@ the canvas controls of §5.1 in Ycode's own design.
    ref). Other unlisted records and corrections to §8 are in
    `metal-sim-protocol.md` §8.)* Render-encoder records 24, 25 and 132 and compute-encoder
    records 212 and 213, which `metal-sim-protocol.md` §8 does not list.
-   Under Ycode, backboardd sends them in every frame (one 24 and one 25 per
+   Under SwiftCode, backboardd sends them in every frame (one 24 and one 25 per
    draw, about 5 000 and 7 600 in 130 s; 132 about 300; 212/213 a few):
    op 24 and op 25 bodies are 8 bytes, `04 00 00 00 02 00 00 00` in the
    first records; op 132 is 16 bytes of zeros; ops 212 and 213 are 4
-   bytes (`0x34`, `0x10`). With Ycode's recorder or `mslog` in the
+   bytes (`0x34`, `0x10`). With SwiftCode's recorder or `mslog` in the
    reference's backboardd during the render loop: which encoder call each
    op records (for example `setVertexAmplificationCount:viewMappings:`,
    `setVertexBytes:length:atIndex:`, `setThreadgroupMemoryLength:`,
@@ -1759,7 +1759,7 @@ the canvas controls of §5.1 in Ycode's own design.
    `newSharedEventWithHandle:` with a nil handle; the host replies to it
    with an empty dictionary and the call returns nil. The first 18 has
    the real right and a label, and gets `replyData` (event ref, 0).)* Shared events of wakeboardd's swapchain layers
-   (`messageType` 17/18). Under Ycode, for each of wakeboardd's three
+   (`messageType` 17/18). Under SwiftCode, for each of wakeboardd's three
    layers, wakeboardd exports one event (17) and the opening process sends
    two 18s right after each other: one with the exported event's right and
    one whose `eventPort` is MACH_PORT_NULL (§10.11.3). In the reference,
@@ -1776,13 +1776,13 @@ the canvas controls of §5.1 in Ycode's own design.
    opening until Run in the reference too; after Run layer 1 holds the
    logo, and from the room's appearance layer 1 holds the home view and
    layer 2 the opaque room.)* The first frames after wakeboardd enters Run (§10.6.6). In
-   the reference, with Ycode's recorder's SimFramebuffer interposition in a
+   the reference, with SwiftCode's recorder's SimFramebuffer interposition in a
    first boot: do the first swapped surfaces already show the room, or are
    they black for some seconds (how long, until which backboardd or
    RealityEnvironment log line)? And in backboardd's layer textures
    (wakeboardd-layer 1 and 2, `BGRA8Unorm_sRGB`): is the content after the
    first render-loop frames non-zero (any read-back the recorder can make,
-   for example a blit of slice 0 into a shared buffer)? Under Ycode both
+   for example a blit of slice 0 into a shared buffer)? Under SwiftCode both
    layers read back as all zero bytes (alpha included) for 2 minutes
    (§10.11.2).
 21. *(Answered, §10.15, level 3: the rooms come from the runtime, not
@@ -1790,7 +1790,7 @@ the canvas controls of §5.1 in Ycode's own design.
    of the six rooms twice, `state=installed version=1.1.19…1.1.23
    path=RR/System/Library/Assets/SystemEnvironments/SyntheticEnvironments/<room>/AssetData`
    and `state=unavailable version=1.0.0`; the installed entries are
-   chosen. (b) mobileassetd answers exactly as under Ycode: result 2,
+   chosen. (b) mobileassetd answers exactly as under SwiftCode: result 2,
    "0 listed in the catalog and 0 local (0/0 downloaded, 0 preinstalled)
    … 0 installedWithOS"; after the catalog download, 21 server-only assets,
    none of them a room. (c) With the guest's network refused the room
@@ -1799,11 +1799,11 @@ the canvas controls of §5.1 in Ycode's own design.
    the downloaded catalog XML and a `.xml.purged` copy (nothing without the
    network); RealityEnvironment reads `<room>/Info.plist` and
    `<room>/AssetData/Config.plist` under RR, backboardd reads the `.usdc`
-   and the `AssetData/0/*.ktx` files under RR. Ycode's guest misses the
-   rooms because Ycode's `getattrlistbulk` packs `ATTR_CMN_ERROR` in every
+   and the `AssetData/0/*.ktx` files under RR. SwiftCode's guest misses the
+   rooms because SwiftCode's `getattrlistbulk` packs `ATTR_CMN_ERROR` in every
    record; the same record form makes the reference fail the same way.)*
    How the reference's RealityEnvironment gets the room's
-   asset. Under Ycode (§10.14.3) RealityEnvironment's SystemEnvironments
+   asset. Under SwiftCode (§10.14.3) RealityEnvironment's SystemEnvironments
    asks mobileassetd for `com.apple.MobileAsset.SystemEnvironmentAsset`
    (MA_QUERY_ASSET_TYPE, return type 2, MAUnionOfCatalogInstalled);
    mobileassetd answers result 2 (MAQueryCatalogNotDownloaded, "0 local
@@ -1861,12 +1861,12 @@ the canvas controls of §5.1 in Ycode's own design.
    `com.apple.coresimulator.audio.plist` about a second after it starts,
    after backboardd's first open: "Failed to open audio settings plist!"
    appears in the reference too and is harmless. (d) Yes: with both
-   look-ups refused inside the guest the reference logs Ycode's errors and
+   look-ups refused inside the guest the reference logs SwiftCode's errors and
    aborts with 'API Misuse', "Cannot create a PHASEMaterial with nil or
    invalid PHASEEngine", 0.4 to 0.8 s after the room's PSO line, 12 times
    in 150 s.)*
    **(R5 blocker, §10.16.3.)** What the host's audio services answer.
-   Under Ycode backboardd's PHASE engine never initializes (no HAL system
+   Under SwiftCode backboardd's PHASE engine never initializes (no HAL system
    object, no default output device) and, once the room loads, backboardd
    aborts with "Cannot create a PHASEMaterial with nil or invalid
    PHASEEngine". In the reference visionOS 27.0 boot: (a) does backboardd
@@ -1884,7 +1884,7 @@ the canvas controls of §5.1 in Ycode's own design.
 23. *(New, R4a.)* The result of `air.atomic.global.cmpxchg.weak.i32`.
    RealityKit's compute functions send it as
    `i32 (ptr addrspace(1), ptr, i32, i32, i32, i32, i1)` (§10.13.3).
-   Ycode reads the result as the success flag (1 or 0) and the second
+   SwiftCode reads the result as the success flag (1 or 0) and the second
    operand as `expected`, written back with the value found. With a probe
    shader of ours compiled for the simulator (a kernel that calls
    `atomic_compare_exchange_weak_explicit` once on a known value and once
@@ -1895,7 +1895,7 @@ the canvas controls of §5.1 in Ycode's own design.
 24. *(Answered on the clean side, §10.20.2, level 3; a reference capture
    would confirm it: op 29, whose last word carries the base instance in
    its low half and stale bytes in its high half.)* The base instance of backboardd's `vsUnlit` draws. Under
-   Ycode (after R4b's decoder corrections) backboardd's depth-only draws
+   SwiftCode (after R4b's decoder corrections) backboardd's depth-only draws
    with `vsUnlit` (indexed, 36 indices, 6 to 8 instances) decode with base
    instances 1 072 693 248, 1 084 227 584 and 1 085 145 088 (0x3FF00000,
    0x40A00000, 0x40AE0000: float or double bit patterns), and earlier
@@ -1907,7 +1907,7 @@ the canvas controls of §5.1 in Ycode's own design.
    to watchOS and pairing; the Mac's load average stayed at 190–840 from
    other work, and the round's rule allowed at most one phone and one
    watch booted, so no reference visionOS boot with `mslog` was made.
-   What Ycode must do meanwhile: keep reading op 29's base instance as the
+   What SwiftCode must do meanwhile: keep reading op 29's base instance as the
    low 16 bits of the last word (§10.20.2); a reference capture remains
    the only confirmation.)*
    *(Answered, OBS-ARGBUF, 2026-10-30, level 3, reference.)* In the
@@ -1916,21 +1916,21 @@ the canvas controls of §5.1 in Ycode's own design.
    **op 29**: 7 845 records with 8 instances and 300 with 3, base vertex 0,
    **low half of the last word 0** (base instance 0), high half `0x0000`
    in 7 591 records and stale bytes in the rest: `0x3FF0` (280), `0x40AE`
-   (259), `0x40A0` (8), `0x0003` (7), the very values Ycode had decoded as
+   (259), `0x40A0` (8), `0x0003` (7), the very values SwiftCode had decoded as
    base instances 0x3FF00000, 0x40AE0000 and 0x40A00000. Our probe on the
    iOS 27.0 reference (`argprobe draw2`) settles what the host does with
    them: a first command buffer left viewport records (doubles) in the
    segment, a second sent `drawIndexedPrimitives…instanceCount:2
    baseVertex:0 baseInstance:5` whose op-29 record landed on them with last
    word `0x66660005`, and the vertex function saw `base_instance` 5 and
-   `instance_id` 5 and 6 (six invocations). **What Ycode must do:** read
+   `instance_id` 5 and 6 (six invocations). **What SwiftCode must do:** read
    op 29's base instance as the low 16 bits and ignore the high half
    (`metal-sim-protocol.md` §8.3), which it already does since §10.20.2.
 25. *(New, R7.)* Argument encoders (`messageType` 12 ops 16, 17, 19;
    `metal-sim-protocol.md` §4.2). visionOS RealityKit binds its material
    parameters through tier-1 argument buffers (`fsCALayer`'s buffer 13 is
    an `indirect_buffer` of type `re::RealityKitParametersTier1`). Under
-   Ycode, which answers op 17 with an encoded length of 24 for every layout
+   SwiftCode, which answers op 17 with an encoded length of 24 for every layout
    and refuses op 19, the 264-byte argument buffer bound to every icon
    draw of the home view stays all zero (§10.20.7), and backboardd sends
    op 19 set calls with encoder ref 1, kind 0 (argument buffer, offset 0)
@@ -1946,13 +1946,13 @@ the canvas controls of §5.1 in Ycode's own design.
    position among the layout's members)? (c) how does the reply to op 17
    (encoded length and alignment) follow from the layout's members? (d)
    what do the four words of op 19 hold (an array index or a member offset)?
-   *(R7b, §10.20.7: Ycode now writes the members from the host, member n at
+   *(R7b, §10.20.7: SwiftCode now writes the members from the host, member n at
    8n; the icons appear. The questions stand for the exact layout.)*
    *(OBS-WATCH, 2026-10-29: not observed, for the reason given under Q24.
-   What Ycode must do meanwhile: keep member n at 8 × n (it covers every
+   What SwiftCode must do meanwhile: keep member n at 8 × n (it covers every
    layout seen so far, all with dense ids) and log any op-16 layout whose
    member ids are not 0…n−1, so the first sparse layout is found under
-   Ycode before a reference capture exists.)*
+   SwiftCode before a reference capture exists.)*
    *(Answered, OBS-ARGBUF, 2026-10-30, level 3, reference;
    `metal-sim-protocol.md` §4.3.)* (a) **The host writes the members**: the
    bytes are in the argument buffer when op 19 returns, and with the
@@ -1973,10 +1973,10 @@ the canvas controls of §5.1 in Ycode's own design.
    the whole boot, from argument descriptors: 15 read-only device buffers
    with indices 0–14 at offsets 0, 8, …, 112, op-17 reply alignment 8 and
    length 120, then 60 kind-0 calls and 58 set calls for each of the 15
-   indices in the 3 minutes captured. That layout is dense, so Ycode's
+   indices in the 3 minutes captured. That layout is dense, so SwiftCode's
    8 × *n* happened to be right for it; WeatherPoster's ids 200, 201, 230 and 231 are not (the
    reference's cold iOS 27.0 boot made no encoder in WeatherPoster, so its
-   own description was not captured). **What Ycode must do:** parse op 16
+   own description was not captured). **What SwiftCode must do:** parse op 16
    (`metal-sim-protocol.md` §4.3.1) into an index → offset table, answer
    op 17 with the computed alignment and length in that order, write op-19
    members at the table's offsets (range forms included), and answer op 35
@@ -1985,7 +1985,7 @@ the canvas controls of §5.1 in Ycode's own design.
    *(Implemented, ARGBUF-IMPL, 2026-10-30: §10.22.1,
    `metal-sim-protocol.md` §4.3.9.)*
 26. *(New, R7b.)* The room's parts left out of some frames (§10.20.9).
-   Under Ycode backboardd draws the room 30 times a second and, in a fixed
+   Under SwiftCode backboardd draws the room 30 times a second and, in a fixed
    cycle of 16 room frames that starts with a 768 × 432
    `fsLinearizedDepthAsColor` pass, leaves the 41 520-index part out of
    three frames and the 162 624-index part (the walls) out of two. On the
@@ -1994,9 +1994,9 @@ the canvas controls of §5.1 in Ycode's own design.
    (b) is there a 768 × 432 linearized-depth pass, how often, and which
    attachments does it write?
    *(OBS-WATCH, 2026-10-29: not observed, for the reason given under Q24.
-   What Ycode must do meanwhile: no renderer workaround (the parts are
+   What SwiftCode must do meanwhile: no renderer workaround (the parts are
    left out by the guest's own draw stream, §10.20.9); keep §10.20.11
-   item 1 open and look under Ycode for what the 768 × 432 pass's results
+   item 1 open and look under SwiftCode for what the 768 × 432 pass's results
    feed (the guest's visibility decision) until a reference capture
    says whether the reference leaves parts out too.)*
    *(Answered, OBS-ARGBUF, 2026-10-30, level 3, reference.)* (a) **No.**
@@ -2013,21 +2013,21 @@ the canvas controls of §5.1 in Ycode's own design.
    room parts. Four earlier passes of the same attachments with only the
    five parts ran once a second at 22–25 s. So the reference draws the same
    linearized-depth pass and still never leaves a room part out. **What
-   Ycode must do:** treat the parts left out under Ycode as a Ycode
+   SwiftCode must do:** treat the parts left out under SwiftCode as a SwiftCode
    difference in what the guest reads back, not as guest behavior: the
    decision is the guest's and its inputs come from the host, most likely
    the results of this 768 × 432 pass (read back after its blits) or the
    boolean visibility results (§10.20.8). Compare those values with the
    reference next (a probe that reads the four targets after the pass, as
-   `v12` did under Ycode).
+   `v12` did under SwiftCode).
    *(Fixed, ARGBUF-IMPL, 2026-10-30, §10.22.2. It was the visibility
-   results. Under Ycode every occlusion result was zero, because the
+   results. Under SwiftCode every occlusion result was zero, because the
    Vulkan back end did not rasterize pipelines without a fragment function,
    and the occlusion boxes are such pipelines. With these pipelines drawn
    as depth- and stencil-only, the results are non-zero and no room frame
    misses a part.)*
 27. *(New, R8.)* The order of Siri's orb pre-warm and the home view's
-   first appearance (§10.21.1). Under Ycode, at the end of a first boot,
+   first appearance (§10.21.1). Under SwiftCode, at the end of a first boot,
    assistantd logs "finished post launch setup", then `_prewarmOrb` sends
    SurfBoard an open request for `com.apple.MRSiri` (URL
    `#orb_graphics_prewarm_orb`). When SurfBoard handles it while the
@@ -2047,11 +2047,11 @@ the canvas controls of §5.1 in Ycode's own design.
    wants to resume from unlock, but there are/will be …"; (b) whether the
    request is ever allowed before the home view resumes, and if so whether
    the home view appears anyway (and what brings it up); (c) whether
-   assistantd's later retry (Ycode: after "Service loaded:
+   assistantd's later retry (SwiftCode: after "Service loaded:
    com.apple.siri.applications", 60–90 s later) also happens.
    *(Answered, OBS-ARGBUF, 2026-10-30, level 3, reference.)* Three first
    boots of a new Apple Vision Pro device on the reference (visionOS 27.0,
-   `ycode-test-argbuf-xr`, erased before each; `x1` with the recorder in
+   `swiftcode-test-argbuf-xr`, erased before each; `x1` with the recorder in
    backboardd, `x2` and `x3` without), guest `log stream` of SurfBoard and
    assistantd from the boot command; seconds from the boot command:
 
@@ -2080,16 +2080,16 @@ the canvas controls of §5.1 in Ycode's own design.
    loaded: com.apple.siri.applications" by 3 s. **What decides it** is
    the order: unlock and home resume depend on data migration (about 22 s
    on the reference), the pre-warm on assistantd's service loading (110 s
-   or more); under Ycode the slow boot moves the unlock past the pre-warm.
-   **What Ycode must do:** keep the home guard of §10.21.2 (it gives the
+   or more); under SwiftCode the slow boot moves the unlock past the pre-warm.
+   **What SwiftCode must do:** keep the home guard of §10.21.2 (it gives the
    reference's outcome: the home view up, Siri pre-warmed behind it); the
    lasting fix is a boot whose unlock comes before assistantd's
    post-launch setup, as on the reference.
-   *(R11, 2026-11-01: Ycode now holds assistantd's start until the shell
+   *(R11, 2026-11-01: SwiftCode now holds assistantd's start until the shell
    is ready, which gives the reference's order, §10.26.1; the guard stays
    as a logged fallback.)*
 28. *(New, R11.)* Why assistantd's post-launch setup comes so late on the
-   reference (§10.26.1). Under Ycode assistantd is started 2–4 s after its
+   reference (§10.26.1). Under SwiftCode assistantd is started 2–4 s after its
    spawn by a boost from apsd (message id 473000, which also starts
    amsaccountsd, parsecd and remindd), and finishes its post-launch setup
    about 23 s later; on the iOS 27.1 reference (`scheduling-policy.md` §3)
@@ -2107,18 +2107,18 @@ the canvas controls of §5.1 in Ycode's own design.
    remindd early in the boot, and when.
 29. *(New, VISION-FPS, §10.28.)* At the reference's home view with the gaze
    moving over the icons: pictures per second; IOSurface requests per second
-   by method and process (under Ycode about 1,950 from the home view and 970
+   by method and process (under SwiftCode about 1,950 from the home view and 970
    from backboardd); and whether backboardd stays at 30 pictures/s for a while
-   after missed frames, as it does under Ycode.
+   after missed frames, as it does under SwiftCode.
 
-## 10. Round R1 under Ycode (agents VISIONOS-R1 and R1b, 2026-10-26/27)
+## 10. Round R1 under SwiftCode (agents VISIONOS-R1 and R1b, 2026-10-26/27)
 
-Clean-room implementation notes and Ycode boot results (level 3: Ycode's
+Clean-room implementation notes and SwiftCode boot results (level 3: SwiftCode's
 own simulator on the Thor with the copied 24M362 runtime; guest
-`log stream` one-shots, Ycode traces and thread reports, our probes). No
+`log stream` one-shots, SwiftCode traces and thread reports, our probes). No
 Apple simulator, Xcode or reference tool was run or opened for this round.
 
-### 10.1 What `ycode-simd` does for a visionOS runtime
+### 10.1 What `swiftcode-simd` does for a visionOS runtime
 
 - **Runtime and device type (V-1, V-2).** `SystemVersion.plist`
   `ProductName` `xrOS` makes a runtime a visionOS runtime; the type
@@ -2126,16 +2126,16 @@ Apple simulator, Xcode or reference tool was run or opened for this round.
   idiom `vision`, the fixed display UID of §3.3) is the default there and
   is refused on iOS runtimes, and the iOS types on visionOS runtimes.
   `proc_info`'s platform answer is 12 (visionOS simulator) on such a
-  runtime. The device keeps its type (`DEV/ycode-device-type`).
+  runtime. The device keeps its type (`DEV/swiftcode-device-type`).
 - **Bootstrap (V-3).** `Child` has no extended-display variables;
   `SIMULATOR_VERSION_INFO` names "visionOS 27.0 (24M362)";
-  `YCODE_FRAMEBUFFER_DISPLAY_UID` carries the fixed display UID to Ycode's
+  `SWIFTCODE_FRAMEBUFFER_DISPLAY_UID` carries the fixed display UID to SwiftCode's
   framebuffer library (§10.3).
-- **Ycode's own guest images.** dyld_sim loads only images of the
+- **SwiftCode's own guest images.** dyld_sim loads only images of the
   process's platform into visionOS processes, so the three host libraries,
   the framebuffer library and the HID bundle get copies whose
   `LC_BUILD_VERSION` names visionOS simulator 27.0 (in
-  `DEV/ycode-frameworks/`; `GuestImagePlatform.swift`). They load:
+  `DEV/swiftcode-frameworks/`; `GuestImagePlatform.swift`). They load:
   wakeboardd maps the framebuffer copy, backboardd the HID copy
   ("Initialized Simulator HID System Manager"), as §4.2 and §5.3 say.
 - **Host services (V-4).** No change was needed: the host registers the
@@ -2168,17 +2168,17 @@ runs.
 | Step | Result |
 |---|---|
 | launchd_sim, bootstrap, host bind | as on iOS |
-| wakeboardd | starts about 1.5 s after launchd_sim; "This the first boot of wakeboardd, keeping the display pulsing until system shell (backboardd) comes up"; Metal pipelines compiled (MTLCompilerService spawned for it on the first boot); "State transition HMD completed (Config -> Pulse)"; "First frame displayed" **4.4 s** after `ycode-simd` started (cold first boot) |
+| wakeboardd | starts about 1.5 s after launchd_sim; "This the first boot of wakeboardd, keeping the display pulsing until system shell (backboardd) comes up"; Metal pipelines compiled (MTLCompilerService spawned for it on the first boot); "State transition HMD completed (Config -> Pulse)"; "First frame displayed" **4.4 s** after `swiftcode-simd` started (cold first boot) |
 | lsd | seeded the LaunchServices store on the first boot ("LSNotificationDatabaseSeedingComplete" 62 s after start; store 3.8 MB, schema 33554481) |
-| backboardd | HID system up (Ycode's bundle), AttentionAwareness, "StartWindowServer: headless; not starting render server", RealitySimulation "Initializing CAWindowServer", "Initializing virtual display", "Initializing shared simulation and host server", RealityKit's Metal set-up (CoreRE metallibs, compute pipeline `computeSDFGradient`, "Device doesn't suport light clustering"), then **aborts**: CoreRE "assertion failure: 'renderManagerInitSuccessful' (init:line 702) Render manager was requested but failed to initialize." launchd restarts it every ~10 s; each instance ends the same way (38 s into the first boot, 10–13 s per later instance) |
+| backboardd | HID system up (SwiftCode's bundle), AttentionAwareness, "StartWindowServer: headless; not starting render server", RealitySimulation "Initializing CAWindowServer", "Initializing virtual display", "Initializing shared simulation and host server", RealityKit's Metal set-up (CoreRE metallibs, compute pipeline `computeSDFGradient`, "Device doesn't suport light clustering"), then **aborts**: CoreRE "assertion failure: 'renderManagerInitSuccessful' (init:line 702) Render manager was requested but failed to initialize." launchd restarts it every ~10 s; each instance ends the same way (38 s into the first boot, 10–13 s per later instance) |
 | datamigrator | started by backboardd's request; **aborts with the same CoreRE assertion** after about 60 s (three times in the first boot), so the first-boot migration never completes and `com.apple.migration.plist` is not written |
 | SurfBoard | starts, then exits 255 when backboardd dies ("FATAL: CARenderServer mach port died") |
 | vhmdd | starts and stays up |
 | RealityLauncher, RealityEnvironment, pointeruid | never started (they follow SurfBoard) |
-| fileindexerd | the iOS ENODEV fatal error (as on every Ycode iOS type) |
-| Host | no `ycode-simd` crash in 13 boots |
+| fileindexerd | the iOS ENODEV fatal error (as on every SwiftCode iOS type) |
+| Host | no `swiftcode-simd` crash in 13 boots |
 
-**No frame reached the host.** wakeboardd's framebuffer calls (Ycode's
+**No frame reached the host.** wakeboardd's framebuffer calls (SwiftCode's
 call log, §10.3) are, in order: `SFBConnectionCreate`, `Connect`,
 `CopyDisplays`, `SFBDisplayGetType`, `GetDeviceSize`,
 `SFBDisplayCreateSwapchain` with presentation mode **2**, `GetDeviceSize`,
@@ -2191,14 +2191,14 @@ buffer. Its compositor thread then waits on its own command port (a
 receive with no timeout), its main thread vends the `com.apple.wakeboard.*`
 services, and an `mk_timer` is created but never armed: the process waits
 for its clients (backboardd's swapchains), so "First frame displayed" does
-not mean a swap under Ycode. `--screenshot` therefore reports "no surface
+not mean a swap under SwiftCode. `--screenshot` therefore reports "no surface
 to capture"; the display server would show nothing.
 
 **Boot time.** Time to the last reachable milestone (wakeboardd "First
 frame displayed"): 4.4 s cold, first boot. Time to a frame or to the home
 view: not reached.
 
-### 10.3 Ycode changes made while finding this
+### 10.3 SwiftCode changes made while finding this
 
 - **Heap texture ops (fixed).** Device ops 21 and 22 carry the texture
   descriptor without its leading zero word (`metal-sim-protocol.md` §4.2
@@ -2207,12 +2207,12 @@ view: not reached.
   accepted now; unit tests cover the 32- and 52-byte bodies. This also
   affected iOS boots (op 22 refusals in iOS logs).
 - **Diagnostics (off by default; the iPhone Duo's files and environment
-  are unchanged):** `YCODE_METAL_DUMP_OPS=op[:n],…` (hex of device-op
-  request bodies), `YCODE_METAL_LIMITS=x,y,z,mem` (another op-37 reply),
-  `YCODE_IOSURFACE_LOG=1` (failed IOSurface requests),
-  `YCODE_FRAMEBUFFER_CALLS=1` (per-process call log of the framebuffer
-  library in `DEV/data/tmp/ycode-framebuffer.calls.<pid>`; no lock is taken
-  when off), `YCODE_CHILD_ENV="K=V;…"` (extra job environment, for example
+  are unchanged):** `SWIFTCODE_METAL_DUMP_OPS=op[:n],…` (hex of device-op
+  request bodies), `SWIFTCODE_METAL_LIMITS=x,y,z,mem` (another op-37 reply),
+  `SWIFTCODE_IOSURFACE_LOG=1` (failed IOSurface requests),
+  `SWIFTCODE_FRAMEBUFFER_CALLS=1` (per-process call log of the framebuffer
+  library in `DEV/data/tmp/swiftcode-framebuffer.calls.<pid>`; no lock is taken
+  when off), `SWIFTCODE_CHILD_ENV="K=V;…"` (extra job environment, for example
   a recorder in `DYLD_INSERT_LIBRARIES`), and a frame-pointer call chain in
   every guest fault report.
 - **Probes** (`SimShim/guest-tests/build-visionos.sh`): `vprobe` (UIDevice
@@ -2224,16 +2224,16 @@ view: not reached.
 
 The blocker is RealityKit's render manager failing to initialize, in
 every process that asks for one (backboardd, datamigrator). Its call chain
-at the abort (Ycode's fault report) is backboardd `main` → RealitySimulation
-(through `dispatch_sync`) → CoreRE. Ruled out under Ycode:
+at the abort (SwiftCode's fault report) is backboardd `main` → RealitySimulation
+(through `dispatch_sync`) → CoreRE. Ruled out under SwiftCode:
 
 | Hypothesis | Check | Result |
 |---|---|---|
-| Metal requests refused or malformed | host refusals; `YCODE_METAL_DUMP_OPS` | ops 21/22 were malformed (fixed, §10.3); none remain; the abort persists |
+| Metal requests refused or malformed | host refusals; `SWIFTCODE_METAL_DUMP_OPS` | ops 21/22 were malformed (fixed, §10.3); none remain; the abort persists |
 | A Metal object the device fails to create | `mtlwatch` in backboardd | every device call returned an object (buffers, samplers, heap of 69 632 bytes, libraries, queues, fences, events, textures, compute pipeline); none nil |
 | Device capability answers | `vprobe` vs §4.5 | equal: "Apple xrOS simulator GPU", Apple1/Apple2/Common1 only, 512 × 512 threads (z 64, see below), 16 384 threadgroup memory, 256 MiB buffers, no unified memory, vertex amplification 1 only, no rasterization-rate maps, sample counts 1 and 4; heap sizing and heap textures work |
-| The z limit of `maxThreadsPerThreadgroup` (Ycode 64 from Vulkan, reference 512) | `YCODE_METAL_LIMITS=512,512,512,16384` | same abort |
-| IOSurface creation | `YCODE_IOSURFACE_LOG=1` | no failed IOSurface request |
+| The z limit of `maxThreadsPerThreadgroup` (SwiftCode 64 from Vulkan, reference 512) | `SWIFTCODE_METAL_LIMITS=512,512,512,16384` | same abort |
+| IOSurface creation | `SWIFTCODE_IOSURFACE_LOG=1` | no failed IOSurface request |
 | A missing service | backboardd's bootstrap look-ups (trace) | only the per-process Metal name fails (expected); no RealitySimulation or wakeboard service is looked up before the abort |
 | `memorystatus_control` self-query EPERM | xnu `memorystatus_control` (level 1) | EPERM is xnu's answer to an unprivileged caller too, so the reference sees it as well |
 | Specific to backboardd | datamigrator aborts the same way; our `rkprobe` (a RealityKit `RealityRenderer` in a one-shot) did not return within 45 s (its main thread waits for a reply, as `vprobe`'s `UIDevice.currentDevice` does while backboardd keeps restarting) | the failure is RealityKit's, in any process that starts a render manager |
@@ -2248,11 +2248,11 @@ YES, `supportsSeparateDepthStencil` → NO; then a second
 ### 10.5 What R2 needs (and what R1 still lacks)
 
 1. **The render-manager abort** (§10.4) — needs reference facts (§9 Q9,
-   Q10) before Ycode can supply what is missing; it gates everything else.
+   Q10) before SwiftCode can supply what is missing; it gates everything else.
    Q9 and Q10 are answered in §10.6: the device answers are not the cause;
    the failing step is open (§9 Q12, §10.6.7).
 2. **Surfaces between processes (V-8):** backboardd's swapchains (uid 1
-   "Top", uid 2 "SyntheticPassthrough") handed to wakeboardd; Ycode's
+   "Top", uid 2 "SyntheticPassthrough") handed to wakeboardd; SwiftCode's
    IOSurface service must serve a surface created in backboardd to
    wakeboardd's Metal textures (`iosurface-remote.md`), and wakeboardd's
    swaps (mode-2 swapchain) to the frame record.
@@ -2261,11 +2261,11 @@ YES, `supportsSeparateDepthStencil` → NO; then a second
    KTX/ASTC room textures; GPU memory (two 33 MB presentation surfaces in
    wakeboardd alone).
 4. **wakeboardd's presentation:** whether it swaps during Pulse in the
-   reference (§9 Q5, Q11; answered in §10.6.6: it does not) and with which callback timing; Ycode's
+   reference (§9 Q5, Q11; answered in §10.6.6: it does not) and with which callback timing; SwiftCode's
    framebuffer library reports `max swapchains 1`, `max layers 1`, modes 3.
 5. **First-boot migration:** completes only once datamigrator no longer
    aborts (same cause as 1).
-6. `maxThreadsPerThreadgroup` z: Ycode reports 64 (Vulkan's limit on the
+6. `maxThreadsPerThreadgroup` z: SwiftCode reports 64 (Vulkan's limit on the
    Thor's GPU) where the reference reports 512; harmless so far.
 
 ### 10.6 The reference during the same start (agent VISIONOS-OBS, 2026-10-27)
@@ -2276,13 +2276,13 @@ own probe (`research/notes/visionos-renderer-observations.md`). The
 recorder did not change the outcome: the boot reached the home view in the
 room. Level 3 unless marked.
 
-#### 10.6.1 Device answers: reference and Ycode
+#### 10.6.1 Device answers: reference and SwiftCode
 
 The questions RealityKit's render-manager start asks in backboardd, in
 order, and the answers. datamigrator asks the same questions in the same
 order with the same answers.
 
-| Question (in order) | Reference | Ycode (§10.4, §4.5) |
+| Question (in order) | Reference | SwiftCode (§10.4, §4.5) |
 |---|---|---|
 | `supportsFamily:` 1005 (Apple5), 2002 (Mac2) | NO, NO | NO, NO |
 | `supportsRasterizationRateMapWithLayerCount:` 2 | NO | NO |
@@ -2309,7 +2309,7 @@ computed inside the guest driver; no family, feature or pixel-format
 question reaches the host (`metal-sim-protocol.md` §4.2: op 37 is the only
 capability query). A host therefore cannot make them differ, and they do
 not differ. **The render-manager abort is not caused by a device answer.**
-For parity Ycode's op-37 reply should still give at least 512 for z.
+For parity SwiftCode's op-37 reply should still give at least 512 for z.
 
 #### 10.6.2 The reference order of the start
 
@@ -2328,15 +2328,15 @@ backboardd, cold first boot, times from its first device creation:
 | 9 | one more device creation (CA layer contents cache), no other Metal call; a command queue for the VFX manager. **The render-manager start ends here.** | +1 ms |
 | 10 | messages "ImportGraphicsResources: initializing …", "MRLightingService being added", "NetworkSyncManager: initialized"; then an argument encoder of two pointers (encoded length 16, alignment 8); a shared event and its **shared-event handle** (§10.6.5); the image presentation, MPS and audio start | +2–12 ms |
 
-Under Ycode the last things seen before the abort were steps 8 and 9 and
+Under SwiftCode the last things seen before the abort were steps 8 and 9 and
 "ImportGraphicsResources" never appeared, so the start returned failure
 within steps 1–9. The assertion text sits among the engine's own strings,
 consistent with a check made by the engine right after the render-manager
 start returns (level 4).
 
 *(Corrected by §10.8.1. This list came from a recorder that saw fewer
-calls. With Ycode's own recorder the reference makes the same calls in
-the same counts as Ycode: steps 2 and 3 have 15 buffers, 10 samplers
+calls. With SwiftCode's own recorder the reference makes the same calls in
+the same counts as SwiftCode: steps 2 and 3 have 15 buffers, 10 samplers
 and 29 heap textures. Step 9 is not the end of the start. After the CA
 layer contents cache's device come the shadow render manager, the VFX
 command queue, the 23 primitive-shape buffers and three defaults reads.
@@ -2361,7 +2361,7 @@ means "ImportGraphicsResources" and "Starting render loop" followed.
 None produced "Render manager was requested but failed to initialize". The
 start is not sensitive to the device's answers, to single missing objects,
 to command-buffer errors or to slowness of several seconds. What makes it
-fail under Ycode is open (§9 Q12).
+fail under SwiftCode is open (§9 Q12).
 
 #### 10.6.4 Logs in the window (§9 Q9)
 
@@ -2382,7 +2382,7 @@ doesn't suport light clustering". No debug-level message falls there. The
 only error-level messages of the whole engine start are the missing
 binary archive and an asset path parse error for
 `engine:throttleGhosted.rematerial`; any other error-level `com.apple.re`
-message under Ycode is a lead.
+message under SwiftCode is a lead.
 
 #### 10.6.5 Shared-event handles on the wire
 
@@ -2396,7 +2396,7 @@ datamigrator as well.
 | 18 (`newSharedEventWithHandle:`) | type 1 | `eventPort` (the send right); `command`: op 40 record with a zero u32 | `replyData`: u32 new event ref, u32 0 |
 
 Both refs name one event: a value set through the first (op 30) is read
-through the second (op 41). Ycode's host answers unknown message types
+through the second (op 41). SwiftCode's host answers unknown message types
 with an empty dictionary, so the guest gets no port; in the reference a
 handle with port 0 later broke command-buffer decoding (§10.6.3).
 
@@ -2408,7 +2408,7 @@ handle with port 0 later broke command-buffer decoding (§10.6.3).
   creating a POSIX named semaphore `wakeboardd.first-boot` (levels 3, 4). On
   macOS the semaphore is host-wide and outlives the device, so the reference
   pulses only on the first visionOS boot after the host starts; otherwise
-  the state goes Config → Ready → RealTimeStarting → Run at once. Ycode
+  the state goes Config → Ready → RealTimeStarting → Run at once. SwiftCode
   starts with no such semaphore and always pulses; either is acceptable.
 - **During Pulse there is no swap at all.** In a pulsing reference boot:
   swapchain at 0.32 s, "First frame displayed" at 0.61 s without a swap,
@@ -2417,7 +2417,7 @@ handle with port 0 later broke command-buffer decoding (§10.6.3).
   the same millisecond as "creating real time thread" and Pulse →
   RealTimeStarting → Run. That transition follows SurfBoard's "User
   presence detected", "Transitioning headset to in use..." and "Attempting
-  to set hmd state to 2". **Ycode's wakeboardd, which never swaps while
+  to set hmd state to 2". **SwiftCode's wakeboardd, which never swaps while
   SurfBoard is down, behaves as the reference does**; it is not a second
   blocker.
 - **In Run**, one thread per frame: `SwapBegin` with target time **0**,
@@ -2429,11 +2429,11 @@ handle with port 0 later broke command-buffer decoding (§10.6.3).
   swapchains arrive. The callback runs on another thread 1–20 ms after the
   submit, without error, with A = 0 and B = completion time.
 
-#### 10.6.7 What Ycode must change
+#### 10.6.7 What SwiftCode must change
 
 1. **Device answers: no change needed** for the render-manager start
    (§10.6.1). For parity the op-37 reply should allow z = 512.
-2. **Find the failing start step (§9 Q12)** by recording under Ycode what
+2. **Find the failing start step (§9 Q12)** by recording under SwiftCode what
    §10.6.2 lists, and comparing step by step: whether each of the 28 032-
    and 67 633 280-byte heaps, the five heap textures, the blit upload's
    completion (status and error), the three metallibs, the fences and
@@ -2454,12 +2454,12 @@ handle with port 0 later broke command-buffer decoding (§10.6.3).
    `SwapSetCallback`, and must call each completion once with A = 0 and B =
    the completion time.
 
-### 10.7 Round R2a under Ycode (agent VISIONOS-R2a, 2026-10-27)
+### 10.7 Round R2a under SwiftCode (agent VISIONOS-R2a, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (device copied from
+Clean-room work on SwiftCode's own simulator on the Thor (device copied from
 R1's `d1`, release build of the `visionos-r2` branch). No Apple simulator,
 Xcode or reference tool was run or opened; level 3 for observations of
-Ycode's guest, level 4 for exported symbol names (Ycode's recorder names
+SwiftCode's guest, level 4 for exported symbol names (SwiftCode's recorder names
 return addresses with `dladdr`, which only knows exported names).
 
 #### 10.7.1 New diagnostics (all off by default)
@@ -2480,28 +2480,28 @@ return addresses with `dladdr`, which only knows exported names).
   call's chain contains <text>, every allocation and lock call of the main
   thread is logged with its chain, `MTLREC_WINDOW_MAX` lines,
   `MTLREC_WINDOW_MATCH` filter). Inserted with
-  `YCODE_CHILD_ENV="DYLD_INSERT_LIBRARIES=<guest path>/mtlrec.dylib;MTLREC_DIR=<guest dir>;…"`;
+  `SWIFTCODE_CHILD_ENV="DYLD_INSERT_LIBRARIES=<guest path>/mtlrec.dylib;MTLREC_DIR=<guest dir>;…"`;
   the guest path of a copied device is the path its data carries
-  (`ycode-simd` prints it).
-- **PC timeline** (`YCODE_BOOT_PROFILE=<path> YCODE_BOOT_PROFILE_PC_HZ=<n>
-  YCODE_BOOT_PROFILE_PC_RAW=<program>`): instead of the by-image table,
+  (`swiftcode-simd` prints it).
+- **PC timeline** (`SWIFTCODE_BOOT_PROFILE=<path> SWIFTCODE_BOOT_PROFILE_PC_HZ=<n>
+  SWIFTCODE_BOOT_PROFILE_PC_RAW=<program>`): instead of the by-image table,
   each guest PC sample of that program, with its frame-pointer chain, is
   written to `<path>.pcraw` ("ns pid pc lr ra…"). About 200–400 samples per
   second reach a busy main thread on the Thor; too sparse for windows of a
   few milliseconds.
 - **`symaddr`** (`SimShim/guest-tests/visionos/symaddr.c`): a one-shot that
-  names addresses with `dladdr` after loading given images. Ycode maps the
+  names addresses with `dladdr` after loading given images. SwiftCode maps the
   simulator's shared cache at its unslid address in every process, so
   addresses sampled in one process can be named in another.
-- **`YCODE_GUEST_MEMSIZE=<bytes>`**: another `hw.memsize` and commpage
+- **`SWIFTCODE_GUEST_MEMSIZE=<bytes>`**: another `hw.memsize` and commpage
   memory size (default 1 GiB). Tested at 16 GiB for visionOS: no change
   (§10.7.2).
 
-#### 10.7.2 Q12: what the render-manager start does under Ycode
+#### 10.7.2 Q12: what the render-manager start does under SwiftCode
 
 backboardd, repeat boots of the device; the same in every instance.
 
-| Reference step (§10.6.2) | Under Ycode |
+| Reference step (§10.6.2) | Under SwiftCode |
 |---|---|
 | 1 device questions | as listed in §10.6.1 |
 | 2 shared buffers with bytes, samplers | yes (more 16-byte to 128 KiB buffers; ten sampler states) |
@@ -2528,15 +2528,15 @@ the reference is not a Metal request. Its place is after the
 primitive-shape stage and before the VFX queue, the reference's last
 step.
 
-Where the reference and Ycode are known to differ in that start: the two
+Where the reference and SwiftCode are known to differ in that start: the two
 heap sizes (from the host's op-22 answers), the "Compiling PSO RT" message,
 and the absent VFX queue. §10.6.2 reports no Metal call between the CA
-layer contents cache's device and the VFX queue, while under Ycode the
+layer contents cache's device and the VFX queue, while under SwiftCode the
 shadow stage and the 23 primitive-shape buffers follow that device; if
 the reference's list is complete, its VFX queue comes before the
-primitive-shape stage, and under Ycode the stage that would create it is
+primitive-shape stage, and under SwiftCode the stage that would create it is
 skipped or fails silently there, the start continuing to its end and
-then reporting failure. Ycode's guest makes no `dlopen` of the VFX
+then reporting failure. SwiftCode's guest makes no `dlopen` of the VFX
 frameworks in the whole start (they load fine in a one-shot), and five
 more defaults experiments (`com.apple.re.clipping.SDFTextures.usePregenerated`
 YES and NO, `…disableColorPipeline`, `…CAREEnableHistogramAndGlow` NO,
@@ -2565,14 +2565,14 @@ same recorder so that the two can be compared stage by stage.
 #### 10.7.4 What remains for R2
 
 1. Q12 (§9 Q12, Q13): the reference's call list for the window of
-   §10.7.2, then the Ycode change it points to. Candidates on Ycode's
+   §10.7.2, then the SwiftCode change it points to. Candidates on SwiftCode's
    side: heap sizing answers (op 22 rounds each level to 1 KiB; the
    reference's sizes are smaller for small textures and larger for the
    4096 × 4096 texture; op 31 reports the requested heap size, the
    reference grants a multiple of 16 KiB), and the PSO path that logs
    "Compiling PSO RT". *(§10.8: neither is the cause. The reference
    logs the same PSO line, and it starts normally when it is made to
-   answer the heap sizes as Ycode does. The first differing stage is the
+   answer the heap sizes as SwiftCode does. The first differing stage is the
    VFX manager's hookup.)*
 2. After that, unchanged from §10.5: shared-event handles in use (step 10),
    SurfBoard "in use", RealityLauncher, wakeboardd leaving Pulse and
@@ -2581,11 +2581,11 @@ same recorder so that the two can be compared stage by stage.
    wakeboardd, a first frame with `--screenshot`, and cold boot to first
    frame. None of these was reached in R2a.
 
-### 10.8 The reference start with Ycode's recorder (agent VISIONOS-OBS2, 2026-10-27)
+### 10.8 The reference start with SwiftCode's recorder (agent VISIONOS-OBS2, 2026-10-27)
 
 Observed on the Mac with Apple's visionOS 27.0 (24M362) simulator, device
-type Apple Vision Pro, test device `ycode-test-visionos-obs2`, five boots
-(one cold). Ycode's own `mtlrec.dylib` (§10.7.1) was built for the
+type Apple Vision Pro, test device `swiftcode-test-visionos-obs2`, five boots
+(one cold). SwiftCode's own `mtlrec.dylib` (§10.7.1) was built for the
 visionOS simulator SDK and inserted into backboardd with
 `SIMCTL_CHILD_DYLD_INSERT_LIBRARIES`. The options were caller chains
 (`MTLREC_STACK`), `MTLREC_DL=1`, and allocation windows opened at the CA
@@ -2601,7 +2601,7 @@ symbol names, which are binary metadata (level 4). Notes:
 #### 10.8.1 The two lists agree up to the shadow render manager
 
 With the same recorder the reference start makes the same calls in the
-same counts as Ycode's (§10.7.2). There are 15 buffers with bytes (ten
+same counts as SwiftCode's (§10.7.2). There are 15 buffers with bytes (ten
 of 16 bytes, then 64, 128, 1024, 2048 and 131 072), ten sampler states,
 29 heap size queries and 29 heap textures. There is one blit upload that
 is waited for and ends with status 4. There are three metallibs, then
@@ -2620,12 +2620,12 @@ GPU"), once, while the `computeSDFGradient` pipeline is made.
 #### 10.8.2 Side by side
 
 Reference: cold boot, milliseconds from the recorder's load in backboardd.
-Ycode: §10.7.2. "Return offset" is the place in the render manager's start
+SwiftCode: §10.7.2. "Return offset" is the place in the render manager's start
 (`re::RenderManager::init`, an exported symbol of CoreRE) from which the
-stage is called, as Ycode's recorder prints it. Both systems run the same
+stage is called, as SwiftCode's recorder prints it. Both systems run the same
 dyld shared cache, so the offsets can be compared directly.
 
-| # | Stage | Return offset | Reference | Ycode | Result |
+| # | Stage | Return offset | Reference | SwiftCode | Result |
 |---|---|---|---|---|---|
 | 1 | device questions (§10.6.1) | — | 371 ms | same | same |
 | 2 | material manager: 15 buffers with bytes, 10 samplers | +1116, +1208 | 379–395 ms | same | same |
@@ -2644,9 +2644,9 @@ dyld shared cache, so the offsets can be compared directly.
 | 14 | start returns | — | **success**: deformation manager, focus-level manager, …, "ImportGraphicsResources" at about 3794 ms | **failure**: "Render manager was requested but failed to initialize" | differs |
 
 So the VFX command queue that §10.6.2 put at the end of the start comes
-before the primitive-shape stage. Under Ycode, stages 10a and 12 run
+before the primitive-shape stage. Under SwiftCode, stages 10a and 12 run
 but 10b does not. The render manager's result already differs when it
-reaches row 10b: under Ycode either the hookup is skipped or it ends
+reaches row 10b: under SwiftCode either the hookup is skipped or it ends
 before it asks for its queue. The failure is returned at row 14 from
 state that is already set. The reference does not fail when the VFX
 queue itself is missing (§10.6.3: `newCommandQueue` returning `nil`
@@ -2669,10 +2669,10 @@ preference files.
 #### 10.8.3 Size-and-align answers (interop facts)
 
 **The answers the start receives.** All descriptors are private storage.
-"Usage 0" means `MTLTextureUsageUnknown`. The Ycode column is R2a's host
+"Usage 0" means `MTLTextureUsageUnknown`. The SwiftCode column is R2a's host
 (op 22: each level rounded up to 1 KiB).
 
-| `heapTextureSizeAndAlignWithDescriptor:` descriptor (in the order asked, count) | Reference size, align | Ycode R2a |
+| `heapTextureSizeAndAlignWithDescriptor:` descriptor (in the order asked, count) | Reference size, align | SwiftCode R2a |
 |---|---|---|
 | 2D RGBA8Unorm 1 × 1, 1 level, usage 0 (6) | 128, 128 | 1024, 128 |
 | Cube RGBA16Float 1 × 1, ShaderRead (2) | 768, 128 | 6144, 128 |
@@ -2693,13 +2693,13 @@ preference files.
 The engine sizes each heap from these answers. The texture-manager heap is
 the 29 answers placed one after another, each at its alignment (the
 4-byte texture buffer is followed by 124 bytes of padding): 28 032. The
-CA heap is the 4096 × 4096 answer plus its alignment: 67 633 280. Ycode's
+CA heap is the 4096 × 4096 answer plus its alignment: 67 633 280. SwiftCode's
 answers give 69 632 and 67 108 992, which are exactly R2a's numbers.
 
 **Experiment: the heap sizes are not the cause.** The reference was
 booted with every `heapTextureSizeAndAlignWithDescriptor:` answer replaced
 by R2a's formula. The engine then asked for heaps of 69 632 and
-67 108 992 bytes, as under Ycode, and the start completed normally: VFX
+67 108 992 bytes, as under SwiftCode, and the start completed normally: VFX
 queue, primitive shapes, "ImportGraphicsResources", "Starting render
 loop", boot completed.
 
@@ -2752,12 +2752,12 @@ cover the 871 mipmapped 2D answers whose sizes are not powers of two.
   4× multisample RGBA8 RenderTarget: 1 × 1 128, 8 × 8 1 152, 16 × 16
   4 224 (not fitted).
 
-#### 10.8.4 What Ycode must change
+#### 10.8.4 What SwiftCode must change
 
 1. **No Metal answer has to change to clear the abort.** The device
    answers are identical (§10.6.1). The call lists are identical up to the
-   shadow render manager. With Ycode's heap sizes the reference still
-   starts. For parity, a Ycode host should still answer as §10.8.3 says:
+   shadow render manager. With SwiftCode's heap sizes the reference still
+   starts. For parity, a SwiftCode host should still answer as §10.8.3 says:
    - op 22 by the fitted rule;
    - heap size and current allocated size rounded up to 16 KiB (op 31);
    - available size equal to size − used, rounded down to the alignment
@@ -2765,10 +2765,10 @@ cover the 871 mipmapped 2D answers whose sizes are not powers of two.
    - heap buffers length, 256 (op 23; already so).
 2. **Make the engine reach the VFX manager's hookup (row 10b).** Behavior
    required: after the shadow render manager is constructed, the
-   render-manager start under Ycode must read
+   render-manager start under SwiftCode must read
    `com.apple.re.enableVFXUseRERenderCommandQueue` and create one command
    queue (64 buffers) before the primitive-shape buffers. The cause is
-   not yet known (§9 Q14). Measure it under Ycode with Ycode's own
+   not yet known (§9 Q14). Measure it under SwiftCode with SwiftCode's own
    recorder, which needs no reference tool:
    - (a) A window from the first device creation
      (`MTLREC_WINDOW_AFTER=RSRenderServer`) with
@@ -2794,13 +2794,13 @@ cover the 871 mipmapped 2D answers whose sizes are not powers of two.
    presentation) is unchanged.
 
 
-### 10.9 Round R2b under Ycode (agent VISIONOS-R2b, 2026-10-27)
+### 10.9 Round R2b under SwiftCode (agent VISIONOS-R2b, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (device copied from
+Clean-room work on SwiftCode's own simulator on the Thor (device copied from
 R2a's, release build of the `visionos-r2b` branch, runs `a1`–`a15`,
 `b1`–`b20`, `c1`, `f*`, `g*`, `p1`–`p11`, `x*`). No Apple simulator,
 Xcode or reference tool was run or opened; nothing was disassembled.
-Level 3 for observations of Ycode's guest and for black-box experiments
+Level 3 for observations of SwiftCode's guest and for black-box experiments
 in it; level 4 for symbol names (`dladdr`, the images' symbol tables).
 Offsets "RM+n" are return offsets in the render manager's start
 (`re::RenderManager::init`) as in §10.8.2; "RM +0xNN" (with a space) are
@@ -2841,12 +2841,12 @@ byte offsets in the render manager object (a 512-byte heap block).
 
 Also: `exports` (export-trie and symbol-table names of a loaded image
 containing a text), `shtex` (a shared texture, its surface and its
-handle), and Ycode's Metal host now logs the keys and short values of the
+handle), and SwiftCode's Metal host now logs the keys and short values of the
 first request of each unknown `messageType`.
 
 #### 10.9.2 Q14: the three measurements of §10.8.4
 
-| Measurement | Under Ycode |
+| Measurement | Under SwiftCode |
 |---|---|
 | (a) VFX manager constructed and initialized in the engine start | **yes**: `re::VFXManager::init` from `re::Engine::init`+11452 (as in the reference) creates three serial queues, `VFXRuntimeLoadingQueue`, `VFXDispatchRuntimeMergeQueue`, `VFXXPCDeliveryQueue`; no other look-up; no work is ever submitted to them during the start |
 | (b) hookup entered | **yes**: the VFX manager object (448 bytes; the block holding the three queues at +0x28, +0x30, +0x40) gets the render manager's address at +0x10 between the drawing manager (RM+2100) and the primitive renderer (RM+3344), as `re::VFXManager::setRenderManager` would store it; the render manager's own frame holds the VFX manager's address, so the start was given a VFX manager |
@@ -2879,7 +2879,7 @@ Where they change (render manager dumps at successive points):
 | start of the render-manager start (RM+432) up to the mesh manager (RM+1580) | `01 00 00 00 01 01 00 00` |
 | inside the render context manager's constructor (RM+1984) | same |
 | at the CPU-count query (`sysctlbyname("hw.physicalcpu")`, RM+2028) | `01 00 00 00 00 00 00 00` |
-| after it (RM+2072) and later | the u32 at +0xd0 is the CPU count (1, or 16 with `YCODE_GUEST_CPUS=16`); +0xd4, +0xd5 stay 0 |
+| after it (RM+2072) and later | the u32 at +0xd0 is the CPU count (1, or 16 with `SWIFTCODE_GUEST_CPUS=16`); +0xd4, +0xd5 stay 0 |
 
 Between RM+1984 and RM+2028 the main thread makes no recorded call after
 the render context manager's own allocations: no Metal call (every
@@ -2894,14 +2894,14 @@ Ruled out as the input (each: bytes still cleared, abort unchanged):
 
 | Candidate | How |
 |---|---|
-| CPU count | `YCODE_GUEST_CPUS=8` and 16 (`hw.physicalcpu` 16; the u32 at +0xd0 becomes 16) |
+| CPU count | `SWIFTCODE_GUEST_CPUS=8` and 16 (`hw.physicalcpu` 16; the u32 at +0xd0 becomes 16) |
 | `com.apple.re.enableSynchronousCommandQueue` (unset; the engine logs "… is enabled", as in the reference, §10.6.4) | set to NO in `com.apple.backboardd`: "… is disabled" |
 | engine configuration | changed at `REEngineInitWithConfiguration`, before the engine reads it: `EnableCommitSynchronously` 0; `ServicesToCreate`, `ServicesToUpdate` all bits; `RenderFlags` 0 and all bits; `RenderFrameOverlap` 2; `ClockMode` 0 with `RenderSkippingEnabled` 1 |
 | the render manager's copy of its configuration | every byte 0 set to 1, and (separately) every byte 1 set to 0, in RM +0x130 … +0x167 and +0x1c0 … +0x1c7, at RM+1984 |
 | the start's two trailing `bool` arguments | both 1 (read from the caller's outgoing stack arguments) |
 | the frame manager's and the job service's flag bytes | frame manager +0x28 and job manager +0xa8 (both 1) set to 0 at RM+1984 |
 
-The engine configuration under Ycode (public getters, before the engine
+The engine configuration under SwiftCode (public getters, before the engine
 reads it): `UseMetal` 1, `EnableCommitSynchronously` 1, `RenderFlags`
 `0x20000`, `RenderFrameOverlap` 3, `RenderThreadPriority` 40,
 `ClockMode` 2, `RenderSkippingEnabled` 0, `ServicesToCreate` and
@@ -2928,7 +2928,7 @@ an experiment to see what follows), the boot goes on:
 2. wakeboardd crashed (`CFRelease(NULL)`, from an NSXPC message of
    backboardd's swapchain owner connection) because
    `newSharedTextureWithDescriptor:` sends **`messageType` 19**, which
-   Ycode's host refused: the driver then got no IOSurface. Ycode now
+   SwiftCode's host refused: the driver then got no IOSurface. SwiftCode now
    answers it (`metal-sim-protocol.md` §5.10); wakeboardd's six layers
    (3840 × 2160) get surfaces and it no longer crashes.
 3. backboardd then crashed in `xpc_release(NULL)` inside
@@ -2937,7 +2937,7 @@ an experiment to see what follows), the boot goes on:
    `wbxr_decodeFlatTextureOnDevice:forKey:`): wakeboardd's
    `newSharedTextureHandle` returns nil, because the handle is made from
    the surface's creation properties and needs a value under
-   `MetalSharedTexture` that Ycode's host-made surface does not carry
+   `MetalSharedTexture` that SwiftCode's host-made surface does not carry
    (our probe `shtex`: the shared texture and its surface exist, the
    handle is nil). The value is a reference fact (§9 Q16). A restarted
    backboardd did not hit it in the same boot, but wakeboardd stayed in
@@ -2964,7 +2964,7 @@ an experiment to see what follows), the boot goes on:
 #### 10.9.6 What remains
 
 1. §9 Q15 (the input that clears the render manager's two bytes), then the
-   Ycode change it points to. Until then the visionOS boot aborts as in
+   SwiftCode change it points to. Until then the visionOS boot aborts as in
    §10.7. *(Answered in §10.10.1: the 8-byte `hw.physicalcpu` answer;
    change in §10.10.4 item 1.)*
 2. §9 Q16 (shared-texture handles), then backboardd's swapchains handed
@@ -2977,19 +2977,19 @@ an experiment to see what follows), the boot goes on:
 ### 10.10 The reference answers Q15 and Q16 (agent VISIONOS-OBS3, 2026-10-27)
 
 Observed on the Mac with Apple's visionOS 27.0 (24M362) simulator, test
-device `ycode-test-visionos-obs3` (Apple Vision Pro, 4K), twelve boots
-and probe runs. Tools: Ycode's `mtlrec.dylib` built with
+device `swiftcode-test-visionos-obs3` (Apple Vision Pro, 4K), twelve boots
+and probe runs. Tools: SwiftCode's `mtlrec.dylib` built with
 `build-visionos.sh` (one copy adds an answer substitution for
 `sysctlbyname`, used in two boots), the Metal message recorder `mslog`
 (`metal-sim-protocol.md` Appendix A) and our probes. Level 3 unless
 marked; symbol names from caller chains are level 4. Level 5 was used
 once (§10.10.1). Notes: `research/notes/visionos-renderer-observations.md`
-(OBS3 section). The shared cache was not slid against Ycode's: the render
+(OBS3 section). The shared cache was not slid against SwiftCode's: the render
 manager's +0x10 word was `0x1b073c978` here too.
 
 #### 10.10.1 Q15: the CPU-count answer must be 4 bytes wide
 
-| Point (Q15's settings) | Reference RM +0xd0 … +0xd7 | Ycode (§10.9.3) |
+| Point (Q15's settings) | Reference RM +0xd0 … +0xd7 | SwiftCode (§10.9.3) |
 |---|---|---|
 | RM+1984 | `01 00 00 00 01 01 00 00` | `01 00 00 00 01 01 00 00` |
 | RM+2072 | `0e 00 00 00 01 01 00 00` | `01 00 00 00 00 00 00 00` |
@@ -3012,7 +3012,7 @@ manager's +0x10 word was `0x1b073c978` here too.
   were read; the extract stays in `research/dirty/visionos-obs3/`.
 - **Confirmed at level 3.** The reference returns a 4-byte integer
   sysctl as 4 bytes, and returns length 4, also when the buffer is 8 or
-  16 bytes (table below). Ycode's sysctl table gives a caller with an
+  16 bytes (table below). SwiftCode's sysctl table gives a caller with an
   exactly 8-byte buffer an 8-byte value, so the upper half (zero) of the
   count overwrites +0xd4 … +0xd7. In the reference, a recorder answer of
   `hw.physicalcpu` widened to 8 bytes (in backboardd only) gave
@@ -3033,7 +3033,7 @@ with 0xaa first; our probe `sysctlsize` in the reference device):
 By MIB (`sysctl`), `{6, 3}` (`hw.ncpu`) and `{6, 7}` (HW_PAGESIZE) answer
 4 bytes with length 4 to an 8-byte buffer, and `{6, 24}` (`hw.memsize`)
 answers 8. So HW_PAGESIZE by number is a 4-byte integer, while the name
-`hw.pagesize` answers 8 bytes. (Ycode's table gives `hw.pagesize` the MIB
+`hw.pagesize` answers 8 bytes. (SwiftCode's table gives `hw.pagesize` the MIB
 `{6, 7}` and 8 bytes.)
 
 #### 10.10.2 Q16: shared textures
@@ -3080,7 +3080,7 @@ probe made surfaces with chosen creation properties:
 | + the full set without `kMetalRegistryID` | none (crash) | — |
 | + `MetalSharedTexture` = registry ID | none (crash) | — |
 
-So R2b's guess (`MetalSharedTexture`) was wrong. Under Ycode the
+So R2b's guess (`MetalSharedTexture`) was wrong. Under SwiftCode the
 handle is nil because the host-made surface has no `kMetalRegistryID`.
 
 **Opening a handle sends `messageType` 20**, in the creating process and
@@ -3128,7 +3128,7 @@ from caller chains are level 4):
   presence requested. Then it logs "User presence detected",
   "Transitioning headset to in use...", "Attempting to set hmd state to
   2" and "Set hmd state to 2 (wb:2), resulting state 2". Nothing from the
-  host or the user is needed. Under Ycode, SurfBoard has to get this far
+  host or the user is needed. Under SwiftCode, SurfBoard has to get this far
   in its own start, and wakeboardd then leaves Pulse as §10.6.6 describes.
 - **The reference backboardd logs no "Failed to acquire IOPM assertion".**
   Its DisplayReveal logs "Acquiring wake assertion with identifier: …,
@@ -3137,10 +3137,10 @@ from caller chains are level 4):
   it in the device is host-side: `launchctl print user/501` lists
   `com.apple.PowerManagement.control` as host-side, beside
   `com.apple.metal.simulator` and `com.apple.IOSurface.Remote`. It is a
-  MIG service; its message format was not recorded (§9 Q17). Under Ycode
+  MIG service; its message format was not recorded (§9 Q17). Under SwiftCode
   the request fails with -536870199 (`kIOReturnInternalError`).
 
-#### 10.10.4 What Ycode must change
+#### 10.10.4 What SwiftCode must change
 
 1. **sysctl integer width (clears the R1 abort).** Write each integer
    sysctl with its natural width, whatever the caller's buffer size.
@@ -3166,7 +3166,7 @@ from caller chains are level 4):
    `MetalSharedTexture` value is needed. Every process must get the same
    properties through the IOSurface service, because backboardd looks the
    surface up from wakeboardd's right.
-3. **`messageType` 20** (new to Ycode): find the surface by the request's
+3. **`messageType` 20** (new to SwiftCode): find the surface by the request's
    `iosurface` right and make a texture over it. The surface can come from
    any process: a message-19 surface or a guest surface with `kMetal…`
    properties. Answer with the 36-byte `replyData` of
@@ -3178,13 +3178,13 @@ from caller chains are level 4):
    in the reference.
 5. SurfBoard needs no extra input for presence (§10.10.3).
 
-### 10.11 Round R3 under Ycode (agent VISIONOS-R3, 2026-10-27)
+### 10.11 Round R3 under SwiftCode (agent VISIONOS-R3, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (device copied from
+Clean-room work on SwiftCode's own simulator on the Thor (device copied from
 R2b's, release build of the `visionos-r3` branch, boots `s1`–`s15`; iOS
 27.1 boots `ios1`, `ios2`). No Apple simulator, Xcode or reference tool
 was run or opened, the recorder was not used, and nothing was
-disassembled. Level 3 for observations of Ycode's guest; level 1 for
+disassembled. Level 3 for observations of SwiftCode's guest; level 1 for
 xnu, IOKitUser and the Metal Shading Language.
 
 #### 10.11.1 The render-manager abort is cleared
@@ -3197,19 +3197,19 @@ With the integer sysctls answered at their natural width (§10.10.4 item
 <RSXRRenderLoop: …>"; "renderManagerInitSuccessful" no longer appears, in backboardd or in
 datamigrator (which then aborted on the identity token of §10.11.3).
 
-Rules now in Ycode's sysctl answers (xnu `sysctl_io_number`,
+Rules now in SwiftCode's sysctl answers (xnu `sysctl_io_number`,
 `sysctl_old_user`, and the reference's table of §10.10.1): a 4-byte
 integer is 4 bytes with length 4 into any buffer of 4 or more bytes,
 the bytes after the fourth untouched; a buffer under 4 bytes is ENOMEM,
 nothing written, length 0. An 8-byte value is 8 bytes into 8 or more;
 into exactly 4 bytes it is narrowed when it fits an `int` (`hw.pagesize`,
-`hw.memsize` with Ycode's 1 GiB guest, `hw.memsize_usable`,
+`hw.memsize` with SwiftCode's 1 GiB guest, `hw.memsize_usable`,
 `hw.tbfrequency`, `kern.osvariant_status`), otherwise ERANGE with nothing
 written and the length unchanged (`kern.usrstack64`); other short buffers
 ENOMEM. The cache sizes (`hw.cachelinesize`, `hw.l1icachesize`,
 `hw.l1dcachesize`, `hw.l2cachesize`) are never narrowed: a 4-byte buffer
 gets ENOMEM (the reference's table names the line and L2 sizes; the L1
-sizes follow them, a Ycode choice). HW_PAGESIZE by number (`{6, 7}`) is a
+sizes follow them, a SwiftCode choice). HW_PAGESIZE by number (`{6, 7}`) is a
 4-byte integer; the name `hw.pagesize` now translates to its own MIB
 (`{6, 1025}`) that answers 8 bytes, so both forms answer as in the
 reference whichever way libc resolves the name. The library's kept
@@ -3218,7 +3218,7 @@ not integers, so the rule does not change them.
 
 #### 10.11.2 How far the boot gets
 
-| Step | Result (boot `s5`, start = `ycode-simd` start) |
+| Step | Result (boot `s5`, start = `swiftcode-simd` start) |
 |---|---|
 | wakeboardd | Config → Pulse at +7 s ("First frame displayed", no swap, as before) |
 | backboardd | one instance for the whole boot; render loop at +32.6 s; it opens wakeboardd's layer handles (`messageType` 20, labels logged, §10.11.3) |
@@ -3236,13 +3236,13 @@ volume). Cold boot to wakeboardd's first swap: about 35 s
 (`s5` 34.7 s, `s13` 35.6 s; untimed boots with other agents' work on the
 machine; `timed.sh` was not used because the frame is not a real one).
 
-Why it is black (diagnostic `YCODE_METAL_SHARED_CONTENT`, §10.11.5):
+Why it is black (diagnostic `SWIFTCODE_METAL_SHARED_CONTENT`, §10.11.5):
 backboardd's six colour layer textures (wakeboardd-layer 1 and 2, three
 frames each) read back as all zero bytes, alpha included, through two
 minutes of the render loop, so wakeboardd composites transparent layers.
 backboardd renders its scene into its own 4× MSAA target and resolve
 texture (3840 × 2160), not directly into the layers; what fills the
-layers from there is not known. Open on the Ycode side: the unknown
+layers from there is not known. Open on the SwiftCode side: the unknown
 render records 24, 25, 132 and compute records 212, 213 that backboardd
 sends every frame (skipped by the back end; §9 Q18), the null-port
 shared events of §10.11.3 (§9 Q19), and the reference's first frames
@@ -3275,17 +3275,17 @@ report now names the pipeline and textures at the checkpoint (§10.11.5).
   "frame 1/2", "2/2"), as in the reference.
 - **Task identity tokens.** RealityKit (CoreRE) calls
   `task_create_identity_token` in every process that starts a render
-  client and aborts when it fails. Ycode's `libsystem_kernel` had only the
+  client and aborts when it fails. SwiftCode's `libsystem_kernel` had only the
   unimplemented stub (KERN_NOT_SUPPORTED): datamigrator, RealityChrome,
   RealityEnvironment, RealityHUD, RealityKeyboard, RealityNotifications
   and pointeruid aborted in a loop (`s2`: 180 calls, 30–37 aborts each).
   The library now answers it and `task_identity_token_get_task_port`
   (xnu `task.defs`, level 1; the token is a send right to the task port,
-  a Ycode choice, `SimHostLibs/kernel/appsupport.c`). None of them aborts
+  a SwiftCode choice, `SimHostLibs/kernel/appsupport.c`). None of them aborts
   since.
 - **Range binding records.** wakeboardd's compositor binds its layer
   textures with render record 114 and a count of 2 (16-byte body: index
-  0, count 2, two refs); Ycode decoded only count 1 and skipped the
+  0, count 2, two refs); SwiftCode decoded only count 1 and skipped the
   record. Records 110/125, 112/127 and 114/129 with a count above 1, and
   record 131 (`setViewports:count:`: a count, then that many viewports of
   six doubles; backboardd sends count 1, 0, 0, 3840, 2160, 0, 1) are now
@@ -3294,7 +3294,7 @@ report now names the pipeline and textures at the checkpoint (§10.11.5).
   failed with `air.calculate_clamped_lod_texture_2d` unsupported. The
   guest sends it as (texture, sampler, float2 coordinate, i32) → float,
   the operand order and trailing i32 of the sampling intrinsics
-  (`metal-shaders.md` §3.9); ycode-airc now translates
+  (`metal-shaders.md` §3.9); swiftcode-airc now translates
   `calculate_clamped_lod` and `calculate_unclamped_lod` to
   `OpImageQueryLod` in fragment functions, and `air.get_num_samples.i32`
   as `air.get_num_samples`. 136 render pipelines compiled in `s15`, two
@@ -3303,8 +3303,8 @@ report now names the pipeline and textures at the checkpoint (§10.11.5).
   (`air.atomic.global.cmpxchg.weak.i32`).
 - **Shared events.** Each layer's set-up sends 18 twice from the opening
   process: once with the right wakeboardd's 17 made, and once with
-  `eventPort` MACH_PORT_NULL, for which Ycode makes a fresh event (counted
-  as refused). A host-side test showed Ycode's kernel keeps a right that
+  `eventPort` MACH_PORT_NULL, for which SwiftCode makes a fresh event (counted
+  as refused). A host-side test showed SwiftCode's kernel keeps a right that
   appears twice in one message; where the null comes from is §9 Q19.
 
 #### 10.11.4 Power assertions (§9 Q17)
@@ -3315,7 +3315,7 @@ client returns kIOReturnInternalError, -536870199, when it cannot reach
 the server). SurfBoard's simulated presence then failed: "Failed to
 acquire a prevent sleep assertion. The system is being forced to sleep.
 … Code=210", "Set hmd state to 1 (wb:3)", and wakeboardd went Pulse →
-Ready → Idle → DisplayOff (`s3`). Ycode now serves the MIG subsystem
+Ready → Idle → DisplayOff (`s3`). SwiftCode now serves the MIG subsystem
 `powermanagement` (base 73000) of Apple's open-source IOKitUser
 (`PowerManagementHostService`): assertion create (73007) returns a fresh
 id and success, set-properties, retain/release, user/system/network
@@ -3339,12 +3339,12 @@ the power-management name is queued last (`DeviceSession`).
 - Metal host: the first body (96 bytes) and process of each unknown
   command record op; a log of the first 32 shared-event exports and
   openings (17/18) and the first 64 shared-texture openings (20, with
-  label); `YCODE_METAL_SHARED_CONTENT=1` (with `YCODE_METAL_STATS`):
+  label); `SWIFTCODE_METAL_SHARED_CONTENT=1` (with `SWIFTCODE_METAL_STATS`):
   read-back statistics of every shared colour texture (pixels not black,
   mean bytes).
 - Vulkan hang report: the checkpoint's command now names the render
   pipeline and fragment textures in effect.
-- ycode-airc: an unmatched `calculate_*_lod` form reports its operand
+- swiftcode-airc: an unmatched `calculate_*_lod` form reports its operand
   types.
 
 #### 10.11.6 iOS 27.1 check
@@ -3371,13 +3371,13 @@ is registered on iOS too (it fits the queue there).
 ### 10.12 The reference answers Q18–Q20 (agent VISIONOS-OBS4, 2026-10-27)
 
 Observed on the Mac with Apple's visionOS 27.0 (24M362) simulator, test
-device `ycode-test-visionos-obs4` (Apple Vision Pro, 4K), four boots and
+device `swiftcode-test-visionos-obs4` (Apple Vision Pro, 4K), four boots and
 two probe runs. Three boots were **pulsing** boots (the host-wide
 semaphore of §10.6.6 removed first), so that wakeboardd left Pulse at
-SurfBoard's presence as it does under Ycode. Tools: our probes `encprobe`
+SurfBoard's presence as it does under SwiftCode. Tools: our probes `encprobe`
 and `encprobe2` (each encoder call between two separator records), the
 Metal message recorder `mslog` (printing port names too), a copy of
-Ycode's `mtlrec.dylib` that also records render-encoder calls, and our
+SwiftCode's `mtlrec.dylib` that also records render-encoder calls, and our
 read-back library `layerpeek` (statistics of the surfaces wakeboardd
 swaps, and blits of backboardd's layer textures into a shared buffer).
 Level 3 throughout; nothing was disassembled. Notes:
@@ -3426,7 +3426,7 @@ Per layer the opening process sends, within half a millisecond:
 The second request is the driver's form of `newSharedEventWithHandle:`
 with a **nil** handle, which backboardd (and wakeboardd for its own layer)
 calls once per layer after the real one. In the reference the call
-returns **nil**. Under Ycode the host answers with a fresh event
+returns **nil**. Under SwiftCode the host answers with a fresh event
 (§10.11.3), so the process gets an event object where the reference gets
 nil.
 
@@ -3467,10 +3467,10 @@ to LivingRoomDay" (about 5.1 s after Run), backboardd's asset load of
 transition appearance state changed [isVisible: true, … newValue:
 appearing]". A non-pulsing boot shows a different start (an opaque black
 DisplayReveal curtain in the Top layer that fades out over about 5 s, then
-the boot logo with a progress bar on screen) and is not the case Ycode
+the boot logo with a progress bar on screen) and is not the case SwiftCode
 reproduces.
 
-So under Ycode, all-zero layers are expected **until Run** and black
+So under SwiftCode, all-zero layers are expected **until Run** and black
 swaps for a few seconds after it. All-zero layers after the room's
 compose pass has started (two minutes in §10.11.2) are not reference
 behavior.
@@ -3512,7 +3512,7 @@ frame 3/3, one draw each: the logo), almost none for the next 7 s, then
 wakeboardd swaps 60 times per second throughout and shows, per layer, the
 frame that the layer event last announced.
 
-#### 10.12.5 What Ycode must change
+#### 10.12.5 What SwiftCode must change
 
 1. **Decode records 24, 25, 132, 212 and 213** (§10.12.1). Fence waits
    and updates order the encoders of backboardd's frame (each render and
@@ -3531,19 +3531,19 @@ frame that the layer event last announced.
    layer receives content only as the MultisampleResolve target of
    backboardd's 4× pass, and the passthrough layer only as a colour
    attachment. Both name refs that `messageType` 20 opened in backboardd.
-   Ycode's message-20 ref is a view of the image that the message-19
-   texture in wakeboardd names (§10.11.3). Check, with Ycode's read-back
+   SwiftCode's message-20 ref is a view of the image that the message-19
+   texture in wakeboardd names (§10.11.3). Check, with SwiftCode's read-back
    diagnostic applied to backboardd's message-20 refs as well as to the
    message-19 textures, that (a) a resolve whose target is a 2D-array
    texture with array length 1 (resolve level 0, slice 0) writes that
    image, and (b) a colour attachment that is such a ref writes it. The
    reference shows the layer textures non-zero after the room's compose
-   pass starts. Under Ycode, before that point, zero is correct.
+   pass starts. Under SwiftCode, before that point, zero is correct.
 5. **The layer events must connect the two processes.** backboardd
    signals its message-18 event ref on the GPU once per frame;
    wakeboardd reads the value of its message-17 ref with op 41 before
    every swap. The value it reads must be the value that backboardd's
-   GPU last signalled (Ycode's alias of §5.8), and a GPU wait in
+   GPU last signalled (SwiftCode's alias of §5.8), and a GPU wait in
    backboardd for value v − 1 on the same event must be satisfied by its
    own earlier signal. If wakeboardd reads 0, it never takes a new frame
    of that layer.
@@ -3552,18 +3552,18 @@ frame that the layer event last announced.
    first frame is the room fading in after "Compiling PSO …
    composeSyntheticEnvironmentDefinition …"; time it from there.
 
-### 10.13 Round R4a under Ycode: the GPU hang and the broken pipelines (agent VISIONOS-R4a, 2026-10-27)
+### 10.13 Round R4a under SwiftCode: the GPU hang and the broken pipelines (agent VISIONOS-R4a, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (device copied from
+Clean-room work on SwiftCode's own simulator on the Thor (device copied from
 R3's, release builds of the `visionos-r4a` branch, from boot `s1` on with
 R4b's decoder corrections of §10.14 under it, and for `c1`–`c4` also
 R5's of §10.16; 68 visionOS boots `h1`–`c4` of 70 to 400 s; iOS 27.1
 boots `ios1`, `ios2`). No Apple simulator, Xcode or
 reference tool was run or opened, the recorder was not used, and nothing
 was disassembled. The logic of the guest's shaders was not read: the
-hang was located with switches that change how Ycode records or
+hang was located with switches that change how SwiftCode records or
 translates whole classes of operations, and the guest functions were
-looked at only through ycode-airc's reflection, declared intrinsic
+looked at only through swiftcode-airc's reflection, declared intrinsic
 signatures and opcode counts. Level 3 throughout.
 
 #### 10.13.1 The hang
@@ -3590,9 +3590,9 @@ instance buffers, §10.13.2) found no mismatch except one: `vsUnlit` and
 1 084 227 584, 1 085 145 088 and 2 359 296 (float or double bit
 patterns, §9 Q24).
 
-**Bisection** (each line: boots, result; `YCODE_GPU_SKIP_SHADERS` skips
+**Bisection** (each line: boots, result; `SWIFTCODE_GPU_SKIP_SHADERS` skips
 draws whose vertex or fragment function has that name,
-`YCODE_GPU_DROP_FRAGMENT` builds the pipeline without its fragment
+`SWIFTCODE_GPU_DROP_FRAGMENT` builds the pipeline without its fragment
 function, `AIRC_EXP` changes the translation of `fsCALayer` only):
 
 | Variant | Boots | Hung |
@@ -3627,7 +3627,7 @@ pointer plus a field offset) removes the hang. On the Thor a read of
 unmapped GPU memory neither faults nor returns: the GPU waits until the
 driver kills the context (stage8-contract.md §15.6). More than one of the
 eight argument buffers supplies such a pointer (removing the reads of any
-subset left a hang). Ycode's hang-report scan of those buffers' CPU-visible
+subset left a hang). SwiftCode's hang-report scan of those buffers' CPU-visible
 bytes found no 16-byte-aligned addresses of live buffers and no addresses
 of released buffers in them, so the
 pointers are most likely null in memory as the guest wrote them; which
@@ -3643,7 +3643,7 @@ Q24, for VISIONOS-R4b's decoder).
 
 **Fix.**
 
-- ycode-airc **null guard** (`metal-shaders.md` §4.3): every load from a
+- swiftcode-airc **null guard** (`metal-shaders.md` §4.3): every load from a
   device or constant pointer that is not derived from a bound buffer, a
   table entry, a global or a private allocation compares the address with
   64 KiB; below it, the load reads the argument table instead and yields
@@ -3665,7 +3665,7 @@ the home view appeared in four, where `z5`, `z7` and `z8` had hung) ran
 without a hang report past 2 s, device loss or backboardd abort, and
 every draw of the two families ran or was skipped by the check (8 logged
 per boot). Before this round, every boot that got as far as the system
-UI hung. The first content in layer 1 under Ycode was read back in
+UI hung. The first content in layer 1 under SwiftCode was read back in
 `z5` after RealityLauncher's home-view reveal (about 230 of 518 400
 sampled pixels not black, 7 800–10 000 not zero, in all three frames),
 before that boot's `vsUnlit` hang: the home view's icons do reach layer 1
@@ -3674,9 +3674,9 @@ before that boot's `vsUnlit` hang: the home view's icons do reach layer 1
 **vsUnlit with base instance 0.** `z5` and `z8` hung at `vsUnlit` draws
 whose base instance was 0. `vsUnlit` declares 15 stage-in attributes and
 reads 2 (position and texcoord); the pipeline's vertex descriptor
-describes those 2, and Ycode declared Vulkan input variables for all 15,
+describes those 2, and SwiftCode declared Vulkan input variables for all 15,
 13 of them with no vertex attribute behind them (undefined in Vulkan).
-ycode-airc no longer declares stage-in attributes a function does not
+swiftcode-airc no longer declares stage-in attributes a function does not
 read (`metal-shaders.md` §4.5); `a1`–`b4` include it. Which of the two
 changes after `z8` (this one, or the tighter base-instance check) ended
 those hangs was not separated.
@@ -3704,12 +3704,12 @@ it here); not investigated in this round.
   overflow); base vertex and base instance of indexed draws.
 - A pointer scan of the buffers each draw binds (and one level down):
   words that are addresses of live buffers, of released buffers (the
-  last 16 384 releases are remembered) or in Ycode's synthetic address
+  last 16 384 releases are remembered) or in SwiftCode's synthetic address
   range (§10.13.1), and 64 KiB-aligned words in the live range that no
   buffer owns.
 - The command budget of a report is 240 commands (was 48: the 4× pass
   sat beyond it).
-- Experiment switches: `YCODE_GPU_SKIP_SHADERS`, `YCODE_GPU_DROP_FRAGMENT`
+- Experiment switches: `SWIFTCODE_GPU_SKIP_SHADERS`, `SWIFTCODE_GPU_DROP_FRAGMENT`
   (host); `AIRC_EXP` = `psb`, `psbdir`, `psbind`, `psbslot`, `psbindslot`
   (with `AIRC_EXP_SLOTS`), `psbnull`, `psbnullall`, `tex`, `demote`,
   `simd`, limited to the function `AIRC_EXP_FN` (translator; use a fresh
@@ -3726,18 +3726,18 @@ forms.
 
 - **Compute, `air.atomic.global.cmpxchg.weak.i32`.** The guest's form is
   `i32 (ptr addrspace(1) object, ptr expected, i32 desired, i32, i32, i32, i1)`.
-  ycode-airc loads `*expected`, does `OpAtomicCompareExchange`, writes the
+  swiftcode-airc loads `*expected`, does `OpAtomicCompareExchange`, writes the
   value found back to `*expected` and returns 1 on success, 0 on failure
-  (`metal-shaders.md` §3.9; the meaning of the i32 result is Ycode's
+  (`metal-shaders.md` §3.9; the meaning of the i32 result is SwiftCode's
   reading, §9 Q23). GPU test `CompareExchangeGPUTests` (a compare-exchange
   increment loop over 64 and 4 096 threads counts every thread).
 - **Render, `BreakthroughTechniques`** (`fsBreakthroughMeshClearImageBlock`
   and its relatives): a fragment function that returns an explicit
   imageblock member (`air.imageblock_data`) and takes the pixel's
-  imageblock as an argument. Ycode keeps no tile memory in render passes,
+  imageblock as an argument. SwiftCode keeps no tile memory in render passes,
   so the member is not written and the argument reads as zeros; the
   other outputs are kept (`metal-shaders.md` §4.9). Whether backboardd's
-  passes need the imageblock contents (tile functions, which Ycode does
+  passes need the imageblock contents (tile functions, which SwiftCode does
   not run) is open.
 - **Render, `uiCALayer`/`fsSFBStencilBreakthrough`, "fragment input
   generated(6normalDv3_f) is not an output of the linked vertex
@@ -3747,7 +3747,7 @@ forms.
   no interface variable (`metal-shaders.md` §4.5); one that is read stays
   an error.
 - Also: a vertex function's `viewport_array_index` output is not written
-  any more (`metal-shaders.md` §4.5). Ycode's passes have one viewport
+  any more (`metal-shaders.md` §4.5). SwiftCode's passes have one viewport
   and scissor, so an index of 1 or more selected undefined Vulkan state;
   RealityKit's stereo pipelines write it from the instance. It was not the
   hang (`v1`–`v3`) but is undefined behaviour either way.
@@ -3778,16 +3778,16 @@ as in R3 and R4b.
 5. Fragment imageblocks and tile functions in render passes (BreakthroughTechniques).
 6. backboardd's abort in PHASE without guest audio (§9 Q22, §10.16) and a real first frame.
 
-### 10.14 Round R4b under Ycode (agent VISIONOS-R4b, 2026-10-27)
+### 10.14 Round R4b under SwiftCode (agent VISIONOS-R4b, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (device copied from
+Clean-room work on SwiftCode's own simulator on the Thor (device copied from
 R3's, release builds of the `visionos-r4b` branch; boots `r1`–`r3`, and
 `x1` with VISIONOS-R4a's translator and Vulkan commit merged in for one
 experiment; iOS 27.1 boots `ios1`, `ios2`). No Apple simulator, Xcode or
 reference tool was run or opened, and nothing was disassembled. Level 3
-for observations of Ycode's guest (guest `log stream`, Ycode's host log,
-`--trace-name RealityEnvironment`, `YCODE_METAL_STATS` with
-`YCODE_METAL_SHARED_CONTENT`, `YCODE_METAL_TRACE`); the items are those of
+for observations of SwiftCode's guest (guest `log stream`, SwiftCode's host log,
+`--trace-name RealityEnvironment`, `SWIFTCODE_METAL_STATS` with
+`SWIFTCODE_METAL_SHARED_CONTENT`, `SWIFTCODE_METAL_TRACE`); the items are those of
 §10.12.5.
 
 #### 10.14.1 Changes
@@ -3796,7 +3796,7 @@ for observations of Ycode's guest (guest `log stream`, Ycode's host log,
   The decoder now turns render records 22, 24, 25, 27, 102, 103, 105, 106,
   118, 120, 121, 132, 134 and compute records 134, 212, 213 into commands;
   with them backboardd's and wakeboardd's command buffers decode with no
-  unknown record (the `YCODE_METAL_STATS` summaries of every boot list
+  unknown record (the `SWIFTCODE_METAL_STATS` summaries of every boot list
   none; R3's listed 24, 25, 132, 212, 213 in every frame). The buffer
   range form of 110, 125 and 203 is read as (ref, u64 offset) pairs per
   slot; 204 and 206 with a count above 1 as one ref per slot. Op 102 is
@@ -3819,10 +3819,10 @@ for observations of Ycode's guest (guest `log stream`, Ycode's host log,
   environment changed to LivingRoomDay"; in all four R4b boots it did,
   8.6 to 22.8 s after Run (whether the change is the cause was not
   isolated).
-- **Diagnostics.** `YCODE_METAL_SHARED_CONTENT` reads every live ref of a
+- **Diagnostics.** `SWIFTCODE_METAL_SHARED_CONTENT` reads every live ref of a
   shared-texture surface (the message-19 texture and each message-20
   opening, named by process and label) and prints each exported shared
-  event's value with its number of refs. The `YCODE_METAL_STATS` summary
+  event's value with its number of refs. The `SWIFTCODE_METAL_STATS` summary
   now runs on a thread of its own: in `r1` the read-back, which waits for
   the GPU, ran on the Metal service's receive thread and waited behind a
   hung command buffer (no summary came after it), which holds every
@@ -3832,7 +3832,7 @@ for observations of Ycode's guest (guest `log stream`, Ycode's host log,
 
 - On the GPU (unit tests `VulkanBackendTests.sharedLayerViewTakesResolveAndAttachmentWrites`,
   `layerEventAliasCarriesGPUSignals`): a 2D-array texture of array length
-  1 in `BGRA8Unorm_sRGB` and a view of it (Ycode's message-19 texture and
+  1 in `BGRA8Unorm_sRGB` and a view of it (SwiftCode's message-19 texture and
   message-20 ref) — a 4× pass that clears and resolves into the view
   (MultisampleResolve, level 0, slice 0) writes the image the message-19
   handle reads, and so does the view as colour attachment 0. An event and
@@ -3889,7 +3889,7 @@ empty (§10.12.3). The asset is missing because:
 
 How the reference obtains the room's asset (a cached or downloaded
 catalog, or a preinstalled entry) is reference-only: §9 Q21 (answered in
-§10.15: neither; the cause is Ycode's `getattrlistbulk` record form).
+§10.15: neither; the cause is SwiftCode's `getattrlistbulk` record form).
 
 #### 10.14.4 The GPU hang (VISIONOS-R4a's)
 
@@ -3926,14 +3926,14 @@ versionsURL", a PosterFoundation file check, not Metal).
    and the first real frame (time it with `timed.sh` from Run).
 2. The GPU hang of §10.14.4 (VISIONOS-R4a).
 3. Whether the home view's icons reach layer 1 once the GPU no longer hangs.
-4. A diagnostic crash: `YCODE_THREAD_REPORT_AT_S` crashed `ycode-simd` in
+4. A diagnostic crash: `SWIFTCODE_THREAD_REPORT_AT_S` crashed `swiftcode-simd` in
    `DarwinKernel.blockedThreadReportLocked()` (a Swift trap) at its
    second report (180 s) in `r1`; the first (90 s) was fine.
 
 ### 10.15 The reference answers Q21: the room comes from the runtime (agent VISIONOS-OBS5, 2026-10-27)
 
 Observed on the Mac with Apple's visionOS 27.0 (24M362) simulator, test
-device `ycode-test-visionos-obs5` (Apple Vision Pro, 4K), five first boots
+device `swiftcode-test-visionos-obs5` (Apple Vision Pro, 4K), five first boots
 (erased before each): b1 plain; b2–b5 with our file-call recorder `fsrec`
 (an interposing library that logs file calls with paths, flags, results
 and the records `getattrlistbulk` returns); b3 with every guest process's
@@ -3952,7 +3952,7 @@ SystemEnvironments finds the six rooms itself by listing `SE` (the folder
 of §2.6) and adds them to its asset list as installed; MobileAsset and the
 network play no part:
 
-| | Reference | Ycode (§10.14.3) |
+| | Reference | SwiftCode (§10.14.3) |
 |---|---|---|
 | mobileassetd's `determineAssets` for `com.apple.MobileAsset.SystemEnvironmentAsset` | result 2 (MAQueryCatalogNotDownloaded), 0 catalog, 0 local (0/0 downloaded, 0 preinstalled), 0 installedWithOS, 0 requiredByOS; `DEV/data/System/Library/AssetsV2/PreinstalledAssetsV2/InstallWithOs` → ENOENT | the same |
 | Listing of `SE` | depth-first into every room folder (§10.15.2) | `SE` listed (six records), nothing below it opened |
@@ -3995,7 +3995,7 @@ every 60 s. Nothing else changes. With the network (b1) the download comes
 from the Pallas service (`https://gdmf.apple.com/v2/assets`, through the
 guest's own mobileassetd using the Mac's network) and lists 21 assets
 under 16 `EnvironmentKey` values (immersive Environments and `Starfish`),
-**no room**; the room had been shown for a minute by then. Under Ycode the
+**no room**; the room had been shown for a minute by then. Under SwiftCode the
 error is 59 (MADownloadCannotFindHost) instead of 60; the difference does
 not matter.
 
@@ -4051,10 +4051,10 @@ error gets neither the bit nor the word. This corrects
 `FSOPT_PACK_INVAL_ATTRS`. What an object *with* an error returns was not
 observed.
 
-**Experiment b5: Ycode's record form in the reference.** Our library
+**Experiment b5: SwiftCode's record form in the reference.** Our library
 rewrote only the records of the two listings of `SE`: `ATTR_CMN_ERROR`
 added to each returned set, a zero word inserted after the set, each
-record padded to 8 bytes (the form Ycode's `getattrlistbulk` produces when
+record padded to 8 bytes (the form SwiftCode's `getattrlistbulk` produces when
 the bit is requested). RealityEnvironment then listed `SE`, opened no room
 folder and no `Info.plist`, logged "Catalog assets [22]" with
 `[LivingRoomDay] { state=unavailable version=1.0.0 … }` only, "Active
@@ -4062,10 +4062,10 @@ synthetic environment changed to LivingRoomDay", and 62 ms later
 "setSyntheticSceneAsset: Error loading asset:
 SystemEnvironments.EnvironmentAssetError.configurationError"; backboardd
 never compiled `composeSyntheticEnvironmentDefinition`. The screen showed
-the home view's icons on black. That is R4b's sequence under Ycode
+the home view's icons on black. That is R4b's sequence under SwiftCode
 (§10.14.3).
 
-#### 10.15.3 What Ycode must do
+#### 10.15.3 What SwiftCode must do
 
 1. **`getattrlistbulk` and `ATTR_CMN_ERROR`.** Put `ATTR_CMN_ERROR` in a
    record's returned common set, and its u32 right after the attribute
@@ -4089,15 +4089,15 @@ the home view's icons on black. That is R4b's sequence under Ycode
    and the textures under `SE/LivingRoomDay/AssetData/` and logs
    "Compiling PSO … name=composeSyntheticEnvironmentDefinition …".
 4. **backboardd's reads.** It reads the scene and the 0.6 to 10 MB
-   textures with `fopen` and a read-only, whole-file `mmap`; Ycode's file
+   textures with `fopen` and a read-only, whole-file `mmap`; SwiftCode's file
    mapping of RR files must serve that.
 5. **Nothing else is needed.** No MobileAsset catalog, preinstalled entry,
-   network, host service, shared folder or environment variable. Ycode's
+   network, host service, shared folder or environment variable. SwiftCode's
    mobileassetd answers already match the reference without a network;
    the failing catalog download every 60 s is reference behavior too.
 6. **No Apple asset is shipped.** The rooms are files of the runtime that
-   the owner installed with Xcode, and Ycode's runtime copy (§2.7)
-   already contains them at `SE`. Ycode reads them there at run time and
+   the owner installed with Xcode, and SwiftCode's runtime copy (§2.7)
+   already contains them at `SE`. SwiftCode reads them there at run time and
    never copies them into its repository or a device.
 7. A side effect worth knowing: other Foundation directory listings in the
    guest that request `ATTR_CMN_ERROR` without `FSOPT_PACK_INVAL_ATTRS`
@@ -4105,14 +4105,14 @@ the home view's icons on black. That is R4b's sequence under Ycode
    step 3 of §10.15.2), so other symptoms of directories that seemed empty
    may change with it.
 
-### 10.16 Round R5 under Ycode: the rooms load; backboardd aborts in PHASE (agent VISIONOS-R5, 2026-10-27)
+### 10.16 Round R5 under SwiftCode: the rooms load; backboardd aborts in PHASE (agent VISIONOS-R5, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `visionos-r5`,
+Clean-room work on SwiftCode's own simulator on the Thor (branch `visionos-r5`,
 device copied from R4b's; visionOS boots `v1`–`v3`, iOS 27.1 boots
 `i0`, `i1`). No Apple simulator, Xcode or reference tool was run or opened,
 nothing under `research/` was read, nothing was disassembled. Level 3
-(guest `log stream`, Ycode's host log, `YCODE_METAL_STATS` with
-`YCODE_METAL_SHARED_CONTENT`, screenshots), level 1 for xnu.
+(guest `log stream`, SwiftCode's host log, `SWIFTCODE_METAL_STATS` with
+`SWIFTCODE_METAL_SHARED_CONTENT`, screenshots), level 1 for xnu.
 
 #### 10.16.1 Change (§10.15.3 items 1, 2, 4)
 
@@ -4121,13 +4121,13 @@ nothing under `research/` was read, nothing was disassembled. Level 3
   `FSOPT_PACK_INVAL_ATTRS` (then the returned common set is the requested
   set). Without it a requested `ATTR_CMN_ERROR` is dropped from both, so
   the name reference follows the 20-byte set (xnu `attr_pack_common`
-  agrees). Records stay multiples of 8. An entry Ycode cannot `lstat`
-  (removed since the directory was read) is still skipped; Ycode never
+  agrees). Records stay multiples of 8. An entry SwiftCode cannot `lstat`
+  (removed since the directory was read) is still skipped; SwiftCode never
   makes an error record (the reference's was not observed).
 - Depth-first listings needed no change: directory records are VDIR with
   dir `LINKCOUNT` 1 and `MOUNTSTATUS` 0, and cursors are per descriptor,
   so a child opened by full path is listed while the parent's listing is
-  open. backboardd's whole-file read-only mapping of RR files is Ycode's
+  open. backboardd's whole-file read-only mapping of RR files is SwiftCode's
   existing private file mapping; no file error was logged while the room
   loaded (backboardd's opens were not traced).
 - Tests: `AttributeListBulkTests` (error omitted without the option,
@@ -4136,8 +4136,8 @@ nothing under `research/` was read, nothing was disassembled. Level 3
   depth-first walk of a two-room tree with an 18 600-byte and a one-record
   buffer, four listings open at once); `SandboxExtensionTests.attributeListBulk`
   now asks for the word with `FSOPT_PACK_INVAL_ATTRS`.
-- Diagnostics: `YCODE_DEBUG_BULK_ERROR_WORD=1` restores the old form (for
-  A/B); `YCODE_DEBUG_BULK_LISTINGS=1` prints one stderr line per listing
+- Diagnostics: `SWIFTCODE_DEBUG_BULK_ERROR_WORD=1` restores the old form (for
+  A/B); `SWIFTCODE_DEBUG_BULK_LISTINGS=1` prints one stderr line per listing
   that requests `ATTR_CMN_ERROR` (process, directory, options, request).
 
 #### 10.16.2 The rooms load (§10.15.3 item 3)
@@ -4178,7 +4178,7 @@ lost, then backboardd aborts on "Command buffer SharedEventSignalBuffer
 failed to execute"). No frame showed the room.
 
 The engine is nil because backboardd's PHASE engine never initializes
-under Ycode, in every boot (R4b's `r3` too: 92 failures, harmless while no
+under SwiftCode, in every boot (R4b's `r3` too: 92 failures, harmless while no
 room loaded): "HALC_ProxyObjectMap::_CreateSystemObject: there is no
 system object", "Failed to open audio settings plist!"
 (SimulatorDeviceSettings), "Could not find default device for dOut",
@@ -4186,7 +4186,7 @@ AQMEIO −66680, AURemoteIO −10851, "Failed to Initialize Controller Voice
 Manager", "PHASEEngine … Failed to initialize with mode default, sr
 48000 Hz". The guest's CoreAudio has no audio system: the reference host
 registers `com.apple.audio.coreaudiod` and `com.apple.audio.audiohald` in
-the guest (launchd-sim.md §6.3); Ycode registers neither. What the host
+the guest (launchd-sim.md §6.3); SwiftCode registers neither. What the host
 must answer is reference-only: §9 Q22.
 
 #### 10.16.4 Other listings the fix changes (§10.15.3 item 7)
@@ -4212,14 +4212,14 @@ listings go deeper with it.
 
 Same build, the iOS 27.1 device copied from R4b's, each boot launching an
 app 20 s after the home screen, with a guest log stream of error and fault
-messages; `i0` ran with `YCODE_DEBUG_BULK_ERROR_WORD=1` (the old record
+messages; `i0` ran with `SWIFTCODE_DEBUG_BULK_ERROR_WORD=1` (the old record
 form) as the pre-fix comparison, `i1` and `i2` with the fix, all with
-`YCODE_DEBUG_BULK_LISTINGS=1`.
+`SWIFTCODE_DEBUG_BULK_LISTINGS=1`.
 
 | | `i0` old form, Settings | `i1` fix, Settings |
 |---|---|---|
 | Home screen | 57.0 s (load average 60–116) | 156.7 s (72–90) |
-| ycode-simd CPU seconds at the home screen | 405 | 502 |
+| swiftcode-simd CPU seconds at the home screen | 405 | 502 |
 | App launched | yes | yes |
 | Listings requesting `ATTR_CMN_ERROR` (directories) | 935 (662) | 2 024 (1 382) |
 | Guest fatal conditions | fileindexerd 4, intelligencetasksd 2, PosterBoard 1 | fileindexerd 1, intelligencetasksd 13 |
@@ -4258,16 +4258,16 @@ PosterBoard condition; no Metal backend error.
 2. The GPU hang of §10.14.4 (VISIONOS-R4a). (The compute hangs the
    rooms brought: found and fixed, §10.18.)
 
-### 10.18 Round R6 under Ycode: the compute hangs (agent VISIONOS-R6, 2026-10-27)
+### 10.18 Round R6 under SwiftCode: the compute hangs (agent VISIONOS-R6, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (branch
+Clean-room work on SwiftCode's own simulator on the Thor (branch
 `visionos-r6` on the main line 688f365; the device copied from R5's;
 visionOS boots `r1`–`r6`, `x-psb`, `x-imgwrite`, `f1`–`f6`, each from a
 fresh copy, two at a time; iOS 27.1 boots `i1`–`i3`; one iPad (A16)
 first boot `p1`). No Apple simulator, Xcode or reference tool was run or
 opened, nothing under `research/` was read, nothing was disassembled, and
 the logic of the guest's kernels was not read: they were seen through
-ycode-airc's reflection, Ycode's hang reports and captures, and by
+swiftcode-airc's reflection, SwiftCode's hang reports and captures, and by
 switching classes of their operations off. Level 3 throughout.
 
 #### 10.18.1 The hang and its cause
@@ -4289,7 +4289,7 @@ it stop hanging, and the next kernel hung instead:
 dispatch through a texture view, every written view reported "no storage
 view".
 
-Cause (Ycode): texture views never had a storage view. The back end
+Cause (SwiftCode): texture views never had a storage view. The back end
 compared a view's composed component mapping, which spells the identity
 out as R, G, B, A, with the all-`IDENTITY` constant, so the test failed
 for every view. A kernel that wrote a view wrote through the storage
@@ -4313,7 +4313,7 @@ textures' slots, and the storage array was a quarter of the sampled one.
   is as large as the sampled one (65,536).
 - Diagnostics: running checkpoints, after-dispatch markers, dispatch
   tables in hang reports, a log of kernel writes to textures without
-  `shaderWrite` (none seen), `YCODE_GPU_STORAGE_USAGE=all`, ycode-airc
+  `shaderWrite` (none seen), `SWIFTCODE_GPU_STORAGE_USAGE=all`, swiftcode-airc
   `AIRC_EXP=imgwrite`; probes `areplay`, `pollute`, `imgoob`, `pinprobe`.
 - Tests: `VulkanBackendTests.kernelWritesAViewInAReusedSlot` (does not
   finish in 8 s on the code before; passes now),
@@ -4331,7 +4331,7 @@ aborts in PHASE (§10.16.3) again and again — 13–15 aborts per boot, one
 every 30–45 s, each followed by a restart and a new room load (39–45
 `fsCompose` pipeline compiles per boot against 9–18 before the hang).
 
-What the layers show (`YCODE_METAL_SHARED_CONTENT`, every 30 s): of each
+What the layers show (`SWIFTCODE_METAL_SHARED_CONTENT`, every 30 s): of each
 backboardd's two layers (three frames each), one stays zero and the other
 reads opaque black, (0, 0, 0, 255), in every sampled pixel once the room
 is composed (as in §10.16.3; once half of its pixels); wakeboardd's own
@@ -4371,8 +4371,8 @@ round's cause too) remains open.
 ### 10.17 The reference answers Q22: guest audio comes from the host's audio daemon (agent VISIONOS-OBS6, 2026-10-27)
 
 Observed on the Mac with Apple's visionOS 27.0 (24M362) and iOS 27.1
-(24A94401) simulators, test devices `ycode-test-vos-audio-1` (nine
-visionOS first boots `b1`–`b8`) and `ycode-test-ios-audio-1` (boot `i1`),
+(24A94401) simulators, test devices `swiftcode-test-vos-audio-1` (nine
+visionOS first boots `b1`–`b8`) and `swiftcode-test-ios-audio-1` (boot `i1`),
 both deleted at the end. Our Mach message recorder `audrec`, inserted into
 every guest process, logged the audio service traffic, relayed
 notifications, dumped the IO region, and in some boots rewrote the
@@ -4399,7 +4399,7 @@ CoreAudio codes and records. The wire protocol is specified in
 - The audio settings plist that backboardd fails to open is written by
   the guest's CoreSimulatorBridge one second later; the failure is the
   reference's too (§9 Q22 c).
-- With the service unreachable the reference fails exactly as Ycode does
+- With the service unreachable the reference fails exactly as SwiftCode does
   (§9 Q22 d). With the aggregate creation refused it fails the same way.
 - The service can be much smaller than the Mac's: one output device with
   one stream and no controls, no plug-ins, boxes, clocks, taps or process
@@ -4410,13 +4410,13 @@ CoreAudio codes and records. The wire protocol is specified in
   workgroup port (a null port or an error fails AudioDeviceStart).
 - iOS 27.1 uses the same name and protocol (SpringBoard registers at
   boot; systemsoundserver-simd creates an aggregate and runs IO to play a
-  system sound). Ycode's iOS guests have had no audio too.
+  system sound). SwiftCode's iOS guests have had no audio too.
 
-#### 10.17.2 What Ycode must do
+#### 10.17.2 What SwiftCode must do
 
 1. **Serve `com.apple.audio.audiohald`.** Register it as a host-side
    endpoint in the guest's `user/<uid>` domain (`launchd-sim.md` §6.3),
-   backed by a Ycode host service. `com.apple.audio.coreaudiod` may stay
+   backed by a SwiftCode host service. `com.apple.audio.coreaudiod` may stay
    unregistered (1102).
 2. **Speak the protocol of `audio-host.md` §2–§3** for messages 71, 2,
    13, 14, 16, 25, 19, 26, 21, 27, 15, 20, 30, 31, 46, 29, 35, 36, 3, 5,
@@ -4451,12 +4451,12 @@ CoreAudio codes and records. The wire protocol is specified in
    message 12 stop. The output data can be discarded at first.
 5. **Workgroup port.** Message 59 must return a port that the guest's
    os_workgroup_create_with_port accepts and that the IO thread can join:
-   Ycode's guest kernel needs workgroup (work-interval) ports for this, the
-   kind os_workgroup_copy_port hands out. Check first what Ycode's kernel
+   SwiftCode's guest kernel needs workgroup (work-interval) ports for this, the
+   kind os_workgroup_copy_port hands out. Check first what SwiftCode's kernel
    personality does for those calls; a null port or an error fails the
    start.
 6. **Settings files.** Keep preparing `DEV/data/var/run/com.apple.coresimulator.audio.plist`
-   (its UIDs set to Ycode's device UID) and the empty `simulatoraudio/`
+   (its UIDs set to SwiftCode's device UID) and the empty `simulatoraudio/`
    directory before boot; CoreSimulatorBridge writes the rest.
 7. **Expected result.** backboardd logs "Built valid aggregate",
    "Hardware output: 2 channels …", "engine@…: created with mode default,
@@ -4468,24 +4468,24 @@ CoreAudio codes and records. The wire protocol is specified in
 #### 10.17.3 Open questions
 
 1. How the client finds the output data offset (0x8000) in the region,
-   and the layout of input buffers; Ycode should copy the observed layout.
+   and the layout of input buffers; SwiftCode should copy the observed layout.
 2. Whether pacing faster or slower than the timestamps, or never
    consuming the data, disturbs PHASE (the reference's pacing could not be
    varied).
 3. What the guest runtime checks when it turns the workgroup port into a
-   workgroup (and so what Ycode's kernel must model).
+   workgroup (and so what SwiftCode's kernel must model).
 4. Whether the `'tran'` value changes PHASE's output mode (the reference
    was a Bluetooth headset, which PHASE logged as headphones).
 5. Messages for destroying IO contexts and aggregates, and the service's
    duty when a client dies (dead-name of the port of message 71), were not
    seen in 150 s boots.
 
-### 10.19 Round AUDIO-HOST under Ycode: the guests get audio (agent AUDIO-HOST, 2026-10-27)
+### 10.19 Round AUDIO-HOST under SwiftCode: the guests get audio (agent AUDIO-HOST, 2026-10-27)
 
 Clean-room work for §10.17.2 (branch `audio-host`). No Apple simulator,
 Xcode or reference tool was run or opened, nothing under `research/` was
-read, nothing was disassembled. Level 3 (Ycode boots on the Thor: guest
-`log stream`, Ycode's host log, `YCODE_AUDIO_CAPTURE`, screenshots), level 1
+read, nothing was disassembled. Level 3 (SwiftCode boots on the Thor: guest
+`log stream`, SwiftCode's host log, `SWIFTCODE_AUDIO_CAPTURE`, screenshots), level 1
 for CoreAudio's public codes and records and xnu's work intervals. The
 service is `audio-host.md` §13; the kernel side `work-intervals.md`.
 visionOS boots `v1`–`v9` on a copy of R5's device (`v2` is void: the
@@ -4495,12 +4495,12 @@ iOS device.
 #### 10.19.1 Changes
 
 1. **`com.apple.audio.audiohald`** is a host-side endpoint served by
-   Ycode's audio service (`audio-host.md` §13.1–§13.4): the 1010000 + n
+   SwiftCode's audio service (`audio-host.md` §13.1–§13.4): the 1010000 + n
    protocol with exact reply sizes, one 48 kHz stereo Float32 output device
    with one stream, IO contexts, private aggregates in the creator's
    `'dev#'`, "has property" 0 for everything else, the shared IO region and
    the host-paced cycle with wake-0 restarts, a workgroup port per IO
-   context, `YCODE_AUDIO_CAPTURE`, snapshots. `coreaudiod` stays
+   context, `SWIFTCODE_AUDIO_CAPTURE`, snapshots. `coreaudiod` stays
    unregistered.
 2. **Work intervals** in the kernel (BSD 499: get flags, join, leave,
    destroy, notify; host-made joinable work-interval ports), and the guest
@@ -4512,7 +4512,7 @@ iOS device.
    (`v1` and `a1`: 104 starts each).
 4. **Normal pthread mutexes** (SimHostLibs): an unlock by a thread other
    than the holder releases the mutex, and a relock by the holder waits,
-   as Darwin does; Ycode used to answer EPERM and EDEADLK. With audio
+   as Darwin does; SwiftCode used to answer EPERM and EDEADLK. With audio
    running, PHASE's engine stop (`PHASEEngine stop`, about 15–25 s after
    the room's PSO line in `v3`, `v4`, `v6`, `v7`) was followed within a
    second by backboardd's abort: "terminating due to uncaught exception of
@@ -4566,7 +4566,7 @@ overload" for some of them; nothing else follows from it.
 |---|---|---|---|---|
 | `a1` | service only | 185.9 s (load 72) | SpringBoard registers (`com.apple.springboard`), walks the objects, makes one IO context; Lock: systemsoundserver-simd registers, makes `iOSSimulatorAudioDevice-385-0`, 104 starts fail (mlock) | fileindexerd 5, intelligencetasksd 5 |
 | `a3` | + mlock, work intervals | 102.1 s (load 56) | Lock, Home, Home, Lock: one IO run on the aggregate, 3 918 cycles (42 s, until the shutdown), 2 restarts, workgroup joined; capture: 42.0 s, 57 264 samples not zero, peak 0.293, two bursts of about 0.25 s at 0.0 s and 5.8 s (the two Lock presses: the lock sound) | fileindexerd 6, intelligencetasksd 12, PosterBoard 1 |
-| `a4` | `YCODE_DEBUG_NO_AUDIO=1` (as before) | 98.5 s (load 60) | none | fileindexerd 5, intelligencetasksd 4 |
+| `a4` | `SWIFTCODE_DEBUG_NO_AUDIO=1` (as before) | 98.5 s (load 60) | none | fileindexerd 5, intelligencetasksd 4 |
 | `a5` | final | 46.8 s (load 22) | as `a3`: SpringBoard's walk; systemsoundserver-simd's aggregate and one IO run, 3 881 cycles, 0 restarts, workgroup joined; the same two lock sounds (57 264 samples not zero, peak 0.293) | fileindexerd 5, intelligencetasksd 8 |
 
 `a2` is void (the translator binary was missing). The fatal conditions are
@@ -4577,7 +4577,7 @@ between boots without audio. `a1` ended with a host crash in
 (once in five boots; not seen again).
 
 Boot time to the home screen (`timed.sh`, fresh copies of the golden
-device `9-J/dev-pristine`, one build, "before" = `YCODE_DEBUG_NO_AUDIO=1`):
+device `9-J/dev-pristine`, one build, "before" = `SWIFTCODE_DEBUG_NO_AUDIO=1`):
 
 | Pair | Before (no audio) | After (audio) |
 |---|---|---|
@@ -4586,7 +4586,7 @@ device `9-J/dev-pristine`, one build, "before" = `YCODE_DEBUG_NO_AUDIO=1`):
 | 3, with the queue fix below | 63.5 s (522 s) | 55.1 s (524 s) |
 
 The first two pairs showed a real cost of about 10 s. A boot profile of
-each (`YCODE_BOOT_PROFILE`, 100 s) found launchd_sim's first job spawn at
+each (`SWIFTCODE_BOOT_PROFILE`, 100 s) found launchd_sim's first job spawn at
 5.37 s with audio against 0.38 s without: the audio name is the sixth
 host-side name, the control channel's queue holds five, and the host's
 attempt to queue the sixth waited out a 5 s send timeout before the 708
@@ -4611,16 +4611,16 @@ SpringBoard's whole client walk takes 0.13 s (51 requests).
 5. Guests still cannot make work intervals of their own (`work-intervals.md`
    §4); the library keeps answering for them.
 
-### 10.20 Round R7 under Ycode: the room appears (agent VISIONOS-R7, 2026-10-27)
+### 10.20 Round R7 under SwiftCode: the room appears (agent VISIONOS-R7, 2026-10-27)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `visionos-r7`
+Clean-room work on SwiftCode's own simulator on the Thor (branch `visionos-r7`
 on the main line 96491af, which includes AUDIO-HOST; the device copied from
 R5's; visionOS boots `b0`, `p1`–`p5`, `v1`–`v4` and the timing boot `t1`,
 each from a fresh copy; iOS 27.1 boot `i1`). No Apple simulator, Xcode or
 reference tool was run or opened, nothing under `research/` was read,
 nothing was disassembled, and the guest's shader logic was not read: the
-guest's functions were seen through ycode-airc's reflection (names, binding
-types, access), Ycode's read-backs of the textures and buffers they bind,
+guest's functions were seen through swiftcode-airc's reflection (names, binding
+types, access), SwiftCode's read-backs of the textures and buffers they bind,
 and one offline replay of a dumped dispatch. Level 3 throughout.
 
 #### 10.20.1 Where the room's pixels were lost
@@ -4662,7 +4662,7 @@ prints named the cause: each target is an `RGBA8Unorm` (70) view
 (`R8G8B8A8_SRGB`) created with usage `0x13` (shaderRead | shaderWrite |
 pixelFormatView), and the view had **no storage view**. Metal lets a kernel
 write an sRGB texture through a view in the matching unorm format; Vulkan's
-`R8G8B8A8_SRGB` has no storage-image feature on the Thor, and Ycode gave an
+`R8G8B8A8_SRGB` has no storage-image feature on the Thor, and SwiftCode gave an
 image storage usage only when its own format had that feature, so neither
 the image nor its unorm views could be written: every decoded texel went to
 the dummy image (§10.18.2). The decoded rooms had never reached their
@@ -4670,7 +4670,7 @@ textures; R6 only had to stop the decoder from hanging.
 
 An offline replay (`ProbeReplayTests`) of one dumped dispatch (level 12 of
 an 8184² texture: one void-extent block whose colour is 0x4545, 0x4545,
-0x4545, 0x7C7C) through Ycode's back end with the cached translation wrote
+0x4545, 0x7C7C) through SwiftCode's back end with the cached translation wrote
 `45 45 45 7c` into a plain RGBA8Unorm texture and into a one-level view of
 a 13-level one: the translation and the dispatch were right, only the
 target was missing.
@@ -4710,13 +4710,13 @@ half. Op-29 bodies logged in `v4` (§9 Q24):
 used only when every value fits in 16 bits (§8.3 of
 `metal-sim-protocol.md`); the base instance is the low half of the last
 word and the high half holds stale bytes (here 0x2FF0, or the index count
-0x0024 again). Ycode read the word as one u32. Ycode now reads the low half
+0x0024 again). SwiftCode read the word as one u32. SwiftCode now reads the low half
 (§10.20.4); `v4` logged no skipped draw, and every frame from the room's
 first to the end of the boot shows the whole room.
 
 #### 10.20.3 Diagnostics (off by default)
 
-- **Pass probes** (`YCODE_GPU_PROBE=<function names>`,
+- **Pass probes** (`SWIFTCODE_GPU_PROBE=<function names>`,
   `VulkanPassProbe.swift`): a command buffer with a draw or dispatch of a
   named function is described (as in a hang report) and, recorded into a
   host buffer of the probe's own, the textures each pass reads (before it:
@@ -4728,8 +4728,8 @@ first to the end of the boot shows the whole room.
   counts, NaN or infinite values and ranges, and the texture's facts (heap
   slot, sampled and storage views, Metal usage and type, the levels of a
   view, a view format that differs from the image's); draws the replay
-  skipped, with the line that skipped them. `YCODE_GPU_PROBE_MAX`,
-  `_INTERVAL_S`, `_AFTER_S`, `_MB`, `_BUFFER_KB`; `YCODE_GPU_PROBE_DUMP=<dir>`
+  skipped, with the line that skipped them. `SWIFTCODE_GPU_PROBE_MAX`,
+  `_INTERVAL_S`, `_AFTER_S`, `_MB`, `_BUFFER_KB`; `SWIFTCODE_GPU_PROBE_DUMP=<dir>`
   writes each copy's bytes. A probe copies hundreds of MiB and delays
   backboardd: in `p1`, `v1` and `v3` (probes from Run on) RealityLauncher
   never launched; start them late (`_AFTER_S`).
@@ -4741,18 +4741,18 @@ first to the end of the boot shows the whole room.
   logged (the first eight, with their body).
 - Argument-encoder set calls write their member into the argument buffer
   from the host (an experiment in R7, the default since R7b: §10.20.7;
-  `YCODE_METAL_ARGUMENT_ENCODER=0` refuses them); the first 24 writes are
+  `SWIFTCODE_METAL_ARGUMENT_ENCODER=0` refuses them); the first 24 writes are
   logged.
 - (R7b) Visibility results: the first modes and passes are logged
   (`visibility: mode 1 at offset 0 of #h`, `pass with n queries into m
   slots`), and slots counted by several segments of one pass.
-- (R7b) `YCODE_DEBUG_PASS_DRAWS=<w>x<h>`: each render pass of that size
+- (R7b) `SWIFTCODE_DEBUG_PASS_DRAWS=<w>x<h>`: each render pass of that size
   whose draw list differs from the previous one of its kind is logged with
   the host's monotonic time, load and store actions, the visibility buffer's
   first slots, and per draw the functions, index count, instances, base
   instance, index buffer and first fragment texture;
-  `YCODE_DEBUG_PASS_DRAWS_ALL=<s>` logs every such pass from that many
-  seconds after the first, `YCODE_DEBUG_PASS_DRAWS_BUFFERS=1` adds the
+  `SWIFTCODE_DEBUG_PASS_DRAWS_ALL=<s>` logs every such pass from that many
+  seconds after the first, `SWIFTCODE_DEBUG_PASS_DRAWS_BUFFERS=1` adds the
   fragment buffers. At most 20 000 lines.
 
 #### 10.20.4 Changes
@@ -4762,7 +4762,7 @@ first to the end of the boot shows the whole room.
    storage image but its unorm sibling can (`R8G8B8A8_SRGB`,
    `B8G8R8A8_SRGB`, `A8B8G8R8_SRGB_PACK32`, `R8_SRGB`, `R8G8_SRGB`), the
    image is created with storage usage and `VK_IMAGE_CREATE_EXTENDED_USAGE_BIT`
-   (each view restricts its usage to what its own format supports, as Ycode's
+   (each view restricts its usage to what its own format supports, as SwiftCode's
    views already did). Views in the unorm format then get storage views; the
    bytes a kernel writes through them land unchanged, as Metal stores them.
    A kernel that writes the sRGB texture itself (not through a view) still
@@ -4793,7 +4793,7 @@ swapped surfaces show the room. The picture matches §10.12.3's reference
 frame: the living room by day seen from the sofa, the low table, the
 television on its sideboard against the back wall with a framed print
 above it, three plant prints on the left wall, two floor lamps, the shelf
-unit on the right, the curtained window. Ycode's home watch (the first
+unit on the right, the curtained window. SwiftCode's home watch (the first
 presented surface that is not dark) fires on the room's first frame, since
 every frame before it is black. RealityLauncher presented the home view
 about 10 s after the PSO line; its icons show as black discs and its tab
@@ -4803,10 +4803,10 @@ report, device loss or backboardd abort in `v1`–`v4`.
 
 Cold boot to the room's first frame (`timed.sh`, boot `t1`, a fresh copy
 of the device, the build with both changes, no diagnostics): **45.7 s**
-from `ycode-simd`'s start to the first presented surface that is not dark
-(frame 778; 7.7 CPU-minutes of `ycode-simd` by then; the machine otherwise
+from `swiftcode-simd`'s start to the first presented surface that is not dark
+(frame 778; 7.7 CPU-minutes of `swiftcode-simd` by then; the machine otherwise
 idle). The reference shows the room about 7.3 s after Run (§10.12.3);
-Ycode's time is measured from the host process's start, so it includes
+SwiftCode's time is measured from the host process's start, so it includes
 the boot before Run.
 
 #### 10.20.6 iOS 27.1 check
@@ -4822,7 +4822,7 @@ fileindexerd and intelligencetasksd, as in earlier rounds.
 
 #### 10.20.7 Round R7b: the home view's icons (argument encoders)
 
-Agent VISIONOS-R7b continued R7 on 2026-10-28 (same rules: only Ycode's
+Agent VISIONOS-R7b continued R7 on 2026-10-28 (same rules: only SwiftCode's
 simulator was booted, on the Thor; no reference tool, nothing under
 `research/`, no disassembly, the guest's shader logic not read). It merged
 the main line (NET-IMPL, CAMERA-HOST, IDE-GLASS and the observation rounds)
@@ -4840,11 +4840,11 @@ What R7 found (kept here as it stood): the home view's icons draw as black discs
    report's pointer scan finds no address of a live buffer in any buffer
    these draws bind. backboardd fills such buffers through argument
    encoders (op 19, 146–194 set calls per boot, kind 0 then kind 1 for
-   indices 0–14), which Ycode refuses, so `fsCALayer`'s parameter loads go
+   indices 0–14), which SwiftCode refuses, so `fsCALayer`'s parameter loads go
    through null pointers that R4a's guard turns into zeros: most likely
    the black icons, and the null pointers of R4a's hang. Who writes the
    members, and where, is §9 Q25. An experiment that writes them from the
-   host (`YCODE_METAL_ARGUMENT_ENCODER=1`: member n at offset 8n; a buffer's
+   host (`SWIFTCODE_METAL_ARGUMENT_ENCODER=1`: member n at offset 8n; a buffer's
    GPU address plus the call's offset, a texture's heap index, a sampler's
    resource ID) wrote every member of boot `e1`'s set calls into CPU-visible
    memory; in that boot RealityLauncher did not present the home view
@@ -4863,11 +4863,11 @@ downscaled to 960 × 540). Before it every icon was a black disc. The
 argument buffers' members are now written by the host and the icons sample
 their parameters; R4a's null guard no longer turns the parameter loads into
 zeros. So the writes are now the default (`MetalHostCore`,
-`YCODE_METAL_ARGUMENT_ENCODER=0` refuses the calls as before): kind 0
+`SWIFTCODE_METAL_ARGUMENT_ENCODER=0` refuses the calls as before): kind 0
 names the argument buffer and offset; kind 1 writes the buffer's GPU address
-plus the call's offset, kind 2 the texture's heap index (Ycode's
+plus the call's offset, kind 2 the texture's heap index (SwiftCode's
 `gpuResourceID`), kind 3 the sampler's resource ID, each as 8 bytes at the
-argument buffer's offset plus 8 × the member index, the layout ycode-airc
+argument buffer's offset plus 8 × the member index, the layout swiftcode-airc
 reads (`metal-shaders.md` §3.6: every member 8 bytes, in id order). A
 member index whose layout puts inline data or sparse ids before it would
 land elsewhere; op 16's layout description is still not parsed (§9 Q25).
@@ -4880,7 +4880,7 @@ frames.
 visionOS backboardd sets visibility-result modes (record 132): boolean mode
 at offsets 0 to 128 of 8- to 136-byte buffers, around `vsOcclusionQuery`
 draws of boxes (36 indices) in the 4× pass and in small passes of their
-own. Ycode ignored non-zero modes (`metal-sim-protocol.md` §8.3), so the
+own. SwiftCode ignored non-zero modes (`metal-sim-protocol.md` §8.3), so the
 slots kept whatever the guest left there. They are now counted: each run of
 draws with one non-zero mode and offset in a pass is one Vulkan occlusion
 query (precise in counting mode when the device has
@@ -4909,14 +4909,14 @@ through, about 5 % dark). Counted with 240 × 135 thumbnails: `v2` 10 of 26,
 The room is one pass of backboardd's (3840 × 2160, cleared, five
 `vsUnlit` + `fsUnlit` indexed draws of 41 520, 57 543, 162 624, 20 328 and
 48 indices) about 30 times a second, and `fsCompose` copies it into layer 2.
-The draw logs (`YCODE_DEBUG_PASS_DRAWS`, boots `v9`, `v10`) show that **the
+The draw logs (`SWIFTCODE_DEBUG_PASS_DRAWS`, boots `v9`, `v10`) show that **the
 guest leaves draws out**: 967 of 2 705 room passes in `v10` lack one or two
 of the three large parts, with their index buffers and textures unchanged,
 in a fixed cycle of 16 room frames (0.533 s): the 41 520-index part is
 missing for three frames, the 57 543-index part for one of them, and the
 162 624-index part (the walls) for two frames eight frames later. The
 screenshot of `v10`'s logged window with the walls missing (98 s) follows a
-room pass without the 162 624-index draw. Ycode skips none of these draws (no skip lines, no
+room pass without the 162 624-index draw. SwiftCode skips none of these draws (no skip lines, no
 probe-listed skips). The cycle matches a 768 × 432 pass that backboardd
 runs once every 16 room frames (`v7`'s Metal trace: 440 such passes, median
 interval 0.533 s): a clear-all draw, then the same five parts with
@@ -4928,7 +4928,7 @@ probe of it (`v12`) read attachment 0 as linear depth in metres (1.6 to
 5.4, every texel written), attachment 1 almost empty (611 texels not zero),
 attachment 2 the clear value 10 000 and attachment 3 infinite in every
 texel; the two cached variants of `fsLinearizedDepthAsColor` write render
-target 0 or 2 (ycode-airc's reflection), so attachments 1 to 3 hold clear
+target 0 or 2 (swiftcode-airc's reflection), so attachments 1 to 3 hold clear
 values as drawn. Which result of that work makes the guest leave a part
 out, and whether the reference does the same (at 90 frames a second a
 part missing for one frame would hardly be seen), is open (§9 Q26).
@@ -4979,7 +4979,7 @@ FS-HOST).
    linear to sRGB in the translated function, which needs the format of the
    bound texture at run time (none seen in these boots).
 3. *(Answered, §9 Q24; R11 §10.26.3.)* §9 Q24 asks the reference to confirm op 29's last word with a non-zero
-   base instance (Ycode's reading rests on the short form's 16-bit rule and
+   base instance (SwiftCode's reading rests on the short form's 16-bit rule and
    the zero low halves).
 4. The `RGBA16Float` cube of `generateClampedMap` (an environment map,
    most likely for reflections) read almost all zero at level 0 after the
@@ -4992,9 +4992,9 @@ FS-HOST).
    stale texture IDs in argument buffers until the guest encodes them
    again.
 
-### 10.21 Round R8 under Ycode (agent VISIONOS-R8, 2026-10-29)
+### 10.21 Round R8 under SwiftCode (agent VISIONOS-R8, 2026-10-29)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `vis8` on the
+Clean-room work on SwiftCode's own simulator on the Thor (branch `vis8` on the
 main line 5a127ff; the visionOS device copied from R7b's, booted on 24M362;
 the iPhone 18 Pro device of the iOS 27.0/27.1 rounds). Boots: `b1`, `b2`
 (main line, a guest log stream that adds assistantd and Siri), `h1`–`h3`
@@ -5048,7 +5048,7 @@ ends with the unlock at 38.1 s, and was validated at 43.9 s; `b1`: it
 arrived 10 s after it was sent, while SurfBoard waited for data migration,
 and was refused at 39.4 s, before the unlock at 42.5 s). The window
 between the unlock and the resume, in which an allowed request blocks the
-home view, was 2 to 48 s under Ycode (median 18 s), mostly backboardd's
+home view, was 2 to 48 s under SwiftCode (median 18 s), mostly backboardd's
 display reveal (the boot logo's three stages when the shell finishes after
 the unblank, about 10 s) and SurfBoard's work after it. The reference shows
 the room and the home view about 7 s after Run (§10.12.3); whether its
@@ -5056,21 +5056,21 @@ pre-warm can fall into that window is §9 Q27. In every boot the resume
 decision came 4 to 84 s *before* the room's first presented frame (the
 first lit frame waits for backboardd's first composed room).
 
-What it is not: no guest process crashed or was refused by Ycode, no Metal
+What it is not: no guest process crashed or was refused by SwiftCode, no Metal
 or kernel error is involved, and the start hold (`scheduling-policy.md`
 §4.2) released assistantd by a boost in every boot. It is the shell's own
-decision on an order of events that Ycode's slower, unevenly loaded guest
+decision on an order of events that SwiftCode's slower, unevenly loaded guest
 produces in about 40 % of boots.
 
 **A Home press brings the home view up.** In `h1` and `h3` (both "will be
 foreground scenes running"), one Home press through the display stream 60 s
-after the room's first frame (`ycode-display-probe … button home`;
+after the room's first frame (`swiftcode-display-probe … button home`;
 consumer page 0x0C usage 0x40, backboardd: "Home page:0xC usage:0x40")
 made SurfBoard request RealityLauncher at once.
 
 #### 10.21.2 The home guard (change 1)
 
-`ycode-simd` (VisionHomeGuard.swift), visionOS device runs only: from the
+`swiftcode-simd` (VisionHomeGuard.swift), visionOS device runs only: from the
 boot on it watches the presented frames; when no RealityLauncher process
 exists 60 s after the first lit frame (the room's), it presses Home through
 the HID service and logs "visionOS home guard: … pressing Home"; when there
@@ -5078,11 +5078,11 @@ is still none 60 s later it presses once more; it stops as soon as
 RealityLauncher runs. It never presses while RealityLauncher runs (a press
 would close the home view), and it is off in runs that launch an app
 (`--launch`: the app is the foreground) and with
-`YCODE_VISIONOS_HOME_GUARD=0`; `YCODE_VISIONOS_HOME_GUARD_S` sets the delay.
+`SWIFTCODE_VISIONOS_HOME_GUARD=0`; `SWIFTCODE_VISIONOS_HOME_GUARD_S` sets the delay.
 The delay is safe: the resume decision precedes the room's first frame in
-every boot (§10.21.1). This is Ycode's stand-in for a user who presses Home
+every boot (§10.21.1). This is SwiftCode's stand-in for a user who presses Home
 when the home view did not come up, as on the reference a user of Device
-Hub would; it compensates for a race that Ycode's speed loses more often
+Hub would; it compensates for a race that SwiftCode's speed loses more often
 than the reference (Q27), and it is logged in every boot where it acts.
 Test `VisionHomeGuardTests`.
 
@@ -5103,18 +5103,18 @@ instead of the display stream). The home view with its icons and names:
 
 #### 10.21.3 App compatibility
 
-**Build.** Ycode's own path: `ycode build <project> -scheme <target>
+**Build.** SwiftCode's own path: `swiftcode build <project> -scheme <target>
 -destination 'generic/platform=visionOS Simulator' --engine swift-build`
-(swift-build's `swbuild`, built from `Tools/ycode-swb`). Two gaps were found
+(swift-build's `swbuild`, built from `Tools/swiftcode-swb`). Two gaps were found
 and handled: the swift-build engine sent no simulator SDK for a simulator
 destination, so a project with `SDKROOT = xros` was built for the device;
 it now adds `SDKROOT=xrsimulator` (`iphonesimulator`, …) unless the command
 line sets one (`build-pif.md`, change 2, test
-`simulatorDestinationsChooseTheSimulatorSDK`). Ycode's PIF generator does not
+`simulatorDestinationsChooseTheSimulatorSDK`). SwiftCode's PIF generator does not
 yet expand Xcode 16's synchronized folders (`PBXFileSystemSynchronizedRootGroup`):
 a target that uses one is built without sources (an app bundle with no
 executable, "BUILD succeeded"); the samples use ordinary groups. The
-samples: `ycode/Samples/VisionSamples` (our own code), three app targets
+samples: `swiftcode/Samples/VisionSamples` (our own code), three app targets
 with explicit Info.plists (`UIApplicationPreferredDefaultSceneSessionRole`
 `UIWindowSceneSessionRoleApplication`, or
 `UIWindowSceneSessionRoleVolumetricApplication` for the volume;
@@ -5129,14 +5129,14 @@ with explicit Info.plists (`UIApplicationPreferredDefaultSceneSessionRole`
   launch, with a sphere (tap gesture recolours it) and a ring of eight
   cubes.
 
-They log through `os.Logger` (subsystem `org.ycode.samples`).
+They log through `os.Logger` (subsystem `org.swiftcode.samples`).
 
-**Install and launch.** `ycode-simd --install-app <App.app> --launch <id>
+**Install and launch.** `swiftcode-simd --install-app <App.app> --launch <id>
 --guest-tools <dir with ylaunch>` (`app-install-launch.md`) works on the
 visionOS runtime unchanged: ylaunch installs (`installed
-org.ycode.samples.window`) and SurfBoard launches through the open request
+org.swiftcode.samples.window`) and SurfBoard launches through the open request
 (0.5–9.2 s under load). The app steps were held until 40 s after the
-room's first frame (`YCODE_SNAPSHOT_WHEN_FILE`, as the iOS app runs do).
+room's first frame (`SWIFTCODE_SNAPSHOT_WHEN_FILE`, as the iOS app runs do).
 
 | App | Launches | Renders | Input | What is missing |
 |---|---|---|---|---|
@@ -5158,7 +5158,7 @@ The faithful version: the translator allows it cleanly, because a texture's
 with `shaderWrite` (`RGBA8Unorm_sRGB`, `BGRA8Unorm_sRGB`, the packed ABGR,
 `R8`, `RG8` forms) now gets storage views in the unorm format of its layout
 (the image already had storage usage and `VK_IMAGE_CREATE_EXTENDED_USAGE_BIT`
-for R7's unorm views), and bit 32 of its value marks it. ycode-airc's float
+for R7's unorm views), and bit 32 of its value marks it. swiftcode-airc's float
 storage writes encode linear to sRGB and its storage reads decode when the
 bit is set, computing both forms and selecting with `OpSelect`
 (`metal-shaders.md` §4.4). Views in another format (R7's `RGBA8Unorm` views
@@ -5229,8 +5229,8 @@ and AppIntentsLiveEntityService only (known).
 4. Input: visionOS apps cannot be operated yet (pose, selection and
    manipulation messages, §9 Q1–Q3; V-10 to V-12). A touch on the display
    stream's touch screen does not reach a visionOS app (`a8`). *(Formats
-   and what Ycode must do: §5.5.)*
-5. Ycode's PIF generator: synchronized folders (Xcode 16 projects) are built
+   and what SwiftCode must do: §5.5.)*
+5. SwiftCode's PIF generator: synchronized folders (Xcode 16 projects) are built
    without their sources.
 6. Photos ends at start: the free space it is told is 0 (§10.21.3); the
    next step is a trace of the photo library daemon's answer. *(Fixed in
@@ -5243,21 +5243,21 @@ and AppIntentsLiveEntityService only (known).
 
 ### 10.22 Round ARGBUF-IMPL: argument buffers by the layout description; the room's missing parts (agent ARGBUF-IMPL, 2026-10-30)
 
-Clean-room work on Ycode's own simulator on the Thor: branch `argbuf-impl`
-on the main line `e27c4e9c`, Ycode's simulator only, no reference tool,
+Clean-room work on SwiftCode's own simulator on the Thor: branch `argbuf-impl`
+on the main line `e27c4e9c`, SwiftCode's simulator only, no reference tool,
 nothing under `research/`. The visionOS device was a fresh copy of R7b's
 device for each boot. Boots `v1` to `v7` were cold, frames every 5 s, and
 other agents' boots kept the load average at 15 to 100.
 
 #### 10.22.1 Q25: argument encoders by op 16's description
 
-Ycode now builds argument buffers as `metal-sim-protocol.md` §4.3.8 says
+SwiftCode now builds argument buffers as `metal-sim-protocol.md` §4.3.8 says
 (implementation in §4.3.9). Op 16's description is parsed into a member
 table, op 17 answers alignment then length, op 19 writes each member at
 its table offset (24-bit index, range forms), and op 35 answers the
 member's offset. This replaces R7b's rule (§10.20.7), which put member
 *n* at 8 × *n* and answered op 17 with the halves swapped, so that every
-encoder looked 8 bytes long with an alignment of 24. Under Ycode,
+encoder looked 8 bytes long with an alignment of 24. Under SwiftCode,
 backboardd's one layout and those of its RealityKit clients parse as the
 reference's: 15 buffers, indices 0–14 at 0–112, length 120, alignment 8.
 That layout is dense, so the members land where R7b's rule put them. The
@@ -5274,14 +5274,14 @@ restore.
 #### 10.22.2 Q26: the room's missing parts follow the visibility results (fixed)
 
 OBS-ARGBUF found that the reference never leaves a room part out (§9 Q26).
-Ycode's argument-buffer change did not change the cycle: `v1` lost parts
+SwiftCode's argument-buffer change did not change the cycle: `v1` lost parts
 in 5 of 29 room frames. The guest decides from what the host gives back,
 so two diagnostic switches were added to the Vulkan back end
 (`VulkanVisibility.swift`, default off):
 
-- `YCODE_DEBUG_VISIBILITY_FORCE=<u32>` writes this value into both words of
+- `SWIFTCODE_DEBUG_VISIBILITY_FORCE=<u32>` writes this value into both words of
   every counted visibility slot instead of the query's count.
-- `YCODE_DEBUG_VISIBILITY_STATS=1` reads every segment's query result back
+- `SWIFTCODE_DEBUG_VISIBILITY_STATS=1` reads every segment's query result back
   after its command buffer completes and logs, every 20 s, how many were
   zero. The counts are kept per pass (its size, attachments, the depth
   attachment's actions and clear value, its depth states, its kinds of
@@ -5299,7 +5299,7 @@ about 5 % means the furniture is missing.
 | `v5` | statistics | 83 (185–595 s) | 20 (walls 7, furniture 13) |
 | `v7` | statistics, **with the fix below** | 68 (260–595 s) | **0** |
 
-**Every visibility result Ycode produced was zero.** In `v5`, all counted
+**Every visibility result SwiftCode produced was zero.** In `v5`, all counted
 segments were in backboardd's 3840 × 2160 4× pass: one colour attachment
 and a 4× `Depth32Float_Stencil8` depth attachment, cleared to 0.0 and not
 stored. Its depth states compare Greater, GreaterEqual or Equal (reverse
@@ -5309,31 +5309,31 @@ was non-zero. Forcing them to zero changed nothing, because they were
 already zero. Forcing them non-zero removed every missing part. So the
 guest culls a part whose occlusion box it believes hidden. For a few
 frames it leaves that part out, then draws it again. The reference
-reports the boxes visible, because it never leaves a part out. Ycode's
+reports the boxes visible, because it never leaves a part out. SwiftCode's
 boxes passed no samples.
 
 **Cause and fix.** `v6` added each draw's depth state, cull mode and
-pipeline formats to the `YCODE_DEBUG_PASS_DRAWS=3840x2160` lines. Every
+pipeline formats to the `SWIFTCODE_DEBUG_PASS_DRAWS=3840x2160` lines. Every
 counted segment is one draw of 36 indices with `vsOcclusionQuery` and **no
 fragment function**. The draw uses depth compare GreaterEqual with no
 write, back-face culling, and a pipeline with one colour attachment and
 `Depth32Float_Stencil8` at 4 samples. The same pass has other draws
 without a fragment function: stencil masks (`fullScreen2Vert`, depth
 Equal, stencil replace), `vsMeshShadowPatchReceiver`, `vsUnlit` and
-`vsManualInstancing`. Ycode's Vulkan back end built every pipeline without
+`vsManualInstancing`. SwiftCode's Vulkan back end built every pipeline without
 a fragment shader with rasterizer discard on. So these draws made no
 fragments: no depth or stencil writes, and no occlusion samples. In Metal,
 a pipeline without a fragment function still rasterizes (`fragmentFunction`
 nil is depth- and stencil-only rendering; only `rasterizationEnabled` NO
 turns rasterization off; Metal documentation, level 1). No render pipeline
-in these boots sent a descriptor key that Ycode does not model (no
+in these boots sent a descriptor key that SwiftCode does not model (no
 "descriptor key … is not modelled" line), so none turned rasterization
 off. Now a pipeline without a fragment function, and with a depth or stencil
 attachment format, is rasterized with colour writes off. A pipeline
 with neither stays discarded, since it can only be a vertex function that
 writes buffers. This covers monolithic pipelines and pipeline libraries
 (the fragment-shader part then has no stage).
-`YCODE_VULKAN_VERTEX_ONLY_DISCARD=1` restores the old behaviour. GPU test
+`SWIFTCODE_VULKAN_VERTEX_ONLY_DISCARD=1` restores the old behaviour. GPU test
 `VulkanBackendTests.depthOnlyPipelinesRasterize` checks a depth-only draw:
 its visibility slot is not zero and the colour attachment is unchanged.
 The test fails with the switch. In `v7`, every result in the statistics
@@ -5348,7 +5348,7 @@ Their visible effect (shadow receivers, masked regions) was not studied.
    screen against the reference (shadows under the furniture, masked
    regions), and how the extra draws affect the frame rate.
 2. `metal-sim-protocol.md` §13 item 9: the member type codes inside a
-   pointee struct (iOS WeatherPoster). Ycode skips such pointees.
+   pointee struct (iOS WeatherPoster). SwiftCode skips such pointees.
 3. `metal-sim-protocol.md` §13 item 10: the pipeline key, if any, for
    `rasterizationEnabled` NO.
 4. §10.20.11 items 1a–5 are unchanged; items 1 and 6 are done.
@@ -5356,7 +5356,7 @@ Their visible effect (shadow receivers, masked regions) was not studied.
 ### 10.23 The reference answers Q1–Q3: input, ARKit pose, rooms; glass and metal for R10 (agent OBS-VISION-INPUT, 2026-10-31)
 
 Dirty-room work on the Mac: Xcode 27.1, visionOS 27.0 (24M362), one test
-device `ycode-test-vision3-a` (Apple Vision Pro 4K), created with `simctl`,
+device `swiftcode-test-vision3-a` (Apple Vision Pro 4K), created with `simctl`,
 booted twice (the second time with our HID recorder inserted and the
 Museum room preset), then deleted. No Device Hub window, no GUI clicks;
 Ghidra, the IPSW and the reference tools folder were not opened; no
@@ -5466,25 +5466,25 @@ show the room.
 2. Whether the Manipulator service's events are used by anything.
 3. What the Digital Crown changes (no consumer reacted to a dial event at
    the home view or with a mixed immersive space).
-4. Device Hub's own message rate and hand placement (not observed; Ycode
+4. Device Hub's own message rate and hand placement (not observed; SwiftCode
    decides, §5.5.7 item 4).
 5. Which path (Core Animation backdrop or RealityKit glass) draws window
    glass, and a Metal-level confirmation of the cube's source.
 
-### 10.24 Round R10 under Ycode: glass and metal (agents VISIONOS-R10 and VISIONOS-R10b, 2026-10-31)
+### 10.24 Round R10 under SwiftCode: glass and metal (agents VISIONOS-R10 and VISIONOS-R10b, 2026-10-31)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `visionos-r10`;
+Clean-room work on SwiftCode's own simulator on the Thor (branch `visionos-r10`;
 R10 stopped overnight with one work-in-progress commit, R10b reviewed it,
 merged the main line 117eee37 and finished the round). Boots: R10's `w1`–`w3`
-(the window sample, `org.ycode.samples.window`) and `m1`–`m3` (the volume
-sample, `org.ycode.samples.volume`: a blue box and an orange metallic sphere
+(the window sample, `org.swiftcode.samples.window`) and `m1`–`m3` (the volume
+sample, `org.swiftcode.samples.volume`: a blue box and an orange metallic sphere
 of roughness 0.2), R10b's `b1` (window) and `b2` (volume), each a cold boot
 of a fresh copy of R7b's device with the app installed and launched 40 s
 after the home view; iOS 27.0 `i0`, iOS 27.1 `i1`, watchOS 27.0 `wa1`.
 No Apple simulator, Xcode, Device Hub or reference tool was run or opened,
 nothing under `research/` was read, nothing was disassembled, and the
 guest's shader logic was not read: guest functions were seen through
-ycode-airc's reflection (names, binding types, access, constexpr sampler
+swiftcode-airc's reflection (names, binding types, access, constexpr sampler
 states), the pass probe's read-backs (§10.20.3) and the new frame map.
 The reference's appearance is §10.23.3–§10.23.4. Level 3 throughout.
 
@@ -5493,7 +5493,7 @@ Screenshots (not committed; beside the worktrees on the Mac):
 `visionos-r10-wip-{window,volume}.png` (R10's commit, `w3`, `m3`),
 `visionos-r10-after-{window,volume,home}.png` (`b1`, `b2`).
 
-#### 10.24.1 The glass pipeline under Ycode
+#### 10.24.1 The glass pipeline under SwiftCode
 
 A frame map (§10.24.5) of backboardd's frame command buffer with an app
 window gave the glass's data flow (`w1`, `w3`):
@@ -5514,7 +5514,7 @@ under the window: one texel covers 96 × 67.5 pixels of the 3840 × 2160 view.
 1. **The blur kernel wrote nothing (R10).** `kernelSFBBlurAndFilter` has a
    threadgroup argument whose metadata node gives no `air.address_space`
    (only its pointer is in address space 3) and the location index of a
-   real device buffer. ycode-airc took the node's default (device) and
+   real device buffer. swiftcode-airc took the node's default (device) and
    bound it as a second buffer 0, so the kernel's threadgroup strip was a
    device buffer and its output was never formed: the panel was an opaque
    dark grey (the `fsCALayer` tint over zeros). A buffer argument whose
@@ -5525,11 +5525,11 @@ under the window: one texel covers 96 × 67.5 pixels of the 3840 × 2160 view.
    blocks of 96 × 67 pixels (`visionos-r10-wip-window.png`).
 2. **Every guest constexpr sampler was nearest, clamp to zero, LOD 0
    (R10b).** The blocks are the 40 × 32 texels sampled without filtering.
-   `fsCALayer`'s samplers are constexpr samplers, and ycode-airc's
+   `fsCALayer`'s samplers are constexpr samplers, and swiftcode-airc's
    reflection gave every constexpr sampler of every guest function state
    0 (818 in R10's translation cache, 404 in an iOS 27.0 cache). The
    functions the guest sends hold the state as a plain `i64` global, not
-   the `[2 x i64]` of our toolchain, and ycode-airc read element 0 of an
+   the `[2 x i64]` of our toolchain, and swiftcode-airc read element 0 of an
    aggregate only (`metal-shaders.md` §3.7). Every guest constexpr sampler,
    on every platform, was therefore nearest, clamp to zero (transparent
    black outside the texture) and LOD maximum 0 (level 0 only). Now the
@@ -5537,16 +5537,16 @@ under the window: one texel covers 96 × 67.5 pixels of the 3840 × 2160 view.
    form. Re-translating visionOS RealityKit's dumped functions gives the
    real states (`fsCALayer`: linear clamp-to-edge `0x807bff0000082a49`,
    repeat, anisotropic, and bicubic `0x807bff0000081449`; `fsUnlit`: linear
-   repeat). Filter value 2 is `filter::bicubic` (our own shader); Ycode
+   repeat). Filter value 2 is `filter::bicubic` (our own shader); SwiftCode
    samples it linearly.
 3. **Metal reflected black (R10).** The volume's sphere samples the
    environment cube that `generateClampedMap` writes from the room's
    probe (§10.23.4). The kernel reads the probe cube with `read()`, which
-   ycode-airc does through the storage view (Vulkan cannot fetch a cube
+   swiftcode-airc does through the storage view (Vulkan cannot fetch a cube
    face from a sampled view). The probe cube is `shaderRead` only, so it had
    no storage view and the kernel read the dummy image: zeros. Cube
    textures now always get storage usage and views when their format
-   allows (`YCODE_GPU_CUBE_STORAGE=0`: the old rule). Probe `m3`: the
+   allows (`SWIFTCODE_GPU_CUBE_STORAGE=0`: the old rule). Probe `m3`: the
    source cube (256², 9 levels, `RGBA16Float`, usage `shaderRead`) has
    face means 0.39 to 1.14 and a maximum of 27.2, the reference's numbers
    for Living Room (Day) (§10.23.4); the clamp kernel's output holds them
@@ -5564,14 +5564,14 @@ this was not traced.
 
 #### 10.24.3 Against the reference
 
-| | Reference (§10.23.3–4) | Ycode before | Ycode after (`b1`, `b2`) |
+| | Reference (§10.23.3–4) | SwiftCode before | SwiftCode after (`b1`, `b2`) |
 |---|---|---|---|
 | Window panel | translucent; each channel ≈ 0.58 × Gaussian(σ ≈ 128 px) of the background + 49, R² 0.99 | opaque dark grey, uniform (38, 38, 38) | translucent: on a strip in front of the television stand (x 1100–2700, y 1480–1640 of 3840 × 2160) against `b2`'s frame of the same pose, best fit at σ 128–160 px: 0.50–0.54 × + 50–57 (red), 0.58–0.64 × + 34–44 (green), 0.65–0.74 × + 16–29 (blue), R² 0.97–0.995 |
 | Rim | thin light rim, 2–4 px | none | a light line along the rounded top edge and a 2–3 px brighter band at the sides (≈ +10 over the panel) |
 | Metal sphere (roughness 0.2) | mirrors the room; rough metal soft | black | orange-tinted soft reflection of the room |
 
 The blur width and the darken-and-lift match within the fit's
-uncertainty; Ycode's panel is somewhat warmer (a lower blue offset). The
+uncertainty; SwiftCode's panel is somewhat warmer (a lower blue offset). The
 recipe's colour matrix is applied in the guest's functions, so the
 difference may come from the P3/sRGB handling of the composed frame or
 from the room's own colours under the fit; it was not pursued.
@@ -5598,7 +5598,7 @@ missing is not known (§10.24.6 item 2).
 
 #### 10.24.5 Frame map (off by default)
 
-`YCODE_GPU_FRAME_MAP=<after s>,<count>[,<min commands>]`: from that many
+`SWIFTCODE_GPU_FRAME_MAP=<after s>,<count>[,<min commands>]`: from that many
 seconds after the first submission, the next *count* command buffers with
 at least *min commands* (default 1) draws, dispatches and blits are
 described as in a hang report (passes, attachments, functions, bound
@@ -5606,7 +5606,7 @@ buffers and textures), before their replay. Nothing is copied, so unlike a
 probe it does not delay the guest; use it to find the passes, then probe
 one function by name.
 
-`YCODE_GPU_FRAME_MAP_FILE=<path>` (XR-ICONS, §10.29) asks at any moment: when
+`SWIFTCODE_GPU_FRAME_MAP_FILE=<path>` (XR-ICONS, §10.29) asks at any moment: when
 the file appears, its first word is how many command buffers to describe
 (default 40), its second the least commands each must have (default 1); the
 file is removed. A script or a headset run can ask for the frame on screen now.
@@ -5627,11 +5627,11 @@ its map where the earlier boot still had the placeholder grid).
 
 #### 10.24.7 What remains
 
-1. Ycode's glass is a little warmer than the reference's (§10.24.3), and
+1. SwiftCode's glass is a little warmer than the reference's (§10.24.3), and
    the rim was compared by eye only.
 2. Shadows: whether the reference's volume content casts shadows on the
    room (`vsMeshShadowPatchReceiver`, `ksShadowOcclusionReproject` run under
-   Ycode); a dirty-room look at a volume over the floor would settle it.
+   SwiftCode); a dirty-room look at a volume over the floor would settle it.
 3. Whether the reference's `generateClampedMap` covers the cube in one
    dispatch (§10.24.2, end).
 4. Bicubic samplers are filtered linearly; `VK_EXT_filter_cubic` where the
@@ -5642,12 +5642,12 @@ its map where the earlier boot still had the placeholder grid).
    before).
 6. §10.21.7 items 2 and 3 are done; items 1, 4 (R9b), 5–8 are unchanged.
 
-### 10.25 Round R9 under Ycode: visionOS input, the ARKit pose and the rooms (agent VISIONOS-R9, 2026-10-31)
+### 10.25 Round R9 under SwiftCode: visionOS input, the ARKit pose and the rooms (agent VISIONOS-R9, 2026-10-31)
 
-Clean-room work from §5.5 and §10.23 (implementation: §5.5.8), on Ycode's
+Clean-room work from §5.5 and §10.23 (implementation: §5.5.8), on SwiftCode's
 own simulator on the Thor: the Apple Vision Pro device of R11 (24M362),
-the round's build of `ycode-simd` and the HID bundle, and our own probe
-app `VisionInput` (`ycode/Samples/VisionSamples/VisionInput`, built with
+the round's build of `swiftcode-simd` and the HID bundle, and our own probe
+app `VisionInput` (`swiftcode/Samples/VisionSamples/VisionInput`, built with
 `xcodebuild -sdk xrsimulator`): a window with a Button, `onTapGesture`,
 `SpatialTapGesture`, `DragGesture`, `MagnifyGesture`, `RotateGesture`
 tiles, a `TextField` and a RealityKit box (`InputTargetComponent`,
@@ -5655,7 +5655,7 @@ collision), and a mixed immersive space opened at launch with a sphere
 (radius 0.2 m at (−1, 1, −1.6)) and an `ARKitSession` with
 `WorldTrackingProvider` that logs `queryDeviceAnchor` every 0.5 s when it
 moves. Each callback logs through `os.Logger` (subsystem
-`org.ycode.samples`); a guest log stream records them. Boots: `r1`
+`org.swiftcode.samples`); a guest log stream records them. Boots: `r1`
 (Living Room (Day), driven with the control socket's `vision` commands),
 `r2` (`--room MuseumNight`), `r3` (the Linux viewer under a private X
 server, driven with real X pointer and key events). No Apple simulator,
@@ -5684,7 +5684,7 @@ Xcode GUI, Device Hub or reference tool was run or opened; nothing under
 
 The bundle found every IOHIDFamily function it looks up (vendor-defined,
 generic, scroll, translation, rotation constructors; float, flags and
-phase setters). vhmdd accepted Ycode's host connection on the first try:
+phase setters). vhmdd accepted SwiftCode's host connection on the first try:
 `get_pose` answered identity after boot, as in the reference.
 
 Screenshots: `visionos-r9-gestures-camera-moved.png` (after the gestures,
@@ -5694,16 +5694,16 @@ camera at (0.3, 0, 0.2) turned 15° left: Button 1, Drag 70 × 0, Magnify
 
 #### 10.25.2 The room before the boot (run r2)
 
-`ycode-simd --room MuseumNight` wrote the preference; the boot came up in
+`swiftcode-simd --room MuseumNight` wrote the preference; the boot came up in
 Museum (Night) (`visionos-r9-room-before-boot.png`), and a tap on the
 Button reached the app. `vision rooms` listed the six rooms.
-On a stopped device, `ycode-simd --device DEV --vision room KitchenNight`
+On a stopped device, `swiftcode-simd --device DEV --vision room KitchenNight`
 wrote `{activeSyntheticEnvironment: KitchenNight}` into the preference file
 (checked with `plistlib`).
 
 #### 10.25.3 The Linux viewer with real pointer input (run r3)
 
-The Linux `ycode-sim-viewer` (SDL 3) ran on a private X server on the Thor
+The Linux `swiftcode-sim-viewer` (SDL 3) ran on a private X server on the Thor
 (TigerVNC's `Xtigervnc` with no listening port, our own display), its
 window 1660 × 1000 (scale 0.852), connected to the run's display server.
 `xdotool` sent X pointer motion, button and key events at the targets'
@@ -5745,7 +5745,7 @@ this round); `lint.sh` exits 0. iOS and watchOS input paths are unchanged
 
 1. (Fixed after r3: the Linux viewer's control row shows Reset Camera
    instead of Rotate on a Vision Pro.) The reference's interaction modes, Capture Pointer and Simulated Scenes
-   inspector are not reproduced (Ycode uses modifiers, §5.5.8 item 4).
+   inspector are not reproduced (SwiftCode uses modifiers, §5.5.8 item 4).
 2. `extra` and the flag bits above bit 0 are sent as §5.5.2 lists them
    (meaning unknown, §10.23.5 item 1); the Manipulator service is
    published and never used.
@@ -5755,9 +5755,9 @@ this round); `lint.sh` exits 0. iOS and watchOS input paths are unchanged
 4. Hand orientation is the camera's; a hand's own turn (wrist roll) is not
    offered by any viewer.
 
-### 10.26 Round R11 under Ycode: the home view in every boot; Photos' free space (agent VISIONOS-R11, 2026-11-01)
+### 10.26 Round R11 under SwiftCode: the home view in every boot; Photos' free space (agent VISIONOS-R11, 2026-11-01)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `visionos-r11`
+Clean-room work on SwiftCode's own simulator on the Thor (branch `visionos-r11`
 on the main line 117eee37; the visionOS device of R10, booted on 24M362;
 the iPhone 18 Pro device of the iOS 27.0 rounds). One of this round's
 devices was booted at a time; other agents' boots ran beside them (load
@@ -5765,8 +5765,8 @@ averages 2 to 60). Boots: `p1` (Photos), `e1` (background CPUs), `s1`,
 `c1`–`c10` (the series), iOS `i1`, watchOS `w1` and visionOS `m1` (after
 merging the main line). No Apple simulator, Xcode, Device Hub
 or reference tool was run or opened, nothing under `research/` was read
-and no Apple binary was inspected. Level 3 throughout (Ycode's own boots:
-guest `log stream`, Ycode traces, host log), level 1 for `sys/attr.h`.
+and no Apple binary was inspected. Level 3 throughout (SwiftCode's own boots:
+guest `log stream`, SwiftCode traces, host log), level 1 for `sys/attr.h`.
 
 #### 10.26.1 Why the home view was sometimes not launched, and the fix (§10.20.11 item 1a, §10.21.7 item 1)
 
@@ -5788,9 +5788,9 @@ cover sheet, the resume):
    after migration, Siri was allowed before the resume.
 2. **Which side is late.** The window from migration to the resume is
    1 s on the reference (§9 Q27: 21.6–23.1 s → 22.6–24.3 s) and 20–60 s
-   under Ycode (`b2` 73.3 → 102.6 s, `p1` 76.1 → 145.5 s): the shell's
+   under SwiftCode (`b2` 73.3 → 102.6 s, `p1` 76.1 → 145.5 s): the shell's
    work after migration (unlock, the display reveal, the cover sheet) runs
-   slowly. assistantd is the early one: under Ycode it is started 2–11 s
+   slowly. assistantd is the early one: under SwiftCode it is started 2–11 s
    after its spawn by a boost from apsd (diagnostic below; message id
    473000) and finishes its post-launch setup about 20–25 s later, at or
    around data migration (`b2` 74.6 s, `p1` 68.7 s, `e1` 41.2 s); on the
@@ -5802,20 +5802,20 @@ cover sheet, the resume):
 3. **Ruled out.** assistantd's BGST submissions (dasd) are not gated by
    migration (0.1–36 s, ending before or after it); apsd's connection
    status reaches assistantd before and after its setup alike. Background
-   CPUs (`scheduling-policy.md` §4.7, `YCODE_HOST_SCHED_BG_CPUS=2`, boot
+   CPUs (`scheduling-policy.md` §4.7, `SWIFTCODE_HOST_SCHED_BG_CPUS=2`, boot
    `e1`): class-bg threads on 2 of 14 CPUs did not delay assistantd
    (setup at 41.2 s, migration 49.6 s); it stays opt-in.
 
-**The fix (Ycode design).** assistantd's start hold lasts until the shell
+**The fix (SwiftCode design).** assistantd's start hold lasts until the shell
 is ready (`scheduling-policy.md` §4.2 "shell-ready holds"): boosts and the
-quiet test do not release it; `ycode-simd` marks the shell ready when
+quiet test do not release it; `swiftcode-simd` marks the shell ready when
 RealityLauncher runs or at the room's first lit frame, whichever comes
 first (the resume precedes the room's first frame in every boot,
 §10.21.1), in every visionOS device run (also with `--launch`). This
 gives the reference's order: the home view resumes first, and Siri's
 pre-warm request comes later and is allowed with the home view on screen,
 as in the reference's `x3` (MRSiri launched with intent
-"foreground-support", the home view stayed). `YCODE_VISIONOS_SHELL_HOLD`
+"foreground-support", the home view stayed). `SWIFTCODE_VISIONOS_SHELL_HOLD`
 names other jobs, `0` none (then R8's race returns). The hold's release
 line says which boosts it outlived ("boosted while waiting for the shell,
 last from pid 140 notifyd …").
@@ -5825,7 +5825,7 @@ same thread (`VisionHomeGuard.swift`, now the visionOS shell watch) marks
 the shell ready. It did not act in any boot of this round.
 
 Guest seconds (from launchd_sim's first line) except the home watch
-(seconds after `ycode-simd` started) and the hold (host seconds):
+(seconds after `swiftcode-simd` started) and the hold (host seconds):
 
 | Boot | Migration | Unlock | Resume ("no foreground scenes") | RealityLauncher requested | assistantd released (shell ready by) | Siri's request validated | Home watch | Guard presses |
 |---|---|---|---|---|---|---|---|---|
@@ -5870,7 +5870,7 @@ its error PhotoKit in Photos asks getattrlist on "/" for
 `ATTR_VOL_INFO | SIZE | SPACEAVAIL | FILECOUNT | DIRCOUNT` (volume
 attributes `0x80000614`, 28 bytes; `a10`), after finding the library's
 volume ("/", the device directory being part of "/"'s volume since
-`home-screen.md` §6) by `ATTR_CMN_FSID` and `getfsstat64`. Ycode packed a
+`home-screen.md` §6) by `ATTR_CMN_FSID` and `getfsstat64`. SwiftCode packed a
 fixed 64 GiB size and **0 bytes free for any read-only path**, "/"
 included, and 32 GiB for a writable one; statfs used the host's sizes of
 the prefix itself. No daemon is involved (no CacheDelete call, no reply).
@@ -5900,7 +5900,7 @@ without the fix was not made.
 #### 10.26.3 Other items
 
 - §10.20.11 item 3 (Q24, op 29's base instance) is answered by the
-  reference (§9 Q24: base instance 0, stale high halves; Ycode's reading
+  reference (§9 Q24: base instance 0, stale high halves; SwiftCode's reading
   stands); nothing to change.
 - §10.20.11 item 5 (§10.13.5 items 3–5, §10.19.4 items 2–5) was not on
   this path and is unchanged.
@@ -5922,19 +5922,19 @@ without the fix was not made.
 #### 10.26.4 What remains
 
 1. §9 Q28: why the reference's assistantd finishes its start-up so late;
-   if it is a Ycode difference (for example apsd's early message, or
+   if it is a SwiftCode difference (for example apsd's early message, or
    darwin-bg I/O throttling, `scheduling-policy.md` §4.8), the shell-ready
    hold can give way to that.
 2. §10.21.7 items 2–5, 7, 8 are unchanged.
 
-### 10.27 Round GPU-SIRI under Ycode: Siri and immersion stopped the GPU; the watchdog and device recovery (agent GPU-SIRI, 2026-11-01)
+### 10.27 Round GPU-SIRI under SwiftCode: Siri and immersion stopped the GPU; the watchdog and device recovery (agent GPU-SIRI, 2026-11-01)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `gpu-siri` on
+Clean-room work on SwiftCode's own simulator on the Thor (branch `gpu-siri` on
 the main line dbc9ad5c; the visionOS 27.0 device of XR-VIEWER, booted on
 24M362). No Apple simulator, Xcode, Device Hub or reference tool was run
 or opened, nothing under `research/` was read and no Apple binary was
-inspected; the guest's shaders were seen only through ycode-airc's
-reflection and the hang reports. Level 3 throughout (Ycode's boots and
+inspected; the guest's shaders were seen only through swiftcode-airc's
+reflection and the hang reports. Level 3 throughout (SwiftCode's boots and
 logs, the host kernel log, our probes), level 1 for the Vulkan
 specification.
 
@@ -5945,7 +5945,7 @@ specification.
    `com.apple.campo`; campo's first command buffer runs the kernel
    `affordanceDynamicPointLight` six times (one per cube face, 4 × 8
    threadgroups of 32 × 16). The kernel reads ten buffers; the command
-   buffer binds one (the face index, by `setBytes`). Ycode left the nine
+   buffer binds one (the face index, by `setBytes`). SwiftCode left the nine
    other argument-table entries at 0, the kernel's loads read address 0,
    and on the Thor such a read never completes (metal-shaders.md §4.11).
    80 s later another GPU client made the driver kill the context: device
@@ -5955,7 +5955,7 @@ specification.
    50–70 s.
 2. **Immersion (XR-VIEWER's run `x8`).** `change_immersion_level` starts
    backboardd's immersion transition, whose command buffer clears and
-   draws into a 172 × 172 and a 16 × 16 attachment in one pass. Ycode's
+   draws into a 172 × 172 and a 16 × 16 attachment in one pass. SwiftCode's
    render area was the first attachment's; the writes past the small image
    never completed (metal-sim-protocol.md §8.7). The threadgroup size both
    reports shared (32 × 16) was not involved: in both cases the GPU was
@@ -5977,7 +5977,7 @@ specification.
 | Run | Setting | Result |
 |---|---|---|
 | `r2` | as built | Siri tapped 3 times (each time `Home` in between): "Get Started with Siri" shown each time, campo ran, no GPU report; the host log names the kernel's unbound slots 1–9 once (`.claude/worktrees/gpu-siri-visionos-siri*.png`, outside git) |
-| `r1` | `YCODE_GPU_UNBOUND_DUMMY=0` (the old behaviour) | Siri's kernel hung; watchdog at 10 s; device made again in 2.9 s, 0 of 951 buffers at a new address, 1 command buffer failed, 10 recorded again; backboardd kept running and Siri opened again; the room and icon images stayed black (GPU-only contents are lost) |
+| `r1` | `SWIFTCODE_GPU_UNBOUND_DUMMY=0` (the old behaviour) | Siri's kernel hung; watchdog at 10 s; device made again in 2.9 s, 0 of 951 buffers at a new address, 1 command buffer failed, 10 recorded again; backboardd kept running and Siri opened again; the room and icon images stayed black (GPU-only contents are lost) |
 | `s1`, `s2` | capture replay off / on | both boot to the room; same GPU statistics |
 | `m-ios270`, `m-ios271`, `i-watch` (and `i-ios27*`, `j-ios270` under load 90–110) | iOS 27.0 (iPhone 18 Pro), iOS 27.1 (iPhone Duo), watchOS 27.0 | each reached its home screen and rendered (iOS 27.0 at 201 s, 27.1 at 168 s, watchOS at 137 s); on iOS 27.0 the Siri app was opened twice from its home-screen icon (its screens came up blank, black then white, in this round's screenshots; a held side button did not start Siri while the boot was still settling); the watch's held crown showed no Siri screen; no GPU report, watchdog or reset in any of them |
 
@@ -6002,11 +6002,11 @@ suites (109 tests); the Mac and x86 full suites; lint.
 3. A command buffer split at an event wait whose first part had already
    run runs that part again after a reset.
 4. Viewport arrays (the immersion pass's vertex function writes
-   `viewport_array_index`): Ycode's pipelines have one viewport.
+   `viewport_array_index`): SwiftCode's pipelines have one viewport.
 
-### 10.28 Round VISION-FPS under Ycode: the presented frame rate, what limits it, and the numbers for foveation (agents VISION-FPS and VISION-FPS-2, 2026-11-01/02)
+### 10.28 Round VISION-FPS under SwiftCode: the presented frame rate, what limits it, and the numbers for foveation (agents VISION-FPS and VISION-FPS-2, 2026-11-01/02)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `vision-fps`,
+Clean-room work on SwiftCode's own simulator on the Thor (branch `vision-fps`,
 main line d73ad5a3; the visionOS 27.0 base device of `visionos9`, a fresh
 copy for every cold boot; level 3 throughout). No Apple simulator, Xcode,
 Device Hub or reference tool was run or opened, nothing under `research/`
@@ -6031,7 +6031,7 @@ the guest compares them with its own media time, its mach time in seconds.
 The two differ by the guest clock's offset (about 19 days here), so every
 frame seemed to end far in the future and backboardd held itself at 30 Hz.
 They now carry the guest's mach time in seconds
-(`metal-sim-protocol.md` §8.5; `YCODE_METAL_EVENT_CLOCK=host`: the old
+(`metal-sim-protocol.md` §8.5; `SWIFTCODE_METAL_EVENT_CLOCK=host`: the old
 clock). Same build, cold boots, alternating:
 
 | Scene, 3840 × 2160 | Measure | Old clock | Guest clock |
@@ -6073,7 +6073,7 @@ the hover state changing, not the number of events.
 
 After frames are missed backboardd stays at exactly 30 pictures/s for a
 while (`s7`, `s11`: up to about 6 s after the motion; `h3`: about 20 s, with
-isolated pose steps continuing) and then returns to 60. Ycode has no part in that choice that this
+isolated pose steps continuing) and then returns to 60. SwiftCode has no part in that choice that this
 round could find; whether the reference does the same is §9 Q29.
 
 #### 10.28.3 Where the time goes
@@ -6097,16 +6097,16 @@ One backboardd thread makes about 290 synchronous calls a second into the
 home view's main thread (2 ms on average, up to 27 ms), and the render thread
 is seen waiting (`ulock_wait2`, up to 12 ms) until that thread wakes it. The
 home view makes about 1,950 IOSurface requests a second and backboardd about
-970 (`YCODE_IOSURFACE_STATS`: copy values 700/s, get attachments 490/s, make
+970 (`SWIFTCODE_IOSURFACE_STATS`: copy values 700/s, get attachments 490/s, make
 port 240/s, purgeable 240/s, remove value 235/s; backboardd looks up about 240
 surfaces a second, gets their attachments, marks and releases them). Each is a
 round trip through the host service's thread: 120 µs on a quiet host, about
 200 µs at load 25. About 13 ms per picture of guest code on the render thread
 alone is 80 % of a 60 Hz budget; that is the guest's work on this CPU and
-Ycode does not change it.
+SwiftCode does not change it.
 
 **A change that did not help (removed).** The round trips looked like the
-biggest cost Ycode owns, so host services were made to run on the caller's
+biggest cost SwiftCode owns, so host services were made to run on the caller's
 thread (the trap served the IOSurface service and short Metal device-ops
 inline, after the send). The home view's round trip halved (120 → 60 µs;
 its share of the main thread 38 % → 26 %, and it got through 35 % more
@@ -6115,7 +6115,7 @@ sessions (load 6–14; means per run): gaze sweep 29, 31, 29 with inline
 against 29, 27 without; small gaze moves 32, 49, 27 against 49, 35; head and
 gaze 25, 25 against 27, 30. A kernel path with that complexity needs a gain to pay for it, so it was
 taken out. What came out of the experiment is the diagnostic
-(`YCODE_IOSURFACE_STATS`) and the finding that the render thread, not the
+(`SWIFTCODE_IOSURFACE_STATS`) and the finding that the render thread, not the
 home view's RPC rate, sets the pace.
 
 #### 10.28.4 Numbers for foveated rendering
@@ -6173,7 +6173,7 @@ Latency tests in a headset are best run with no other device booting.
 
 Whether the clock change matters elsewhere: cold boots of a fresh device on a
 quiet host (no other device booting), the old clock
-(`YCODE_METAL_EVENT_CLOCK=host`) alternating with the guest clock, the same
+(`SWIFTCODE_METAL_EVENT_CLOCK=host`) alternating with the guest clock, the same
 settle time, no trace or profile. Three phases per boot of ten home-screen
 swipes (6 s each); guest frames per second over the phases.
 
@@ -6199,13 +6199,13 @@ ever paced on these times as visionOS does.
 no sign of the bug there either. `wtA2`'s 39.6 frames/s (one boot, with a trace
 and frame profile, load 14) did not recur with the same settle time; its cause
 was not found. Every boot of this section reached its home screen and none
-crashed ycode-simd (GPU reports were not compared).
+crashed swiftcode-simd (GPU reports were not compared).
 
 #### 10.28.7 A crash in the frame profile
 
 A frame-profile window's close set `KernelTrace.wake` and its siblings to
 nil while other threads called them: a closure released while being read.
-ycode-simd died in `WaitQueue.Waiter.finish` as window 1 closed in `s9`, one
+swiftcode-simd died in `WaitQueue.Waiter.finish` as window 1 closed in `s9`, one
 crash in about 50 profiled sessions, the only one this round. The hooks are
 now installed once before the root process and record only while a window is
 open (`frame-profile.md` §10).
@@ -6214,7 +6214,7 @@ open (`frame-profile.md` §10).
 
 1. A gaze moving over home-view icons: about 28 pictures/s on a quiet host.
    Most of it is guest code on the render thread and the home view's main
-   thread; Ycode's own share (trap service, round trips) did not turn out to
+   thread; SwiftCode's own share (trap service, round trips) did not turn out to
    be the limit.
 2. §9 Q29: the reference's rate and its IOSurface request rate in the same
    hover, and whether it also falls to and stays at 30 Hz after a miss.
@@ -6234,17 +6234,17 @@ open (`frame-profile.md` §10).
 Tests: Mac full suite (2,597 tests; `MacPreviewHostLifetimeTests`' timing
 limits failed under the full run's load and pass alone), x86 full suite (2,096
 tests), lint. Thor, debug, with the main line merged:
-`YCODE_LOCK_ORDER_CHECK=1 YCODE_IPC_LOCKS_TESTS=1` YcodeDarwinABITests (154),
-YcodeDarwinKernelTests (443), YcodeSimdTests (100), YcodeSimFeaturesTests (67),
-YcodeHostServicesTests (77); YcodeMetalHostTests, YcodeVulkanTests,
-YcodeDisplayStreamTests, YcodeXRViewerTests and YcodeXRReprojectionTests (225
+`SWIFTCODE_LOCK_ORDER_CHECK=1 SWIFTCODE_IPC_LOCKS_TESTS=1` SwiftCodeDarwinABITests (154),
+SwiftCodeDarwinKernelTests (443), SwiftCodeSimdTests (100), SwiftCodeSimFeaturesTests (67),
+SwiftCodeHostServicesTests (77); SwiftCodeMetalHostTests, SwiftCodeVulkanTests,
+SwiftCodeDisplayStreamTests, SwiftCodeXRViewerTests and SwiftCodeXRReprojectionTests (225
 in all); translator texture forms (17), control flow (7), interface forms (24):
 all pass. `run-thor.sh`'s tests against the Metal oracle were not run (they
 need the Mac's metallibs; the translator did not change in this round).
 
-### 10.29 Round XR-ICONS under Ycode: "a glitchy cylinder from the home icons to the back wall" (agent XR-ICONS, 2026-11-02)
+### 10.29 Round XR-ICONS under SwiftCode: "a glitchy cylinder from the home icons to the back wall" (agent XR-ICONS, 2026-11-02)
 
-Clean-room work on Ycode's own simulator on the Thor (branch `xr-icons`; visionOS
+Clean-room work on SwiftCode's own simulator on the Thor (branch `xr-icons`; visionOS
 27.0, 2160 × 3840). No Apple simulator, Xcode, Device Hub or reference tool was
 run or opened, nothing under `research/` was read and no Apple binary was
 inspected. Level 3 throughout.
@@ -6284,8 +6284,8 @@ had depth 1/4, so the same bands and the depth's stepped edges (`xr-depth.md` §
 on screen, but how much of the complaint they explain is not known.
 
 Tests: Mac full suite (2671 tests), x86 full suite (2,169 tests), lint; Thor, debug:
-YcodeVulkanTests (51, with the new `DepthTapGPUTests`) and YcodeMetalHostTests (59). The
-tap's test fails with `YCODE_XR_DEPTH_ALPHA=0`; `theWindowsLayerStaysOutOfTheCache` and
+SwiftCodeVulkanTests (51, with the new `DepthTapGPUTests`) and SwiftCodeMetalHostTests (59). The
+tap's test fails with `SWIFTCODE_XR_DEPTH_ALPHA=0`; `theWindowsLayerStaysOutOfTheCache` and
 `aStretchedEdgeIsNotStoredInTheCache` fail against the old viewer code. The environment's
 depth clear (§5.6) has no test of its own. No frame-rate figure comes from this round.
 
@@ -6293,7 +6293,7 @@ depth clear (§5.6) has no test of its own. No frame-rate figure comes from this
 
 | Claim | Level | Source |
 |---|---|---|
-| Siri's and immersion's GPU hangs, their causes, the watchdog and recovery in boots (§10.27) | 3 | Ycode's boots on the Thor (`ide-remote/gpu-siri/runs/r1`, `r2`, `s1`, `s2`; XR-VIEWER's `x7`, `x8`), ycode-airc's reflection, hang reports and checkpoints, `GPURecoveryTests`, `scripts/gpu-probes/hangkick.c`, `car.c` |
+| Siri's and immersion's GPU hangs, their causes, the watchdog and recovery in boots (§10.27) | 3 | SwiftCode's boots on the Thor (`ide-remote/gpu-siri/runs/r1`, `r2`, `s1`, `s2`; XR-VIEWER's `x7`, `x8`), swiftcode-airc's reflection, hang reports and checkpoints, `GPURecoveryTests`, `scripts/gpu-probes/hangkick.c`, `car.c` |
 | Two runtimes, one identifier, profiles identical; match list (§2.1) | 2, 3 | runtime `Info.plist`/`profile.plist` via `plutil`; `simctl list runtimes -j`; `simctl runtime match list` |
 | `SystemVersion.plist` values | 2 | file read |
 | Profile differences (§2.2) | 2 | `profile.plist` diff against iOS 27.1 |
@@ -6325,10 +6325,10 @@ depth clear (§5.6) has no test of its own. No frame-rate figure comes from this
 | ARKit providers and pose (§5.4) | 3 | VisionProbe |
 | Boot times, migration, launches (§6) | 3 | `simctl boot`/`bootstatus`, our `boottimer.sh`, migration plist, runningboardd and SurfBoard logs |
 | Home layout | 2, 3 | `com.apple.RealityLauncher.plist` read with `plistlib` |
-| Requirements, rounds, risks (§7–8) | — | Ycode decisions from the above |
-| Ycode R1 results (§10.2), the abort and what was ruled out (§10.4) | 3 | Ycode boots c1–c13 on the Thor (device `d1`, 24M362): `log stream` one-shots, `--trace-name` traces of wakeboardd and backboardd, thread reports, Ycode fault reports with call chains, our probes `vprobe`, `mtlwatch.dylib`, `rkprobe`, Ycode's `YCODE_FRAMEBUFFER_CALLS`, `YCODE_METAL_DUMP_OPS`, `YCODE_IOSURFACE_LOG` diagnostics |
+| Requirements, rounds, risks (§7–8) | — | SwiftCode decisions from the above |
+| SwiftCode R1 results (§10.2), the abort and what was ruled out (§10.4) | 3 | SwiftCode boots c1–c13 on the Thor (device `d1`, 24M362): `log stream` one-shots, `--trace-name` traces of wakeboardd and backboardd, thread reports, SwiftCode fault reports with call chains, our probes `vprobe`, `mtlwatch.dylib`, `rkprobe`, SwiftCode's `SWIFTCODE_FRAMEBUFFER_CALLS`, `SWIFTCODE_METAL_DUMP_OPS`, `SWIFTCODE_IOSURFACE_LOG` diagnostics |
 | `memorystatus_control` answers EPERM to unprivileged callers (§10.4) | 1 | xnu `bsd/kern/kern_memorystatus.c`, `memorystatus_control` |
-| Ycode implementation (§10.1, §10.3) | — | Ycode decisions |
+| SwiftCode implementation (§10.1, §10.3) | — | SwiftCode decisions |
 | Reference device questions, order and answers in backboardd and datamigrator (§10.6.1) | 3 | our recorder inserted into reference boots (methods of the device class and of the Metal objects it returns rerouted and logged; no proxy); our capability probe |
 | Only op 37 reaches the host; reference op-37 reply (§10.6.1) | 3 | our probe with our Metal message recorder (`research/experiments/simulator/metal-sim/`) |
 | Order of the reference start (§10.6.2) | 3 | our recorder, cold and repeat boots |
@@ -6339,19 +6339,19 @@ depth clear (§5.6) has no test of its own. No frame-rate figure comes from this
 | First-boot semaphore and Pulse (§10.6.6) | 3, 4 | wakeboardd's imported symbols and strings; boots with and without the semaphore present |
 | wakeboardd swap pattern and timing (§10.6.6) | 3 | our recorder's SimFramebuffer interposition in five reference first boots; wakeboardd, backboardd and SurfBoard logs |
 
-| R2a recorder results, start order under Ycode, no call or system call after the primitive-shape stage (§10.7.2) | 3, 4 | Ycode boots r1–r18 on the Thor (device copied from `d1`): `mtlrec.dylib` logs (with caller chains named by `dladdr`, exported symbols only), the boot profile's PC timeline named by `symaddr`, guest `log stream` at debug level, R1's trap trace c5 |
-| Defaults and memory-size experiments (§10.7.2) | 3 | Ycode boots r13 (`YCODE_GUEST_MEMSIZE` 16 GiB), r17 (three defaults set to NO) |
+| R2a recorder results, start order under SwiftCode, no call or system call after the primitive-shape stage (§10.7.2) | 3, 4 | SwiftCode boots r1–r18 on the Thor (device copied from `d1`): `mtlrec.dylib` logs (with caller chains named by `dladdr`, exported symbols only), the boot profile's PC timeline named by `symaddr`, guest `log stream` at debug level, R1's trap trace c5 |
+| Defaults and memory-size experiments (§10.7.2) | 3 | SwiftCode boots r13 (`SWIFTCODE_GUEST_MEMSIZE` 16 GiB), r17 (three defaults set to NO) |
 | `memorystatus_control` self-query of memory-limit properties is refused without privilege (§10.4 row confirmed) | 1 | xnu `bsd/kern/kern_memorystatus.c`, `memorystatus_control` (only the freezer queries skip the check on release kernels) |
-| Shared-event handles, op-37 z, launch fix (§10.7.3) | — | Ycode decisions; unit tests |
-| Reference start order, counts and answers with Ycode's recorder; VFX queue before the primitive-shape stage; defaults read and their values; "Compiling PSO RT" in the reference (§9 Q13, §10.8.1, §10.8.2) | 3 | Ycode's `mtlrec.dylib`, built for the visionOS simulator SDK, with our preference-read log, in five reference boots of `ycode-test-visionos-obs2` (one cold); `log show` of backboardd matched by the wall clock |
+| Shared-event handles, op-37 z, launch fix (§10.7.3) | — | SwiftCode decisions; unit tests |
+| Reference start order, counts and answers with SwiftCode's recorder; VFX queue before the primitive-shape stage; defaults read and their values; "Compiling PSO RT" in the reference (§9 Q13, §10.8.1, §10.8.2) | 3 | SwiftCode's `mtlrec.dylib`, built for the visionOS simulator SDK, with our preference-read log, in five reference boots of `swiftcode-test-visionos-obs2` (one cold); `log show` of backboardd matched by the wall clock |
 | Return offsets in the render manager's and the engine's start; names of the engine's components (§10.8.2, §10.8.4) | 4 | caller chains from the same recordings, named by `dladdr` (exported symbols of CoreRE) |
 | Heap sizes are not the cause (§10.8.3) | 3 | reference boot with every `heapTextureSizeAndAlignWithDescriptor:` answer replaced by R2a's formula: heaps of 69 632 and 67 108 992 bytes, start completed |
 | Size-and-align answers, heap size rounding, available size, alignments, the fitted rule (§10.8.3) | 3 | the start's own queries (recorder) and our size probe (4 170 texture descriptors, 45 buffer queries, 26 heaps) run with `simctl spawn` in the reference device; the rule checked by our script against every probe row |
-| VFX manager construction, its queues, the hookup entered and returning early, no default read (§9 Q14, §10.9.2) | 3, 4 | Ycode boots a2–a15, b1–b3 on the Thor (device copied from R2a's): `mtlrec.dylib` look-ups (dispatch queue labels with caller chains), owner-block scans and dumps, the guest's debug log of preference reads; function names from `dladdr` and the images' symbol tables (our `exports`) |
-| The two render-manager bytes decide the hookup and the start; where they change; candidates ruled out (§10.9.3) | 3 | black-box experiments in Ycode's guest with `mtlrec.dylib` (byte flips with the hookup called again, b4; bytes set before the hookup, b12; dumps at successive points, a12, a14, b10; isolated constructor call, b13; engine configuration read and changed, b8, b9, b18, g1–g5; configuration byte bisection, f0, fA–fD; frame and job manager bytes, h1, h2; CPU count c1, a10, a15; preference b6) |
-| What follows the abort with the bytes set; wakeboardd's and backboardd's crashes; `messageType` 19 (§10.9.4) | 3, 4 | Ycode boots p1–p11 (guest `log stream`, Ycode fault reports with call chains named by our `symaddr`, `mtlrec.dylib` IOSurface and XPC reads in wakeboardd and pre-call logs in backboardd, Ycode's host log); probe `shtex`; the constant `kIOSurfaceMetalSharedTexture` read in the guest |
-| Op 22 rule, 16 KiB heaps, `messageType` 19 answer (§10.9.5) | — | Ycode design; unit tests `CoreTests.heapSizesFollowTheReferenceRule`, `sharedTextureGetsAHostSurface`; iOS 27.1 boots with Settings and Safari launched (Ycode, R2b) |
-| Reference RM +0xd0 … +0xd7 at the three points; clearing +0xd4/+0xd5 in the reference reproduces the abort (§9 Q15, §10.10.1) | 3 | Ycode's `mtlrec.dylib` (unchanged build) in reference boots q1, q3, q5 of `ycode-test-visionos-obs3`; `log show` of backboardd |
+| VFX manager construction, its queues, the hookup entered and returning early, no default read (§9 Q14, §10.9.2) | 3, 4 | SwiftCode boots a2–a15, b1–b3 on the Thor (device copied from R2a's): `mtlrec.dylib` look-ups (dispatch queue labels with caller chains), owner-block scans and dumps, the guest's debug log of preference reads; function names from `dladdr` and the images' symbol tables (our `exports`) |
+| The two render-manager bytes decide the hookup and the start; where they change; candidates ruled out (§10.9.3) | 3 | black-box experiments in SwiftCode's guest with `mtlrec.dylib` (byte flips with the hookup called again, b4; bytes set before the hookup, b12; dumps at successive points, a12, a14, b10; isolated constructor call, b13; engine configuration read and changed, b8, b9, b18, g1–g5; configuration byte bisection, f0, fA–fD; frame and job manager bytes, h1, h2; CPU count c1, a10, a15; preference b6) |
+| What follows the abort with the bytes set; wakeboardd's and backboardd's crashes; `messageType` 19 (§10.9.4) | 3, 4 | SwiftCode boots p1–p11 (guest `log stream`, SwiftCode fault reports with call chains named by our `symaddr`, `mtlrec.dylib` IOSurface and XPC reads in wakeboardd and pre-call logs in backboardd, SwiftCode's host log); probe `shtex`; the constant `kIOSurfaceMetalSharedTexture` read in the guest |
+| Op 22 rule, 16 KiB heaps, `messageType` 19 answer (§10.9.5) | — | SwiftCode design; unit tests `CoreTests.heapSizesFollowTheReferenceRule`, `sharedTextureGetsAHostSurface`; iOS 27.1 boots with Settings and Safari launched (SwiftCode, R2b) |
+| Reference RM +0xd0 … +0xd7 at the three points; clearing +0xd4/+0xd5 in the reference reproduces the abort (§9 Q15, §10.10.1) | 3 | SwiftCode's `mtlrec.dylib` (unchanged build) in reference boots q1, q3, q5 of `swiftcode-test-visionos-obs3`; `log show` of backboardd |
 | The span's only call is the first `hw.physicalcpu` query of the process, with an 8-byte buffer length (§10.10.1) | 3 | recorder look-ups with caller chains, boots q2, q4, q6 |
 | The query's buffer is the render manager's +0xd0 (§10.10.1) | 5 | 36 instructions of the loaded image read in the reference device and disassembled; done because black-box levels could not reach a decision without calls; kept in `research/dirty/visionos-obs3/` |
 | An 8-byte `hw.physicalcpu` answer clears the bytes and causes the abort in the reference; control boot (§10.10.1) | 3 | recorder copy with an answer substitution, boots q6, q7; boot h1 without it |
@@ -6361,74 +6361,74 @@ depth clear (§5.6) has no test of its own. No frame-rate figure comes from this
 | What a handle needs (§10.10.2) | 3 | our probe `shtex3`, seven cases, each in its own process |
 | How handles travel (§10.10.2) | 3, 4 | `mslog` on the `com.apple.wakeboard*` connections in backboardd and wakeboardd (boot m2: message names, signatures, keys); recorder look-ups in backboardd (boot h1: XPC and IOSurface reads with caller chains named by `dladdr`) |
 | SurfBoard's simulated presence; DisplayReveal's wake assertion; the host-side power service (§10.10.3) | 3 | `log show` of SurfBoard, wakeboardd and backboardd (boots q2, h1); `launchctl print user/501` in the device; `mslog` boot m3 |
-| R3: abort cleared by the sysctl widths; boot progress, presence, Run, black frames (§10.11.1, §10.11.2) | 3 | Ycode boots s1–s15 on the Thor (guest `log stream`, Ycode's host log, `--screenshot`, `YCODE_METAL_STATS`, `YCODE_METAL_TRACE`, `YCODE_METAL_SHARED_CONTENT`) |
+| R3: abort cleared by the sysctl widths; boot progress, presence, Run, black frames (§10.11.1, §10.11.2) | 3 | SwiftCode boots s1–s15 on the Thor (guest `log stream`, SwiftCode's host log, `--screenshot`, `SWIFTCODE_METAL_STATS`, `SWIFTCODE_METAL_TRACE`, `SWIFTCODE_METAL_SHARED_CONTENT`) |
 | sysctl width rules (§10.11.1) | 1, 3 | xnu `bsd/kern/kern_sysctl.c` (`sysctl_io_number`, `sysctl_old_user`, `sysctl` copying out `oldlen`); the reference table of §10.10.1; unit tests `SysctlTests.naturalWidths`, `pagesizeByNumberAndByName` |
-| `messageType` 19/20 implementation (§10.11.3) | — | Ycode design from §10.10.2; unit tests `CoreTests.sharedTextureGetsAHostSurface`, `sharedTextureHandleOpensTheSameImage`, `sharedTextureHandleOfAGuestSurface`, `IOSurfaceServiceTests.sharedTextureSurface` |
-| Task identity tokens (§10.11.3) | 1, 3 | xnu `osfmk/mach/task.defs` (routine and flavors); Ycode's fault reports (CoreRE caller) and host log of unimplemented library functions |
-| Range binding records, op 131 (§10.11.3) | 3 | first bodies logged by Ycode's Metal host (wakeboardd 114: 16 bytes; backboardd 131: 52 bytes); unit test `CommandDecoderTests.rangeBindingsAndViewportArrays` |
-| `calculate_clamped_lod` operand form (§10.11.3) | 1, 3 | Metal Shading Language specification (texture member functions); operand types reported by ycode-airc for the guest's functions |
+| `messageType` 19/20 implementation (§10.11.3) | — | SwiftCode design from §10.10.2; unit tests `CoreTests.sharedTextureGetsAHostSurface`, `sharedTextureHandleOpensTheSameImage`, `sharedTextureHandleOfAGuestSurface`, `IOSurfaceServiceTests.sharedTextureSurface` |
+| Task identity tokens (§10.11.3) | 1, 3 | xnu `osfmk/mach/task.defs` (routine and flavors); SwiftCode's fault reports (CoreRE caller) and host log of unimplemented library functions |
+| Range binding records, op 131 (§10.11.3) | 3 | first bodies logged by SwiftCode's Metal host (wakeboardd 114: 16 bytes; backboardd 131: 52 bytes); unit test `CommandDecoderTests.rangeBindingsAndViewportArrays` |
+| `calculate_clamped_lod` operand form (§10.11.3) | 1, 3 | Metal Shading Language specification (texture member functions); operand types reported by swiftcode-airc for the guest's functions |
 | Power-management server (§10.11.4) | 1, 3 | IOKitUser `pwr_mgt.subproj/powermanagement.defs` (routines and order) and the IOPMLib client's behaviour without a server; SurfBoard and wakeboardd logs of boots s3, s5; unit test `PowerManagementHostServiceTests` |
-| Registration queue overflow (§10.11.4) | 3 | Ycode's host log of boot s4 |
-| Records 24, 25, 132, 212, 213 and their fields (§9 Q18, §10.12.1) | 3 | our probes `encprobe`, `encprobe2` (separator records) under `mslog` with port names, in `ycode-test-visionos-obs4` |
-| The same calls make those records in backboardd's command buffers; counts; fence traffic (§10.12.1) | 3 | boot m2 (copy of Ycode's `mtlrec.dylib` recording render-encoder calls, with `mslog`, in backboardd); boot m1 (`mslog`) |
+| Registration queue overflow (§10.11.4) | 3 | SwiftCode's host log of boot s4 |
+| Records 24, 25, 132, 212, 213 and their fields (§9 Q18, §10.12.1) | 3 | our probes `encprobe`, `encprobe2` (separator records) under `mslog` with port names, in `swiftcode-test-visionos-obs4` |
+| The same calls make those records in backboardd's command buffers; counts; fence traffic (§10.12.1) | 3 | boot m2 (copy of SwiftCode's `mtlrec.dylib` recording render-encoder calls, with `mslog`, in backboardd); boot m1 (`mslog`) |
 | 17/18 per layer, the null port, the empty reply, nil from `newSharedEventWithHandle:` (§9 Q19, §10.12.2) | 3 | `mslog` in backboardd and wakeboardd, boot m1; the recorder copy in backboardd, boot m2; VISIONOS-OBS3's capture (same pattern) |
 | Layer events: GPU signals and waits in backboardd, CPU reads in wakeboardd, value and frame slot (§10.12.2) | 3 | `mslog` segment dumps and messages of boot m1, decoded with our scripts |
 | Swapped surfaces and layer textures over time, log lines, reference frame (§9 Q20, §10.12.3) | 3 | our `layerpeek` library in wakeboardd and backboardd, boots f1 and f2 (pulsing); `simctl io screenshot`; `log show` |
 | How backboardd writes the layers; frame structure and cadence (§10.12.4) | 3 | `mslog` segment dumps of boot m1 (render pass descriptors, texture descriptors of the refs, event records) |
-| What Ycode must change (§10.12.5) | — | derived from the above |
-| R4b decoder, fence handling, null-port 18, diagnostics (§10.14.1) | — | Ycode design from §10.12.1–§10.12.2 and `metal-sim-protocol.md` §8; unit tests `CommandDecoderTests.fenceVisibilityAndDeferredStoreRecords`, `computeFencesAndRangeBindings`, `CoreTests.sharedEventHandlesNameOneEventAcrossProcesses`; summaries of boots r1–r3 without unknown records |
+| What SwiftCode must change (§10.12.5) | — | derived from the above |
+| R4b decoder, fence handling, null-port 18, diagnostics (§10.14.1) | — | SwiftCode design from §10.12.1–§10.12.2 and `metal-sim-protocol.md` §8; unit tests `CommandDecoderTests.fenceVisibilityAndDeferredStoreRecords`, `computeFencesAndRangeBindings`, `CoreTests.sharedEventHandlesNameOneEventAcrossProcesses`; summaries of boots r1–r3 without unknown records |
 | Resolve and colour-attachment writes through a message-20 view land in the shared image; layer-event alias semantics (§10.14.2) | 3 | unit tests `VulkanBackendTests.sharedLayerViewTakesResolveAndAttachmentWrites`, `layerEventAliasCarriesGPUSignals` on the Thor's GPU |
-| Layer contents and event values in boots; curtain, logo, zero after "Did Reveal" (§10.14.2) | 3 | Ycode boots r1–r3, x1 on the Thor: `YCODE_METAL_STATS` with `YCODE_METAL_SHARED_CONTENT`, guest `log stream` (backboardd DisplayReveal lines) |
+| Layer contents and event values in boots; curtain, logo, zero after "Did Reveal" (§10.14.2) | 3 | SwiftCode boots r1–r3, x1 on the Thor: `SWIFTCODE_METAL_STATS` with `SWIFTCODE_METAL_SHARED_CONTENT`, guest `log stream` (backboardd DisplayReveal lines) |
 | The room's asset: MA query result, catalog download failure, `state=unavailable`, configurationError, the directory enumeration (§10.14.3, §9 Q21) | 3 | guest `log stream` of RealityEnvironment and mobileassetd in boots r1–r3; `--trace-name RealityEnvironment` (boot r3); the device's `data/private/var/MobileAsset/AssetsV2` listing |
-| GPU hang location in x1 (§10.14.4) | 3 | Ycode's Vulkan hang report (checkpoints) in boot x1 |
-| The reference's catalog block, chosen entries, versions and paths; mobileassetd's answers before and after the catalog download (§9 Q21 a, b; §10.15.1) | 3 | `log show` of RealityEnvironment and mobileassetd in first boots b1–b4 of `ycode-test-visionos-obs5`; our recorder `fsrec` in mobileassetd (b2) |
+| GPU hang location in x1 (§10.14.4) | 3 | SwiftCode's Vulkan hang report (checkpoints) in boot x1 |
+| The reference's catalog block, chosen entries, versions and paths; mobileassetd's answers before and after the catalog download (§9 Q21 a, b; §10.15.1) | 3 | `log show` of RealityEnvironment and mobileassetd in first boots b1–b4 of `swiftcode-test-visionos-obs5`; our recorder `fsrec` in mobileassetd (b2) |
 | The downloaded catalog lists no room (§10.15.1) | 3 | the device's catalog file read for key names and `EnvironmentKey` values only |
 | The room without the guest's network; download error 60 and retry (§9 Q21 c) | 3 | boot b3 (`fsrec` refusing guest connects), `log show`, screenshots |
 | Files under `AssetsV2` after a boot; which process reads which room file and how (§9 Q21 d, §10.15.1) | 3 | `find` of `DEV/data` after b1–b4; `fsrec` in RealityEnvironment and backboardd (b2–b4) |
 | No asset variable, host folder or mount; network hosts (§10.15.1) | 3 | `ps eww` of guest processes; `mount`; `lsof -i`; mobileassetd log lines |
 | The listing sequence, request sets and returned records (§10.15.2) | 1, 3 | `fsrec` records decoded with our script (b2, b4); bit names from xnu `sys/attr.h` and getattrlistbulk(2) |
 | When `ATTR_CMN_ERROR` is packed (§10.15.2) | 3 | our probe `bulkprobe` on the Mac and in the guest |
-| Ycode's record form makes the reference fail as Ycode does (§10.15.2) | 3 | boot b5 (`fsrec` rewriting the records of the rooms folder) |
-| What Ycode must do (§10.15.3) | — | derived from the above |
-| R5: the fix, the room's load sequence, the abort and audio errors, other listings (§10.16) | 1, 3 | xnu `vfs_attrlist.c`; Ycode boots `v1`–`v3`, `i0`–`i2` on the Thor: guest `log stream`, host log, `YCODE_DEBUG_BULK_LISTINGS`, `YCODE_METAL_SHARED_CONTENT`, screenshots |
-| R4a: when and where backboardd's GPU hang happens; checkpoints; Xid 109 without MMU faults (§10.13.1) | 3 | Ycode boots h1–c4 on the Thor: Ycode's Vulkan hang reports (checkpoints, per-draw checks), the host's kernel log (`journalctl -k`); R3's runs s1–s16 |
-| R4a bisection: which draws, stages and loads cause the hang (§10.13.1) | 3 | Ycode boots with `YCODE_GPU_SKIP_SHADERS`, `YCODE_GPU_DROP_FRAGMENT` and ycode-airc's `AIRC_EXP` switches (table of §10.13.1); no shader logic read |
-| Guest functions' interfaces: cmpxchg operand types, imageblock members, inputs and outputs, used stage-in attributes, guarded-load counts (§10.13.1, §10.13.3) | 3, 4 | ycode-airc `list`, `decls` and reflection of the functions dumped in boot h6 (kept on the Thor) |
-| Null guard, base-instance check, vertex-input rule, the three pipelines' translation (§10.13.1, §10.13.3) | — | Ycode design; tests `Translator/tests/ir/interface-forms.sh`, `CompareExchangeGPUTests`, `NullPointerGPUTests`, `VulkanBackendTests.implausibleBaseInstanceIsSkipped`; boots a1–a4, b1–b4 |
-| Layer 1 content after the home-view reveal (§10.13.1) | 3 | `YCODE_METAL_SHARED_CONTENT` in boots z5, b4, c4 |
-| iOS 27.1 check (§10.13.4) | 3 | Ycode boots ios1, ios2 (home watch, `ylaunch`) |
-| Q22 (a)–(d), the service's protocol, the minimal service, iOS (§9 Q22, §10.17, `audio-host.md`) | 1, 3 | our recorder `audrec` and probe `audprobe` in the reference guests of `ycode-test-vos-audio-1` (first boots b1–b8, probe runs p1–p6) and `ycode-test-ios-audio-1` (boot i1, probe runs ip1–ip3); reply rewriting inside the guest (b3–b8, ip3); `log show`; CoreAudio codes and records from the macOS SDK headers |
-| R6: where backboardd's compute hangs stop, what was ruled out, the bisection, the cause and the result (§10.18) | 3 | Ycode boots `r1`–`r6`, `x-psb`, `x-imgwrite`, `f1`–`f6` on the Thor: hang reports with running checkpoints and dispatch tables, captures, the host's kernel log; probes `areplay`, `pollute`, `imgoob`, `pinprobe` (our GLSL, ycode-airc's own SPIR-V, captured bytes); `CaptureReplayTests`; `VulkanBackendTests.kernelWritesAViewInAReusedSlot` on the code before and after |
-| R6: room loads, PHASE aborts and layer contents after the fix (§10.18.3) | 3 | the same boots: guest `log stream`, `YCODE_METAL_SHARED_CONTENT`, screenshots |
-| R6: iOS 27.1 and iPad checks (§10.18.4) | 3 | Ycode boots `i1`–`i3` (home watch, `ylaunch`, screenshots), `p1` |
-| AUDIO-HOST: the service, work intervals, mlock, pthread mutex semantics, settings files (§10.19.1) | 1, 3 | `audio-host.md` §13, `work-intervals.md`; CoreAudio header codes; xnu `sys_work_interval.c`, `work_interval.c`, libsyscall `work_interval.c`; Ycode tests `AudioHostServiceTests`, `WorkIntervalTests`, `Stage3bTests.mlockChecks`, SimHostLibs pthread host tests |
-| AUDIO-HOST: visionOS results — PHASE starts, IO runs, no PHASE abort, the EDEADLK abort after an engine stop and its fix, frames (§10.19.2) | 3 | Ycode boots `v1`–`v9` on the Thor: guest `log stream` (backboardd, SurfBoard, RealityEnvironment, …), host log (`audio:` lines, `YCODE_DEBUG_AUDIO`, `YCODE_DEBUG_WORK_INTERVALS`, `YCODE_DEBUG_SEMAPHORES`), `YCODE_AUDIO_CAPTURE`, screenshots |
-| AUDIO-HOST: iOS results — clients, the lock sound captured, fatal conditions, boot time and the control-queue wait (§10.19.3) | 3 | Ycode boots `a1`–`a5`, timing pairs `t`, `t2`, `t3` (`timed.sh`) and boot profiles `p-audio`/`p-noaudio` (`YCODE_BOOT_PROFILE`) on the Thor: host log, guest log stream of errors and faults, captured WAV, Lock/Home presses through the display server |
-| R7: the room's data flow, the compose pass and layer 2 correct, the room textures zero, the decoder's inputs non-zero and outputs zero, the targets unorm views of sRGB textures without storage views (§10.20.1) | 3 | Ycode boots `b0`, `p1`–`p5` on the Thor: pass probes (`YCODE_GPU_PROBE`) of `fsCompose` and `astc` command buffers, `YCODE_METAL_SHARED_CONTENT`; ycode-airc's reflection of `fsCompose` and `astc` (names, binding types and access only) |
+| SwiftCode's record form makes the reference fail as SwiftCode does (§10.15.2) | 3 | boot b5 (`fsrec` rewriting the records of the rooms folder) |
+| What SwiftCode must do (§10.15.3) | — | derived from the above |
+| R5: the fix, the room's load sequence, the abort and audio errors, other listings (§10.16) | 1, 3 | xnu `vfs_attrlist.c`; SwiftCode boots `v1`–`v3`, `i0`–`i2` on the Thor: guest `log stream`, host log, `SWIFTCODE_DEBUG_BULK_LISTINGS`, `SWIFTCODE_METAL_SHARED_CONTENT`, screenshots |
+| R4a: when and where backboardd's GPU hang happens; checkpoints; Xid 109 without MMU faults (§10.13.1) | 3 | SwiftCode boots h1–c4 on the Thor: SwiftCode's Vulkan hang reports (checkpoints, per-draw checks), the host's kernel log (`journalctl -k`); R3's runs s1–s16 |
+| R4a bisection: which draws, stages and loads cause the hang (§10.13.1) | 3 | SwiftCode boots with `SWIFTCODE_GPU_SKIP_SHADERS`, `SWIFTCODE_GPU_DROP_FRAGMENT` and swiftcode-airc's `AIRC_EXP` switches (table of §10.13.1); no shader logic read |
+| Guest functions' interfaces: cmpxchg operand types, imageblock members, inputs and outputs, used stage-in attributes, guarded-load counts (§10.13.1, §10.13.3) | 3, 4 | swiftcode-airc `list`, `decls` and reflection of the functions dumped in boot h6 (kept on the Thor) |
+| Null guard, base-instance check, vertex-input rule, the three pipelines' translation (§10.13.1, §10.13.3) | — | SwiftCode design; tests `Translator/tests/ir/interface-forms.sh`, `CompareExchangeGPUTests`, `NullPointerGPUTests`, `VulkanBackendTests.implausibleBaseInstanceIsSkipped`; boots a1–a4, b1–b4 |
+| Layer 1 content after the home-view reveal (§10.13.1) | 3 | `SWIFTCODE_METAL_SHARED_CONTENT` in boots z5, b4, c4 |
+| iOS 27.1 check (§10.13.4) | 3 | SwiftCode boots ios1, ios2 (home watch, `ylaunch`) |
+| Q22 (a)–(d), the service's protocol, the minimal service, iOS (§9 Q22, §10.17, `audio-host.md`) | 1, 3 | our recorder `audrec` and probe `audprobe` in the reference guests of `swiftcode-test-vos-audio-1` (first boots b1–b8, probe runs p1–p6) and `swiftcode-test-ios-audio-1` (boot i1, probe runs ip1–ip3); reply rewriting inside the guest (b3–b8, ip3); `log show`; CoreAudio codes and records from the macOS SDK headers |
+| R6: where backboardd's compute hangs stop, what was ruled out, the bisection, the cause and the result (§10.18) | 3 | SwiftCode boots `r1`–`r6`, `x-psb`, `x-imgwrite`, `f1`–`f6` on the Thor: hang reports with running checkpoints and dispatch tables, captures, the host's kernel log; probes `areplay`, `pollute`, `imgoob`, `pinprobe` (our GLSL, swiftcode-airc's own SPIR-V, captured bytes); `CaptureReplayTests`; `VulkanBackendTests.kernelWritesAViewInAReusedSlot` on the code before and after |
+| R6: room loads, PHASE aborts and layer contents after the fix (§10.18.3) | 3 | the same boots: guest `log stream`, `SWIFTCODE_METAL_SHARED_CONTENT`, screenshots |
+| R6: iOS 27.1 and iPad checks (§10.18.4) | 3 | SwiftCode boots `i1`–`i3` (home watch, `ylaunch`, screenshots), `p1` |
+| AUDIO-HOST: the service, work intervals, mlock, pthread mutex semantics, settings files (§10.19.1) | 1, 3 | `audio-host.md` §13, `work-intervals.md`; CoreAudio header codes; xnu `sys_work_interval.c`, `work_interval.c`, libsyscall `work_interval.c`; SwiftCode tests `AudioHostServiceTests`, `WorkIntervalTests`, `Stage3bTests.mlockChecks`, SimHostLibs pthread host tests |
+| AUDIO-HOST: visionOS results — PHASE starts, IO runs, no PHASE abort, the EDEADLK abort after an engine stop and its fix, frames (§10.19.2) | 3 | SwiftCode boots `v1`–`v9` on the Thor: guest `log stream` (backboardd, SurfBoard, RealityEnvironment, …), host log (`audio:` lines, `SWIFTCODE_DEBUG_AUDIO`, `SWIFTCODE_DEBUG_WORK_INTERVALS`, `SWIFTCODE_DEBUG_SEMAPHORES`), `SWIFTCODE_AUDIO_CAPTURE`, screenshots |
+| AUDIO-HOST: iOS results — clients, the lock sound captured, fatal conditions, boot time and the control-queue wait (§10.19.3) | 3 | SwiftCode boots `a1`–`a5`, timing pairs `t`, `t2`, `t3` (`timed.sh`) and boot profiles `p-audio`/`p-noaudio` (`SWIFTCODE_BOOT_PROFILE`) on the Thor: host log, guest log stream of errors and faults, captured WAV, Lock/Home presses through the display server |
+| R7: the room's data flow, the compose pass and layer 2 correct, the room textures zero, the decoder's inputs non-zero and outputs zero, the targets unorm views of sRGB textures without storage views (§10.20.1) | 3 | SwiftCode boots `b0`, `p1`–`p5` on the Thor: pass probes (`SWIFTCODE_GPU_PROBE`) of `fsCompose` and `astc` command buffers, `SWIFTCODE_METAL_SHARED_CONTENT`; swiftcode-airc's reflection of `fsCompose` and `astc` (names, binding types and access only) |
 | R7: the dumped dispatch decodes correctly offline (§10.20.1) | 3 | `ProbeReplayTests` on the Thor with `p4`'s dumps and the cached translation |
 | R7: op 29's last word, the stale high half, the black parts and skipped draws (§10.20.2, §9 Q24) | 3 | op-29 bodies logged in boot `v4`; skipped-draw lines and screenshots of `b0`, `v2`; `metal-sim-protocol.md` §8.3 (the short forms carry 16-bit values) |
-| R7: the changes and their tests; boots with them; the room in the frames; layer contents (§10.20.4, §10.20.5) | 1, 3 | Vulkan specification (`VK_IMAGE_CREATE_EXTENDED_USAGE_BIT`, `VkImageViewUsageCreateInfo`, format features); `VulkanBackendTests.kernelWritesUnormViewsOfAnSRGBTexture` (fails without the change), `CommandDecoderTests.shortIndexedDrawBaseInstanceIsSixteenBits`; Ycode boots `v1`–`v4`, `t1` (home watch, screenshots, `YCODE_METAL_SHARED_CONTENT`, guest `log stream`) |
-| R7b: argument-encoder writes and the icons (§10.20.7) | 3 | Ycode boots `e3`, `v6`, `v7`, `v9`, `v10`, `f2` on the Thor (screenshots, `argument encoder` log lines); `CoreTests.argumentEncoderSetCallsWriteTheirMembers`; ycode-airc's argument-buffer model (`metal-shaders.md` §3.6) |
-| R7b: visibility-result modes used by backboardd; occlusion queries (§10.20.8) | 1, 3 | Vulkan specification (occlusion queries, `vkCmdCopyQueryPoolResults`, queries inside dynamic rendering); Ycode boots `v5`–`v10` (`visibility:` lines, `YCODE_DEBUG_PASS_DRAWS`); `VulkanBackendTests.visibilityResultsCountSamples` |
-| R7b: parts of the room left out by the guest in a 16-frame cycle; the 768 × 432 linearized-depth pass and its attachments (§10.20.9, §9 Q26) | 3 | Ycode boots `v2`, `v4`, `m2`, `e3`, `v5`–`v12`: screenshot thumbnails, `YCODE_DEBUG_PASS_DRAWS(_ALL, _BUFFERS)` logs, `v7`'s Metal trace (`YCODE_METAL_TRACE_SEGMENTS`), a pass probe of `fsLinearizedDepthAsColor` (`v12`); ycode-airc's reflection (render-target indices only) |
-| R7b: merged-build boots and iOS 27.1 (§10.20.10) | 3 | Ycode boots `m1`, `m2`, `f1`, `f2`, iOS `i3`–`i6` on the Thor (home watch, `ylaunch`, host log) |
+| R7: the changes and their tests; boots with them; the room in the frames; layer contents (§10.20.4, §10.20.5) | 1, 3 | Vulkan specification (`VK_IMAGE_CREATE_EXTENDED_USAGE_BIT`, `VkImageViewUsageCreateInfo`, format features); `VulkanBackendTests.kernelWritesUnormViewsOfAnSRGBTexture` (fails without the change), `CommandDecoderTests.shortIndexedDrawBaseInstanceIsSixteenBits`; SwiftCode boots `v1`–`v4`, `t1` (home watch, screenshots, `SWIFTCODE_METAL_SHARED_CONTENT`, guest `log stream`) |
+| R7b: argument-encoder writes and the icons (§10.20.7) | 3 | SwiftCode boots `e3`, `v6`, `v7`, `v9`, `v10`, `f2` on the Thor (screenshots, `argument encoder` log lines); `CoreTests.argumentEncoderSetCallsWriteTheirMembers`; swiftcode-airc's argument-buffer model (`metal-shaders.md` §3.6) |
+| R7b: visibility-result modes used by backboardd; occlusion queries (§10.20.8) | 1, 3 | Vulkan specification (occlusion queries, `vkCmdCopyQueryPoolResults`, queries inside dynamic rendering); SwiftCode boots `v5`–`v10` (`visibility:` lines, `SWIFTCODE_DEBUG_PASS_DRAWS`); `VulkanBackendTests.visibilityResultsCountSamples` |
+| R7b: parts of the room left out by the guest in a 16-frame cycle; the 768 × 432 linearized-depth pass and its attachments (§10.20.9, §9 Q26) | 3 | SwiftCode boots `v2`, `v4`, `m2`, `e3`, `v5`–`v12`: screenshot thumbnails, `SWIFTCODE_DEBUG_PASS_DRAWS(_ALL, _BUFFERS)` logs, `v7`'s Metal trace (`SWIFTCODE_METAL_TRACE_SEGMENTS`), a pass probe of `fsLinearizedDepthAsColor` (`v12`); swiftcode-airc's reflection (render-target indices only) |
+| R7b: merged-build boots and iOS 27.1 (§10.20.10) | 3 | SwiftCode boots `m1`, `m2`, `f1`, `f2`, iOS `i3`–`i6` on the Thor (home watch, `ylaunch`, host log) |
 | R8: the race between Siri's orb pre-warm and the home view's resume; counts over 38 boots; timings; the resume before the room's first frame (§10.21.1) | 3 | guest `log stream` of SurfBoard, assistantd, Siri, backboardd (R7/R7b boots and R8 `b1`, `b2`, `h1`–`h3`, `g1`–`g6`), our script `race.py` over them; host start times (`/proc/uptime` at the start) and home-watch lines |
-| R8: a Home press brings the home view up (§10.21.1) | 3 | boots `h1`, `h3`: `ycode-display-probe … button home` through the display server; backboardd's button lines and SurfBoard's RealityLauncher request |
-| R8: the home guard and its boots (§10.21.2) | — / 3 | Ycode design; `VisionHomeGuardTests`; boots `g1`–`g6`, `k1`–`k3` (screenshots, guest log, the guard's log lines) |
-| R8: visionOS apps built with Ycode's swift-build engine; the simulator SDK override; synchronized folders not expanded (§10.21.3, `build-pif.md`) | 1, 3 | swift-build (open source) built from `Tools/ycode-swb`; `ycode build` of `Samples/VisionSamples` on the Mac; `SwiftBuildEngineTests.simulatorDestinationsChooseTheSimulatorSDK`; Info.plist keys from Apple's public documentation |
-| R8: install, launch and rendering of the samples and the runtime's apps; the touch that did not reach the window; Photos' abort (§10.21.3) | 3 | Ycode boots `a1`–`a10`, `a6b` on the Thor: ylaunch lines, guest `log stream` (the samples' `org.ycode.samples` lines), Ycode fault reports, screenshots, `--trace-name Photos` |
+| R8: a Home press brings the home view up (§10.21.1) | 3 | boots `h1`, `h3`: `swiftcode-display-probe … button home` through the display server; backboardd's button lines and SurfBoard's RealityLauncher request |
+| R8: the home guard and its boots (§10.21.2) | — / 3 | SwiftCode design; `VisionHomeGuardTests`; boots `g1`–`g6`, `k1`–`k3` (screenshots, guest log, the guard's log lines) |
+| R8: visionOS apps built with SwiftCode's swift-build engine; the simulator SDK override; synchronized folders not expanded (§10.21.3, `build-pif.md`) | 1, 3 | swift-build (open source) built from `Tools/swiftcode-swb`; `swiftcode build` of `Samples/VisionSamples` on the Mac; `SwiftBuildEngineTests.simulatorDestinationsChooseTheSimulatorSDK`; Info.plist keys from Apple's public documentation |
+| R8: install, launch and rendering of the samples and the runtime's apps; the touch that did not reach the window; Photos' abort (§10.21.3) | 3 | SwiftCode boots `a1`–`a10`, `a6b` on the Thor: ylaunch lines, guest `log stream` (the samples' `org.swiftcode.samples` lines), SwiftCode fault reports, screenshots, `--trace-name Photos` |
 | R8: sRGB storage writes and reads (§10.21.4, `metal-shaders.md` §4.4) | 1, 3 | IEC 61966-2-1 transfer functions (as in the Metal Shading Language specification's sRGB conversion); `SRGBStorageGPUTests` and `interface-forms.sh` case 6 on the Thor's GPU |
-| R8: heap slots kept and argument-encoder members written again at a restore; visionOS snapshots refused while shared handles exist (§10.21.5, `snapshot.md` §8) | — / 3 | Ycode design; `SnapshotReplayTests.restoreKeepsSlotsAndRewritesArgumentMembers`, `VulkanBackendTests.reservedHeapSlotsGoBackToTheirObjects`, `IndexAllocatorTests`; `MetalHostCore.snapshotBusyReason`; iOS boot `s1`/`s1-r` (stop snapshot and restore) |
-| R8: iOS 27.1 check (§10.21.6) | 3 | Ycode boots `s1`, `s1-r`, `i1` (home watch, `ylaunch`, host log) |
+| R8: heap slots kept and argument-encoder members written again at a restore; visionOS snapshots refused while shared handles exist (§10.21.5, `snapshot.md` §8) | — / 3 | SwiftCode design; `SnapshotReplayTests.restoreKeepsSlotsAndRewritesArgumentMembers`, `VulkanBackendTests.reservedHeapSlotsGoBackToTheirObjects`, `IndexAllocatorTests`; `MetalHostCore.snapshotBusyReason`; iOS boot `s1`/`s1-r` (stop snapshot and restore) |
+| R8: iOS 27.1 check (§10.21.6) | 3 | SwiftCode boots `s1`, `s1-r`, `i1` (home watch, `ylaunch`, host log) |
 | Q24: op 29 carries backboardd's 36-index instanced depth draws with base instance 0 and stale high halves; the host ignores the high half (§9 Q24) | 3 | OBS-ARGBUF, 2026-10-30: `mslog` in backboardd during reference boot `x1` (visionOS 27.0), 8 145 op-29 records; our probe `argprobe draw2` on the iOS 27.0 reference |
 | Q25: argument encoders: host-written members at the offsets op 16 describes, op 17's reply order, op 19's forms; the home view's one descriptor-built encoder (§9 Q25, `metal-sim-protocol.md` §4.3) | 3 | OBS-ARGBUF: `argprobe.m` (32 layouts) under `mslog` and its test server on the iOS 27.0 reference; backboardd's op 16, 17 and 19 records in boot `x1`; `msargbuf.py` |
 | Q26: every reference room pass holds all five draws; the 768 × 432 pass every 0.52 s with its seven draws and attachments (§9 Q26) | 3 | OBS-ARGBUF: backboardd's command-buffer segments in boot `x1` (10 114 room passes, 280 linearized-depth passes, texture creation records for the attachment sizes and formats) |
-| ARGBUF-IMPL: argument encoders by op 16's description; backboardd's layout as parsed; icons in the home view (§10.22.1) | — / 3 | Ycode design from `metal-sim-protocol.md` §4.3; `ArgumentLayoutTests`; Ycode boots `v1`–`v5` on the Thor (host "argument layout" and "argument encoder" lines, screenshots) |
-| ARGBUF-IMPL: the missing parts follow the visibility results; every result zero; the 4× pass's attachments and depth states (§10.22.2) | 3 | Ycode boots `v1` (none), `v2` (`YCODE_DEBUG_VISIBILITY_FORCE=1`), `v3` (`=0`), `v5` (`YCODE_DEBUG_VISIBILITY_STATS=1`) on the Thor: frame thumbnails counted with `dark.py`, the statistics lines |
-| ARGBUF-IMPL: the box draws have no fragment function; Ycode discarded such pipelines; the fix and `v7` (§10.22.2) | 1, 3 | Metal documentation (`MTLRenderPipelineDescriptor.fragmentFunction`, `rasterizationEnabled`); Vulkan specification (rasterizer discard, pipelines without a fragment shader, graphics pipeline libraries); boot `v6` (`YCODE_DEBUG_PASS_DRAWS` lines), boot `v7`; `VulkanBackendTests.depthOnlyPipelinesRasterize` (fails with `YCODE_VULKAN_VERTEX_ONLY_DISCARD=1`) |
+| ARGBUF-IMPL: argument encoders by op 16's description; backboardd's layout as parsed; icons in the home view (§10.22.1) | — / 3 | SwiftCode design from `metal-sim-protocol.md` §4.3; `ArgumentLayoutTests`; SwiftCode boots `v1`–`v5` on the Thor (host "argument layout" and "argument encoder" lines, screenshots) |
+| ARGBUF-IMPL: the missing parts follow the visibility results; every result zero; the 4× pass's attachments and depth states (§10.22.2) | 3 | SwiftCode boots `v1` (none), `v2` (`SWIFTCODE_DEBUG_VISIBILITY_FORCE=1`), `v3` (`=0`), `v5` (`SWIFTCODE_DEBUG_VISIBILITY_STATS=1`) on the Thor: frame thumbnails counted with `dark.py`, the statistics lines |
+| ARGBUF-IMPL: the box draws have no fragment function; SwiftCode discarded such pipelines; the fix and `v7` (§10.22.2) | 1, 3 | Metal documentation (`MTLRenderPipelineDescriptor.fragmentFunction`, `rasterizationEnabled`); Vulkan specification (rasterizer discard, pipelines without a fragment shader, graphics pipeline libraries); boot `v6` (`SWIFTCODE_DEBUG_PASS_DRAWS` lines), boot `v7`; `VulkanBackendTests.depthOnlyPipelinesRasterize` (fails with `SWIFTCODE_VULKAN_VERTEX_ONLY_DISCARD=1`) |
 | Q27: unlock, home resume and Siri's pre-warm on the reference (§9 Q27) | 3 | OBS-ARGBUF: guest `log stream` (SurfBoard, assistantd) of first boots `x1`–`x3`; `simctl io` screenshots |
 | Builders' argument order and the Indigo layout of pose, selection, collection and dial messages (§5.5.6) | 3 | OBS-VISION-INPUT, 2026-10-31: our `bprobe` (marker values in every argument register, results hex-dumped) and `vhid` dumps; offsets confirmed by the values backboardd logged |
-| Target word → service; target 0 aborts backboardd (§5.5.6) | 3 | `vhid` messages to `ycode-test-vision3-a`; backboardd's sender IDs and exception text in the guest log |
+| Target word → service; target 0 aborts backboardd (§5.5.6) | 3 | `vhid` messages to `swiftcode-test-vision3-a`; backboardd's sender IDs and exception text in the guest log |
 | Events dispatched for pose, selection, collection, dial: types, usages, version, data, flags, children (§5.5.2) | 3 | our `hidrec.dylib` in backboardd (event descriptions and vendor-event arguments) |
 | Constructors the HID bundle uses (§5.5.7 item 1) | 4 | `nm -u` of CoreSimulator's xros `SimulatorHID` |
 | Hand provider's reading: pinch, direct, chirality, contacts and their sources, hover (§5.5.2) | 3 | backboardd log (RealitySystemSupport hand provider, remote-effect hit test); screenshots |
@@ -6444,31 +6444,31 @@ depth clear (§5.6) has no test of its own. No frame-rate figure comes from this
 | Device Hub plug-in immersion actions and dial log strings; vhmdd's SurfBoard immersion client; vhmdd strings identical in 27.0 and 27.2 (§5.5.9) | 4 | `strings`, `nm -m` of `VisionDeviceKitExtension`; `strings` of both runtimes' `vhmdd` |
 | Room preference before boot selects the room (§5.5.4) | 3 | plist edited while shut down; boot screenshot (Museum (Day)) |
 | App results per input (§5.5.5) | 3 | `InputProbe` logs |
-| R9: the probe's callbacks for each host input, DeviceAnchor following `set_pose`, live and pre-boot rooms, Home, the viewers' mappings (§5.5.8, §10.25) | 3 | Ycode boots r1–r3 on the Thor with our `VisionInput` app (guest log stream, screenshots); IOHIDFamily public sources (APSL 2.0) for the event constructors and field numbers (level 1) |
+| R9: the probe's callbacks for each host input, DeviceAnchor following `set_pose`, live and pre-boot rooms, Home, the viewers' mappings (§5.5.8, §10.25) | 3 | SwiftCode boots r1–r3 on the Thor with our `VisionInput` app (guest log stream, screenshots); IOHIDFamily public sources (APSL 2.0) for the event constructors and field numbers (level 1) |
 | Glass: blur, gain, offset, rim (§10.23.3) | 3 | screenshot pairs with and without the window, least-squares fit against blurred backgrounds |
 | Content-glass recipe values; CoreRE glass material (§10.23.3) | 2 | `plutil -p` of the recipe; JSON keys of the material definition |
 | Mirror and rough metal appearance (§10.23.4) | 3 | screenshots of `InputProbe`'s volume |
 | Environment probe and albedo texture formats (§10.23.4) | 2 | KTX 1 headers, key/value data and level data read with our script |
-| R10: glass data flow, the threadgroup argument known by its pointer, the read-only probe cube without a storage view; probe statistics (§10.24.1–2) | 3 | Ycode boots `w1`–`w3`, `m1`–`m3` on the Thor: frame map (`YCODE_GPU_FRAME_MAP`), pass probes of `kernelSFBBlurAndFilter` and `generateClampedMap`, ycode-airc reflection |
-| Guest constexpr samplers held as a plain `i64`, all read as 0 before (§10.24.2 item 2) | 3 | ycode-airc reflection (`state_type`, `state_source`) of visionOS functions dumped in earlier rounds (`vision5-h6`), translation caches of R10 and an iOS 27.0 area; `tests/ir/interface-forms.sh` case 8 |
+| R10: glass data flow, the threadgroup argument known by its pointer, the read-only probe cube without a storage view; probe statistics (§10.24.1–2) | 3 | SwiftCode boots `w1`–`w3`, `m1`–`m3` on the Thor: frame map (`SWIFTCODE_GPU_FRAME_MAP`), pass probes of `kernelSFBBlurAndFilter` and `generateClampedMap`, swiftcode-airc reflection |
+| Guest constexpr samplers held as a plain `i64`, all read as 0 before (§10.24.2 item 2) | 3 | swiftcode-airc reflection (`state_type`, `state_source`) of visionOS functions dumped in earlier rounds (`vision5-h6`), translation caches of R10 and an iOS 27.0 area; `tests/ir/interface-forms.sh` case 8 |
 | Glass fit and rim, sphere appearance, home view (§10.24.3) | 3 | frames of `b1`, `b2` (460 s) and `b1` (160 s); our least-squares fit of the panel against a Gaussian blur of `b2`'s frame (numpy, Pillow) |
 | Other platforms unchanged (§10.24.6) | 3 | boots `i0`, `i1`, `wa1`; `ios27` run `c1-p18-first` for comparison |
 | R11: the race decided by the request's arrival before or after data migration; the window from migration to the resume; assistantd's start by apsd's boost and its post-launch timing (§10.26.1) | 3 | guest `log stream` of R7b and R8 boots and R11 `p1`, `e1`, `s1`, `c1`–`c10`, our script `order.py`; the hold release lines with their senders (`p1`) |
-| R11: shell-ready holds, the shell watch, the guard as fallback; the boot series (§10.26.1, `scheduling-policy.md` §4.2) | — / 3 | Ycode design; `SchedPolicyTests.shellReadyHoldWaitsForTheShell`, `VisionHomeGuardTests`; boots `s1`, `c1`–`c10` (hold and guard lines, home watch, screenshots) |
-| R11: PhotoKit's getattrlist on "/" and the 0 bytes free; the fix and Photos' empty library (§10.26.2) | 1, 3 | `sys/attr.h` (volume attribute bits); Ycode traces of Photos (`a10`, `p1`); `VolumeSpaceTests`; screenshots of `p1` and iOS `i1` |
+| R11: shell-ready holds, the shell watch, the guard as fallback; the boot series (§10.26.1, `scheduling-policy.md` §4.2) | — / 3 | SwiftCode design; `SchedPolicyTests.shellReadyHoldWaitsForTheShell`, `VisionHomeGuardTests`; boots `s1`, `c1`–`c10` (hold and guard lines, home watch, screenshots) |
+| R11: PhotoKit's getattrlist on "/" and the 0 bytes free; the fix and Photos' empty library (§10.26.2) | 1, 3 | `sys/attr.h` (volume attribute bits); SwiftCode traces of Photos (`a10`, `p1`); `VolumeSpaceTests`; screenshots of `p1` and iOS `i1` |
 | Pose rotation turns the reference's view at the plain home view, with a window, in mixed, progressive and full spaces; no `set_pose` needed (§5.5.10 items 1–2) | 3 | `vhid pose` on visionOS 27.2, `simctl io` screenshots, `vhm get_pose`; our `CrownProbe` for the window and spaces |
 | The pose event's fields: parent and child types, flags, child order, Orientation type 3 in field 3, w/x/y/z in fields 8–11, 16.16 values (§5.5.10 item 3) | 3 | our `hidrec2.dylib` in backboardd: each field read back by number |
 | A generic Orientation event stays type 0 and drops fields 8–11; the quaternion constructor's argument order (§5.5.10 item 4) | 3 | our `oprobe` (guest, `simctl spawn`): construct, read back, print |
 | The runtime IOKit's Orientation constructors by name (§5.5.10 item 4) | 4 | `dlsym` presence in our `oprobe` |
-| Ycode's construction reproduces the lost rotation in the reference (§5.5.10 item 4) | 3 | `hidrec2.dylib` with `HIDREC_REWRITE=1`, screenshots |
+| SwiftCode's construction reproduces the lost rotation in the reference (§5.5.10 item 4) | 3 | `hidrec2.dylib` with `HIDREC_REWRITE=1`, screenshots |
 | The reference smooths its camera: per-frame fractions, times from the send, translation alike (§5.5.12 item 1) | 3 | our `camrec.dylib` (pose events at dispatch in backboardd; presented surfaces' times and sampled rows in wakeboardd), `vhid` with send times, `camstep.py`/`stepsum.py`; 27 isolated steps on visionOS 27.2 |
 | Smoothing on time, not frames (§5.5.12 item 2) | 3 | `hmd.compositor.fps` 30 before boot; a test device type with a 30 Hz display |
 | Continuous-motion delay and gain, rate independence; repeats, pairs, overshoot (§5.5.12 items 3–4) | 3 | sine, ramp, repeat, pair and overshoot scripts (`posegen.py`, `series1.sh`), `lagfit.py` |
 | The message's host time becomes the event timestamp; offsets and scaling ignored; equal timestamps; flags (§5.5.12 item 5) | 3 | `vhid` `STAMP`/`TS_OFFSET_MS`/`TS_SCALE`/`TS_ABS`; `camrec.dylib` timestamps and flag rewrites |
 | Preferences that do not change the smoothing; layer pose "invalid" (§5.5.12 item 6) | 3 | `pexp.sh` (keys written before boot), `wakeboardctl status` |
 | "head pose for time" and `InputPoseProvider` names (§5.5.12 item 6) | 4 | printable strings of the RealitySimulation and RealitySystemSupport images in the shared cache (file format) |
-| Ycode's own timings for comparison (§5.5.12 item 7) | — | `xr-viewer.md` §6 (Ycode's measurements) |
-| Frame rates, pass costs, per-thread times, the inline experiment, iOS and watchOS comparisons (§10.28) | 3 | Ycode's simulator on the Thor, `ide-remote/vision-fps/runs/` (`h2`–`h3`, `hB3`, `t2`, `t3`, `w2`, `w3`, `wB3`, `v2`, `v3`, `y3`, `q2`, `d3`, `s1`–`s12`, `iA1`–`iB2`, `wtA1`–`wtA2`, `cG1`–`cH3`, `wG1`, `wG2`, `wH2`): frame trace with GPU timestamps, frame profile, `YCODE_IOSURFACE_STATS` |
+| SwiftCode's own timings for comparison (§5.5.12 item 7) | — | `xr-viewer.md` §6 (SwiftCode's measurements) |
+| Frame rates, pass costs, per-thread times, the inline experiment, iOS and watchOS comparisons (§10.28) | 3 | SwiftCode's simulator on the Thor, `ide-remote/vision-fps/runs/` (`h2`–`h3`, `hB3`, `t2`, `t3`, `w2`, `w3`, `wB3`, `v2`, `v3`, `y3`, `q2`, `d3`, `s1`–`s12`, `iA1`–`iB2`, `wtA1`–`wtA2`, `cG1`–`cH3`, `wG1`, `wG2`, `wH2`): frame trace with GPU timestamps, frame profile, `SWIFTCODE_IOSURFACE_STATS` |
 | The Thor driver's shading-rate features (§10.28.4) | 1 | `vulkaninfo`, Vulkan 1.4 specification |
 | Tangents = (1, 1, h/w, h/w) for five display sizes; textures and surface sizes; apps' tangents and viewport (§5.6.6 item 1–2) | 3 | test device types (`mktype.py`), `wakeboardctl status`, `StereoProbe`, `camrec` swap log, screenshots |
 | The 2732 × 2048 type is limited to runtimes ≤ 2.99 and refused (§5.6.6) | 2, 3 | its `profile.plist`; `simctl create` on 27.2, 26.5, 26.4 |
@@ -6480,9 +6480,9 @@ depth clear (§5.6) has no test of its own. No frame-rate figure comes from this
 | Foveation preferences change nothing; `com.apple.compositor.foveation.custom` YES makes wakeboardd abort at each layer creation (§5.6.7 item 5) | 3, 4 | `exp.sh` boots, `stereopeek` read log (values read), screenshot comparison, `wakeboardctl status`, wakeboardd crash reports (abort while the layer reads its defaults); key names from `strings` (level 4) |
 | Forced foveation in an app fails with `variableRasterizationRateIsNotSupported` (§5.6.7 item 6) | 1, 3 | CompositorServices headers (`cp_error.h`); `StereoProbe -fovforce` |
 | The rate-map interface, the decoder, CompositorServices' per-drawable maps (§5.6.7) | 1, 3 | Metal and CompositorServices headers of the XRSimulator 27.0 SDK; our decoder shader compiled in the guest (`rrmcli`) |
-| Foveated shading or streaming as a host-side Ycode feature (§5.6.7 item 3 of "What Ycode must do") | — | design consequence, not an observation; Vulkan specification for fragment shading rate |
+| Foveated shading or streaming as a host-side SwiftCode feature (§5.6.7 item 3 of "What SwiftCode must do") | — | design consequence, not an observation; Vulkan specification for fragment shading rate |
 
-For §5.5.10 (OBS-VISION-POSE, 2026-11-01) only `ycode-test-vision6-pose`
+For §5.5.10 (OBS-VISION-POSE, 2026-11-01) only `swiftcode-test-vision6-pose`
 (visionOS 27.2, 24N120; 27.0 could not create a device: "runtime path not
 found") was used and then deleted; no other simulator was booted or
 touched. Only `simctl`, our sender, vhmdd client, recorder and probes
@@ -6490,7 +6490,7 @@ drove it: no clicks, no screen takeover, no disassembly, nothing
 decrypted, no level 5. Logs and screenshots stayed in the agent's scratch
 folder.
 For §5.5.12 and §5.6.6 (OBS-VISION-FOV, 2026-11-01) only
-`ycode-test-vision7-*` devices were used, one booted at a time (visionOS
+`swiftcode-test-vision7-*` devices were used, one booted at a time (visionOS
 27.2; 27.0 could not create a device; the 2732 × 2048 type was refused),
 and all were deleted at the end, as were the five test device types in
 `~/Library/Developer/CoreSimulator/Profiles/DeviceTypes/` and the 15
@@ -6501,8 +6501,8 @@ no clicks, no screen takeover, no disassembly, nothing decrypted, no
 level 5. Level 4 was limited to printable strings of four images of the
 shared cache. Frame samples, logs and screenshots stayed in the agent's
 scratch folder.
-For §5.6.7 (OBS-VISION-RRM, 2026-11-01) only `ycode-test-vision8-rrm`
-(visionOS 27.2; `ycode-test-vision8-rrm27` on 27.0 could not be created)
+For §5.6.7 (OBS-VISION-RRM, 2026-11-01) only `swiftcode-test-vision8-rrm`
+(visionOS 27.2; `swiftcode-test-vision8-rrm27` on 27.0 could not be created)
 was used, one boot at a time, and then deleted; `device_set.plist` was
 identical before and after, and no device type was created. Only
 `simctl`, the runtime's `wakeboardctl` and our own recorders and probes
@@ -6518,14 +6518,14 @@ Tool sources are in `research/experiments/visionos/rrm/` (and the
 crash report copy stayed in the agent's scratch folder.
 Level 5 was not used. Nothing was decrypted; no Apple resources (images,
 rooms, models, metallibs) were copied into the repository. The test
-devices `ycode-test-visionos-1` and `ycode-test-visionos-2` were deleted. For §10.6 (VISIONOS-OBS) only the test device
-`ycode-test-visionos-obs` was used and then deleted; the recorder, probe,
+devices `swiftcode-test-visionos-1` and `swiftcode-test-visionos-2` were deleted. For §10.6 (VISIONOS-OBS) only the test device
+`swiftcode-test-visionos-obs` was used and then deleted; the recorder, probe,
 raw logs and screenshots stay in `research/dirty/visionos-obs/`. For §10.8
-(VISIONOS-OBS2) only `ycode-test-visionos-obs2` was used and then deleted;
+(VISIONOS-OBS2) only `swiftcode-test-visionos-obs2` was used and then deleted;
 Ghidra, the IPSW and the reference tools folder were not opened; the
 recorder copy, probe, scripts and raw logs stay in
 `research/dirty/visionos-obs2/`.
-For §10.10 (VISIONOS-OBS3) only `ycode-test-visionos-obs3` was used and
+For §10.10 (VISIONOS-OBS3) only `swiftcode-test-visionos-obs3` was used and
 then deleted. Ghidra, the IPSW and the reference tools folder were not
 opened, and nothing was decrypted. Level 5 was used once: 36
 instructions of the render manager's start, read from the image loaded
@@ -6534,18 +6534,18 @@ black-box levels had failed (§10.10.1), and the result was then confirmed
 at level 3 (boots q6, q7). The extract, the recorder copy, the probes,
 the scripts and the raw logs stay in `research/dirty/visionos-obs3/`.
 Only behavior and interop names are stated here.
-For §10.12 (VISIONOS-OBS4) only `ycode-test-visionos-obs4` was used and
+For §10.12 (VISIONOS-OBS4) only `swiftcode-test-visionos-obs4` was used and
 then deleted. The host-wide semaphore `wakeboardd.first-boot` was removed
 before three of its boots so that they pulsed; wakeboardd makes it again
 at each boot. Ghidra, the IPSW and the reference tools folder were not
 opened, nothing was disassembled (level 5 not used) and nothing was
 decrypted. The probes, recorder copies, scripts, raw logs and frames stay
 in `research/dirty/visionos-obs4/`; no image was committed.
-For §10.14 (VISIONOS-R4b) only Ycode's own simulator was booted, on the
+For §10.14 (VISIONOS-R4b) only SwiftCode's own simulator was booted, on the
 Thor; no Apple simulator, Xcode, Ghidra, IPSW or reference tools folder
 was used or opened, nothing under `research/` was read, and nothing was
 disassembled.
-For §10.15 (VISIONOS-OBS5) only `ycode-test-visionos-obs5` was used and
+For §10.15 (VISIONOS-OBS5) only `swiftcode-test-visionos-obs5` was used and
 then deleted. No Mac-wide state was changed (the `wakeboardd.first-boot`
 semaphore was left as it was; the guest's network was refused by our
 library inside the guest, not by a setting). Ghidra, the IPSW and the
@@ -6554,29 +6554,29 @@ not used) and nothing was decrypted or downloaded by us. The recorder, the
 probe, scripts, raw logs, listings and screenshots stay in
 `research/dirty/visionos-obs5/`; no Apple file was copied into the
 repository.
-For §10.16 (VISIONOS-R5) only Ycode's own simulator was booted, on the
+For §10.16 (VISIONOS-R5) only SwiftCode's own simulator was booted, on the
 Thor; no Apple simulator, Xcode or reference tool was used, nothing under
 `research/` was read, and nothing was disassembled.
-For §10.17 (VISIONOS-OBS6) only `ycode-test-vos-audio-1` and
-`ycode-test-ios-audio-1` were used and then deleted. No Mac-wide state
+For §10.17 (VISIONOS-OBS6) only `swiftcode-test-vos-audio-1` and
+`swiftcode-test-ios-audio-1` were used and then deleted. No Mac-wide state
 was changed (the audio services were made unreachable by our library
 inside the guest, not by a setting). Ghidra, the IPSW and the reference
 tools folder were not opened, nothing was disassembled or decrypted, and
 levels 4 and 5 were not used. The recorder, probe, scripts and raw logs
 stay in `research/dirty/visionos-obs6/`.
-For §10.18 (VISIONOS-R6) only Ycode's own simulator was booted, on the
+For §10.18 (VISIONOS-R6) only SwiftCode's own simulator was booted, on the
 Thor; no Apple simulator, Xcode or reference tool was used, nothing under
 `research/` was read, and nothing was disassembled.
-For §10.20 (VISIONOS-R7 and R7b) only Ycode's own simulator was booted, on the
+For §10.20 (VISIONOS-R7 and R7b) only SwiftCode's own simulator was booted, on the
 Thor; no Apple simulator, Xcode or reference tool was used, nothing under
 `research/` was read, nothing was disassembled, and the guest's shader
 logic was not read.
-For §10.21 (VISIONOS-R8) only Ycode's own simulator was booted, on the
+For §10.21 (VISIONOS-R8) only SwiftCode's own simulator was booted, on the
 Thor; no Apple simulator, Xcode, Device Hub or reference tool was used,
 nothing under `research/` was read, nothing was disassembled, and the
 guest's shader logic was not read.
-For §9 Q24–Q27 (OBS-ARGBUF, 2026-10-30) only `ycode-test-argbuf-ios27`
-(iOS 27.0) and `ycode-test-argbuf-xr` (visionOS 27.0) were used, one
+For §9 Q24–Q27 (OBS-ARGBUF, 2026-10-30) only `swiftcode-test-argbuf-ios27`
+(iOS 27.0) and `swiftcode-test-argbuf-xr` (visionOS 27.0) were used, one
 booted at a time, and both were deleted afterwards. Only `simctl` and the
 guest log were used: no clicks, no screen takeover. Ghidra, the IPSW and
 the reference tools folder were not opened, nothing was disassembled
@@ -6586,7 +6586,7 @@ binaries, scripts and raw captures stay in `research/dirty/argbuf/`; no
 image was committed.
 
 For §5.5 and §10.23 (OBS-VISION-INPUT, 2026-10-31) only
-`ycode-test-vision3-a` was used and then deleted. Ghidra, the IPSW and the
+`swiftcode-test-vision3-a` was used and then deleted. Ghidra, the IPSW and the
 reference tools folder were not opened, nothing was disassembled (level 5
 not used) and nothing was decrypted. Level 4 was limited to `nm`, `strings`
 and Objective-C type encodings of the DeviceKit plug-in, CoreSimulator's
@@ -6594,7 +6594,7 @@ xros HID bundle and vhmdd. The sender, client, recorder and probe sources
 are in `research/experiments/visionos/`; binaries, logs, screenshots and
 recorder output stay in `research/dirty/vision3/`; no image was committed.
 
-For §5.5.9 (OBS-VISION-CROWN, 2026-11-01) only `ycode-test-vision4-c`
+For §5.5.9 (OBS-VISION-CROWN, 2026-11-01) only `swiftcode-test-vision4-c`
 (visionOS 27.2, because no 27.0 device could be created that day) was
 used and then deleted; `device_set.plist` was byte-identical before and
 after. Only `simctl` and our own host tools drove it: no clicks, no screen
@@ -6606,9 +6606,9 @@ SimulatorKit, and a listing of SurfBoard's bundle. Tool and probe sources
 are in `research/experiments/visionos/`; binaries, raw exchanges, logs and
 screenshots stay in `research/dirty/vision4/`; no image was committed.
 
-For §5.6 (OBS-VISION-STEREO, 2026-11-01) only `ycode-test-vision5-a`
+For §5.6 (OBS-VISION-STEREO, 2026-11-01) only `swiftcode-test-vision5-a`
 (visionOS 27.2; no 27.0 device could be created, and a
-`ycode-test-vision5-b` of the 2732 × 2048 type was refused by 27.2 and
+`swiftcode-test-vision5-b` of the 2732 × 2048 type was refused by 27.2 and
 never existed) was used and then deleted; `device_set.plist` was
 byte-identical before and after. Only `simctl`, the runtime's
 `wakeboardctl`, and our own probe, recorder and vhmdd client drove it: no

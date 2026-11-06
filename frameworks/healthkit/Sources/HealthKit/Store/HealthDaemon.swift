@@ -3,27 +3,27 @@ import Foundation
 // MARK: - Consent (test hook / developer default; the real consent UI is round R6)
 
 /// How far back a read grant reaches (`authorization.md` §5).
-public enum YcodeHistoricalRange: Sendable {
+public enum SwiftCodeHistoricalRange: Sendable {
     case allRecordedData
     case past30Days
 }
 
 /// What the store asks the user: the types never presented to this client before.
-public struct YcodeConsentRequest: Sendable {
-    public let client: YcodeHealthClient
+public struct SwiftCodeConsentRequest: Sendable {
+    public let client: SwiftCodeHealthClient
     public let shareTypes: [HKSampleType]
     public let readTypes: [HKObjectType]
 }
 
 /// The user's answer: the identifiers turned on in each section.
-public struct YcodeConsentAnswer: Sendable {
+public struct SwiftCodeConsentAnswer: Sendable {
     public var share: Set<String>
     public var read: Set<String>
-    public var historicalRange: YcodeHistoricalRange
+    public var historicalRange: SwiftCodeHistoricalRange
     /// When the user answered (defaults to now); the historical bound is computed from it.
     public var date: Date?
 
-    public init(share: Set<String>, read: Set<String>, historicalRange: YcodeHistoricalRange = .allRecordedData,
+    public init(share: Set<String>, read: Set<String>, historicalRange: SwiftCodeHistoricalRange = .allRecordedData,
                 date: Date? = nil) {
         self.share = share
         self.read = read
@@ -32,17 +32,17 @@ public struct YcodeConsentAnswer: Sendable {
     }
 
     /// "Select All" then "Allow".
-    public static func allowAll(_ request: YcodeConsentRequest, historicalRange: YcodeHistoricalRange = .allRecordedData,
-                                date: Date? = nil) -> YcodeConsentAnswer {
-        YcodeConsentAnswer(share: Set(request.shareTypes.map(\.identifier)), read: Set(request.readTypes.map(\.identifier)),
+    public static func allowAll(_ request: SwiftCodeConsentRequest, historicalRange: SwiftCodeHistoricalRange = .allRecordedData,
+                                date: Date? = nil) -> SwiftCodeConsentAnswer {
+        SwiftCodeConsentAnswer(share: Set(request.shareTypes.map(\.identifier)), read: Set(request.readTypes.map(\.identifier)),
                            historicalRange: historicalRange, date: date)
     }
     /// "Don't Allow": every type presented and denied.
-    public static let denyAll = YcodeConsentAnswer(share: [], read: [])
+    public static let denyAll = SwiftCodeConsentAnswer(share: [], read: [])
 }
 
 /// Answers authorization requests. Return nil to cancel (code 7).
-public typealias YcodeConsentResponder = @Sendable (YcodeConsentRequest) -> YcodeConsentAnswer?
+public typealias SwiftCodeConsentResponder = @Sendable (SwiftCodeConsentRequest) -> SwiftCodeConsentAnswer?
 
 // MARK: - Change sets
 
@@ -75,15 +75,15 @@ struct StatisticsInput: Sendable {
 
 // MARK: - The engine
 
-/// Ycode's HealthKit store engine (`design.md` §3–§6): one SQLite database, the
+/// SwiftCode's HealthKit store engine (`design.md` §3–§6): one SQLite database, the
 /// authorization store, the change journal and the query/statistics back end.
 /// Today it runs in-process; every entry point takes value-type records and a
 /// client identity so that a later round can put it behind a socket/XPC daemon.
-public final class YcodeHealthDaemon: @unchecked Sendable {
-    let queue = DispatchQueue(label: "dev.ycode.healthkit.daemon")
+public final class SwiftCodeHealthDaemon: @unchecked Sendable {
+    let queue = DispatchQueue(label: "dev.swiftcode.healthkit.daemon")
     private var db: SQLiteDatabase
     public let databaseURL: URL?
-    private var responder: YcodeConsentResponder = { .allowAll($0) }
+    private var responder: SwiftCodeConsentResponder = { .allowAll($0) }
     private var live: [UUID: LiveRegistration] = [:]
     var clock: @Sendable () -> Date = { Date() }
 
@@ -107,11 +107,11 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
         }
     }
 
-    /// The process-wide store: `YCODE_HEALTHKIT_STORE`, else a per-user data directory.
-    public static let shared: YcodeHealthDaemon = {
+    /// The process-wide store: `SWIFTCODE_HEALTHKIT_STORE`, else a per-user data directory.
+    public static let shared: SwiftCodeHealthDaemon = {
         let env = ProcessInfo.processInfo.environment
         let url: URL
-        if let p = env["YCODE_HEALTHKIT_STORE"] {
+        if let p = env["SWIFTCODE_HEALTHKIT_STORE"] {
             url = URL(fileURLWithPath: p)
         } else {
             #if os(Linux)
@@ -120,17 +120,17 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
             #else
             let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             #endif
-            url = base.appendingPathComponent("ycode-healthkit/healthdb.sqlite")
+            url = base.appendingPathComponent("swiftcode-healthkit/healthdb.sqlite")
         }
-        do { return try YcodeHealthDaemon(databaseURL: url) } catch {
-            fatalError("ycode-healthkit: cannot open the health store at \(url.path): \(error)")
+        do { return try SwiftCodeHealthDaemon(databaseURL: url) } catch {
+            fatalError("swiftcode-healthkit: cannot open the health store at \(url.path): \(error)")
         }
     }()
 
     public func close() { queue.sync { db.close() } }
 
     /// Replace the consent answerer (default: allow everything, all recorded data).
-    public func setConsentResponder(_ responder: @escaping YcodeConsentResponder) {
+    public func setConsentResponder(_ responder: @escaping SwiftCodeConsentResponder) {
         queue.sync { self.responder = responder }
     }
 
@@ -235,12 +235,12 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
         return out
     }
 
-    func requestAuthorization(client: YcodeHealthClient, share: [HKSampleType], read: [HKObjectType]) -> HKError? {
+    func requestAuthorization(client: SwiftCodeHealthClient, share: [HKSampleType], read: [HKObjectType]) -> HKError? {
         let rows = authRows(client.bundleIdentifier)
         let newShare = share.filter { (rows[$0.identifier]?.shareStatus ?? 0) == 0 }
         let newRead = read.filter { (rows[$0.identifier]?.readStatus ?? 0) == 0 }
         if newShare.isEmpty && newRead.isEmpty { return nil }
-        guard let answer = responder(YcodeConsentRequest(client: client, shareTypes: newShare, readTypes: newRead)) else {
+        guard let answer = responder(SwiftCodeConsentRequest(client: client, shareTypes: newShare, readTypes: newRead)) else {
             return HKError(.errorUserCanceled)
         }
         let when = (answer.date ?? clock()).t
@@ -297,7 +297,7 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
     private func readGate(_ client: String, _ types: [String]) -> HKError? {
         let rows = authRows(client)
         for t in types {
-            let candidates = YcodeHealthDaemon.authorizationTypes(t)
+            let candidates = SwiftCodeHealthDaemon.authorizationTypes(t)
             if !candidates.contains(where: { rows[$0]?.determined ?? false }) { return .notDetermined }
         }
         return nil
@@ -317,7 +317,7 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
     private func readable(_ r: (type: String, source: String, start: Double), client: String,
                           rows: [String: AuthRow], forStatistics: Bool) -> Bool {
         let own = r.source == client
-        let types = YcodeHealthDaemon.authorizationTypes(r.type)
+        let types = SwiftCodeHealthDaemon.authorizationTypes(r.type)
         if !own && !types.contains(where: { rows[$0]?.readStatus == 2 }) { return false }
         let earliest = types.compactMap { rows[$0]?.earliest }.max()
         if let e = earliest, r.start < e, forStatistics || !own { return false }
@@ -339,7 +339,7 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
     private func load(where clause: String, _ args: [SQLiteDatabase.Value]) throws -> [ObjectRecord] {
         var out: [ObjectRecord] = []
         let dec = JSONDecoder()
-        try db.query(YcodeHealthDaemon.selectColumns + " WHERE " + clause + " ORDER BY o.anchor", args) { row in
+        try db.query(SwiftCodeHealthDaemon.selectColumns + " WHERE " + clause + " ORDER BY o.anchor", args) { row in
             var r = ObjectRecord(uuid: UUID(uuidString: row.text(1)!)!, kind: RecordKind(rawValue: Int(row.int(2)))!,
                                  type: row.text(3)!, start: row.double(4), end: row.double(5))
             r.anchor = row.int(0)
@@ -403,7 +403,7 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
 
     // MARK: saving
 
-    func save(_ objects: [ObjectRecord], client: YcodeHealthClient) -> HKError? {
+    func save(_ objects: [ObjectRecord], client: SwiftCodeHealthClient) -> HKError? {
         // authorization: every concrete type written (correlation members instead of the correlation)
         var types = Set<String>()
         for o in objects {
@@ -433,7 +433,7 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
     }
 
     @discardableResult
-    private func insert(_ input: ObjectRecord, sourceID sid: Int64, revisionID rid: Int64, client: YcodeHealthClient,
+    private func insert(_ input: ObjectRecord, sourceID sid: Int64, revisionID rid: Int64, client: SwiftCodeHealthClient,
                         change: inout ChangeSet) throws -> Int64? {
         if let a = try exists(input.uuid) { return a >= 0 ? a : nil }   // resave: no-op
         var o = input
@@ -523,7 +523,7 @@ public final class YcodeHealthDaemon: @unchecked Sendable {
     }
 
     /// Associate saved samples with a workout (`addSamples(_:to:)`).
-    func associate(_ samples: [ObjectRecord], workout: UUID, client: YcodeHealthClient) -> HKError? {
+    func associate(_ samples: [ObjectRecord], workout: UUID, client: SwiftCodeHealthClient) -> HKError? {
         if let e = save(samples, client: client) { return e }
         do {
             try db.transaction {

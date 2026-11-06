@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/storekit/`. This is what a StoreKit app sees in the
 reference simulator (Xcode 27.1; iOS 27.1 runtime 24A94401 on an iPhone Duo
-named `ycode-test-storekit-1`; Apple-silicon Mac). Ycode's simulator must
+named `swiftcode-test-storekit-1`; Apple-silicon Mac). SwiftCode's simulator must
 behave the same way. Statements are level 3 (our probe app
 `research/experiments/storekit/StoreProbe`) unless marked; process, service
 and file names are level 2 (launchd property lists and bundle layout of the
@@ -63,7 +63,7 @@ save configuration, delete configuration, fetch transactions, purchase, storefro
 (refund, delete, resolve issue…), delete all transactions, expire
 subscription, force renewal, change auto-renew status, complete Ask to Buy.
 Each is validated against the caller's bundle identifier ("… for
-dev.ycode.skprobe by dev.ycode.skprobe"): an app can only control its own
+dev.swiftcode.skprobe by dev.swiftcode.skprobe"): an app can only control its own
 test store. An older path in which Xcode itself hosted the test server over
 a port fetched from the daemon is disabled ("no longer supported" in the
 log).
@@ -111,7 +111,7 @@ Per app: `<app data container>/StoreKit/receipt` (StoreKit 1 receipt,
 `formats.md` §3). The daemon also has ordinary caches under
 `<device>/data/Library/Caches/com.apple.storekitd`.
 
-Ycode does not need to read or write these files: a Ycode guest running
+SwiftCode does not need to read or write these files: a SwiftCode guest running
 Apple's runtime gets them from Apple's daemon, and an open StoreKit keeps
 its own store (`design.md`). The guest must provide a writable, persistent
 app-group container for `group.com.apple.storekit` and the app's data
@@ -154,8 +154,8 @@ activity and `SKReceiptRefreshRequest` finishes successfully.
 
 ## 8. Conformance checklist
 
-Probe: `StoreProbe -phase <p>` (variant in brackets), app `dev.ycode.skprobe`
-with `YcodeProbe.storekit`, dialogs disabled unless noted. A Ycode simulator
+Probe: `StoreProbe -phase <p>` (variant in brackets), app `dev.swiftcode.skprobe`
+with `SwiftCodeProbe.storekit`, dialogs disabled unless noted. A SwiftCode simulator
 running Apple's runtime and an open StoreKit must both produce these. Ids
 are relative to the first id of the run (n); dates are relative.
 
@@ -198,7 +198,7 @@ are relative to the first id of the run (n); dates are relative.
 
 ## Evidence
 
-- §1–§2, §6, §7: level 3 (StoreProbe phases on `ycode-test-storekit-1`,
+- §1–§2, §6, §7: level 3 (StoreProbe phases on `swiftcode-test-storekit-1`,
   screenshots of the sheets and alerts, 2026-10-19/20).
 - §3: level 2 (launchd property lists of `storekitd` and
   `StoreKitUISceneService`, runtime bundle layout) and level 3 (Mach service

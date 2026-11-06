@@ -1,8 +1,8 @@
-# ycode-contacts — open Contacts
+# swiftcode-contacts — open Contacts
 
 A clean-room, Linux-buildable reimplementation of Apple's Contacts framework,
 written only from `specs/frameworks/contacts/` under the protocol in
-`AGENTS.md`. Package `ycode-contacts`, library module `Contacts` (the
+`AGENTS.md`. Package `swiftcode-contacts`, library module `Contacts` (the
 framework's module name, an interop identifier), so `import Contacts` source
 compiles against it.
 
@@ -15,10 +15,10 @@ swift build && swift test          # macOS and Linux, Swift 6.4
 | Round | State | What is here |
 |---|---|---|
 | R2 model and pure code | done | `CNContact` / `CNMutableContact` with key availability and `CNPropertyNotFetchedException`; `CNPropertyInvalidTypeException` for wrongly typed labeled values; labeled values with stable identifiers; value classes; every string constant of `identifiers.md`; label and key localization; `CNContactFormatter` (F1–F24); `CNPostalAddressFormatter` (P1–P14); vCard 3.0 writer and a lenient 2.1/3.0/4.0 reader (`formats.md` §3) |
-| R3 store | done (no daemon) | our own SQLite schema; the local container with its fixed identifier; groups Friends and Work with the fixed seed identifiers; Ycode's own made-up seed of six persons; atomic save requests with the error rules of `interface.md` §5; two change notifications per save |
+| R3 store | done (no daemon) | our own SQLite schema; the local container with its fixed identifier; groups Friends and Work with the fixed seed identifiers; SwiftCode's own made-up seed of six persons; atomic save requests with the error rules of `interface.md` §5; two change notifications per save |
 | R4 fetch and search | done | predicates and their matching rules (§4.2), sort orders (§4.3), `enumerateContacts`, `CNFetchResult`, key descriptors, the notes-key rule (102) |
 | R5 change history | done | history tokens, coalesced add/update/delete events, group and membership events, excluded authors, drop-everything, the visitor |
-| R6 authorization | deferred | statuses come from the store configuration (recorded answers, as in `ycode-eventkit`); requests answer from it; no prompts, no usage-string termination, no `simctl privacy` verbs; limited access filters by the configured identifier set plus the app's own contacts |
+| R6 authorization | deferred | statuses come from the store configuration (recorded answers, as in `swiftcode-eventkit`); requests answer from it; no prompts, no usage-string termination, no `simctl privacy` verbs; limited access filters by the configured identifier set plus the app's own contacts |
 | R7–R9 | not started | ContactsUI, CardDAV, guest drop-in |
 
 The guest side of R3 (a daemon and XPC, `design.md` §3) is not built: on
@@ -56,18 +56,18 @@ SwiftPM puts the package's module directory ahead of the SDK, so the tests'
 framework; no workaround was needed. Do not add this package to a target that
 also needs Apple's Contacts.
 
-## Ycode-specific API
+## SwiftCode-specific API
 
-- `YcodeContactStoreConfiguration` (database URL, recorded authorization
+- `SwiftCodeContactStoreConfiguration` (database URL, recorded authorization
   status, limited identifier set, bundle identifier, country code) and
-  `CNContactStore(ycodeConfiguration:)`; `CNContactStore.ycodeDefaultConfiguration`
+  `CNContactStore(swiftcodeConfiguration:)`; `CNContactStore.swiftcodeDefaultConfiguration`
   backs `CNContactStore()` and `authorizationStatus(for:)`. The default
-  database is `$YCODE_CONTACTS_DATABASE`, else `ycode-contacts/AddressBook.sqlite`
+  database is `$SWIFTCODE_CONTACTS_DATABASE`, else `swiftcode-contacts/AddressBook.sqlite`
   under `$XDG_DATA_HOME` / `~/.local/share` (Linux) or Application Support
   (macOS). The default status is full access.
-- `YcodeContactsEnvironment.notesEntitlement` (default no) stands for the
+- `SwiftCodeContactsEnvironment.notesEntitlement` (default no) stands for the
   `com.apple.developer.contacts.notes` entitlement;
-  `YcodeContactsEnvironment.$notesOverride` overrides it per task (tests).
+  `SwiftCodeContactsEnvironment.$notesOverride` overrides it per task (tests).
 - `CNException` and `CNException.catching { … }` (see Exceptions below).
 - `CNKeyDescriptor` has one requirement, `_cnKeys` (the plain keys); `String`
   and `NSString` conform, so `CNContactGivenNameKey as CNKeyDescriptor` works
@@ -96,9 +96,9 @@ also needs Apple's Contacts.
   calls while the recorded status is not determined, denied or restricted
   fail with code 100. `defaultContainerIdentifier()` and
   `currentHistoryToken` work at every level.
-- **Thumbnails.** Ycode does not decode images; the stored thumbnail is the
+- **Thumbnails.** SwiftCode does not decode images; the stored thumbnail is the
   image data itself (the reference generated a smaller image).
-- **History tokens** are Ycode's own (`YCNH1:<database id>:<sequence>` as
+- **History tokens** are SwiftCode's own (`YCNH1:<database id>:<sequence>` as
   UTF-8); apps treat them as opaque. Events are coalesced per record since
   the token: added (and still present) → add event with the current contact;
   added and deleted → nothing; existing and changed → update; existing and
@@ -113,15 +113,15 @@ also needs Apple's Contacts.
   §4.4); `unifyResults` has no effect.
 - **Postal layouts.** The countries of `formats.md` §2 follow its rows; the
   other entries of the layout table (nz, at, ch, nl, be, the Nordic
-  countries, pl, pt, es, it, ie, mx) are Ycode's reading of common national
+  countries, pl, pt, es, it, ie, mx) are SwiftCode's reading of common national
   practice, not verified against the reference.
-- **vCard.** `PRODID:-//Ycode//Ycode Contacts 1.0//EN`. Export of a contact
+- **vCard.** `PRODID:-//SwiftCode//SwiftCode Contacts 1.0//EN`. Export of a contact
   without the required keys logs "Exception writing contacts to vCard
   (data): …" and throws `CNError` 701 (Apple returns nil there). Types for
-  labels the spec does not list are Ycode's: work fax `WORK;FAX`, pager
+  labels the spec does not list are SwiftCode's: work fax `WORK;FAX`, pager
   `PAGER`; other predefined labels (other, school, other fax, …) are written
   through an `itemN.` group with `X-ABLabel`. Instant-message services other
-  than AIM and Jabber use Ycode's choice of `X-` property and URI scheme.
+  than AIM and Jabber use SwiftCode's choice of `X-` property and URI scheme.
 
 ## Storage
 
@@ -129,7 +129,7 @@ Our own schema (`design.md` §4): `meta`, `container`, `contact` (one column
 per scalar property; image and thumbnail blobs; birthdays as JSON),
 `multivalue` (contact, property, ordinal, identifier, label, value), `grp`,
 `member`, `journal` (sequence, transaction, author, writer token, kind,
-operation, record, group, container). The seed is Ycode's own made-up
+operation, record, group, container). The seed is SwiftCode's own made-up
 address book with the reference's *shape*; only the container and the two
 group identifiers are the reference's (interop facts, `interface.md` §2.3).
 
@@ -137,11 +137,11 @@ group identifiers are the reference's (interop facts, `interface.md` §2.3).
 
 1. `plan.md` §3 names export cases V1, V3, V4, V6, V7, V8, but `formats.md`
    does not give their inputs. The tests check every row of the §3.1 mapping
-   table with Ycode-made contacts instead.
+   table with SwiftCode-made contacts instead.
 2. `interface.md` §4.3: the family-order golden (Avery, Blake, then Avery
    with an organization) does not follow from the stated inference
    ("family + given + organization" gives Avery, Avery-with-org, Blake).
-   Ycode sorts by the phonetic part of a name when it is set; the golden test
+   SwiftCode sorts by the phonetic part of a name when it is set; the golden test
    assumes that c1 (the Avery with the organization) carried F19's phonetic
    names. The other explanation is that ties on the family name keep storage
    order. Which is it?
@@ -149,23 +149,23 @@ group identifiers are the reference's (interop facts, `interface.md` §2.3).
    author excluded" does not fit the save table, where the 7-contact request
    carried the author. The test reconstructs 3 authored + 5 unauthored adds.
    Also: are later updates of a contact added after the token folded into its
-   add event (Ycode) or reported separately?
-4. `formats.md` §3.2 I2: Ycode's lenient rule is "the first `NAME=value`
+   add event (SwiftCode) or reported separately?
+4. `formats.md` §3.2 I2: SwiftCode's lenient rule is "the first `NAME=value`
    parameter the reader does not know becomes the label, ahead of `TYPE`"
-   (gives "VALUE" and "LABEL"). Is an unlabeled email nil or ""? (Ycode: "".)
-5. `X-ALTBDAY`: the one example is `-57500718`. Ycode always writes the
+   (gives "VALUE" and "LABEL"). Is an unlabeled email nil or ""? (SwiftCode: "".)
+5. `X-ALTBDAY`: the one example is `-57500718`. SwiftCode always writes the
    minus sign and ignores it when reading. What does the sign mean?
 6. Save rules: membership changes are checked against the records as they
    were before the request (the group-in-same-request row). Does the same
-   hold for a contact added in the same request (Ycode: yes, it fails)?
+   hold for a contact added in the same request (SwiftCode: yes, it fails)?
 7. The contents of the two-element arrays in the change notification are not
-   observed; Ycode's choice is listed above.
-8. C-CN-Q2: Ycode answers `predicateForContainerOfGroupWithIdentifier:` with
+   observed; SwiftCode's choice is listed above.
+8. C-CN-Q2: SwiftCode answers `predicateForContainerOfGroupWithIdentifier:` with
    the group's container (the observation returned nothing).
-9. What does `CNInvalidRecords` hold for the 102 notes error? (Ycode: empty.)
+9. What does `CNInvalidRecords` hold for the 102 notes error? (SwiftCode: empty.)
 10. History from a nil token: are group add events included only with
-    `includeGroupChanges` (Ycode) or always?
-11. `localizedStringForKey:` returned nil for three keys; Ycode's Swift API
+    `includeGroupChanges` (SwiftCode) or always?
+11. `localizedStringForKey:` returned nil for three keys; SwiftCode's Swift API
     returns `String` and gives "" there.
 12. C-CN-Q3: name search covers given, middle, family, nickname,
     organization, job title and the phonetic fields (`design.md` §4);

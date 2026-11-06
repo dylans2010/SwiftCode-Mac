@@ -1,4 +1,4 @@
-// Ycode extension: the process's connection to the open local store
+// SwiftCode extension: the process's connection to the open local store
 // (design.md §4 items 4–6). The StoreKit API talks to the `AppTestStore` of
 // one bundle identifier on one `StoreDevice`, signs what it returns with the
 // device identity, and verifies it like a client would.
@@ -9,16 +9,16 @@ import StoreKitSigning
 
 /// The open StoreKit runtime of this process.
 ///
-/// `YcodeStoreKit.shared` is built from the environment on first use:
+/// `SwiftCodeStoreKit.shared` is built from the environment on first use:
 ///
 /// | Variable | Meaning |
 /// |---|---|
-/// | `YCODE_STOREKIT_DIRECTORY` | persistence root (the device's store); unset keeps everything in memory |
-/// | `YCODE_STOREKIT_BUNDLE_ID` | the app's bundle identifier (else the main bundle's, else the process name) |
-/// | `YCODE_STOREKIT_APP_VERSION` | `CFBundleVersion` for the app transaction and receipt (else the main bundle's, else `1`) |
+/// | `SWIFTCODE_STOREKIT_DIRECTORY` | persistence root (the device's store); unset keeps everything in memory |
+/// | `SWIFTCODE_STOREKIT_BUNDLE_ID` | the app's bundle identifier (else the main bundle's, else the process name) |
+/// | `SWIFTCODE_STOREKIT_APP_VERSION` | `CFBundleVersion` for the app transaction and receipt (else the main bundle's, else `1`) |
 ///
-/// Tests and hosts install their own with `YcodeStoreKit.configure(_:)`.
-public final class YcodeStoreKit: @unchecked Sendable {
+/// Tests and hosts install their own with `SwiftCodeStoreKit.configure(_:)`.
+public final class SwiftCodeStoreKit: @unchecked Sendable {
     public let device: StoreDevice
     public let bundleID: String
     /// `identifierForVendor` / `AppStore.deviceVerificationID`.
@@ -34,7 +34,7 @@ public final class YcodeStoreKit: @unchecked Sendable {
     public var callbackQueue: DispatchQueue = .main
 
     /// Shows a purchase confirmation (when dialogs are enabled); `false` cancels.
-    /// Ycode's own sheet; the default confirms at once (no UI on a headless host).
+    /// SwiftCode's own sheet; the default confirms at once (no UI on a headless host).
     public var confirmPurchase: @Sendable (PurchaseConfirmation) async -> Bool = { _ in true }
     /// Shows a store alert ("Can't Complete This Purchase", "Unable to Purchase").
     public var presentAlert: @Sendable (StoreAlert) async -> Void = { _ in }
@@ -64,10 +64,10 @@ public final class YcodeStoreKit: @unchecked Sendable {
     }
 
     private static let sharedLock = NSLock()
-    nonisolated(unsafe) private static var current: YcodeStoreKit?
+    nonisolated(unsafe) private static var current: SwiftCodeStoreKit?
 
     /// The runtime the StoreKit API uses.
-    public static var shared: YcodeStoreKit {
+    public static var shared: SwiftCodeStoreKit {
         sharedLock.withLock {
             if let current { return current }
             let made = makeFromEnvironment()
@@ -77,18 +77,18 @@ public final class YcodeStoreKit: @unchecked Sendable {
     }
 
     /// Replaces the runtime the StoreKit API uses.
-    public static func configure(_ runtime: YcodeStoreKit) {
+    public static func configure(_ runtime: SwiftCodeStoreKit) {
         sharedLock.withLock {
             current?.stop()
             current = runtime
         }
     }
 
-    static func makeFromEnvironment() -> YcodeStoreKit {
+    static func makeFromEnvironment() -> SwiftCodeStoreKit {
         let env = ProcessInfo.processInfo.environment
-        let dir = env["YCODE_STOREKIT_DIRECTORY"].map { URL(fileURLWithPath: $0, isDirectory: true) }
-        let bundleID = env["YCODE_STOREKIT_BUNDLE_ID"] ?? Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName
-        let version = env["YCODE_STOREKIT_APP_VERSION"]
+        let dir = env["SWIFTCODE_STOREKIT_DIRECTORY"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let bundleID = env["SWIFTCODE_STOREKIT_BUNDLE_ID"] ?? Bundle.main.bundleIdentifier ?? ProcessInfo.processInfo.processName
+        let version = env["SWIFTCODE_STOREKIT_APP_VERSION"]
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "1"
         var vendor = UUID()
         if let dir {
@@ -103,11 +103,11 @@ public final class YcodeStoreKit: @unchecked Sendable {
         let device = StoreDevice(directory: dir)
         let receipt = dir?.appendingPathComponent(bundleID).appendingPathComponent("StoreKit/receipt")
         // Generating a key cannot fail in practice; fall back to an in-memory device if the directory is unusable.
-        if let made = try? YcodeStoreKit(device: device, bundleID: bundleID, vendorID: vendor, applicationVersion: version, receiptURL: receipt) {
+        if let made = try? SwiftCodeStoreKit(device: device, bundleID: bundleID, vendorID: vendor, applicationVersion: version, receiptURL: receipt) {
             return made
         }
         // swiftlint:disable:next force_try - an in-memory device cannot fail
-        return try! YcodeStoreKit(device: StoreDevice(), bundleID: bundleID, vendorID: vendor, applicationVersion: version)
+        return try! SwiftCodeStoreKit(device: StoreDevice(), bundleID: bundleID, vendorID: vendor, applicationVersion: version)
     }
 
     /// The app's local store.
@@ -250,7 +250,7 @@ public struct PurchaseConfirmation: Sendable {
 }
 
 /// The `systemError` payload of the local store.
-public enum YcodeStoreSystemError: Error, Hashable, Sendable {
+public enum SwiftCodeStoreSystemError: Error, Hashable, Sendable {
     /// No configuration is installed for the app (`AppTransaction.shared` before any session).
     case noAccount
     case unknown

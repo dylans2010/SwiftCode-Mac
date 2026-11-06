@@ -90,7 +90,7 @@ tags runs with `CNPostalAddressPropertyAttribute` (value = the field key).
 | P14 | "DE" | same as P2 |
 
 The country *name* printed is the stored `country` string, not a name
-derived from the code. Ycode needs its own table of per-country layouts
+derived from the code. SwiftCode needs its own table of per-country layouts
 (fields, order, separators); open data such as Google's libaddressinput
 address metadata (Apache-2.0) is a permissible source and agrees with the
 rows above (to be verified per row in plan R3).
@@ -106,7 +106,7 @@ block per contact; an empty array gives empty data.
 |---|---|---|
 | 1 | `BEGIN:VCARD` | |
 | 2 | `VERSION:3.0` | |
-| 3 | `PRODID:-//Apple Inc.//iPhone OS 27.1//EN` | OS version (Ycode writes its own product identifier, e.g. `-//Ycode//…//EN`; apps do not parse it) |
+| 3 | `PRODID:-//Apple Inc.//iPhone OS 27.1//EN` | OS version (SwiftCode writes its own product identifier, e.g. `-//SwiftCode//…//EN`; apps do not parse it) |
 | 4 | `N:family;given;middle;prefix;suffix` | always present (`N:;;;;` when empty) |
 | 5 | `FN:` formatted full name | omitted when the formatter gives nil |
 | | `NICKNAME:` | |
