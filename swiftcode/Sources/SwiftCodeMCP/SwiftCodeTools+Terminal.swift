@@ -867,7 +867,9 @@ extension SwiftCodeMCPHost {
             // intact (spec §7.2; the `key=value` form is Legacy's
             // inconsistency, D-10, and is not used).
             let argsObject = call.arguments["args"]?.object ?? [:]
-            let args: [JSONValue] = argsObject.isEmpty ? [] : [.object(argsObject.mapValues { extensionJSONValue($0) })]
+            // Qualified: SwiftCodeMCP defines its own JSONValue (AssistTool.swift);
+            // the extension host API takes SwiftCodeExtensions.JSONValue.
+            let args: [SwiftCodeExtensions.JSONValue] = argsObject.isEmpty ? [] : [.object(argsObject.mapValues { extensionJSONValue($0) })]
             let result: String
             do {
                 result = try await manager.executeCommand(extensionId: id, command: command, args: args)
@@ -947,8 +949,10 @@ extension SwiftCodeMCPHost {
         }
     }
 
-    /// `AnyJSON` → the host's `JSONValue` (same cases, same nesting).
-    func extensionJSONValue(_ value: AnyJSON) -> JSONValue {
+    /// `AnyJSON` → the host's `SwiftCodeExtensions.JSONValue` (same cases, same nesting).
+    /// Qualified because SwiftCodeMCP defines its own `JSONValue` (AssistTool.swift),
+    /// which would otherwise shadow the host type in this file.
+    func extensionJSONValue(_ value: AnyJSON) -> SwiftCodeExtensions.JSONValue {
         switch value {
         case .null: return .null
         case .bool(let b): return .bool(b)

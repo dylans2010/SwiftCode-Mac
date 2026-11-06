@@ -60,7 +60,7 @@ public struct RepositoryDashboardView: View {
     @State private var openIssues = 0
     @State private var releases: [GitHubRelease] = []
     @State private var languages: [String] = []
-    @State private var workflowRuns: [GitHubWorkflowRun] = []
+    @State private var workflowRuns: [SwiftCodeGitHub.GitHubWorkflowRun] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
 

@@ -23,7 +23,7 @@ import SwiftUI
 /// passing the window's `GitHubClient` and the selected run's identity.
 @MainActor
 public struct WorkflowRunSpecsHeaderView: View {
-    public var run: GitHubWorkflowRun
+    public var run: SwiftCodeGitHub.GitHubWorkflowRun
     public var client: GitHubClient
     public var owner: String
     public var repo: String
@@ -32,7 +32,7 @@ public struct WorkflowRunSpecsHeaderView: View {
     @State private var isRerunning = false
     @State private var message: String?
 
-    public init(run: GitHubWorkflowRun, client: GitHubClient, owner: String, repo: String, onDone: @escaping () -> Void) {
+    public init(run: SwiftCodeGitHub.GitHubWorkflowRun, client: GitHubClient, owner: String, repo: String, onDone: @escaping () -> Void) {
         self.run = run
         self.client = client
         self.owner = owner
