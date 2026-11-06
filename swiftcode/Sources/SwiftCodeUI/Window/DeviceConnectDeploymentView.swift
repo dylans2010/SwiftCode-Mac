@@ -4,7 +4,7 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: milestone pills; Open Simulator action; stop in-progress deployment
 // Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Deployment/DeviceConnectDeploymentView.swift (derived from Legacy).
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): OpenConfiguration, RuntimeService.
+// References a legacy type absent from the destination and from this worklist (wiring/integration gap): OpenConfiguration. (RuntimeService now resolves via DeviceConnectRuntimeService.)
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeDeviceModel
 import SwiftCodeXcodebuild
@@ -323,7 +323,7 @@ public struct DeviceConnectDeploymentView: View {
         guard let selected = deviceManager.selectedDevice else { return }
         let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
         Task {
-            _ = try? await RuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
+            _ = try? await DeviceConnectRuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
             runtimeManager.stopMonitoring(deviceUDID: selected.udid)
         }
     }

@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct AssistXcodeBuildSettingsTool: AssistTool {
     public let id = "xcode_build_settings_inspector"

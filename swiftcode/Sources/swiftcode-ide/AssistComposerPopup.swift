@@ -7,7 +7,8 @@
 //   - resource-trigger rows in the popup (conversation, rule, terminal, reverse)
 // ADAPTATIONS:
 //   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: none found
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AgentFileContext — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Functions/FileAgentHelper.swift`)
@@ -204,8 +205,11 @@ public struct AssistComposerPopupView: View {
     @State private var selectedCategory: String = "All"
     @State private var mcpServers: [MCPServer] = []
     @State private var projectFiles: [URL] = []
-    @ObservedObject private var skillIndex = SkillIndex.shared
-    @ObservedObject private var metaCommandManager = MetaSlashCommandManager.shared
+    @State private var skillIndex = SkillIndex.shared
+    // Wiring (wiring-views): `MetaSlashCommandManager` is a plain struct
+    // (no `.shared`, not observable) — held as a plain value; only its
+    // `commands` / `searchCommands(query:)` reads are used.
+    private var metaCommandManager = MetaSlashCommandManager()
 
     public init(
         mode: ComposerTriggerMode,

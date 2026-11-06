@@ -241,3 +241,71 @@ public final class OfflineModelDownloader {
         }
     }
 }
+
+
+// Ported from Legacy `SwiftCode/Backend/Offline Models/OfflineModelDownloader.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: DownloadTaskDelegate.
+
+private final class DownloadTaskDelegate: NSObject, URLSessionDownloadDelegate {
+    private let modelFolderName: String
+    private let relativeFilePath: String
+    private let onProgress: @MainActor (Int64, Int64) -> Void
+    private let onComplete: @MainActor (URL?, URLResponse?, Error?) -> Void
+    private var finalizedURL: URL?
+    private var response: URLResponse?
+    private var fileMoveError: Error?
+
+    init(
+        modelFolderName: String,
+        relativeFilePath: String,
+        onProgress: @escaping @MainActor (Int64, Int64) -> Void,
+        onComplete: @escaping @MainActor (URL?, URLResponse?, Error?) -> Void
+    ) {
+        self.modelFolderName = modelFolderName
+        self.relativeFilePath = relativeFilePath
+        self.onProgress = onProgress
+        self.onComplete = onComplete
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        response = downloadTask.response
+
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let offlineModelsDirectory = documentsDirectory.appendingPathComponent("Offline Models", isDirectory: true)
+        let modelDirectory = offlineModelsDirectory.appendingPathComponent(modelFolderName, isDirectory: true)
+        let destinationURL = modelDirectory.appendingPathComponent(relativeFilePath)
+
+        do {
+            try FileManager.default.createDirectory(at: offlineModelsDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: destinationURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+
+            try FileManager.default.moveItem(at: location, to: destinationURL)
+            finalizedURL = destinationURL
+        } catch {
+            fileMoveError = OfflineModelError.failedToMoveDownloadedFile(
+                from: location.path,
+                to: destinationURL.path,
+                underlyingError: error
+            )
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        Task { @MainActor in
+            onProgress(totalBytesWritten, totalBytesExpectedToWrite)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        Task { @MainActor in
+            let completionError = error ?? fileMoveError
+            onComplete(finalizedURL, response, completionError)
+        }
+        session.finishTasksAndInvalidate()
+    }
+}

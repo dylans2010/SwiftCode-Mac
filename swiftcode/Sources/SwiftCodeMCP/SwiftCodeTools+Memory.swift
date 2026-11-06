@@ -207,13 +207,15 @@ extension SwiftCodeMCPHost {
         let workspace = memoryWorkspaceKey(in: s)
         let sessionID = SwiftCodeMemoryGraphStore.shared.sessionID(workspace: workspace)
         let marker = UUID().uuidString
-        // SwiftCode has no snapshot store (no Legacy
-        // `AssistSnapshotFunctions` equivalent), so there is never a
-        // latest snapshot to name. The stored payload is a real
-        // memory-graph entry all the same.
-        let payload = "session=\(sessionID.uuidString)\nworkspace=\(workspace)\nlatest_snapshot=none"
+        // WIRING (wiring-backend): Legacy's `AssistContextSnapshotTool`
+        // names the latest snapshot from `AssistSnapshotFunctions`
+        // (SwiftCodeAssistant, on main). When no snapshot exists the
+        // store reports "none", exactly as Legacy did with an empty
+        // list; a failure to read the store is not invented history.
+        let latestSnapshot = (try? AssistSnapshotFunctions.listSnapshots())?.first?.id ?? "none"
+        let payload = "session=\(sessionID.uuidString)\nworkspace=\(workspace)\nlatest_snapshot=\(latestSnapshot)"
         SwiftCodeMemoryGraphStore.shared.store(workspace: workspace, key: "context_snapshot:\(marker)", value: payload)
-        return .structured(["snapshot_key": .string("context_snapshot:\(marker)"), "latest_snapshot": .string("none")],
+        return .structured(["snapshot_key": .string("context_snapshot:\(marker)"), "latest_snapshot": .string(latestSnapshot)],
                            summary: "Context snapshot captured")
     }
 

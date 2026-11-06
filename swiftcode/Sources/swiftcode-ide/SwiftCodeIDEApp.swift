@@ -6,6 +6,7 @@ import AppKit
 #if canImport(UniformTypeIdentifiers)
 import UniformTypeIdentifiers
 #endif
+import SwiftCodeAssistant
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeRelease
@@ -32,9 +33,33 @@ enum ShellApp {
 @main
 struct SwiftCodeIDEApp: App {
     init() {
+        // Legacy `SwiftCodeApp`: --run-assist-tests runs the Assist v3 runtime
+        // test suite, prints the report, and exits 0 (all passed) / 1. Checked
+        // first, before any shell setup, exactly as Legacy did. Landed with
+        // the AssistRuntimeTestSuite subset (SwiftCodeAssistant) by F1B.
+        if CommandLine.arguments.contains("--run-assist-tests") {
+            Task { @MainActor in
+                let report = await AssistRuntimeTestSuite.shared.runAllTests()
+                print("========================================")
+                print("ASSIST V3 RUNTIME TEST SUITE REPORT")
+                print("Total: \(report.totalTests), Passed: \(report.passedTests), Failed: \(report.failedTests)")
+                for r in report.results {
+                    print("[\(r.passed ? "PASS" : "FAIL")] \(r.testName) (\(String(format: "%.3f", r.duration))s): \(r.message)")
+                }
+                print("========================================")
+                fflush(stdout)
+                exit(report.allPassed ? 0 : 1)
+            }
+        }
         SwiftCodeRelease.handleVersionFlag(tool: "swiftcode-ide")
         SwiftCodeRelease.adoptBundledHelpers()
         ShellLook.apply()
+        // WIRING (wiring-backend): the styling bootstrap, once at app
+        // start (Legacy `StylingBootstrap.initialize()` — installs the
+        // adaptive layout engine / liquid-glass environment the
+        // `.macDesktopOptimized()` views read). The registry's
+        // `registerDefaults()` is an empty no-op in Legacy and stays one.
+        StylingBootstrap.initialize()
         // The models' Copy commands (Debug ▸ Console ▸ Copy Row) write here.
         ShellPasteboard.writer = { ShellClipboard.copy($0) }
         #if os(Linux)
@@ -58,7 +83,10 @@ struct SwiftCodeIDEApp: App {
 
     var body: some Scene {
         WindowGroup("SwiftCode") {
-            ShellRootView(app: ShellApp.model).shellAppearance()
+            // WIRING (wiring-backend): the layout engine and liquid-glass
+            // environment must be installed above every view that uses
+            // `.macDesktopOptimized()` or `.liquidGlass(...)`.
+            StylingBootstrap.configureEnvironment(ShellRootView(app: ShellApp.model)).shellAppearance()
         }
         .defaultSize(width: ShellMetrics.windowSize.width, height: ShellMetrics.windowSize.height)
         .commands { ShellMenus(app: ShellApp.model) }
@@ -85,6 +113,12 @@ struct ShellRootView: View {
     /// Error from a Finder open or a trust-alert delete, if any
     /// (Legacy `SwiftCodeApp.finderOpenError`).
     @State private var finderOpenError: String?
+    /// First-run onboarding (wiring-views): `AppSettings.shared` is
+    /// `@Observable`, so reading `hasCompletedOnboarding` here tracks
+    /// it; "Get Started" flips it and dismisses the sheet.
+    @State private var settings = AppSettings.shared
+    /// The first-run sheet's page (0: features, 1: welcome).
+    @State private var onboardingPage = 0
 
     var body: some View {
         Group {
@@ -108,6 +142,15 @@ struct ShellRootView: View {
             if let m = app.clone { CloneSheet(model: m, app: app) }
         }
         .sheet(isPresented: $app.isAboutShown) { AboutSheet(app: app) }
+        // First-run onboarding (wiring-views): the features page, then
+        // the welcome page. Not interactively dismissable: the only exit
+        // is "Get Started", which sets `hasCompletedOnboarding` and
+        // dismisses the sheet. `OnboardingView` itself is not used: it
+        // needs `OnboardingSplashView`, which has not landed.
+        .sheet(isPresented: Binding(get: { !settings.hasCompletedOnboarding }, set: { _ in })) {
+            firstRunOnboarding
+                .interactiveDismissDisabled()
+        }
         .sheet(isPresented: Binding(get: { app.runtimeSetup != nil }, set: { if !$0 { app.closeRuntimeSetup() } })) {
             if let s = app.runtimeSetup { RuntimeSetupSheet(session: s, app: app) }
         }
@@ -188,6 +231,23 @@ struct ShellRootView: View {
             Text(message)
         }
         .task { await ShellDriver.start(app) }
+    }
+
+    /// The first-run onboarding sheet (wiring-views): the features page
+    /// with a Continue step, then the welcome page with "Get Started".
+    private var firstRunOnboarding: some View {
+        VStack(spacing: 0) {
+            if onboardingPage == 0 {
+                OnboardingFeaturesView()
+                Button("Continue") { onboardingPage = 1 }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .padding(.bottom, 24)
+            } else {
+                OnboardingWelcomeView()
+            }
+        }
+        .frame(width: 560, height: 640)
     }
 }
 

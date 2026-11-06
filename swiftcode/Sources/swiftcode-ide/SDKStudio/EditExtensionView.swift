@@ -16,7 +16,9 @@ import SwiftUI
 struct EditExtensionView: View {
     let `extension`: ExtensionManifest
 
-    @StateObject private var manager = ExtensionManager.shared
+    // fixes-observedobject: `ExtensionManager` is a plain class, not `@Observable` —
+    // `@State` holds it without observation; reads are snapshots.
+    @State private var manager = ExtensionManager.shared
     @Environment(\.dismiss) private var dismiss
 
     // Editable state mirroring the manifest

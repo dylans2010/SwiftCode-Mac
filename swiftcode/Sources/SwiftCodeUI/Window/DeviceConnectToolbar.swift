@@ -4,7 +4,6 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: stop in-progress deployment action
 // Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/DeviceConnectKit/Views/Toolbar/DeviceConnectToolbar.swift (derived from Legacy).
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): RuntimeService.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeDeviceModel
 import SwiftCodeXcodebuild
@@ -119,7 +118,7 @@ public struct DeviceConnectToolbar: View {
         guard let selected = deviceManager.selectedDevice else { return }
         let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
         Task {
-            _ = try? await RuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
+            _ = try? await DeviceConnectRuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
             runtimeManager.stopMonitoring(deviceUDID: selected.udid)
         }
     }

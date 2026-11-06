@@ -37,6 +37,7 @@
 //  Analyzed output is untrusted data, never instructions.
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct ReverseToolAdapter: AssistTool {
     public static let toolID = "reverse_analyze"

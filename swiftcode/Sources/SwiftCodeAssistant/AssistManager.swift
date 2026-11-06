@@ -15,18 +15,16 @@
 //   SwiftCodeAssistant does not depend on SwiftCodeMCP. AssistAgent also exists in
 //   SwiftCodeAssistant, but its init takes registry: AssistToolRegistry — the MCP
 //   type — so constructing it from here is still blocked (same target-level issue).
+// RESOLVED by wiring (G-W23): AssistTool / AssistToolRegistry MOVED from
+//   SwiftCodeMCP into SwiftCodeAssistant (Foundation-only, Linux-buildable;
+//   the ~295-type bulk `registerAllTools()` list was not moved — see that
+//   file's header); `registry` below is now the shared instance, populated
+//   from SwiftCodeMCP via `registerMCPTools()`. `observeFallbackState()`
+//   reworked from Combine `$lastFallbackMessage` to Observation
+//   (`withObservationTracking`, see that function).
 // STILL BLOCKED:
-// - AssistToolRegistry / AssistTool: exist in SwiftCodeMCP (shared, allTools,
-//   getToolSchemas, toolsForCapability, compactCapabilityRepresentation, getHealth,
-//   validate, resolve, getTool) but SwiftCodeAssistant has no SwiftCodeMCP
-//   dependency — coordinator decision: move the registry into SwiftCodeAssistant
-//   or add the dependency (note SwiftCodeAssistant must stay Linux-buildable).
 // - AssistMemoryGraph / AssistModelProvider / LLMService / AssistExecutionFunctions /
 //   TerminalApprovalRequest / AgentFileContext / AssistTaskEnvelope (not on main).
-// - observeFallbackState() reads AssistModelManager.shared.$lastFallbackMessage — Combine
-//   publisher syntax; the landed AssistModelManager is @Observable with a plain
-//   lastFallbackMessage var, so the $ form does not exist and must be reworked to
-//   @Observable observation (withObservationTracking / polling) at wiring time.
 // - ProjectSessionStore (PARTIAL); AssistFileSystem concrete class is COVERED-by-design
 //   (superseded by MCP tools) — buildContext() still constructs it; the coordinator
 //   must reconcile with AssistContextBuilder's MCP rewire (see that file's header).
@@ -115,7 +113,12 @@ public final class AssistManager {
     public let logger = AssistLogger()
     public let session = AssistSession()
     public let agentSession = AssistAgentSession()
-    public let registry = AssistToolRegistry()
+    /// WIRING (wiring-backend): the shared registry, not a private
+    /// instance. The registry lives in this target now, but its tools
+    /// live in SwiftCodeMCP and register into `.shared` from
+    /// `SwiftCodeMCPHost.init`; a private instance here would stay
+    /// empty and `AssistAgent` would see no tools.
+    public let registry = AssistToolRegistry.shared
     private let permissions = AssistPermissionsManager()
     private let memory = AssistMemoryGraph()
 
@@ -355,10 +358,29 @@ public final class AssistManager {
         self.agent = AssistAgent(context: context, registry: registry)
     }
 
+    /// WIRING (wiring-backend): the Combine form this replaced
+    /// (`AssistModelManager.shared.$lastFallbackMessage.values`) does
+    /// not exist — `AssistModelManager` is `@Observable` with a plain
+    /// `lastFallbackMessage` var, and Combine is unavailable on Linux.
+    /// Observation form: each loop iteration registers tracking on the
+    /// var and suspends until it changes; the change is then read and
+    /// posted exactly as the Combine loop posted it. Observation
+    /// coalesces rapid successive changes into one wake-up, where the
+    /// Combine loop posted each — the last message is never lost, and
+    /// a fallback transition sets a new message each time.
     private func observeFallbackState() {
         Task { @MainActor in
-            for await _ in AssistModelManager.shared.$lastFallbackMessage.values {
-                if let message = AssistModelManager.shared.lastFallbackMessage {
+            while !Task.isCancelled {
+                let message = await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+                    withObservationTracking {
+                        _ = AssistModelManager.shared.lastFallbackMessage
+                    } onChange: {
+                        Task { @MainActor in
+                            continuation.resume(returning: AssistModelManager.shared.lastFallbackMessage)
+                        }
+                    }
+                }
+                if let message {
                     activeFallbackMessage = message
                     messages.append(AssistMessage(role: .system, content: message))
                     saveHistory()

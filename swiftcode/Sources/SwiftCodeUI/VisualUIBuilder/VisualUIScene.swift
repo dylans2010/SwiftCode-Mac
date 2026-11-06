@@ -3,7 +3,6 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIScene.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: VisualUIScene type itself; findNode / findParent helpers; scene hash; typed VisualUIFramework enum (the destination stores framework as a free String)
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeDebug — add the dependency in Package.swift or rebind at wiring time; not imported here.
 // Ambiguous type reference(s) defined in several modules, import left out: CodingKeys.
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): CodingKey, Encoder.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.

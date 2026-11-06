@@ -1,6 +1,12 @@
 // STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
 // Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/AssistToolRegistry.swift`).
+// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/AssistToolRegistry.swift`).
+// MOVED here by MCP-DEP (2026-11-06, decision (b) in staging-wire/mcp-dep/DISPOSITIONS.md):
+// SwiftCodeAssistant cannot import SwiftCodeMCP (MCP depends on Assistant — a reverse
+// dep would be a cycle), and the registry's whole dependency closure lives here
+// (AssistTool in this target; ToolCapability in AssistToolRouter.swift;
+// ToolValidationResult in AssistErrorRecoveryEngine.swift). MCP keeps using it
+// through its own import of this target.
 // Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
 // in this environment: static checks only — never claim a build passed.
 // Audit gap this port closes (claimed-covered-audit):
@@ -10,7 +16,13 @@
 //   - schema caching (cachedSchema/invalidateSchemaCache)
 //   - capability index / toolsForCapability
 // ADAPTATIONS:
-//   - Added cross-target import(s): import SwiftCodeAssistant (destination module exists; types resolve as the owning ports land).
+//   - MOVED 2026-11-06 (MCP-DEP): file moved SwiftCodeMCP -> SwiftCodeAssistant;
+//     the cross-target import was dropped (same target now); `registerAllTools()`
+//     removed — it listed ~291 concrete tool types, 274 of which exist nowhere
+//     in the tree yet and 17 of which live in SwiftCodeMCP (unimportable from
+//     here). Enrolment is split by module: MCP tools enrol from
+//     SwiftCodeMCP/AssistToolRegistry+MCPTools.swift; each further tool enrols
+//     via register(_:) as it lands. The registry mechanics are unchanged.
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AssistAccessLevelAuditTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAccessLevelAuditTool.swift`)
 //   - AssistAccessibilityAuditScannerTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistAccessibilityAuditScannerTool.swift`)
@@ -53,10 +65,9 @@
 //   - AssistCodeMutationEngine — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCodeMutationEngine.swift`)
 //   - AssistCodeSigningDiagnoseTool — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Tools/AssistCodeSigningDiagnoseTool.swift`)
 //   - ... and 236 more (full list in assist/DISPOSITIONS.md).
-// WIRING / REGISTRATION: Dynamic registry: MCPServer tools catalogue stays the live registry until wired; instantiate AssistToolRegistry.shared and register legacy tools as they land (registerAllTools() references ~295 tool types across all agents’ scopes).
+// WIRING / REGISTRATION: Dynamic registry: MCPServer tools catalogue stays the live registry until wired; instantiate AssistToolRegistry.shared and register legacy tools as they land; enrolment is split by module (see init()).
 
 import Foundation
-import SwiftCodeAssistant
 
 public enum ToolHealthStatus: String, Codable, Sendable {
     case registered
@@ -117,345 +128,15 @@ public final class AssistToolRegistry {
         readOnlyResultCache[semanticKey] = (result: result, timestamp: Date())
     }
 
-    public init() {
-        registerAllTools()
-    }
-
-    private func registerAllTools() {
-        register(AssistReadFileTool())
-        register(AssistWriteFileTool())
-        register(AssistAppendFileTool())
-        register(AssistDeleteFileTool())
-        register(AssistMoveFileTool())
-        register(AssistCopyFileTool())
-        register(AssistRenameFileTool())
-        register(AssistCreateDirectoryTool())
-        register(AssistCreateFileTool())
-        register(AssistGenerateFileTool())
-        register(AssistDeleteDirectoryTool())
-        register(AssistReadDirectoryTool())
-        register(AssistTreeViewTool())
-        register(AssistChangeDirectoryTool())
-        register(AssistPrintWorkingDirectoryTool())
-
-        register(AssistSearchTool())
-        register(AssistRegexSearchTool())
-        register(AssistSymbolSearchTool())
-        register(AssistDependencyGraphTool())
-        register(AssistCodeSummaryTool())
-        register(AssistLintTool())
-        register(AssistComplexityAnalysisTool())
-
-        register(AssistReplaceInFileTool())
-        register(AssistMultiFileEditTool())
-        register(AssistRefactorTool())
-        register(AssistFormatCodeTool())
-        register(AssistInsertCodeBlockTool())
-
-        register(AssistSnapshotProjectTool())
-        register(AssistRestoreSnapshotTool())
-        register(AssistDiffTool())
-        register(AssistChangeLogTool())
-        register(AssistUndoTool())
-        register(AssistValidateChangesTool())
-
-        register(AssistTaskRunnerTool())
-        register(AssistBuildProjectTool())
-        register(AssistGenerateXcodeprojTool())
-        register(AssistTestRunnerTool())
-        register(AssistLogCaptureTool())
-        register(AssistEnvironmentInfoTool())
-        register(UseTermFunction())
-        register(UseMCP())
-        register(UseExtensionTool())
-        register(AssistComposioTool())
-
-        register(AssistCreateNewAppTool())
-        register(AssistPlanTaskTool())
-        register(AssistBreakdownTaskTool())
-        register(AssistAutoFixErrorsTool())
-        register(AssistGenerateTestsTool())
-        register(AssistExplainCodeTool())
-
-        register(AssistStoreMemoryTool())
-        register(AssistRetrieveMemoryTool())
-        register(AssistClearMemoryTool())
-        register(AssistContextSnapshotTool())
-
-        register(AssistSourceGraphBuilder())
-        register(AssistSemanticQueryEngine())
-        register(AssistCodeMutationEngine())
-        register(AssistPatchApplicationEngine())
-        register(AssistProjectMutationController())
-        register(AssistCompilerDiagnosticsEngine())
-        register(AssistAutomatedRepairEngine())
-        register(AssistVersionControlOperator())
-        register(AssistContextPersistenceStore())
-        register(AssistRuntimeDiagnosticsEngine())
-        register(AssistExternalResourceGateway())
-        register(AssistDependencyResolutionEngine())
-        register(AssistAutonomousReviewEngine())
-        register(CodeReviewTool())
-        register(UseWorkersTool())
-        register(ExecutionPlanTool())
-        register(PlanAskUserTool())
-        register(SearchSkillsTool())
-        register(AssistOpenInFinderTool())
-        register(AssistRevealInFinderTool())
-        register(ReportToUserTool())
-
-        // 15 New Specialized Engineering Tools
-        register(AssistAssetCatalogTool())
-        register(AssistSwiftPackageTool())
-        register(AssistPlistTool())
-        register(AssistCodeMetricsTool())
-        register(AssistLocalizationTool())
-        register(AssistMemoryLeakDetectorTool())
-        register(AssistDeadCodeEliminatorTool())
-        register(AssistInterfaceSimulatorTool())
-        register(AssistDocStringGeneratorTool())
-        register(AssistEntitlementsTool())
-        register(AssistCodeSnippetTool())
-        register(AssistSecurityAuditTool())
-        register(AssistMigrationTool())
-        register(AssistGitStashTool())
-        register(AssistXcodeSchemeTool())
-
-        // 45 New Deep Engineering, Diagnostics, Memory, & Tooling
-        register(AssistSaveToMemoryTool())
-        register(AssistViewMemoryTool())
-        register(AssistManageMemoryTool())
-        register(AssistConversationContextTool())
-        register(AssistSwiftASTInspectorTool())
-        register(AssistXcodeBuildSettingsTool())
-        register(AssistSymbolReferenceGraphTool())
-        register(AssistXCResultParserTool())
-        register(AssistXcodeDeviceDestinationTool())
-        register(AssistSimulatorControllerTool())
-        register(AssistGitBlameTool())
-        register(AssistGitBranchManagerTool())
-        register(AssistGitLogViewerTool())
-        register(AssistGitConflictResolverTool())
-        register(AssistSwiftFormatLintTool())
-        register(AssistTodoFixmeScannerTool())
-        register(AssistUnusedImportsDetectorTool())
-        register(AssistBundleResourceAuditorTool())
-        register(AssistCoreDataModelInspectorTool())
-        register(AssistSwiftDataSchemaAuditorTool())
-        register(AssistPrivacyManifestAuditorTool())
-        register(AssistIconGeneratorTool())
-        register(AssistColorSetBuilderTool())
-        register(AssistStringCatalogMigratorTool())
-        register(AssistTestCoverageReporterTool())
-        register(AssistSPMDependencyTreeTool())
-        register(AssistPodfileInspectorTool())
-        register(AssistCarthageCartfileInspectorTool())
-        register(AssistMachOBinaryAnalyzerTool())
-        register(AssistFrameworkLinkerAuditorTool())
-        register(AssistSigningCertificateInspectorTool())
-        register(AssistProvisioningProfileReaderTool())
-        register(AssistNetworkSecurityAuditorTool())
-        register(AssistAccessibilityAuditScannerTool())
-        register(AssistSwiftConcurrencyAnalyzerTool())
-        register(AssistRegexReplaceInFilesTool())
-        register(AssistFileChecksumVerifierTool())
-        register(AssistBinaryPlistConverterTool())
-        register(AssistJSONValidatorTool())
-        register(AssistYAMLParserTool())
-        register(AssistEnvironmentVariableManagerTool())
-        register(AssistClipboardManagerTool())
-        register(AssistProcessMonitorTool())
-        register(AssistDiskSpaceAnalyzerTool())
-        register(AssistSystemNotificationTool())
-
-        // Native Reverse subsystem (REA, static inspection only).
-        register(ReverseToolAdapter())
-
-        // 60 new tools (feature/assist-60-new-tools): Xcode project & build
-        register(AssistProjectSchemeListTool())
-        register(AssistProjectTargetListTool())
-        register(AssistProjectBuildSettingsTool())
-        register(AssistProjectTargetAddTool())
-        register(AssistProjectEntitlementsTool())
-        register(AssistProjectInfoPlistTool())
-        register(AssistProjectCapabilitiesTool())
-        register(AssistProjectSigningTool())
-        register(AssistProjectCleanTool())
-        register(AssistProjectArchiveTool())
-        // SwiftPM + assets/resources
-        register(AssistPackageManifestReadTool())
-        register(AssistPackageDependencyAddTool())
-        register(AssistPackageDependencyUpdateTool())
-        register(AssistPackageManifestValidateTool())
-        register(AssistPackageDependencyAuditTool())
-        register(AssistAssetCatalogListTool())
-        register(AssistAssetImageAddTool())
-        register(AssistStringsLocalizationTool())
-        register(AssistLocalizationAuditTool())
-        register(AssistLocalizeAppTool())
-        register(AssistPlistEditTool())
-        // Code quality & analysis
-        register(AssistDeadCodeScanTool())
-        register(AssistDuplicateCodeScanTool())
-        register(AssistTodoScanTool())
-        register(AssistLicenseHeaderCheckTool())
-        register(AssistApiSurfaceExtractTool())
-        register(AssistSymbolRenameProjectTool())
-        register(AssistSymbolMoveFileTool())
-        register(AssistImportCleanupTool())
-        register(AssistAccessLevelAuditTool())
-        register(AssistConcurrencyAuditTool())
-        // Testing & QA
-        register(AssistTestCoverageReportTool())
-        register(AssistTestFlakyDetectTool())
-        register(AssistTestSnapshotManageTool())
-        register(AssistUITestScaffoldTool())
-        register(AssistTestDataFactoryTool())
-        register(AssistTestTargetAddTool())
-        register(AssistTestRunSingleTool())
-        register(AssistTestLogParseTool())
-        register(AssistPerformanceBenchmarkTool())
-        register(AssistBinarySizeReportTool())
-        // Git advanced + structured files
-        register(AssistGitBisectTool())
-        register(AssistGitCherryPickTool())
-        register(AssistGitBranchCompareTool())
-        register(AssistGitPRSummaryTool())
-        register(AssistFileMetadataTool())
-        register(AssistFileHashVerifyTool())
-        register(AssistJsonValidateTool())
-        register(AssistYamlValidateTool())
-        // Environment, devices, docs, security
-        register(AssistSimulatorListTool())
-        register(AssistSimulatorBootTool())
-        register(AssistDeviceListTool())
-        register(AssistProvisioningCheckTool())
-        register(AssistDoccBuildTool())
-        register(AssistDocsGenerateTool())
-        register(AssistSecretsScanTool())
-        register(AssistPermissionsAuditTool())
-        register(AssistAccessibilityAuditTool())
-        register(AssistSessionExportTool())
-
-        // Artboards & Visual UI Builder Subsystem tools
-        register(AssistArtboardListTool())
-        register(AssistArtboardGetTool())
-        register(AssistArtboardCreateTool())
-        register(AssistArtboardUpdateTool())
-        register(AssistArtboardDeleteTool())
-        register(AssistArtboardCompileTool())
-        register(AssistArtboardRunAppTool())
-        register(AssistFixArtboardsTool())
-
-        // Archive & Compression tools
-        register(AssistZipFileTool())
-        register(AssistUnzipFileTool())
-        register(AssistTarArchiveCreateTool())
-        register(AssistTarArchiveExtractTool())
-        register(AssistGzipCompressTool())
-        register(AssistGzipDecompressTool())
-
-        // Image & Decoder tools
-        register(AssistImageDecodeBase64Tool())
-        register(AssistImageEncodeBase64Tool())
-        register(AssistImageGetDimensionsTool())
-        register(AssistImageConvertFormatTool())
-        register(AssistImageGenerateThumbnailTool())
-        register(AssistImageExtractMetadataTool())
-        register(AssistSvgToPngTool())
-
-        // Data & Structured file tools
-        register(AssistFormatJsonFileTool())
-        register(AssistCsvToJsonTool())
-        register(AssistJsonToCsvTool())
-        register(AssistPlistToJsonTool())
-        register(AssistJsonToPlistTool())
-        register(AssistFileCompareDiffTool())
-        register(AssistBatchRenameFilesTool())
-        register(AssistCountFileLinesTool())
-        register(AssistExtractCodeSymbolsTool())
-        register(AssistGenerateFileChecksumTool())
-
-        // Artifacts-intro expansion: 60 single-file tools (no git tooling).
-        // Repository intelligence
-        register(AssistRepoOverviewTool())
-        register(AssistProjectStructureMapTool())
-        register(AssistRecentChangesTool())
-        register(AssistReadmeLocateTool())
-        register(AssistDependencyLicensesTool())
-        register(AssistStaleFilesReportTool())
-        register(AssistEntryPointsDiscoverTool())
-        register(AssistBuildSystemDetectTool())
-        // Code navigation
-        register(AssistCallHierarchyTool())
-        register(AssistTypeHierarchyTool())
-        register(AssistProtocolConformanceListTool())
-        register(AssistImportGraphTool())
-        register(AssistCommentDensityReportTool())
-        register(AssistFunctionSizeReportTool())
-        register(AssistStringLiteralAuditTool())
-        register(AssistForceUnwrapScanTool())
-        // File operations
-        register(AssistDirSizeReportTool())
-        register(AssistFindDuplicateFilesTool())
-        register(AssistFileTypeBreakdownTool())
-        register(AssistEmptyDirsFindTool())
-        register(AssistFileHeadPreviewTool())
-        register(AssistSymlinkAuditTool())
-        register(AssistExecutableFilesScanTool())
-        // Diagnostics
-        register(AssistSystemTool())
-        register(AssistBuildLogAnalyzeTool())
-        register(AssistSchemeTestPlanListTool())
-        register(AssistCodeSigningDiagnoseTool())
-        register(AssistCrashLogParseTool())
-        register(AssistEntitlementsDiffTool())
-        register(AssistStringsFileValidateTool())
-        register(AssistDeprecationUsageScanTool())
-        register(AssistInfoPlistAuditTool())
-        register(AssistApiEndpointAuditTool())
-        register(AssistColorUsageAuditTool())
-        register(AssistImageAssetSizeReportTool())
-        register(AssistPbxprojLintTool())
-        register(AssistXctestDiscoveryTool())
-        // Build environment
-        register(AssistXcodeToolchainInfoTool())
-        register(AssistDerivedDataLocateTool())
-        register(AssistBuildSettingsDiffTool())
-        register(AssistTargetDependenciesListTool())
-        register(AssistWorkspaceSettingsReadTool())
-        register(AssistBuildPhaseScriptsListTool())
-        register(AssistBuildConfigurationListTool())
-        register(AssistTargetSourceListTool())
-        // Documentation
-        register(AssistReadmeGenerateTool())
-        register(AssistDocsIndexBuildTool())
-        register(AssistCodeCommentExtractTool())
-        register(AssistApiDocsCoverageTool())
-        register(AssistMarkdownLinkCheckTool())
-        register(AssistMarkdownTocGenerateTool())
-        // Native artifacts
-        register(AssistCreateArtifactTool())
-        register(AssistListArtifactsTool())
-        register(AssistReadArtifactTool())
-        register(AssistDeleteArtifactTool())
-        // Workflow
-        register(AssistSessionProgressReportTool())
-        register(AssistPreflightChecksTool())
-        register(AssistChangeImpactEstimateTool())
-        register(AssistFileBackupTool())
-        register(AssistConflictMarkerScanTool())
-        register(AssistToolCapabilityLookupTool())
-
-        // Native Screen Capture, Recording & App Interaction
-        register(AssistTakeScreenshotTool())
-        register(AssistTakeScreenrecordTool())
-        register(AssistUseAppTool())
-
-        // External documentation & repository intelligence (native, no MCP)
-        register(AssistFetchDocumentationTool())
-        register(AssistGitHubRepoTool())
-    }
+    /// An empty registry: tools enrol explicitly through ``register(_:)``.
+    /// Registration used to happen here in `registerAllTools()`, but that
+    /// listed ~291 concrete tool types, 274 of which exist nowhere in the
+    /// tree yet and 17 of which live in SwiftCodeMCP (which this target
+    /// cannot import — MCP depends on Assistant, not the reverse).
+    /// Enrolment therefore lives with the tools: MCP-defined tools register
+    /// in `AssistToolRegistry+MCPTools.swift` (SwiftCodeMCP), and each
+    /// further tool registers itself (or via its landing agent) as it lands.
+    public init() {}
 
     public var version: Int { registryVersion }
     private var cachedToolSchemas: [[String: Any]]?

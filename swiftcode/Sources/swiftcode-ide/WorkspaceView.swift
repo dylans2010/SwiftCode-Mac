@@ -3,6 +3,7 @@ import SwiftUI
 import SwiftCodeBuild
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
+import os
 
 /// The workspace window (`workspace-window.md` §Areas), laid out as the
 /// AppKit IDE lays it out (`docs/PARITY.md` §5.10): three columns, the
@@ -283,4 +284,18 @@ struct EditorPrompts: ViewModifier {
             }
             .sheet(isPresented: $model.isJumpToLineShown) { JumpToLineSheet(model: model) }
     }
+}
+
+
+// Ported from Legacy `SwiftCode/Views/WorkspaceView.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: WorkspaceTool.
+
+struct WorkspaceTool: Identifiable, Codable, Hashable {
+    let id: String
+    let name: String
+    let description: String
+    let iconName: String
+    let colorHex: String
+    let category: String
+    let destination: String // RawValue of ToolbarActionManager.SheetDestination
 }

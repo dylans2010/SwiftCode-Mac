@@ -468,3 +468,397 @@ private struct ICloudCompositeEditor: View {
         newContainer = ""
     }
 }
+
+
+// Ported from Legacy `SwiftCode/Views/Editor/EntitlementsEditorView.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: EntitlementIDListEditor, UbiquitousContainersEditor, EntitlementDictionaryEditor, EntitlementRowView.
+
+struct EntitlementIDListEditor: View {
+    @Binding var ids: [String]
+    let placeholder: String
+    @State private var newID = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if ids.isEmpty {
+                Text("No identifiers yet. Add one below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(ids, id: \.self) { id in
+                HStack {
+                    Image(systemName: "tag")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(id)
+                        .font(.system(.body, design: .monospaced))
+                    Spacer()
+                    Button {
+                        ids.removeAll { $0 == id }
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove identifier")
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            }
+            HStack {
+                TextField(placeholder, text: $newID)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit { addID() }
+                Button("Add") { addID() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(addDisabled)
+            }
+            if duplicateWarning {
+                Text("That identifier is already in the list.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var trimmedNewID: String {
+        newID.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var duplicateWarning: Bool {
+        !trimmedNewID.isEmpty && ids.contains(trimmedNewID)
+    }
+
+    private var addDisabled: Bool {
+        trimmedNewID.isEmpty || ids.contains(trimmedNewID)
+    }
+
+    private func addID() {
+        guard !addDisabled else { return }
+        ids.append(trimmedNewID)
+        newID = ""
+    }
+}
+
+/// Honest model of the real NSUbiquitousContainers dictionary: each container ID
+/// maps to a dictionary with NSUbiquitousContainerName (String),
+/// NSUbiquitousContainerIsDocumentScopePublic (Boolean), and
+/// NSUbiquitousContainerSupportedFolderLevels (None / One / Any).
+struct UbiquitousContainersEditor: View {
+    @Binding var containers: [String: [String: Any]]
+    @State private var newID = ""
+
+    private enum Keys {
+        static let name = "NSUbiquitousContainerName"
+        static let isPublic = "NSUbiquitousContainerIsDocumentScopePublic"
+        static let folderLevels = "NSUbiquitousContainerSupportedFolderLevels"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Ubiquitous Containers (NSUbiquitousContainers)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if containers.isEmpty {
+                Text("No ubiquitous containers configured. Add one below if the app declares document containers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(containers.keys.sorted(), id: \.self) { id in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "shippingbox")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(id)
+                            .font(.system(.body, design: .monospaced))
+                        Spacer()
+                        Button {
+                            containers.removeValue(forKey: id)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove container")
+                    }
+                    TextField("Display name", text: nameBinding(for: id))
+                        .textFieldStyle(.roundedBorder)
+                    Toggle("Document scope is public", isOn: publicBinding(for: id))
+                    Picker("Folder levels", selection: folderLevelsBinding(for: id)) {
+                        Text("None").tag("None")
+                        Text("One").tag("One")
+                        Text("Any").tag("Any")
+                    }
+                    .pickerStyle(.segmented)
+                    Divider()
+                }
+            }
+            HStack {
+                TextField("iCloud.com.example.container", text: $newID)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit { addContainer() }
+                Button("Add") { addContainer() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(trimmedNewID.isEmpty || containers[trimmedNewID] != nil)
+            }
+        }
+    }
+
+    private var trimmedNewID: String {
+        newID.trimmingCharacters(in: .whitespaces)
+    }
+
+    private func addContainer() {
+        guard !trimmedNewID.isEmpty, containers[trimmedNewID] == nil else { return }
+        containers[trimmedNewID] = [
+            Keys.name: "",
+            Keys.isPublic: false,
+            Keys.folderLevels: "None"
+        ]
+        newID = ""
+    }
+
+    private func nameBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { containers[id]?[Keys.name] as? String ?? "" },
+            set: {
+                var entry = containers[id] ?? [:]
+                entry[Keys.name] = $0
+                containers[id] = entry
+            }
+        )
+    }
+
+    private func publicBinding(for id: String) -> Binding<Bool> {
+        Binding(
+            get: { containers[id]?[Keys.isPublic] as? Bool ?? false },
+            set: {
+                var entry = containers[id] ?? [:]
+                entry[Keys.isPublic] = $0
+                containers[id] = entry
+            }
+        )
+    }
+
+    private func folderLevelsBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { containers[id]?[Keys.folderLevels] as? String ?? "None" },
+            set: {
+                var entry = containers[id] ?? [:]
+                entry[Keys.folderLevels] = $0
+                containers[id] = entry
+            }
+        )
+    }
+}
+
+struct EntitlementDictionaryEditor: View {
+    @Binding var entries: [String: String]
+    @State private var newKey = ""
+    @State private var newValue = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if entries.isEmpty {
+                Text("Empty dictionary.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(entries.keys.sorted(), id: \.self) { key in
+                HStack {
+                    Image(systemName: "curlybraces")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(key)
+                        .font(.system(.body, design: .monospaced))
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    TextField("Value", text: Binding(
+                        get: { entries[key] ?? "" },
+                        set: { entries[key] = $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    Button {
+                        entries.removeValue(forKey: key)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove entry")
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            }
+            HStack {
+                TextField("Key", text: $newKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                TextField("Value", text: $newValue)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit { addEntry() }
+                Button("Add") { addEntry() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(trimmedKey.isEmpty || entries[trimmedKey] != nil)
+            }
+        }
+    }
+
+    private var trimmedKey: String {
+        newKey.trimmingCharacters(in: .whitespaces)
+    }
+
+    private func addEntry() {
+        guard !trimmedKey.isEmpty, entries[trimmedKey] == nil else { return }
+        entries[trimmedKey] = newValue
+        newKey = ""
+        newValue = ""
+    }
+}
+
+struct EntitlementRowView: View {
+    let key: String
+    let value: Any
+    let onSelect: () -> Void
+    let onDuplicate: () -> Void
+    let onDelete: () -> Void
+    let onValueChange: (Any) -> Void
+
+    private var typeIcon: String {
+        if value is Bool { return "switch.2" }
+        if value is [String] { return "list.bullet" }
+        if value is [Any] { return "list.bullet" }
+        if value is [String: Any] { return "curlybraces" }
+        return "textformat"
+    }
+
+    private var typeName: String {
+        if value is Bool { return "Boolean" }
+        if value is [String] { return "Array of Strings" }
+        if value is [Any] { return "Array" }
+        if value is [String: String] { return "Dictionary (String values)" }
+        if value is [String: Any] { return "Dictionary" }
+        if value is String { return "String" }
+        return "Value"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Image(systemName: typeIcon)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(key)
+                        .font(.system(.body, design: .monospaced).weight(.medium))
+                        .lineLimit(1)
+                    if let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key }) {
+                        Text(meta.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(typeName)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(minWidth: 220, alignment: .leading)
+
+                Spacer()
+
+                if let boolVal = value as? Bool {
+                    Toggle("", isOn: Binding(
+                        get: { boolVal },
+                        set: { onValueChange($0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                }
+
+                // Inspect
+                Button(action: onSelect) {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Inspect Capability")
+
+                // Duplicate
+                Button(action: onDuplicate) {
+                    Image(systemName: "plus.square.on.square")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Duplicate Capability")
+
+                // Delete
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Remove Capability")
+            }
+
+            valueEditor
+                .padding(.leading, 36)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var valueEditor: some View {
+        if value is Bool {
+            EmptyView()
+        } else if value is [String] {
+            EntitlementIDListEditor(
+                ids: Binding(
+                    get: { value as? [String] ?? [] },
+                    set: { onValueChange($0) }
+                ),
+                placeholder: "value"
+            )
+        } else if let arrVal = value as? [Any] {
+            Text("\(arrVal.count) entries (non-string array — remove and re-add to edit inline)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
+        } else if value is [String: String] {
+            EntitlementDictionaryEditor(
+                entries: Binding(
+                    get: { value as? [String: String] ?? [:] },
+                    set: { onValueChange($0) }
+                )
+            )
+        } else if let dictVal = value as? [String: Any] {
+            Text("Dictionary with \(dictVal.count) entries (non-string values — remove and re-add to edit inline)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
+        } else {
+            TextField("", text: Binding(
+                get: { String(describing: value) },
+                set: { onValueChange($0) }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .font(.system(.body, design: .monospaced))
+            .frame(minWidth: 160, maxWidth: 400)
+        }
+    }
+}

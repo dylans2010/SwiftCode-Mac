@@ -28,6 +28,7 @@
 //   staged `AgentSessionState.swift` in this same target.
 
 import Foundation
+import SwiftUI
 
 // MARK: - Assist Context & State
 
@@ -748,5 +749,199 @@ public struct AssistGoalSafeguards: Sendable {
         }
 
         return (true, nil)
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/Backend/Assist/AssistModels.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: AgentModelResponse, AssistLLMService, AssistStatus, DynamicModelOption, AssistModelFilter, MultiGoalSessionSummary, QueuedAssistMessage.
+
+public struct AgentModelResponse: Codable, Sendable {
+    public let content: String
+    public let toolCalls: [AgentToolCall]
+    public let modelId: String
+    public let provider: String
+    public let inputTokens: Int?
+    public let outputTokens: Int?
+    public let finishReason: String?
+    public let latency: TimeInterval
+
+    public init(
+        content: String,
+        toolCalls: [AgentToolCall] = [],
+        modelId: String,
+        provider: String,
+        inputTokens: Int? = nil,
+        outputTokens: Int? = nil,
+        finishReason: String? = nil,
+        latency: TimeInterval = 0
+    ) {
+        self.content = content
+        self.toolCalls = toolCalls
+        self.modelId = modelId
+        self.provider = provider
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.finishReason = finishReason
+        self.latency = latency
+    }
+}
+
+public struct AssistLLMService {
+    @MainActor
+    public static func generateResponse(prompt: String, provider: AssistModelProvider, apiKey: String?, modelOverride: String? = nil) async -> AssistAIResponse {
+        // Fail closed for OpenCode: it must run through AgentModelAdapter
+        // -> OpenCodeClient, never through LLMService. Without this guard
+        // the llmProvider mapping above would silently route an OpenCode
+        // model to OpenRouter with an OpenRouter credential.
+        if provider == .openCode {
+            return AssistAIResponse(
+                content: "",
+                success: false,
+                error: "OpenCode models run through OpenCodeClient (see AgentModelAdapter), not LLMService. Select the model in Assist Settings and retry."
+            )
+        }
+        // Fail closed for Hermes, for the same reason: it runs through
+        // HermesProvider's CLI process, never through LLMService, and
+        // routing it here would silently send a Hermes model to
+        // OpenRouter with an OpenRouter credential.
+        if provider == .hermes {
+            return AssistAIResponse(
+                content: "",
+                success: false,
+                error: "Hermes models run through HermesProvider (see HermesSessionRunner), not LLMService. Select a Hermes model in Assist Settings and retry."
+            )
+        }
+        do {
+            // Standardize on the central LLMService which handles all model routing and logic.
+            // We pass the prompt and let LLMService handle the details.
+            let activeModelID = modelOverride ?? AppSettings.shared.selectedAssistModelID
+            let providerOverride = provider.llmProvider
+
+            let content = try await LLMService.shared.generateResponse(
+                prompt: prompt,
+                useContext: true,
+                modelOverride: activeModelID,
+                providerOverride: providerOverride
+            )
+            return AssistAIResponse(content: content, success: true)
+        } catch {
+            return AssistAIResponse(content: "", success: false, error: "AI request failed: \(error.localizedDescription)")
+        }
+    }
+}
+
+/// Maintained for UI compatibility
+public enum AssistStatus: String, Codable {
+    case pending
+    case inProgress
+    case completed
+    case failed
+    case rejected
+}
+
+public struct DynamicModelOption: Identifiable, Hashable, Sendable {
+    public var id: String { modelID }
+    public let modelID: String
+    public let name: String
+    public let provider: String
+    public let status: String
+    public let isAvailable: Bool
+    public let category: ModelCategory
+
+    public enum ModelCategory: String, CaseIterable, Sendable {
+        case apple = "Apple Foundation Models"
+        case local = "HuggingFace Local Models"
+        case openRouter = "OpenRouter Cloud Models"
+        case custom = "Custom Models"
+    }
+
+    public init(modelID: String, name: String, provider: String, status: String, isAvailable: Bool, category: ModelCategory) {
+        self.modelID = modelID
+        self.name = name
+        self.provider = provider
+        self.status = status
+        self.isAvailable = isAvailable
+        self.category = category
+    }
+}
+
+@MainActor
+public final class AssistModelFilter {
+    public static let shared = AssistModelFilter()
+
+    private init() {}
+
+    public var disabledModelIDs: Set<String> {
+        get {
+            let array = UserDefaults.standard.stringArray(forKey: "com.swiftcode.assist.disabled_models") ?? []
+            return Set(array)
+        }
+        set {
+            UserDefaults.standard.set(Array(newValue), forKey: "com.swiftcode.assist.disabled_models")
+        }
+    }
+
+    public func isEnabled(_ modelID: String) -> Bool {
+        return !disabledModelIDs.contains(modelID)
+    }
+
+    public func toggleModel(_ modelID: String, enabled: Bool) {
+        var current = disabledModelIDs
+        if enabled {
+            current.remove(modelID)
+        } else {
+            current.insert(modelID)
+        }
+        disabledModelIDs = current
+    }
+}
+
+public struct MultiGoalSessionSummary: Codable, Sendable {
+    public let rootGoal: String
+    public let goals: [AssistGoal]
+    public let totalGoalsCompleted: Int
+    public let totalDuration: TimeInterval
+    public let totalFilesModified: Int
+    public let overallOutcome: String
+
+    public init(
+        rootGoal: String,
+        goals: [AssistGoal],
+        totalGoalsCompleted: Int,
+        totalDuration: TimeInterval,
+        totalFilesModified: Int,
+        overallOutcome: String
+    ) {
+        self.rootGoal = rootGoal
+        self.goals = goals
+        self.totalGoalsCompleted = totalGoalsCompleted
+        self.totalDuration = totalDuration
+        self.totalFilesModified = totalFilesModified
+        self.overallOutcome = overallOutcome
+    }
+}
+
+public struct QueuedAssistMessage: Identifiable, Sendable, Codable, Equatable {
+    public let id: UUID
+    public var content: String
+    public var attachments: [AgentFileContext]
+    public let timestamp: Date
+    /// The composer's task envelope (explicit skills, MCP servers, files).
+    /// Preserved so queued messages don't silently lose their selections.
+    public var envelope: AssistTaskEnvelope?
+
+    public init(
+        id: UUID = UUID(),
+        content: String,
+        attachments: [AgentFileContext] = [],
+        timestamp: Date = Date(),
+        envelope: AssistTaskEnvelope? = nil
+    ) {
+        self.id = id
+        self.content = content
+        self.attachments = attachments
+        self.timestamp = timestamp
+        self.envelope = envelope
     }
 }

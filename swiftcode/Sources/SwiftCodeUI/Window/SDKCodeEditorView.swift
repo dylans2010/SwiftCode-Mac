@@ -3,7 +3,6 @@
 // Ported from Legacy `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: NSTextView-based editor (SDKCodeEditorTextView + Coordinator textDidChange/scheduleHighlight); Line-number ruler (SDKCodeEditorLineNumberRuler); Live plain syntax highlighting (SDKPlainSyntaxHighlighter) and navigation-target caret application
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeSDKStudio — add the dependency in Package.swift or rebind at wiring time; not imported here.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeLanguage

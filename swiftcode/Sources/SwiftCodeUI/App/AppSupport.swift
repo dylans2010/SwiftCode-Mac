@@ -517,6 +517,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
                     self.showWelcomeWindow(nil)
                 }
                 RuntimeSetupWindowController.offerAtFirstLaunch()
+                // Wiring (wiring-views): first-run Git/GitHub setup
+                // (`SCSetupOnboard`): shown when git is not installed or
+                // no GitHub token is stored, alongside the Welcome
+                // window; closing it without finishing re-offers it on
+                // the next launch.
+                SCSetupOnboardWindowController.offerIfNeeded()
             }
         }
     }
@@ -539,11 +545,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
     /// A URL the system routed to this app on one of its registered
     /// custom schemes (`packaging/macos/Info.plist.in`,
     /// `CFBundleURLTypes`): Appwrite OAuth / recovery / verification
-    /// callbacks on `appwrite-callback-<project>://`, and Google
-    /// OAuth callbacks on `swiftcode://`. Each URL is offered to the
-    /// Appwrite manager first, then to the Google service; the
-    /// first handler that claims it wins. Without the Info.plist
-    /// registration the system never delivers these URLs and both
+    /// callbacks on `appwrite-callback-<project>://`, GitHub OAuth
+    /// callbacks on `swiftcode://oauth/callback`, and Google OAuth
+    /// callbacks on `swiftcode://`. Each URL is offered to the
+    /// Appwrite manager first, then to GitHub OAuth, then to the
+    /// Google service; the first handler that claims it wins.
+    /// GitHub MUST come before Google: Google's handler claims any
+    /// `swiftcode://` URL (GoogleOAuthConfiguration.callbackScheme),
+    /// so offering Google first would swallow the GitHub callback
+    /// and the code exchange would never run. Without the Info.plist
+    /// registration the system never delivers these URLs and the
     /// OAuth flows keep timing out instead of completing — the
     /// handlers alone are not enough.
     public func application(_ sender: NSApplication, open urls: [URL]) {
@@ -581,6 +592,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
         // pending OAuth wait — the URL was still Appwrite's, so it
         // was consumed even though nothing is left to do with it.
         if url.scheme == CloudAuthManager.shared.client.configuration.callbackScheme {
+            return true
+        }
+        // GitHub before Google: GitHubOAuth.handleOpenURL only claims
+        // its own `swiftcode://oauth/callback` redirect, while
+        // Google's handler claims every `swiftcode://` URL.
+        if GitHubOAuth.shared.handleOpenURL(url) {
             return true
         }
         return GoogleAccountAuthService.shared.handleOpenURL(url)

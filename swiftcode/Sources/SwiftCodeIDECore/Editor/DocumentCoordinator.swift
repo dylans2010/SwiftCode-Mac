@@ -3,12 +3,13 @@
 // Ported from Legacy `SwiftCode/Core/Editor/DocumentCoordinator.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: Single shared hub: foldingState, cursor/scroll persistence, compiled-artboard cache, previewSession link, inspectorSelection; updateUnsavedStatus sync across editor + visual designer
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeUI — add the dependency in Package.swift or rebind at wiring time; not imported here.
+// PreviewSession lives in SwiftCodePreviews (already a dependency of this target); do NOT add a SwiftCodeUI dependency — that would be circular (SwiftCodeUI depends on SwiftCodeIDECore).
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): PreviewSession.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation
 import os
+import SwiftCodePreviews
 #if os(macOS)
 import AppKit
 #endif

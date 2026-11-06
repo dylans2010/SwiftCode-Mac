@@ -244,7 +244,7 @@ public enum CommandTable {
             sep,
             // The tools found in the developer directory go before the separator.
             // Device Hub (device-hub.md: Xcode ▸ Open Developer Tool ▸ Device Hub opens it).
-            .submenu("Open Developer Tool", [c("Device Hub", "", "showDevices:"), c("Compare Files…", "", "compareFiles:"), sep, c("More Developer Tools…", "", "openMoreDeveloperTools:")]),
+            .submenu("Open Developer Tool", [c("Device Hub", "", "showDevices:"), c("Database Explorer", "", "showDatabaseExplorer:"), c("Compare Files…", "", "compareFiles:"), sep, c("More Developer Tools…", "", "openMoreDeveloperTools:")]),
             .submenu("Services", []),
             sep,
             c("Hide SwiftCode", "⌘H", "hide:"),
@@ -457,6 +457,8 @@ public enum CommandTable {
                 sep,
                 // "Hide Coding Assistant" while shown (MenuTitles; reference-ui-6.md §9.5, A7).
                 c("Show Coding Assistant", "⌘0", "showCodingAssistant:"),
+                // Wiring (wiring-views): the workspace's Collaboration window.
+                c("Show Collaboration…", "", "showCollaboration:"),
                 c("Show Navigator", "", "toggleNavigator:"),
                 c("Filter in Navigator", "⌥⌘J", "filterInNavigator:"),
             ]),

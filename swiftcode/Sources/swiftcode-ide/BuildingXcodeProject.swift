@@ -5,9 +5,10 @@
 // Missing behaviour ported: generator wizard UI (configuration form, stage status, advanced metrics, project-settings save)
 // Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/BuildingXcodeProject.swift (derived from Legacy).
 // References types from module(s) not in this target's Package.swift dependencies: SwiftCodeDarwinKernel, SwiftCodeDarwinKernel (or SwiftCodeMetalHost, SwiftCodeProfiler) — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CopyLogsButton, VisualEffectView, XcodeBuildAPI, XcodeGenInstallationState.
+// References legacy types absent from the destination and from this worklist (wiring/integration gaps): CopyLogsButton, VisualEffectView.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
+import SwiftCodeXcodebuild
 import SwiftUI
 
 public struct BuildingXcodeProject: View {

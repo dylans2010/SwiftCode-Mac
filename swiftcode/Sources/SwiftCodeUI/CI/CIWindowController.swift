@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeGitHub
 
@@ -62,6 +63,14 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
     private let repoField = NSTextField()
     private let refreshButton = NSButton(title: "Refresh", target: nil, action: nil)
     private let rerunButton = NSButton(title: "Re-run", target: nil, action: nil)
+    /// Wiring (wiring-views): opens the visual workflow creator
+    /// (`WorkflowsCreateView`, same target) as a sheet.
+    private let createButton = NSButton(title: "Create Visual Workflow", target: nil, action: nil)
+    /// Wiring (wiring-views): opens the workflow editor
+    /// (`WorkflowEditorView`, same target) for the workspace's
+    /// `.github/workflows/workflow.yml` as a sheet. Enabled only while
+    /// that file exists (see `updateEditButton()`).
+    private let editButton = NSButton(title: "Edit Workflow", target: nil, action: nil)
     private let statusLabel = NSTextField(labelWithString: "")
     private let runsTable = NSTableView()
     private let jobsTextView = NSTextView()
@@ -139,10 +148,15 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
         rerunButton.target = self
         rerunButton.action = #selector(rerunClicked)
         rerunButton.isEnabled = false
+        createButton.target = self
+        createButton.action = #selector(createVisualWorkflowClicked)
+        editButton.target = self
+        editButton.action = #selector(editWorkflowClicked)
+        updateEditButton()
         let repoRow = NSStackView(views: [
             NSTextField(labelWithString: "Repository:"), ownerField,
             NSTextField(labelWithString: "/"), repoField,
-            refreshButton, rerunButton,
+            refreshButton, rerunButton, createButton, editButton,
         ])
         repoRow.orientation = .horizontal
         repoRow.spacing = 8
@@ -202,6 +216,76 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
     // MARK: - Loading
 
     @objc private func refreshClicked() { refresh() }
+
+    /// Wiring (wiring-views): the "Create Visual Workflow" action —
+    /// `WorkflowsCreateView` (the missing half of `ActionsView`) as a
+    /// sheet, saving into the workspace folder's
+    /// `.github/workflows/` when the user saves.
+    @objc private func createVisualWorkflowClicked() {
+        guard let window else { return }
+        let sheet = NSWindow(
+            contentRect: NSRect(origin: .zero, size: NSSize(width: 860, height: 640)),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        sheet.title = "Create Visual Workflow"
+        sheet.contentViewController = NSHostingController(
+            rootView: WorkflowsCreateView(projectRoot: workspaceFolder)
+        )
+        // Creating the workflow makes "Edit Workflow" meaningful.
+        window.beginSheet(sheet) { [weak self] _ in self?.updateEditButton() }
+    }
+
+    /// The workflow file the CI window edits: the same
+    /// `.github/workflows/workflow.yml` `WorkflowsCreateView` saves.
+    private var workflowFileURL: URL {
+        workspaceFolder.appendingPathComponent(".github/workflows/workflow.yml")
+    }
+
+    /// "Edit Workflow" is only meaningful while the workflow file exists;
+    /// re-evaluated whenever the file may have appeared (window build, and
+    /// after the Create sheet closes).
+    private func updateEditButton() {
+        editButton.isEnabled = FileManager.default.fileExists(atPath: workflowFileURL.path)
+    }
+
+    /// Wiring (wiring-views): the "Edit Workflow" action —
+    /// `WorkflowEditorView` for the workspace's
+    /// `.github/workflows/workflow.yml`, as a sheet. The button is enabled
+    /// only while that file exists (see `updateEditButton()`), so a click
+    /// always has content to edit; the editor's "Save" writes the file
+    /// back and closes the sheet. A failed write leaves the sheet open so
+    /// the user can retry Save or close without losing edits.
+    @objc private func editWorkflowClicked() {
+        guard let window else { return }
+        guard let content = try? String(contentsOf: workflowFileURL, encoding: .utf8) else {
+            updateEditButton()
+            return
+        }
+        let state = WorkflowEditorContent(content)
+        let sheet = NSWindow(
+            contentRect: NSRect(origin: .zero, size: NSSize(width: 860, height: 640)),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        sheet.title = "Edit Workflow — workflow.yml"
+        sheet.contentViewController = NSHostingController(
+            rootView: WorkflowEditorView(content: state.$text, fileName: "workflow.yml") { [weak self] newContent in
+                guard let self else { return }
+                do {
+                    try newContent.write(to: self.workflowFileURL, atomically: true, encoding: .utf8)
+                    window.endSheet(sheet)
+                } catch {
+                    // Write failed (permissions, disk): leave the sheet
+                    // open so the user can retry Save or close without
+                    // losing edits.
+                }
+            }
+        )
+        window.beginSheet(sheet)
+    }
 
     func refresh() {
         let owner = ownerField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -352,4 +436,12 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
         guard row >= 0, runs.indices.contains(row) else { return }
         selectRun(runs[row])
     }
+}
+
+/// Holds the edited workflow text for a `WorkflowEditorView` sheet's
+/// `@Binding` (wiring-views; AppKit has no `@State` to bind to). The
+/// sheet's hosting controller keeps it alive for the sheet's lifetime.
+private final class WorkflowEditorContent: ObservableObject {
+    @Published var text: String
+    init(_ text: String) { self.text = text }
 }

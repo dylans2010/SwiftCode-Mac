@@ -14,9 +14,12 @@
 //   no .shared singleton (the host constructs it); applicableKind() needs a host-owned
 //   instance wired in.
 // - Bridge scripts opencode-bridge.mjs / openrouter-bridge.mjs (Legacy
-//   `Backend/Assist/SDKHosts/`): no copies exist in the destination; ensureBridgeScript
-//   reads them from Bundle.main, so the coordinator must add the .mjs resources to the
-//   SwiftCodeAssistant target (Resources) for the SDK path to run.
+//   `Backend/Assist/SDKHosts/`): staged at
+//   `Sources/SwiftCodeAssistant/Resources/SDKHosts/` and registered in
+//   Package.swift (SwiftCodeAssistant resources); ensureBridgeScript
+//   reads them from Bundle.module first (SwiftPM puts target resources
+//   in the module bundle, which Bundle.main cannot see — cf.
+//   SwiftCodeUI/Sound/SoundCatalog.swift) with a Bundle.main fallback.
 // Resolved in-destination: AssistModelDiscoveryService (type), HermesModelID /
 // OpenCodeModelID, SystemIndexService, InstructionQueryContext, plus this batch's
 // OpenCodeSDKProvider / OpenRouterSDKProvider / SDKRuntimeManager / SDKToolEvent /
@@ -317,7 +320,8 @@ public final class AssistSDKSessionRunner {
         }
         let installedURL = bridgeDir.appendingPathComponent(fileName)
         let resourceName = (fileName as NSString).deletingPathExtension
-        let bundleContents = Bundle.main.url(forResource: resourceName, withExtension: "mjs")
+        let bundleContents = (Bundle.module.url(forResource: resourceName, withExtension: "mjs", subdirectory: "SDKHosts")
+            ?? Bundle.main.url(forResource: resourceName, withExtension: "mjs"))
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
         // Refresh on mismatch: the old code returned the installed
         // copy whenever it existed, so app updates to a bridge script

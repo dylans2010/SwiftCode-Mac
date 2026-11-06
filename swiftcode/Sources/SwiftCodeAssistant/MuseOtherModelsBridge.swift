@@ -1,4 +1,6 @@
 import Foundation
+import Network
+import os
 
 // MARK: - Muse other-models bridge (Wave 16, Slice B)
 //
@@ -690,5 +692,81 @@ public actor MuseOtherModelsProxyController {
     /// Meta). A stopped proxy reports no URL and serves nothing.
     public func disable() {
         proxy.stop()
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseOtherModelsBridge.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: GenerationState.
+
+// MARK: - Thread-safe Streaming State Holder
+private final class GenerationState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _fullGeneratedText = ""
+    private var _isInThinkingBlock = false
+    private var _currentThinking = ""
+    private var _isCancelled = false
+
+    var isCancelled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return _isCancelled
+    }
+
+    func cancel() {
+        lock.lock(); defer { lock.unlock() }
+        _isCancelled = true
+    }
+
+    func appendText(_ text: String) {
+        lock.lock(); defer { lock.unlock() }
+        _fullGeneratedText += text
+    }
+
+    var fullGeneratedText: String {
+        lock.lock(); defer { lock.unlock() }
+        return _fullGeneratedText
+    }
+
+    func processToken(
+        _ token: String,
+        onThinkingDelta: ((String) -> Void)?,
+        onTextDelta: (String) -> Void
+    ) {
+        lock.lock(); defer { lock.unlock() }
+        guard !_isCancelled else { return }
+
+        _fullGeneratedText += token
+
+        // Handle `<think>` tags emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
+        if token.contains("<think>") {
+            _isInThinkingBlock = true
+            let cleaned = token.replacingOccurrences(of: "<think>", with: "")
+            if !cleaned.isEmpty {
+                _currentThinking += cleaned
+                onThinkingDelta?(cleaned)
+            }
+            return
+        } else if token.contains("</think>") {
+            _isInThinkingBlock = false
+            let parts = token.components(separatedBy: "</think>")
+            if let thoughtPart = parts.first, !thoughtPart.isEmpty {
+                _currentThinking += thoughtPart
+                onThinkingDelta?(thoughtPart)
+            }
+            if parts.count > 1 {
+                let textPart = parts[1]
+                if !textPart.isEmpty {
+                    onTextDelta(textPart)
+                }
+            }
+            return
+        }
+
+        if _isInThinkingBlock {
+            _currentThinking += token
+            onThinkingDelta?(token)
+        } else {
+            onTextDelta(token)
+        }
     }
 }

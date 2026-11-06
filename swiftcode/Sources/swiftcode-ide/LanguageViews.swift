@@ -3,7 +3,6 @@ import SwiftUI
 import SwiftCodeEditorKit
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
-import SwiftCodeLanguage
 #if os(Linux)
 import OVPlatform
 #endif

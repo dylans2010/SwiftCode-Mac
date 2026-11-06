@@ -6,7 +6,8 @@
 // Audit gap this port closes (claimed-covered-audit):
 //   - reviewer progress/status display (Reviewing implementation… / Awaiting review… / Task is ready / Task is not ready)
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
@@ -18,7 +19,7 @@ import SwiftCodeAssistant
 /// A native macOS card view that displays the current Code Review status, user explanation, and confidence.
 /// This view represents the lifecycle of the code_review tool rather than being a permanent component of the interface.
 public struct CodeAssistUserView: View {
-    @ObservedObject private var manager = AssistManager.shared
+    @State private var manager = AssistManager.shared
 
     public init() {}
 

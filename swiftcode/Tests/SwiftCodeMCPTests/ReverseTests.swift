@@ -186,7 +186,7 @@ public enum ReverseTestSuite {
                 return nil
             },
             check("Reverse: bridge script has no forbidden-transport or free-form execution surface") {
-                guard let url = Bundle.main.url(forResource: "ReverseBridge", withExtension: "mjs") else {
+                guard let url = Bundle.module.url(forResource: "ReverseBridge", withExtension: "mjs") else {
                     return "ReverseBridge.mjs missing from bundle resources"
                 }
                 let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""

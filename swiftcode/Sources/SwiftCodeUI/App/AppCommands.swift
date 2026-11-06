@@ -1,5 +1,6 @@
 import AppKit
 import SwiftCodeIDECore
+import SwiftUI
 
 /// Menu commands that need no workspace window (`specs/ide/reference-ui-5.md`
 /// §2.1, §2.12, §2.13): documentation links, developer tools, Downloads.
@@ -67,4 +68,79 @@ extension AppDelegate {
 
     /// SwiftCode ▸ Behaviors ▸ Edit Behaviors… with no workspace window.
     @objc public func showBehaviorsSettings(_ sender: Any?) { SettingsWindowController.shared.show(pane: "Behaviors") }
+}
+
+
+// Ported from Legacy `SwiftCode/App/AppCommands.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: EditorViewHelpCommands.
+
+private struct EditorViewHelpCommands: Commands {
+    var body: some Commands {
+        CommandGroup(after: .textEditing) {
+            Button("Go to Line...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "go_to_line"])
+            }
+            .keyboardShortcut("l", modifiers: [.command])
+        }
+
+        CommandMenu("Editor") {
+            Button("Find...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "code_search"])
+            }
+            .keyboardShortcut("f", modifiers: [.command])
+
+            Button("Go to Line...") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "go_to_line"])
+            }
+            .keyboardShortcut("l", modifiers: [.command])
+
+            Button("Format Code") {
+                NotificationCenter.default.post(name: NSNotification.Name("FormatCode"), object: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Next Tab") {
+                NotificationCenter.default.post(name: NSNotification.Name("NextTab"), object: nil)
+            }
+            .keyboardShortcut("}", modifiers: [.command, .shift])
+
+            Button("Previous Tab") {
+                NotificationCenter.default.post(name: NSNotification.Name("PreviousTab"), object: nil)
+            }
+            .keyboardShortcut("{", modifiers: [.command, .shift])
+        }
+
+        CommandGroup(after: .toolbar) {
+            Divider()
+
+            Button("Customize Toolbar...") {
+                SwiftCodeToolbarDelegate.presentCustomizationPalette()
+            }
+
+            Divider()
+
+            Button("Coding Tools") {
+                NotificationCenter.default.post(
+                    name: Notification.Name("TriggerCodingToolsContextAction"),
+                    object: nil,
+                    userInfo: [
+                        "action": CodingToolsUI.CodingAction.refactor,
+                        "code": "",
+                        "filePath": ""
+                    ]
+                )
+            }
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("SwiftCode Documentation") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "documentation_browser"])
+            }
+            Button("Diagnostics") {
+                NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "error_diagnostics"])
+            }
+        }
+    }
 }

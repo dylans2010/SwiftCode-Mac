@@ -6,6 +6,7 @@
 // References types from module(s) not in this target's Package.swift dependencies: swiftcode-ide — add the dependency in Package.swift or rebind at wiring time; not imported here.
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, AssistSettingsView, BackupDetailsView, LiquidGlassCard, PluginManagerView, UInt16, UpdatesView.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+import SwiftCodeAssistant
 import SwiftCodeCloud
 import SwiftCodeConnect
 import SwiftUI

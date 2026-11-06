@@ -36,11 +36,15 @@ import Foundation
 //   * Legacy's provider enum (`AssistModelProvider`: openAI,
 //     anthropic, gemini, mistral, meta, kimi, openRouter, openCode,
 //     hermes, codex) is replaced by SwiftCode's `ProviderKind`.
-//     Vendors SwiftCode has no direct provider for (Anthropic, Gemini,
+//     Vendors SwiftCode has no direct provider for (Gemini,
 //     Mistral, Kimi, DeepSeek, the Meta vendor API) map to
 //     `.openRouter`, the host that can serve those models — the
 //     same fallback Legacy's own `llmProvider` mapping used for
-//     meta/kimi (`.openRouter`). `codex` maps to `.codex`,
+//     meta/kimi (`.openRouter`). Anthropic no longer maps there:
+//     wiring-backend added `ProviderKind.anthropic` with the direct
+//     Messages API client, and bare `claude-*` ids are native
+//     Anthropic ids (OpenRouter ids carry the `provider/model`
+//     slash form). `codex` maps to `.codex`,
 //     `ollama`/`lmstudio` to `.ollama`, Apple/Foundation to
 //     `.foundationModels`.
 //   * Legacy's routing strategies `"default"` / `"rotation"` /
@@ -213,10 +217,16 @@ public enum AssistModelSpecification {
             } else {
                 displayName = "Claude 3.5 Sonnet"
             }
+            // WIRING (wiring-backend): a bare `claude-*` id is a
+            // native Anthropic id and routes to the direct Messages API
+            // client (`.anthropic`); an id carrying the `provider/model`
+            // slash form (`anthropic/claude-…`) is an OpenRouter id and
+            // keeps routing to `.openRouter` — the same slash rule
+            // `AssistSDKSessionRunner.applicableKind` already uses.
             return ModelSpecification(
                 id: modelId,
                 displayName: displayName,
-                provider: .openRouter,
+                provider: modelId.contains("/") ? .openRouter : .anthropic,
                 contextWindowTokens: 200_000,
                 capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions, .subagents]
             )

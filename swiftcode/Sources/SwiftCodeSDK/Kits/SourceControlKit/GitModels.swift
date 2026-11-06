@@ -59,6 +59,10 @@ public struct GitCommit: Codable, Sendable {
     public let authorEmail: String
     public let date: Date
     public let message: String
+    // V10: parent hashes (Legacy's GitCommit carried them; the ported CommitsView
+    // navigates parents and GitService.getLog parses them from `%P`). Defaulted so
+    // existing callers and Codable decoding are unaffected.
+    public let parentHashes: [String]
 
     public init(
         hash: String,
@@ -66,7 +70,8 @@ public struct GitCommit: Codable, Sendable {
         authorName: String,
         authorEmail: String,
         date: Date,
-        message: String
+        message: String,
+        parentHashes: [String] = []
     ) {
         self.hash = hash
         self.shortHash = shortHash
@@ -74,6 +79,7 @@ public struct GitCommit: Codable, Sendable {
         self.authorEmail = authorEmail
         self.date = date
         self.message = message
+        self.parentHashes = parentHashes
     }
 }
 

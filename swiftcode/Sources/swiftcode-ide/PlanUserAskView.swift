@@ -6,7 +6,8 @@
 // Audit gap this port closes (claimed-covered-audit):
 //   - decision-required prompt UI (question, single/multi choice rows, free-text answer, Cancel/Submit)
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
 // WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
@@ -15,7 +16,7 @@ import SwiftUI
 import SwiftCodeAssistant
 
 public struct PlanUserAskView: View {
-    @ObservedObject private var questionManager = PlanQuestionManager.shared
+    @State private var questionManager = PlanQuestionManager.shared
     @State private var selectedChoices: Set<String> = []
     @State private var freeFormText: String = ""
     @State private var isSubmitting = false

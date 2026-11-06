@@ -18,6 +18,7 @@
 //
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct AssistConversationContextTool: AssistTool {
     public let id = "conversation_context_manager"

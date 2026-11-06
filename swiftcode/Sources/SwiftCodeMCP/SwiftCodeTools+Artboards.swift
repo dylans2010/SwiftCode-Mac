@@ -55,10 +55,10 @@ import SwiftCodePreviews
 ///   port), not Legacy's live `PreviewManager` session: there is no
 ///   live preview host in the MCP server. An artboard with no
 ///   custom source cannot be compiled: Legacy fell back to the
-///   active document, and the MCP host has no active document
-///   (the delegate only exposes an open file's text by path, not
-///   which file is open), so it fails naming `preview_render` as
-///   the alternative. The `targetView` default differs too:
+///   active document, and the MCP host reaches it through the
+///   delegate's `mcpHostActiveFilePath()` (wiring-backend; nil in a
+///   headless host, where the tool still fails naming
+///   `preview_render` as the alternative). The `targetView` default differs too:
 ///   Legacy defaulted it to the artboard name; SwiftCode renders the
 ///   first `#Preview` unless `targetView` names one, because an
 ///   unnamed `#Preview` is called `Preview`, not the artboard
@@ -242,6 +242,14 @@ extension SwiftCodeMCPHost {
         if let folder { ensureArtboardsLoaded(for: folder) }
         let identifier = call.string("identifier")
         guard let index = artboardIndex(matching: identifier) else {
+            // WIRING: Legacy's `AssistArtboardCompileTool` fell back to
+            // the active SwiftUI document when no artboard matched. The
+            // MCP host reaches the active file through the delegate
+            // (`mcpHostActiveFilePath()`); a headless host has none,
+            // and the error below still names `preview_render`.
+            if let active = try await compileActiveFile(call) {
+                return active
+            }
             throw MCPToolError(identifier == nil
                 ? "No artboards currently configured in workspace."
                 : "Artboard matching '\(identifier!)' not found. Use 'artboard_list' to view available artboards.")
@@ -268,8 +276,16 @@ extension SwiftCodeMCPHost {
         guard let source = artboard.customSwiftUISource, !source.isEmpty else {
             return (nil, "", false)
         }
+        return await renderSwiftUISource(source, filename: "\(artboard.name).swift", targetView: targetView)
+    }
+
+    /// The shared render path: one SwiftUI source text rendered to a
+    /// PNG through `SwiftCodePreviews`. Used for artboard custom
+    /// source and for the active-document fallback in
+    /// `compileArtboard` / `fixArtboards`.
+    func renderSwiftUISource(_ source: String, filename: String, targetView: String?) async -> (png: Data?, log: String, succeeded: Bool) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-artboard-\(UUID().uuidString)")
-        let file = dir.appendingPathComponent("\(artboard.name).swift")
+        let file = dir.appendingPathComponent(filename)
         let out = dir.appendingPathComponent("preview.png")
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -308,6 +324,32 @@ extension SwiftCodeMCPHost {
         artboards[index].lastCompileError = log
         return .error("Artboard preview compilation failed.\nLogs:\n\(log)",
                       structured: ["status": .string("failed"), "preview_target": .string(target)])
+    }
+
+    /// WIRING (wiring-backend): Legacy's active-document fallback
+    /// for `artboard_compile` — the open file's text (unsaved edits
+    /// included, via the delegate) rendered through the same
+    /// `PreviewRenderRunner` path as artboard source. Returns nil
+    /// when the host has no active file, so the caller keeps its
+    /// "no artboard" error. The approval gate runs before the render,
+    /// as it does for an artboard compile.
+    func compileActiveFile(_ call: MCPToolCall) async throws -> MCPToolResult? {
+        guard let path = delegate?.mcpHostActiveFilePath(), !path.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: path)
+        guard url.pathExtension.lowercased() == "swift" else { return nil }
+        let source = delegate?.mcpHostText(ofOpenFile: path) ?? (try? String(contentsOf: url, encoding: .utf8))
+        guard let source, !source.isEmpty else { return nil }
+        let targetView = call.string("targetView")
+        try await approveChangeWithoutFile(tool: call.name,
+                                           summary: "Compile active file '\(url.lastPathComponent)' (render its preview)",
+                                           call: call)
+        let render = await renderSwiftUISource(source, filename: url.lastPathComponent, targetView: targetView)
+        if render.succeeded, let png = render.png {
+            return MCPToolResult(content: [.imageBlock(png), .textBlock("Artboard compiled successfully.\nHosted View: Ready")],
+                                 structured: ["status": .string("success"), "preview_target": .string(targetView ?? url.deletingPathExtension().lastPathComponent)])
+        }
+        return .error("Artboard preview compilation failed.\nLogs:\n\(render.log)",
+                      structured: ["status": .string("failed"), "preview_target": .string(targetView ?? url.deletingPathExtension().lastPathComponent)])
     }
 
     // MARK: - `artboard_create`
@@ -552,7 +594,8 @@ extension SwiftCodeMCPHost {
                 }
             }
             // Pass 4: Verification Compile Pass (the active artboard
-            // only — SwiftCode has no active document to recompile).
+            // only — plus Legacy's active-document recompile below,
+            // when there is no active artboard to verify).
             if artboards[index].customSwiftUISource != nil, !artboards[index].customSwiftUISource!.isEmpty {
                 let render = await renderArtboardSource(at: index, targetView: nil)
                 log = render.log
@@ -564,6 +607,21 @@ extension SwiftCodeMCPHost {
                     artboards[index].lastCompileError = log
                     actionsTaken.append("Recompiled artboard '\(artboard.name)' live preview session (still failing — see logs)")
                 }
+            }
+        } else if let path = delegate?.mcpHostActiveFilePath(), !path.isEmpty {
+            // WIRING (wiring-backend): Legacy's `AssistFixArtboardsTool`
+            // Pass 4 recompiled the active SwiftUI document when there
+            // was no active artboard; the delegate supplies it here.
+            let url = URL(fileURLWithPath: path)
+            if url.pathExtension.lowercased() == "swift",
+               let source = delegate?.mcpHostText(ofOpenFile: path) ?? (try? String(contentsOf: url, encoding: .utf8)),
+               !source.isEmpty {
+                let render = await renderSwiftUISource(source, filename: url.lastPathComponent, targetView: nil)
+                log = render.log
+                verificationSucceeded = render.succeeded
+                actionsTaken.append(render.succeeded
+                    ? "Recompiled active SwiftUI document '\(url.lastPathComponent)' live preview session"
+                    : "Recompiled active SwiftUI document '\(url.lastPathComponent)' live preview session (still failing — see logs)")
             }
         }
 

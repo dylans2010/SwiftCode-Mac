@@ -13,6 +13,7 @@
 // WIRING / REGISTRATION: MCP catalogue SwiftCodeTools+Planning.swift (askUser): the legacy tool presents PlanUserAskView directly — wiring must keep presentation in swiftcode-ide (handoff payload) instead of calling the view from SwiftCodeMCP (swiftcode-ide is not an MCP dependency).
 
 import Foundation
+import SwiftCodeAssistant
 import Observation
 import os
 

@@ -158,7 +158,11 @@ public final class ReverseBridge: @unchecked Sendable {
                 }
             }
         }
-        if let resource = Bundle.main.url(forResource: "ReverseBridge", withExtension: "mjs") {
+        // Audit D (G-DEPS): ReverseBridge.mjs is a SwiftCodeAssistant target
+        // resource (Bundle.module); Bundle.main is only the fallback for an
+        // app-bundled copy.
+        if let resource = Bundle.module.url(forResource: "ReverseBridge", withExtension: "mjs")
+            ?? Bundle.main.url(forResource: "ReverseBridge", withExtension: "mjs") {
             return resource
         }
         if let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {

@@ -14,7 +14,11 @@ import Foundation
 /// `diagnostics.entries(for:)`, the Xcode registry, and the native
 /// registry.
 @MainActor
-public final class ExtensionManager {
+public final class ExtensionManager: ObservableObject {
+    // ObservableObject so the Extensions views can keep using
+    // `@ObservedObject ExtV2Manager.shared` (see ExtV2Manager.swift).
+    // The rebuilt manager was a plain class; its state properties
+    // become @Published so observation actually updates the UI.
     public static let shared = ExtensionManager()
 
     public let storage: ExtensionStorage
@@ -23,15 +27,15 @@ public final class ExtensionManager {
     public let packageService: PackageService
     public let diagnostics: DiagnosticsService
 
-    public private(set) var installed: [InstalledExtension] = []
-    public private(set) var searchResults: [ExtensionMetadata] = []
-    public private(set) var searchError: String?
-    public private(set) var isSearching: Bool = false
-    public private(set) var installingIDs: Set<String> = []
-    public private(set) var updates: [ExtensionUpdateInfo] = []
-    public private(set) var contributions: [String: ExtensionContribution] = [:]
-    public private(set) var isReady: Bool = false
-    public var settings: ExtensionSettings
+    @Published public private(set) var installed: [InstalledExtension] = []
+    @Published public private(set) var searchResults: [ExtensionMetadata] = []
+    @Published public private(set) var searchError: String?
+    @Published public private(set) var isSearching: Bool = false
+    @Published public private(set) var installingIDs: Set<String> = []
+    @Published public private(set) var updates: [ExtensionUpdateInfo] = []
+    @Published public private(set) var contributions: [String: ExtensionContribution] = [:]
+    @Published public private(set) var isReady: Bool = false
+    @Published public var settings: ExtensionSettings
     public var workspaceRoot: URL?
 
     public var workspaceBridge: WorkspaceBridge? {
@@ -528,5 +532,128 @@ public final class ExtensionManager {
         default:
             return .null // Every other allowed method: accepted, no action.
         }
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/Services/ExtensionManager.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: ExtensionManifest.
+
+/// Represents the metadata and configuration for a SwiftCode Extension.
+struct ExtensionManifest: Identifiable, Codable, Hashable {
+    var id: String                      // Unique identifier (folder name)
+    var name: String
+    var version: String
+    var description: String
+    var author: String
+    var category: ExtensionCategory
+    var capabilities: [ExtensionCapability]
+    var entryPoint: String              // Relative path to the main Swift file
+    var assetPaths: [String]            // Relative paths to asset files
+    var isInstalled: Bool
+    var isEnabled: Bool
+    var isUserCreated: Bool
+    var isDownloaded: Bool = true
+    var use_test_tools: Bool = false
+    var swiftCodeAssistCapable: Bool = false
+    var identificationTags: [String] = []
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, version, description, author, category, capabilities, entryPoint, assetPaths, isInstalled, isEnabled, isUserCreated, isDownloaded, use_test_tools, swiftCodeAssistCapable, identificationTags
+    }
+
+    init(
+        id: String,
+        name: String,
+        version: String,
+        description: String,
+        author: String,
+        category: ExtensionCategory,
+        capabilities: [ExtensionCapability],
+        entryPoint: String,
+        assetPaths: [String],
+        isInstalled: Bool,
+        isEnabled: Bool,
+        isUserCreated: Bool,
+        isDownloaded: Bool = true,
+        use_test_tools: Bool = false,
+        swiftCodeAssistCapable: Bool = false,
+        identificationTags: [String] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.version = version
+        self.description = description
+        self.author = author
+        self.category = category
+        self.capabilities = capabilities
+        self.entryPoint = entryPoint
+        self.assetPaths = assetPaths
+        self.isInstalled = isInstalled
+        self.isEnabled = isEnabled
+        self.isUserCreated = isUserCreated
+        self.isDownloaded = isDownloaded
+        self.use_test_tools = use_test_tools
+        self.swiftCodeAssistCapable = swiftCodeAssistCapable
+        self.identificationTags = identificationTags
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        version = try container.decode(String.self, forKey: .version)
+        description = try container.decode(String.self, forKey: .description)
+        author = try container.decode(String.self, forKey: .author)
+        category = try container.decode(ExtensionCategory.self, forKey: .category)
+        capabilities = try container.decode([ExtensionCapability].self, forKey: .capabilities)
+        entryPoint = try container.decode(String.self, forKey: .entryPoint)
+        assetPaths = try container.decode([String].self, forKey: .assetPaths)
+        isInstalled = try container.decode(Bool.self, forKey: .isInstalled)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        isUserCreated = try container.decode(Bool.self, forKey: .isUserCreated)
+        isDownloaded = try container.decodeIfPresent(Bool.self, forKey: .isDownloaded) ?? true
+        use_test_tools = try container.decodeIfPresent(Bool.self, forKey: .use_test_tools) ?? false
+        swiftCodeAssistCapable = try container.decodeIfPresent(Bool.self, forKey: .swiftCodeAssistCapable) ?? false
+        identificationTags = try container.decodeIfPresent([String].self, forKey: .identificationTags) ?? []
+    }
+
+    enum ExtensionCategory: String, Codable, CaseIterable, Identifiable {
+        case editor        = "Editor"
+        case tools         = "Tools"
+        case themes        = "Themes"
+        case languages     = "Languages"
+        case ai            = "AI"
+        case build         = "Build"
+        case testing       = "Testing"
+        case other         = "Other"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .editor:    return "pencil.and.outline"
+            case .tools:     return "wrench.and.screwdriver"
+            case .themes:    return "paintpalette"
+            case .languages: return "chevron.left.forwardslash.chevron.right"
+            case .ai:        return "cpu"
+            case .build:     return "hammer"
+            case .testing:   return "checkmark.shield"
+            case .other:     return "puzzlepiece.extension"
+            }
+        }
+    }
+
+    enum ExtensionCapability: String, Codable, CaseIterable {
+        case codeCompletion   = "Code Completion"
+        case syntaxHighlight  = "Syntax Highlight"
+        case formatter        = "Formatter"
+        case linter           = "Linter"
+        case fileTemplate     = "File Template"
+        case command          = "Command"
+        case buildTool        = "Build Tool"
+        case aiAssistant      = "AI Assistant"
+        case themeProvider    = "Theme Provider"
+        case languageSupport  = "Language Support"
     }
 }

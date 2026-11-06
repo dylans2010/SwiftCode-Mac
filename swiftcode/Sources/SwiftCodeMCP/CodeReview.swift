@@ -300,16 +300,10 @@ public struct CodeReviewTool: AssistTool {
 }
 
 // MARK: - Internal Helper Types
-
-public struct CodeReviewInternalResult: Codable, Sendable {
-    public let status: String
-    public let summary: String
-    public let strengths: [String]
-    public let issues: [String]
-    public let recommendedFixes: [String]
-    public let userSee: String
-    public let confidence: Double
-}
+// NOTE (MCP-DEP, 2026-11-06): CodeReviewInternalResult moved to SwiftCodeAssistant
+// (swiftcode/Sources/SwiftCodeAssistant/CodeReviewInternalResult.swift) — it is a
+// Foundation-only struct, and SwiftCodeAssistant (which cannot import SwiftCodeMCP)
+// needs it. This file keeps using it through `import SwiftCodeAssistant` above.
 
 @MainActor
 public final class CodeReviewSystemLoader {

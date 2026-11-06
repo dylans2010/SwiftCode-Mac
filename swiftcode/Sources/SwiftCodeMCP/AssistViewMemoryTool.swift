@@ -18,6 +18,7 @@
 //
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct AssistViewMemoryTool: AssistTool {
     public let id = "view_memory"

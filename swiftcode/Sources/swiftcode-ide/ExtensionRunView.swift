@@ -3,7 +3,7 @@
 // Ported from Legacy `SwiftCode/Views/Extensions v2/ExtensionRunView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: Restricted-webview run UI (ExtV2RestrictedWebView) for running an extension's UI; Run view surfacing activate/execute/deactivate in the panel
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ExtV2Contribution.
+// (ExtV2Contribution gap resolved: State.ready and contributionView now carry the canonical ExtensionContribution.)
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeUI
@@ -71,7 +71,7 @@ public struct ExtensionRunView: View {
         .padding()
     }
 
-    private func contributionView(_ contribution: ExtV2Contribution) -> some View {
+    private func contributionView(_ contribution: ExtensionContribution) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if !contribution.commands.isEmpty {

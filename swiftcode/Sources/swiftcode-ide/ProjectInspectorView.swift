@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftCodeIDECore
+import UniformTypeIdentifiers
+import os
 
 /// Project Inspector — Legacy's `ProjectInspectorView` +
 /// `ProjectArchitectureGraph`, rebuilt in SwiftCode style on top of
@@ -315,5 +317,72 @@ public struct ProjectInspectorView: View {
                 }
             }
         }
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/Views/Utilities/ProjectInspector/ProjectInspectorView.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: InspectorSettingsGroup, InspectorSigningRow, ProjectInspectorFlowLayout.
+
+private struct InspectorSettingsGroup: Identifiable {
+    var id: String { name }
+    let name: String
+    let pairs: [(key: String, value: String)]
+}
+
+private struct InspectorSigningRow: Identifiable {
+    var id: String { config }
+    let config: String
+    let team: String
+    let style: String
+    let identity: String
+}
+
+private struct ProjectInspectorFlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        let height = rows.reduce(0) { $0 + $1.height } + CGFloat(max(0, rows.count - 1)) * spacing
+        let width = rows.map(\.width).max() ?? 0
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        for row in rows {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [Row] = []
+        var current = Row()
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if !current.indices.isEmpty && current.width + spacing + size.width > maxWidth {
+                rows.append(current)
+                current = Row()
+            }
+            current.indices.append(index)
+            current.width += (current.indices.count > 1 ? spacing : 0) + size.width
+            current.height = max(current.height, size.height)
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
     }
 }

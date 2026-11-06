@@ -409,3 +409,24 @@ public struct OperationsDashboardView: View {
         }
     }
 }
+
+
+// Ported from Legacy `SwiftCode/Views/Utilities/Operations/Views/OperationsDashboardView.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: CapsuleProgressSegment.
+
+private struct CapsuleProgressSegment: View {
+    let label: String
+    let value: Double
+    let total: Double
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            ProgressView(value: min(value, total), total: total)
+                .tint(color)
+        }
+    }
+}

@@ -3,7 +3,6 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIDocument.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: undo/redo; autosave / checkpoint; code sync (startListeningToCodeSync / synchronizeFromCode / propagateToEditor); recursive node/padding updates
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeDebug — add the dependency in Package.swift or rebind at wiring time; not imported here.
 // Ambiguous type reference(s) defined in several modules, import left out: CodingKeys.
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): CodingKey, Encoder.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.

@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 // MARK: - SDKSecurityService
 //
@@ -361,5 +362,46 @@ public struct SDKSecurityAppSummary: Sendable, Codable, Equatable {
 private extension Unicode.Scalar {
     var isASCIIAlphanumeric: Bool {
         (value >= 48 && value <= 57) || (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/SDK/Host/Security/SDKSecurityService.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: SecurityHTTPRedirectDelegate.
+
+/// Redirect policy for host-performed `useValue` requests. Stateless —
+/// safe to share across requests.
+///
+/// - Redirects to non-https URLs are refused (no downgrade, ever).
+/// - The `Authorization` header the host attached is stripped when the
+///   redirect leaves the original host: a compromised or malicious
+///   endpoint must not be able to bounce the secret to another origin
+///   via a 30x. The follow-up request then goes out unauthenticated and
+///   the extension sees the endpoint's honest 401 in `{status, body}`.
+private final class SecurityHTTPRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let originalHost: String?
+
+    init(originalHost: String?) {
+        self.originalHost = originalHost?.lowercased()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let url = request.url,
+              url.scheme?.lowercased() == "https",
+              url.host != nil else {
+            completionHandler(nil)
+            return
+        }
+        var redirected = request
+        if let originalHost, url.host?.lowercased() != originalHost {
+            redirected.setValue(nil, forHTTPHeaderField: "Authorization")
+        }
+        completionHandler(redirected)
     }
 }

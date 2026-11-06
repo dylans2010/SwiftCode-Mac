@@ -9,7 +9,7 @@
 //   - cached-model management
 //   - custom-endpoint headers editor
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (fixes-observedobject): googleAuth (plain class) and quotaService (@Observable) moved to @State. MetaAccountAuthService and AntigravitySDKModelFetcher are still @ObservedObject — both types are undeclared (Audit F section 2), left untouched pending their ports.
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - APIKeyManager — UNOWNED (no worklist) (`SwiftCode/Views/Settings/GeneralSettingsView.swift`)
@@ -678,9 +678,11 @@ struct AssistSettingsView: View {
     // Account authentication ("Sign in with Google") is the default mode;
     // API-key mode is an explicit opt-in alternative.
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "google_oauth"
-    @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
+    // fixes-observedobject: `GoogleAccountAuthService` is a plain `NSObject` subclass, not
+    // `@Observable` — `@State` holds it without observation; reads are snapshots.
+    @State private var googleAuth = GoogleAccountAuthService.shared
     @ObservedObject private var metaAuth = MetaAccountAuthService.shared
-    @ObservedObject private var quotaService = AntigravityQuotaService.shared
+    @State private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
     @State private var showSignOutConfirmation = false
 

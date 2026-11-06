@@ -644,3 +644,99 @@ public struct HermesStreamEventParser: CLIEventParser {
         return target.map { "\(name): \($0)" } ?? name
     }
 }
+
+
+// Ported from Legacy `SwiftCode/Backend/Assist/HermesProvider.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: HermesError, HermesRunRequest, HermesContinuationGuard, HermesTimeoutWorkBox.
+
+public enum HermesError: Error, LocalizedError, Sendable {
+    case executableNotFound(String)
+    case invalidModelID(String)
+    case launchFailed(String)
+    case detectionFailed(String)
+    case runFailed(exitCode: Int32, detail: String)
+    case cancelled
+
+    public var errorDescription: String? {
+        switch self {
+        case .executableNotFound(let detail):
+            return "Hermes is not installed or was not found (\(detail)). Install Hermes with the official installer, run `hermes setup` and `hermes model` in a terminal, then set the executable path in Assist Settings → Hermes if it is not on PATH. No other provider was substituted."
+        case .invalidModelID(let id):
+            return "Invalid Hermes model id \"\(id)\": expected \"hermes:<provider>:<model>\" or \"hermes:<model>\". Select a Hermes model in Assist Settings; SwiftCode never substitutes another model."
+        case .launchFailed(let detail):
+            return "Failed to launch Hermes: \(detail)"
+        case .detectionFailed(let detail):
+            return "Could not verify the Hermes installation: \(detail)"
+        case .runFailed(let exitCode, let detail):
+            return "Hermes run failed (exit \(exitCode)). \(detail)"
+        case .cancelled:
+            return "Hermes run cancelled."
+        }
+    }
+}
+
+public struct HermesRunRequest: Sendable {
+    /// Stored model id (`hermes:...`). Validated with HermesModelID
+    /// before launch; never guessed or rewritten.
+    public let model: String
+    public let systemPrompt: String
+    public let userText: String
+    public let directory: String
+    public let configuration: HermesConfiguration
+
+    public init(
+        model: String,
+        systemPrompt: String,
+        userText: String,
+        directory: String,
+        configuration: HermesConfiguration = HermesConfiguration.load()
+    ) {
+        self.model = model
+        self.systemPrompt = systemPrompt
+        self.userText = userText
+        self.directory = directory
+        self.configuration = configuration
+    }
+}
+
+/// One-shot continuation guard for `detectVersion`: the termination
+/// handler and the timeout task race, so the exactly-once resume
+/// must be locked rather than a shared mutable flag (Swift 6 would
+/// reject the flag as concurrently mutated).
+private final class HermesContinuationGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    private let continuation: CheckedContinuation<String, Error>
+
+    init(_ continuation: CheckedContinuation<String, Error>) { self.continuation = continuation }
+
+    func resume(with result: Result<String, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !done else { return }
+        done = true
+        continuation.resume(with: result)
+    }
+}
+
+/// Holds the `detectVersion` timeout work item so the @Sendable
+/// termination handler can cancel it without capturing the
+/// non-Sendable DispatchWorkItem directly.
+private final class HermesTimeoutWorkBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var workItem: DispatchWorkItem?
+
+    func store(_ item: DispatchWorkItem) {
+        lock.lock()
+        workItem = item
+        lock.unlock()
+    }
+
+    func cancel() {
+        lock.lock()
+        let item = workItem
+        workItem = nil
+        lock.unlock()
+        item?.cancel()
+    }
+}

@@ -14,6 +14,9 @@
 
 import SwiftUI
 import AppKit
+import SwiftCodeBuild
+import SwiftCodeEditorKit
+import SwiftCodeXcodebuild
 import UniformTypeIdentifiers
 
 @MainActor

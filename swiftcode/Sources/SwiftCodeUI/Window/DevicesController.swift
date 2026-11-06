@@ -3,6 +3,7 @@ import SwiftCodeDeviceModel
 import SwiftCodeDeviceUI
 import SwiftCodeIDECore
 import SwiftCodeSubprocess
+import SwiftUI
 
 /// Device Hub (`specs/ide/device-hub.md` §2.1, §3, §5, §6), opened by
 /// Product ▸ Destination ▸ Manage Devices… (⇧⌘2): a sidebar of devices and
@@ -43,6 +44,10 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     private let canvasVC = NSViewController()
     let inspectorVC = NSViewController()
     private let inspectorContent = FlippedStack()
+    /// Wiring (wiring-views): the hosted `SimulatorAppsView` for the
+    /// inspector's Apps tab. Kept so `updateInspector()` can detach the
+    /// previous hosting controller when the tab rebuilds.
+    private var appsHosting: NSHostingController<SimulatorAppsView>?
     private let noResults = NSStackView()
     private var tableRows: [HubSidebarRow] = []
     private var inspectorItem: NSSplitViewItem?
@@ -885,6 +890,11 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
     func updateInspector() {
         guard isViewLoaded else { return }
         inspectorContent.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        // Wiring (wiring-views): the Apps tab's hosted view is rebuilt by
+        // `buildAppsTab()`; drop the previous hosting controller here so
+        // switching tabs does not leave a detached child behind.
+        appsHosting?.removeFromParent()
+        appsHosting = nil
         switch inspectorTab {
         case .settings:
             if let r = selected, r.isSwiftCodeRemote {
@@ -913,10 +923,36 @@ public final class DevicesController: NSSplitViewController, NSTableViewDataSour
             seg.widthAnchor.constraint(equalTo: inspectorContent.widthAnchor, constant: -20).isActive = true
             switch infoTab {
             case .info: buildInfo()
-            case .apps: inspectorContent.addArrangedSubview(Self.secondary(selected == nil ? "No Selection" : "No Apps"))
+            case .apps: buildAppsTab()
             case .profiles: inspectorContent.addArrangedSubview(Self.secondary(selected == nil ? "No Selection" : "No Profiles"))
             }
         }
+    }
+
+    /// The Apps tab (wiring-views): `SimulatorAppsView` for the selected
+    /// simulator, resolved to the real `SimulatorDevice` by UDID from
+    /// `SimulatorManager.shared.devices` (the hub's simulator rows carry
+    /// the simctl UDID as their identifier). Physical devices and
+    /// unresolvable rows keep the honest "No Apps" placeholder. The
+    /// hosted view gets a fixed height: its inner `ScrollView` has no
+    /// intrinsic height for the inspector stack.
+    private func buildAppsTab() {
+        appsHosting?.view.removeFromSuperview()
+        appsHosting?.removeFromParent()
+        appsHosting = nil
+        guard let row = selected,
+              let device = SimulatorManager.shared.devices.first(where: { $0.udid == row.identifier }) else {
+            inspectorContent.addArrangedSubview(Self.secondary(selected == nil ? "No Selection" : "No Apps"))
+            return
+        }
+        let hosting = NSHostingController(rootView: SimulatorAppsView(device: device))
+        appsHosting = hosting
+        addChild(hosting)
+        let view = hosting.view
+        view.translatesAutoresizingMaskIntoConstraints = false
+        inspectorContent.addArrangedSubview(view)
+        view.widthAnchor.constraint(equalTo: inspectorContent.widthAnchor, constant: -20).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 420).isActive = true
     }
 
     private func buildInfo() {

@@ -2,13 +2,13 @@
 // Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
 // Verbatim except `.liquidGlass(...)` -> thinMaterial and an added `import AppKit`
 // (NSPasteboard use in SnippetRow).
-// BLOCKED reference: VisualEffectView (Legacy `UI/Styles/Styling/LiquidGlass.swift`,
-// PARTIAL, another scope) — used for the editor toolbar background.
+// Resolved in-destination: VisualEffectView (SwiftCodeUI/App/LiquidGlass.swift:18)
+// — used for the editor toolbar background.
 // Self-contained otherwise: YAML snippet library, hand-rolled jobs/steps parser,
 // live flowchart map (LineConnector), heuristic validation, save via onSave.
-// Wiring: CIWindowController (SwiftCodeUI/CI) — present as the workflow editor for
-// a workflow file (content binding + fileName + onSave); the CI dashboard today
-// covers runs only.
+// Wiring (wiring-views): CIWindowController (SwiftCodeUI/CI) — the CI window's
+// "Edit Workflow" button presents it for `.github/workflows/workflow.yml`
+// (content binding + fileName + onSave); "Save" writes the file back.
 
 import SwiftUI
 import AppKit

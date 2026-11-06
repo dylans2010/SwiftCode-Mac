@@ -18,6 +18,7 @@
 //
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct AssistSaveToMemoryTool: AssistTool {
     public let id = "save_to_memory"

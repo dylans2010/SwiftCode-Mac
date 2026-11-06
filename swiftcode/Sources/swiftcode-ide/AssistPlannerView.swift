@@ -6,7 +6,8 @@
 // Audit gap this port closes (claimed-covered-audit):
 //   - planner UI (header, steps list, per-step status icons/badges, reasoning display)
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
 // WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
@@ -16,7 +17,7 @@ import SwiftCodeAssistant
 
 /// A specialized view for visualizing the autonomous execution progress of the Assist Planner.
 public struct AssistPlannerView: View {
-    @ObservedObject var planner = TasksAIPlanner.shared
+    @State var planner = TasksAIPlanner.shared
 
     public init() {}
 

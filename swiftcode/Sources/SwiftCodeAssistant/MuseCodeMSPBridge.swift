@@ -397,3 +397,100 @@ public actor MuseCodeMSPBridge {
         }
     }
 }
+
+
+// Ported from Legacy `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseCodeMSPBridge.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: MspError, MuseCodeMSPMessage, MuseCodeAnyCodable.
+
+public struct MspError: Error, LocalizedError, @unchecked Sendable {
+    public let code: Int
+    public let message: String
+    public let kind: String?
+    public let data: [String: Any]?
+
+    public init(code: Int, message: String, kind: String? = nil, data: [String: Any]? = nil) {
+        self.code = code
+        self.message = message
+        self.kind = kind
+        self.data = data
+    }
+
+    public var reason: String? {
+        data?["reason"] as? String
+    }
+
+    public var errorDescription: String? { message }
+}
+
+public struct MuseCodeMSPMessage: Codable, Sendable {
+    public let jsonrpc: String
+    public let id: String?
+    public let method: String?
+    public let params: MuseCodeAnyCodable?
+    public let result: MuseCodeAnyCodable?
+    public let error: MuseCodeAnyCodable?
+
+    public init(jsonrpc: String = "2.0", id: String? = nil, method: String? = nil, params: MuseCodeAnyCodable? = nil, result: MuseCodeAnyCodable? = nil, error: MuseCodeAnyCodable? = nil) {
+        self.jsonrpc = jsonrpc
+        self.id = id
+        self.method = method
+        self.params = params
+        self.result = result
+        self.error = error
+    }
+}
+
+public struct MuseCodeAnyCodable: Codable, @unchecked Sendable {
+    public let value: Any
+
+    public init(_ value: Any) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let bool = try? container.decode(Bool.self) {
+            value = bool
+        } else if let int = try? container.decode(Int.self) {
+            value = int
+        } else if let double = try? container.decode(Double.self) {
+            value = double
+        } else if let string = try? container.decode(String.self) {
+            value = string
+        } else if let array = try? container.decode([MuseCodeAnyCodable].self) {
+            value = array.map { $0.value }
+        } else if let dictionary = try? container.decode([String: MuseCodeAnyCodable].self) {
+            var dict = [String: Any]()
+            for (k, v) in dictionary {
+                dict[k] = v.value
+            }
+            value = dict
+        } else {
+            value = NSNull()
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = try encoder.singleValueContainer()
+        if let bool = value as? Bool {
+            try container.encode(bool)
+        } else if let int = value as? Int {
+            try container.encode(int)
+        } else if let double = value as? Double {
+            try container.encode(double)
+        } else if let string = value as? String {
+            try container.encode(string)
+        } else if let array = value as? [Any] {
+            let encodableArray = array.map { MuseCodeAnyCodable($0) }
+            try container.encode(encodableArray)
+        } else if let dictionary = value as? [String: Any] {
+            var encodableDict = [String: MuseCodeAnyCodable]()
+            for (k, v) in dictionary {
+                encodableDict[k] = MuseCodeAnyCodable(v)
+            }
+            try container.encode(encodableDict)
+        } else {
+            try container.encodeNil()
+        }
+    }
+}

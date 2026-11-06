@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeCompletion
 import SwiftCodeIDECore
@@ -99,6 +100,45 @@ extension TextEditingSettingsPane {
     static let predictionPrivacyNote = """
     Suggestions come from a model you run. SwiftCode sends the code around the insertion point (and short parts of other open files) to the address above, nothing else, and only while the switch is on. With the default address this stays on this Mac. Tab accepts what is shown, Option-Tab all of it, Control-Tab the next word; Escape dismisses; hold Option to see every line.
     """
+
+    /// Wiring (wiring-views): Settings ▸ Editing ▸ Completion ▸ Code
+    /// Suggestions — `CodeSuggestionsView` hosted as a section below the
+    /// predictive-completion rows. `CodeSuggestionsML` landed
+    /// (`SwiftCodeIDECore`, `.shared`), so the view's `@EnvironmentObject`
+    /// is injected here. The view only displays what `analyze(directory:)`
+    /// has computed — nothing in production calls it yet, so the section
+    /// also carries its own trigger: "Analyze a Folder…" opens a folder
+    /// picker and runs the real heuristic analysis on that folder; the
+    /// hosted list updates live as `@Published groupedSuggestions`
+    /// changes. Fixed hosting height: the view is a `ScrollView`, so it
+    /// has no intrinsic height for the form stack.
+    func buildSuggestionsSection() {
+        endCard()
+        heading("Code Suggestions")
+        note("Heuristic suggestions over a folder's Swift files (long files, TODOs, repeated lines, architecture advice). Pick a folder to analyze; the list below updates as results arrive.")
+        let analyze = ClosureButton(title: "Analyze a Folder…", target: nil, action: nil)
+        analyze.bezelStyle = .rounded
+        analyze.onChange = { _ in
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.prompt = "Analyze"
+            if panel.runModal() == .OK, let url = panel.url {
+                CodeSuggestionsML.shared.analyze(directory: url)
+            }
+        }
+        row("Code suggestions:", analyze)
+        suggestionsHosting?.view.removeFromSuperview()
+        suggestionsHosting?.removeFromParent()
+        let hosting = NSHostingController(rootView: AnyView(CodeSuggestionsView().environmentObject(CodeSuggestionsML.shared)))
+        suggestionsHosting = hosting
+        addChild(hosting)
+        let view = hosting.view
+        loose(view)
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -2 * SettingsMetrics.cardInset).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 420).isActive = true
+    }
 
     /// Test: asks the backend whether it answers and which models it has.
     public func testPrediction(_ done: (() -> Void)? = nil) {

@@ -18,7 +18,6 @@ import AppKit
 
 public struct UserMemoryView: View {
     @ObservedObject private var memoryManager = UserMemoryManager.shared
-    @ObservedObject private var settings = AppSettings.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""

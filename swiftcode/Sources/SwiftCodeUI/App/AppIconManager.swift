@@ -4,10 +4,8 @@
 // Full app-icon variant system (37 variants, categories, default-appearance
 // adaptation, UserDefaults persistence, Dock-tile + ICNS application on macOS).
 // Note: preview images are looked up as `AppIcon-Preview-<Variant>` via
-// NSImage(named:)/Image(_:) — no such assets exist in the destination yet
-// (batch 2 landed AppIcon-*.appiconset resources under different names); the
-// coordinator must map or add the preview assets or the cards fall back to the
-// asset-catalog image lookup.
+// NSImage(named:)/Image(_:) — they live in swiftcode-ide/Assets.xcassets
+// (landed from Legacy's Assets.xcassets by the G-DEPS migration pass).
 // Wiring: Settings (add an App Icon section hosting AppIconPickerView) and
 // AppIconSelectView (same batch).
 

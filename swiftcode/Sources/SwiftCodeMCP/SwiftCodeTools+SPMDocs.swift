@@ -750,36 +750,18 @@ extension SwiftCodeMCPHost {
     // MARK: - Changelog (read-only snapshot history)
 
     func spmDocsChangelog(_ call: MCPToolCall) throws -> MCPToolResult {
-        // Legacy reads the global AssistSnapshots store; SwiftCode
-        // creates no snapshots, so this reports what is there
-        // (usually nothing) and never invents history.
-        var snapshots: [(id: String, timestamp: Date, message: String)] = []
-        if let appSupport = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                         appropriateFor: nil, create: false) {
-            let snapshotsDir = appSupport.appendingPathComponent("AssistSnapshots")
-            if let contents = try? FileManager.default.contentsOfDirectory(at: snapshotsDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-                for dir in contents {
-                    let metaURL = dir.appendingPathComponent("metadata.json")
-                    guard let data = try? Data(contentsOf: metaURL),
-                          let meta = try? JSONDecoder().decode(SpmDocsSnapshotMetadata.self, from: data) else { continue }
-                    snapshots.append((id: meta.id, timestamp: meta.timestamp, message: meta.message))
-                }
-            }
-        }
-        snapshots.sort { $0.timestamp > $1.timestamp }
+        // WIRING (wiring-backend): Legacy's `AssistChangeLogTool` reads
+        // the global AssistSnapshots store through
+        // `AssistSnapshotFunctions.listSnapshots()` (SwiftCodeAssistant,
+        // on main) — the same store, the same metadata.json shape, the
+        // same newest-first order. The previous inline directory scan
+        // duplicated that reader; it now calls it. No snapshots yet
+        // means "No snapshot history found.", never invented history.
+        let snapshots = (try? AssistSnapshotFunctions.listSnapshots()) ?? []
         let log = snapshots.map { "[\($0.timestamp)] \($0.message) (ID: \($0.id))" }.joined(separator: "\n")
         return .structured(["log": .string(log.isEmpty ? "No snapshot history found." : log)],
                            summary: "Changelog retrieved successfully.")
     }
-}
-
-/// One Legacy snapshot's `metadata.json`
-/// (`AssistSnapshotFunctions` / `AssistSnapshotModels`).
-private struct SpmDocsSnapshotMetadata: Decodable, Sendable {
-    let id: String
-    let timestamp: Date
-    let message: String
-    let rootPath: String
 }
 
 extension SwiftCodeMCPHost {

@@ -33,6 +33,10 @@ public final class CollaborationChatManager: ObservableObject {
     @Published public private(set) var messagesByChannel: [String: [CollaborationChatMessage]] = [:]
     @Published public private(set) var activeChannelID: String = "general"
 
+    /// Wiring (wiring-views): the IDE shell constructs the chat manager when it
+    /// opens the Collaboration window (cf. `PullRequestManager`'s public init).
+    public init() {}
+
     public func sendMessage(text: String, authorID: String, channelID: String? = nil, attachment: ChatAttachment? = nil) {
         let cid = channelID ?? activeChannelID
         let message = CollaborationChatMessage(channelID: cid, authorID: authorID, text: text, attachment: attachment)

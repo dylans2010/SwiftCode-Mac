@@ -8,6 +8,8 @@
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, AssistantMessage, BuildLogEntry, LogCategory, LogLevel, WorkflowRunInfo.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
+import SwiftCodeBuild
+import SwiftCodeXcodebuild
 import SwiftUI
 import AppKit
 

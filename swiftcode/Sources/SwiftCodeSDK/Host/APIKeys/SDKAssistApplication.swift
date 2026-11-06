@@ -343,3 +343,36 @@ public actor SDKAssistApplicationStore {
         return try decoder.decode(SDKAssistApplication.self, from: data)
     }
 }
+
+
+// Ported from Legacy `SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: SDKAssistApplicationField, SDKAssistApplicationValidationError.
+
+/// Every validated field of the Assist access application form. Field-level
+/// validation errors are keyed by these, so Studio can render each error
+/// inline next to its field.
+public enum SDKAssistApplicationField: String, Sendable, Hashable, Codable, CaseIterable {
+    case extensionID
+    case displayName
+    case apiKey
+    case sdkVariant
+    case usageDescription
+    case hasOwnUI
+    case ownUIDescription
+    case usesThirdPartyModels
+    case thirdPartyModels
+    case dataLeavesDevice
+    case dataDestination
+    case contactEmail
+}
+
+/// Carries the field-level validation errors from
+/// `SDKAssistApplication.validate()` (or from the registry / API-key
+/// checks at submit time) keyed by field.
+public struct SDKAssistApplicationValidationError: Error, Sendable {
+    public let errors: [SDKAssistApplicationField: String]
+
+    public init(errors: [SDKAssistApplicationField: String]) {
+        self.errors = errors
+    }
+}

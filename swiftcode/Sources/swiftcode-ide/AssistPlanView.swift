@@ -6,7 +6,8 @@
 // Audit gap this port closes (claimed-covered-audit):
 //   - plan preview UI with Apply/Reject
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AssistManager — A6 (ALL-MISSING) (`SwiftCode/Backend/Assist/AssistManager.swift`)
@@ -17,7 +18,7 @@ import SwiftCodeAssistant
 
 public struct AssistPlanView: View {
     let plan: AssistPlan
-    @StateObject private var assistManager = AssistManager.shared
+    @State private var assistManager = AssistManager.shared
     @State private var showingDiff = false
 
     public init(plan: AssistPlan) {

@@ -15,6 +15,7 @@
 // WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Artboards.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct AssistArtboardCompileTool: AssistTool {
     public let id = "artboard_compile"

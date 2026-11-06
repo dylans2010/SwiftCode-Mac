@@ -32,6 +32,11 @@
 //   No ContentView is ported, as instructed.
 
 import Foundation
+import Observation
+import PackageDescription
+import ProjectDescription
+import SwiftUI
+import os
 
 /// The destination for a build (`xcodebuild -destination ...`),
 /// e.g. "platform=macOS" or "platform=iOS Simulator".
@@ -178,5 +183,27 @@ public struct ProjectGenerationError: Identifiable, Sendable, Codable {
         self.timestamp = timestamp
         self.message = message
         self.suggestedRecovery = suggestedRecovery
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/Backend/Build/XcodeBuildAPI.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: BuildConfiguration, XcodeProject.
+
+public enum BuildConfiguration: String, CaseIterable, Sendable, Codable {
+    case debug = "Debug"
+    case release = "Release"
+}
+
+public struct XcodeProject: Sendable, Codable, Hashable, Identifiable {
+    public var id: URL { url }
+    public let url: URL
+    public let name: String
+    public let schemes: [SchemeMetadata]
+
+    public init(url: URL, name: String, schemes: [SchemeMetadata]) {
+        self.url = url
+        self.name = name
+        self.schemes = schemes
     }
 }

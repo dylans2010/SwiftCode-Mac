@@ -208,3 +208,16 @@ public final class SDKSensitiveValuePrompt {
 }
 
 #endif
+
+
+// Ported from Legacy `SwiftCode/SDK/Host/Security/SDKSensitiveValuePrompt.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: InFlightPrompt.
+
+/// Bookkeeping for one visible secure prompt: the suspended caller's
+/// continuation plus the identifiers needed to resolve it (audit detail).
+/// Never carries secret material.
+private struct InFlightPrompt {
+    let continuation: CheckedContinuation<Void, Error>
+    let securityID: String
+    let valueID: String
+}

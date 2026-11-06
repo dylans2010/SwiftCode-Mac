@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - SDKUserLogger
 //
@@ -107,5 +108,38 @@ public final class SDKUserLogger: @unchecked Sendable {
         case .error:
             SDKLog.error("[\(title)] \(entry.message)", subsystem: "com.swiftcode.sdk", category: "sdk-user")
         }
+    }
+}
+
+
+// Ported from Legacy `SwiftCode/SDK/Runtime/Diagnostics/SDKUserLogger.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: RingBuffer.
+
+/// Lock-guarded fixed-capacity buffer. Kept in a dedicated `@unchecked
+/// Sendable` box so `SDKUserLogger` itself can conform to `Sendable` with
+/// only immutable (`let`) stored properties under Swift 6 strict concurrency.
+private final class RingBuffer: @unchecked Sendable {
+    private var entries: [SDKUserLogEntry] = []
+    private let lock = NSLock()
+
+    func append(_ entry: SDKUserLogEntry) {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.append(entry)
+        if entries.count > SDKUserLogger.maxBufferedEntries {
+            entries.removeFirst(entries.count - SDKUserLogger.maxBufferedEntries)
+        }
+    }
+
+    func snapshot() -> [SDKUserLogEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.removeAll()
     }
 }

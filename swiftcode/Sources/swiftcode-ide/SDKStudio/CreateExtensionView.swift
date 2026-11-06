@@ -11,7 +11,9 @@ import SwiftUI
 // MARK: - Create Extension View
 
 struct CreateExtensionView: View {
-    @StateObject private var manager = ExtensionManager.shared
+    // fixes-observedobject: `ExtensionManager` is a plain class, not `@Observable` —
+    // `@State` holds it without observation; reads are snapshots.
+    @State private var manager = ExtensionManager.shared
     @Environment(\.dismiss) private var dismiss
 
     // Manifest fields

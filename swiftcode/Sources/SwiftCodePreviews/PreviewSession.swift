@@ -116,15 +116,17 @@ public struct PreviewSession: Identifiable, Hashable, Codable, Sendable {
 ///
 /// Legacy's `startBuildPipeline` drove the whole app through
 /// `XcodeBuildAPI` (discover project, determine scheme/SDK/
-/// destination, `xcodebuild` the app bundle). `XcodeBuildAPI` is not
-/// on main (it exists only in the dropped batch-2 commit), so the
-/// pipeline here is the destination's equivalent: scan the project,
+/// destination, `xcodebuild` the app bundle). `XcodeBuildAPI` now
+/// lives in `SwiftCodeXcodebuild` (ported from the dropped batch-2
+/// commit by the Audit F fix), so the pipeline here is the
+/// destination's equivalent: scan the project,
 /// resolve the preview entry, generate the preview payload, and
 /// compile it with `PreviewCompiler` into a dylib, cached in
 /// `PreviewCache` and timed by `PreviewPerformanceMonitor`. The
 /// full-app `xcodebuild` pipeline (scheme/SDK/destination
-/// resolution, app-bundle attach) still needs `XcodeBuildAPI` —
-/// recorded in the disposition. Legacy's fake telemetry line
+/// resolution, app-bundle attach) is still not wired to
+/// `XcodeBuildAPI` here — the PreviewCompiler pipeline above is the
+/// destination's equivalent by design. Legacy's fake telemetry line
 /// (`Double.random` CPU/memory "Telemetry Check") is deliberately
 /// dropped: it was invented data, not a measurement.
 @Observable

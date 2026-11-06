@@ -1,6 +1,9 @@
 import AppKit
 import Foundation
+import SwiftUI
+import SwiftCodeAssistant
 import SwiftCodeCloud
+import SwiftCodeGitHub
 import SwiftCodeGoogleAuth
 import SwiftCodeIDECore
 
@@ -542,6 +545,8 @@ extension AccountsSettingsPane {
         case .status: buildCloudStatusTab()
         }
         buildGoogleAccountSection()
+        buildGitHubSection()
+        buildSupabaseSection()
         ensureStatsLoaded()
     }
 
@@ -749,6 +754,52 @@ extension AccountsSettingsPane {
         } else if let refreshError = service.lastTokenRefreshError {
             note("The last token refresh failed: \(refreshError)")
         }
+    }
+
+    /// Wiring (wiring-views): Settings ▸ Accounts ▸ GitHub Account —
+    /// `GitHubAccountView` (the signed-in profile, stats and Sign Out)
+    /// hosted as the pane's GitHub section. The client reads the token
+    /// fresh from the secret store (the same account
+    /// `GitHubClient(tokenProvider:)` reads), so the token added in the
+    /// first-run setup (`SCSetupOnboard`) takes effect here with no
+    /// extra step; signing out deletes it and rebuilds the pane back to
+    /// the could-not-load state. The hosted view gets a fixed height:
+    /// its body is a `VStack` with a `Spacer`, so it has no intrinsic
+    /// height for the form stack.
+    func buildGitHubSection() {
+        endCard()
+        heading("GitHub Account")
+        note("The GitHub account behind the Source Control and CI views. Add the token in the first-run setup (GitHub Token step); this section shows the signed-in account once one is stored.")
+        gitHubAccountHosting?.view.removeFromSuperview()
+        gitHubAccountHosting?.removeFromParent()
+        let client = GitHubClient(tokenProvider: { defaultSecretStore().readString(SecretAccount.githubToken) })
+        let hosting = NSHostingController(rootView: GitHubAccountView(client: client) { [weak self] in
+            if self?.isViewLoaded == true { self?.rebuild() }
+        })
+        gitHubAccountHosting = hosting
+        addChild(hosting)
+        let view = hosting.view
+        loose(view)
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -2 * SettingsMetrics.cardInset).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 440).isActive = true
+    }
+
+    /// Wiring (wiring-views): Settings ▸ Accounts ▸ Supabase —
+    /// `SupabaseCloudView` (endpoint, sync stats, per-conflict
+    /// resolution) hosted as the pane's Supabase section. Same fixed
+    /// hosting height as the GitHub section above.
+    func buildSupabaseSection() {
+        endCard()
+        heading("Supabase")
+        supabaseHosting?.view.removeFromSuperview()
+        supabaseHosting?.removeFromParent()
+        let hosting = NSHostingController(rootView: SupabaseCloudView())
+        supabaseHosting = hosting
+        addChild(hosting)
+        let view = hosting.view
+        loose(view)
+        view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -2 * SettingsMetrics.cardInset).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 420).isActive = true
     }
 
     /// Starts Google sign-in (the browser flow on macOS; fails

@@ -135,8 +135,8 @@ public struct AntigravityLimitsModelsUI: View {
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)
-                        .background(quotaService.fiveHourGaugeColor.opacity(0.14), in: Capsule())
-                        .foregroundStyle(quotaService.fiveHourGaugeColor)
+                        .background(Color(hex: quotaService.fiveHourGaugeColorHex).opacity(0.14), in: Capsule())
+                        .foregroundStyle(Color(hex: quotaService.fiveHourGaugeColorHex))
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 4)
@@ -354,7 +354,7 @@ public struct AntigravityLimitsModelsUI: View {
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.needle.fill")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(quotaService.fiveHourGaugeColor)
+                    .foregroundStyle(Color(hex: quotaService.fiveHourGaugeColorHex))
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Usage Details")
                         .font(.system(size: 12, weight: .bold))
@@ -400,7 +400,7 @@ public struct AntigravityLimitsModelsUI: View {
                     title: "Gemini 5-Hour Rate Limit",
                     subtitle: "Resets in \(quotaService.fiveHourResetCountdownString)",
                     percentage: quotaService.fiveHourRemainingPercentage,
-                    gaugeColor: quotaService.fiveHourGaugeColor,
+                    gaugeColor: Color(hex: quotaService.fiveHourGaugeColorHex),
                     icon: "arrow.clockwise"
                 )
 

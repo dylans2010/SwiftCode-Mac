@@ -14,9 +14,13 @@ import Foundation
 public enum AppUpdateConfiguration {
     /// The one and only update feed. There is no second feed, no beta feed,
     /// and no legacy GitHub API check alongside it.
+    // M-REST (2026-11-06): these members are public so the staged
+    // `AppUpdateService` and the landed `UpdatesView` /
+    // `UpdateWindowView` (SwiftCodeUI) can use them. Access only; no
+    // behaviour change.
     static let feedURLString = "https://github.com/dylans2010/SwiftCode-Mac/releases/latest/download/appcast.xml"
 
-    static var feedURL: URL? { URL(string: feedURLString) }
+    public static var feedURL: URL? { URL(string: feedURLString) }
 
     /// Default automatic-check interval, in seconds (24 hours). This mirrors
     /// the `SUScheduledCheckInterval` value in Info.plist; Sparkle owns the
@@ -34,12 +38,12 @@ public enum AppUpdateConfiguration {
     static let remindUntilDefaultsKey = "com.swiftcode.updates.remindUntil"
 
     /// Current marketing version, from the bundle (never hardcoded).
-    static var currentDisplayVersion: String {
+    public static var currentDisplayVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 
     /// Current build number, from the bundle (never hardcoded).
-    static var currentBuildVersion: String {
+    public static var currentBuildVersion: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
@@ -47,7 +51,7 @@ public enum AppUpdateConfiguration {
     /// verifies every download against `SUPublicEDKey` and fails closed
     /// when it is absent, so this is a real production blocker, not a
     /// cosmetic flag. See Docs/Updates.md for how to generate the key.
-    static var isPublicKeyConfigured: Bool {
+    public static var isPublicKeyConfigured: Bool {
         guard let key = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String else {
             return false
         }
@@ -59,28 +63,54 @@ public enum AppUpdateConfiguration {
 /// Sparkle appcast item by `AppUpdateService`. Views never touch Sparkle
 /// types directly; they render this struct.
 public struct AppUpdateInfo: Equatable {
+    // M-REST (2026-11-06): members + init are public so the staged
+    // `AppUpdateService` and the landed `UpdatesView` /
+    // `UpdateWindowView` (SwiftCodeUI) can build and render this struct.
+    // Access only; no behaviour change.
     /// The appcast item's `versionString` (CFBundleVersion of the update).
-    let versionString: String
+    public let versionString: String
     /// The appcast item's `displayVersionString` (marketing version).
-    let displayVersionString: String
+    public let displayVersionString: String
     /// The appcast item's title, if the feed provides one.
-    let title: String?
+    public let title: String?
     /// Download URL for the update artifact, if the item is installable.
-    let fileURL: URL?
+    public let fileURL: URL?
     /// Informational link for information-only updates.
-    let infoURL: URL?
+    public let infoURL: URL?
     /// Release-notes link from the feed, if the notes are not embedded.
-    let releaseNotesURL: URL?
+    public let releaseNotesURL: URL?
     /// Embedded release notes from the feed, if present.
-    let embeddedReleaseNotes: String?
+    public let embeddedReleaseNotes: String?
     /// True when the item has no downloadable artifact.
-    let isInformationOnly: Bool
+    public let isInformationOnly: Bool
     /// Declared download size in bytes, if the feed provides one.
-    let contentLength: UInt64
+    public let contentLength: UInt64
+
+    public init(
+        versionString: String,
+        displayVersionString: String,
+        title: String?,
+        fileURL: URL?,
+        infoURL: URL?,
+        releaseNotesURL: URL?,
+        embeddedReleaseNotes: String?,
+        isInformationOnly: Bool,
+        contentLength: UInt64
+    ) {
+        self.versionString = versionString
+        self.displayVersionString = displayVersionString
+        self.title = title
+        self.fileURL = fileURL
+        self.infoURL = infoURL
+        self.releaseNotesURL = releaseNotesURL
+        self.embeddedReleaseNotes = embeddedReleaseNotes
+        self.isInformationOnly = isInformationOnly
+        self.contentLength = contentLength
+    }
 
     /// The version string shown to the user. Falls back to the build
     /// version when no display version is available.
-    var displayVersion: String {
+    public var displayVersion: String {
         displayVersionString.isEmpty ? versionString : displayVersionString
     }
 }
@@ -111,7 +141,9 @@ public enum ReleaseNotesFormatter {
     /// Convert embedded HTML release notes to plain text, preserving
     /// headings, paragraphs and list items. Unknown tags are stripped;
     /// nothing is invented when the input is empty.
-    static func plainText(from htmlOrText: String) -> String {
+    /// M-REST (2026-11-06): public so the staged `AppUpdateService`
+    /// (another module when it lands) can call it. Access only.
+    public static func plainText(from htmlOrText: String) -> String {
         var text = htmlOrText
         // List items first, so their content survives tag stripping.
         text = text.replacingOccurrences(of: "(?i)<li[^>]*>", with: "\n• ", options: .regularExpression)
@@ -143,7 +175,7 @@ public enum ReleaseNotesFormatter {
     }
 
     /// Split plain release-notes text into renderable blocks.
-    static func blocks(from plainText: String) -> [ReleaseNoteBlock] {
+    public static func blocks(from plainText: String) -> [ReleaseNoteBlock] {
         let trimmed = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         var blocks: [ReleaseNoteBlock] = []
@@ -166,7 +198,7 @@ public enum ReleaseNotesFormatter {
     }
 
     /// Full pipeline: HTML/text from the feed to renderable blocks.
-    static func blocks(fromFeedText feedText: String?) -> [ReleaseNoteBlock] {
+    public static func blocks(fromFeedText feedText: String?) -> [ReleaseNoteBlock] {
         guard let feedText, !feedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return []
         }
@@ -180,7 +212,9 @@ public enum ReleaseNotesFormatter {
 public enum RemindLaterGate {
     /// Whether an offer for `version` should be suppressed right now.
     /// Manual (user-initiated) checks bypass the gate entirely.
-    static func shouldSuppressOffer(
+    /// M-REST (2026-11-06): public so the staged `AppUpdateService`
+    /// (another module when it lands) can call these. Access only.
+    public static func shouldSuppressOffer(
         version: String,
         remindUntil: [String: TimeInterval],
         now: Date = Date(),
@@ -192,17 +226,17 @@ public enum RemindLaterGate {
     }
 
     /// The deferral timestamp to persist for a "Remind Me Later" choice.
-    static func remindUntil(from now: Date = Date()) -> TimeInterval {
+    public static func remindUntil(from now: Date = Date()) -> TimeInterval {
         now.timeIntervalSince1970 + AppUpdateConfiguration.remindLaterInterval
     }
 
     /// Read persisted deferrals from UserDefaults.
-    static func loadFromDefaults(_ defaults: UserDefaults = .standard) -> [String: TimeInterval] {
+    public static func loadFromDefaults(_ defaults: UserDefaults = .standard) -> [String: TimeInterval] {
         defaults.dictionary(forKey: AppUpdateConfiguration.remindUntilDefaultsKey) as? [String: TimeInterval] ?? [:]
     }
 
     /// Persist deferrals to UserDefaults.
-    static func saveToDefaults(_ values: [String: TimeInterval], defaults: UserDefaults = .standard) {
+    public static func saveToDefaults(_ values: [String: TimeInterval], defaults: UserDefaults = .standard) {
         defaults.set(values, forKey: AppUpdateConfiguration.remindUntilDefaultsKey)
     }
 }

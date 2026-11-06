@@ -3,7 +3,6 @@
 // Ported from Legacy `SwiftCode/ViewModels/EditorViewModel.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: Per-file active configuration URLs (updateActiveConfigurationURLs)
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeIDECore, SwiftCodeUI — add the dependency in Package.swift or rebind at wiring time; not imported here.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation
 import Observation

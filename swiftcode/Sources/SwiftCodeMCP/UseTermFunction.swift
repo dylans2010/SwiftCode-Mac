@@ -15,25 +15,12 @@
 // WIRING / REGISTRATION: MCP catalogue: swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Terminal.swift — wire the matching MCP tool handler to this legacy class (or adopt its behaviour); AssistToolRegistry (staged) is the dynamic registry for register/unregister + health + caching once tools land.
 
 import Foundation
+import SwiftCodeAssistant
 
-public struct TerminalApprovalRequest: Identifiable, Sendable {
-    public let id: UUID
-    public let command: String
-    public let workingDirectory: String
-    public let explanation: String
-    public let estimatedImpact: String
-    public let modifiesRepo: Bool
-
-    public init(id: UUID = UUID(), command: String, workingDirectory: String, explanation: String, estimatedImpact: String, modifiesRepo: Bool) {
-        self.id = id
-        self.command = command
-        self.workingDirectory = workingDirectory
-        self.explanation = explanation
-        self.estimatedImpact = estimatedImpact
-        self.modifiesRepo = modifiesRepo
-    }
-}
-
+// NOTE (MCP-DEP, 2026-11-06): TerminalApprovalRequest moved to SwiftCodeAssistant
+// (swiftcode/Sources/SwiftCodeAssistant/TerminalApprovalRequest.swift) — it is a
+// Foundation-only struct, and SwiftCodeAssistant (which cannot import SwiftCodeMCP)
+// needs it. This file uses it through `import SwiftCodeAssistant` below.
 public struct UseTermFunction: AssistTool {
     public let id = "use_terminal"
     public let name = "Use Terminal"

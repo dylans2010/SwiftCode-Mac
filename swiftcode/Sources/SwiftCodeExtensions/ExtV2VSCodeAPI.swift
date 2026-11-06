@@ -1,6 +1,6 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Backend/Extensions v2/VSCodeCompatibility/ExtV2VSCodeAPI.swift` (Dylan's own code; direct port authorised under MIT).
 // V10 (independent verification): confirmed genuinely missing from production at bc28f653.
-// Unresolved refs (no definition in destination yet): ExtV2DiagnosticsService (Legacy ExtV2Diagnostics.swift), ExtV2TextRange (Legacy ExtV2EditorBridge.swift) — both still absent from production.
+// (Resolved by H-E: ExtV2DiagnosticsService lives in ExtV2Diagnostics.swift; ExtV2TextRange in ExtV2EditorBridge.swift.)
 import Foundation
 
 // MARK: - VS Code API surface, Swift side

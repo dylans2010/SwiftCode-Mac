@@ -58,6 +58,12 @@ extension WorkspaceWindowController {
     /// clicking the selected toolbar segment does (reference-ui-6.md §9.5, A7).
     @objc public func showCodingAssistant(_ sender: Any?) { setLeftPane(codingAssistant: true) }
 
+    /// Xcode ▸ Open Developer Tool ▸ Database Explorer (wiring-views): opens
+    /// the SQLite explorer window. This is the menu entry point for the
+    /// Database feature; `DatabaseExplorerView` (the SwiftUI trigger card)
+    /// opens the same window from its `openWorkspace()`.
+    @objc public func showDatabaseExplorer(_ sender: Any?) { SQLiteExplorerWindowManager.shared.showWindow() }
+
     /// View ▸ Navigators ▸ Filter in Navigator: focuses the filter field.
     @objc public func filterInNavigator(_ sender: Any?) {
         navigatorItem.isCollapsed = false

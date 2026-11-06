@@ -4,7 +4,6 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: assist fix loop (startAssistFixLoop/stopAssistFixLoop/runAssistFix); build diagnostic bundle builder; copyGeneratedAppToManagedDirectory
 // Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/Xcode Build/XcodeBuildManager.swift (derived from Legacy).
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeDarwinKernel, SwiftCodeDarwinKernel (or SwiftCodeMetalHost, SwiftCodeProfiler), SwiftCodeXcodebuild — add the dependency in Package.swift or rebind at wiring time; not imported here.
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): CheckedContinuation.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import Foundation

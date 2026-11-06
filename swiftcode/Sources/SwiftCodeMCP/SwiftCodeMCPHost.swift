@@ -10,10 +10,23 @@ import SwiftCodeIDEShell
 public protocol SwiftCodeMCPHostDelegate: AnyObject {
     /// The open editor's text of a file (unsaved edits included), if open.
     func mcpHostText(ofOpenFile path: String) -> String?
+    /// The active editor's file path, if the IDE has one open.
+    /// Legacy's `AssistArtboardCompileTool` / `AssistFixArtboardsTool`
+    /// fell back to the active document; the catalogue reaches it
+    /// through this seam. Default is nil (headless host), so existing
+    /// delegates are unaffected.
+    /// IDE hook still needed: `WorkspaceWindowController` (SwiftCodeUI,
+    /// the `SwiftCodeMCPHostDelegate` implementer) must return its
+    /// active editor's `fileURL` path here.
+    func mcpHostActiveFilePath() -> String?
     /// Saves edited documents (before a build, as Product ▸ Build does).
     func mcpHostSaveAll()
     /// A tool wrote a file (the IDE reloads its editor).
     func mcpHostDidWrite(_ path: String)
+}
+
+public extension SwiftCodeMCPHostDelegate {
+    func mcpHostActiveFilePath() -> String? { nil }
 }
 
 /// The SwiftCode tools' state: the open workspace (a `WorkspaceSession`, the
@@ -58,6 +71,13 @@ public final class SwiftCodeMCPHost {
         self.engine = engine
         sharesIDESession = false
         installTools()
+        // WIRING: populate the shared dynamic registry with the staged
+        // Legacy AssistTool classes, and install the extension-tool
+        // registration handler, so the registry `AssistManager` reads
+        // (now the shared instance) and the MCP catalogue agree on
+        // what exists.
+        AssistToolRegistry.shared.registerMCPTools()
+        ExtV2AssistBridge.installRegistrationHandler()
     }
 
     /// A host over the IDE's session.
@@ -67,6 +87,9 @@ public final class SwiftCodeMCPHost {
         self.session = session
         sharesIDESession = true
         installTools()
+        // WIRING: see the standalone init above.
+        AssistToolRegistry.shared.registerMCPTools()
+        ExtV2AssistBridge.installRegistrationHandler()
         observe(session)
     }
 

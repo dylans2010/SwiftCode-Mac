@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import SwiftCodeAssistant
 
 public struct AssistSwiftASTInspectorTool: AssistTool {
     public let id = "swift_ast_inspector"

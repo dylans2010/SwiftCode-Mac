@@ -1,11 +1,13 @@
 // Ported from Legacy `SwiftCode/Views/Settings/CodeSuggestionsView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
 // Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. BLOCKED references: CodeSuggestionsML / CodeSuggestionCategory
-// (Legacy `SwiftCode/Services/CodeSuggestionsML.swift`, PARTIAL, another scope) —
-// the view reads suggestions.groupedSuggestions. ModernGroupBoxStyle already
-// exists in SwiftCodeUI (same target).
-// Wiring: Settings (Code Suggestions section); the host must inject a
-// CodeSuggestionsML environmentObject once that type lands.
+// Verbatim. Resolved in-destination: CodeSuggestionsML / CodeSuggestionCategory
+// (SwiftCodeIDECore/Model/CodeSuggestionsML.swift) — the view reads
+// suggestions.groupedSuggestions. ModernGroupBoxStyle already exists in
+// SwiftCodeUI (same target).
+// Wiring (wiring-views): Settings ▸ Editing ▸ Completion ▸ Code Suggestions
+// (TextEditingSettingsPane+Prediction.swift `buildSuggestionsSection()`),
+// which injects `CodeSuggestionsML.shared` as the environment object and
+// provides the "Analyze a Folder…" trigger for `analyze(directory:)`.
 
 import SwiftUI
 

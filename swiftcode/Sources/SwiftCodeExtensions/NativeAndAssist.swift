@@ -243,6 +243,18 @@ public enum AssistBridge {
             requiredCapabilities: requiredCapabilities, isReadOnly: isReadOnly)
     }
 
+    /// WIRING (wiring-backend): the real registration, installed from
+    /// the MCP side. SwiftCodeExtensions cannot depend on SwiftCodeMCP
+    /// (the dependency runs the other way: SwiftCodeMCP depends on
+    /// SwiftCodeExtensions), so the bridge is a handler this target
+    /// calls and SwiftCodeMCP fills in: `ExtV2AssistBridge
+    /// .installRegistrationHandler()` (called from
+    /// `SwiftCodeMCPHost.init`) sets it to register the descriptor's
+    /// tool in `AssistToolRegistry.shared`. Until it is installed —
+    /// a host without the MCP layer — registration still only
+    /// permission-checks, exactly as before.
+    @MainActor public static var registrationHandler: ((AssistCapabilityDescriptor, PermissionManager) -> Bool)?
+
     /// Returns `false` (and logs a warning) when `.assistTools` is
     /// not granted — registration is a privileged act, not a default.
     @MainActor
@@ -253,6 +265,9 @@ public enum AssistBridge {
                 "Refused to register Assist tool '\(descriptor.toolId)': .assistTools is not granted.",
                 extensionId: descriptor.extensionId)
             return false
+        }
+        if let registrationHandler {
+            return registrationHandler(descriptor, permissions)
         }
         return true
     }

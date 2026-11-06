@@ -227,6 +227,12 @@ public struct AssistantBackends: Sendable {
         case .metaAssist:
             return MetaAssistProvider(locator: locator, reasoningEffort: settings.metaReasoningEffort,
                                       turnTimeoutSeconds: settings.metaTurnTimeoutSeconds)
+        case .anthropic:
+            // WIRING (wiring-backend): the direct Messages API client.
+            // No `anthropicURL` setting exists — the client defaults to
+            // `https://api.anthropic.com/v1` and the key comes from the
+            // secret store, as in Legacy.
+            return AnthropicProvider(apiKey: store.readString(SecretAccount.anthropicKey))
         }
     }
 

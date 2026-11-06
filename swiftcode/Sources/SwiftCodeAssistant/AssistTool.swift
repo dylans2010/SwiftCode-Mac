@@ -1,17 +1,23 @@
 // STAGED PORT — SwiftCode-Legacy `SwiftCode/Backend/Assist/Tools/AssistTool.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
 // Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
-// Target: SwiftCodeMCP (`swiftcode/Sources/SwiftCodeMCP/AssistTool.swift`).
+// Target: SwiftCodeAssistant (`swiftcode/Sources/SwiftCodeAssistant/AssistTool.swift`).
+// MOVED here by MCP-DEP (2026-11-06, decision (b) in staging-wire/mcp-dep/DISPOSITIONS.md):
+// SwiftCodeAssistant cannot import SwiftCodeMCP (MCP depends on Assistant — a reverse
+// dep would be a cycle), and this protocol's whole dependency closure lives here
+// (AssistContext/AssistToolResult in AssistModels.swift; ToolCapability et al. in
+// AssistToolRouter.swift). MCP keeps using it through its own import of this target.
+// NOTE: X2 owns the JSONValue fix for this file — apply it at THIS path, not the old one.
 // SUPPORT PORT (not in any worklist — no subagent owns this file): the shared AssistTool
 // protocol + JSONSchema/JSONValue plumbing that ~15 A3 tool ports depend on. Body is Legacy
-// verbatim except the added `import SwiftCodeAssistant` (AssistContext/AssistToolResult live there).
-// UNRESOLVED DEPENDENCIES: ToolCapability / ToolRiskLevel / ToolOutputFormat /
-//   ToolPermissionRequirement — defined in Legacy AssistToolRouter.swift, owned by A6 (ALL-MISSING).
+// verbatim; the former cross-target import was dropped on the move —
+// AssistContext/AssistToolResult live in this target now.
+// RESOLVED in-destination: ToolCapability / ToolRiskLevel / ToolOutputFormat /
+//   ToolPermissionRequirement — defined in this target (AssistToolRouter.swift).
 // WIRING / REGISTRATION: shared tool plumbing for SwiftCodeMCP; the AssistTool protocol is
 //   what every staged legacy tool class conforms to. The MCP data-driven catalogue remains the
 //   live registry until wiring adopts these classes.
 
 import Foundation
-import SwiftCodeAssistant
 
 public enum JSONValue: Codable, Sendable, Hashable {
     case null

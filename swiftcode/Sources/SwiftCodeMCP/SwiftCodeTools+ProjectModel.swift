@@ -835,8 +835,32 @@ extension SwiftCodeMCPHost {
             if let val = settings[key] {
                 return .text("\(key) = \(val)")
             }
+            // WIRING (wiring-backend): Legacy's
+            // `AssistXcodeBuildSettingsTool` ran `xcodebuild
+            // -showBuildSettings`, which resolves inherited values,
+            // xcconfig files and Xcode defaults the raw pbxproj text
+            // cannot see (e.g. SWIFT_VERSION when the project leaves
+            // it unset). The declared-settings read above is the fast
+            // path; a miss falls back to the resolved read before
+            // reporting the key missing. macOS only (`xcrun`).
+            #if os(macOS)
+            if let resolved = Self.projectModelResolvedBuildSettings(target: target, in: root),
+               let val = resolved[key] {
+                return .text("\(key) = \(val)")
+            }
+            #endif
             throw MCPToolError("Build setting '\(key)' was not found in xcodebuild output.")
         }
+        // WIRING (wiring-backend): same resolved fallback when the
+        // project declares no settings at all for the configuration.
+        var effectiveSettings = settings
+        #if os(macOS)
+        if effectiveSettings.isEmpty,
+           let resolved = Self.projectModelResolvedBuildSettings(target: target, in: root) {
+            effectiveSettings = resolved
+        }
+        #endif
+        let settings = effectiveSettings
         if settings.isEmpty {
             return .text("No Xcode build settings returned. Ensure an .xcodeproj exists in the workspace.")
         }
@@ -853,6 +877,45 @@ extension SwiftCodeMCPHost {
         }
         return .text(summary)
     }
+
+    #if os(macOS)
+    /// WIRING (wiring-backend): Legacy `AssistXcodeBuildSettingsTool`'s
+    /// resolved read — `xcrun xcodebuild -showBuildSettings` in the
+    /// workspace, parsed exactly as Legacy parsed it (`" = "` lines).
+    /// Returns nil when xcodebuild cannot run or returns no settings,
+    /// so the caller keeps its declared-settings answer instead of
+    /// inventing one. Synchronous, as Legacy's was.
+    nonisolated static func projectModelResolvedBuildSettings(target: String?, in root: URL) -> [String: String]? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        var args = ["xcodebuild", "-showBuildSettings"]
+        if let target, !target.isEmpty {
+            args.append(contentsOf: ["-target", target])
+        }
+        proc.arguments = args
+        proc.currentDirectoryURL = root
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = pipe
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+        } catch {
+            return nil
+        }
+        guard proc.terminationStatus == 0 else { return nil }
+        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        var settingsMap: [String: String] = [:]
+        for line in output.components(separatedBy: .newlines) {
+            let parts = line.components(separatedBy: " = ")
+            if parts.count == 2 {
+                settingsMap[parts[0].trimmingCharacters(in: .whitespaces)] =
+                    parts[1].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return settingsMap.isEmpty ? nil : settingsMap
+    }
+    #endif
 
     func projectModelXcodeSchemeManager(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)

@@ -29,7 +29,7 @@ struct SearchProjectNote: Identifiable, Codable, Hashable {
 }
 
 struct SearchDocumentationView: View {
-    @ObservedObject private var settings = AppSettings.shared
+    @State private var settings = AppSettings.shared
 
     // Overall view mode
     @State private var activeWorkspaceMode = 0 // 0 = Link Summarizer, 1 = Project Notes Workspace

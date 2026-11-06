@@ -586,6 +586,12 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
     var presentedAuthSheet: CloudAuthSheetController?
     var presentedChangeEmailSheet: CloudChangeEmailSheetController?
     var presentedChangePasswordSheet: CloudChangePasswordSheetController?
+    /// Wiring (wiring-views): the hosted SwiftUI account views (GitHub,
+    /// Supabase) added by `buildGitHubSection()` /
+    /// `buildSupabaseSection()` (`CloudAccountsSettings.swift`). Kept so
+    /// a `rebuild()` can detach the previous hosting controller first.
+    var gitHubAccountHosting: NSHostingController<GitHubAccountView>?
+    var supabaseHosting: NSHostingController<SupabaseCloudView>?
 
     public init(prefs: Preferences = .shared, authManager: CloudAuthManager = CloudAuthManager.shared,
                 cloudManager: CloudManager? = nil, syncEngine: CloudSyncEngine = CloudSyncEngine.shared,
@@ -1080,6 +1086,11 @@ public final class TextEditingSettingsPane: SettingsPane {
     public internal(set) var predictionProbe: BackendProbe?
     public internal(set) var predictionMessage = ""
     var predictionTask: Task<Void, Never>?
+    /// Wiring (wiring-views): the hosted `CodeSuggestionsView` section on
+    /// the Completion page (`buildSuggestionsSection()` in
+    /// TextEditingSettingsPane+Prediction.swift). Kept so a `rebuild()`
+    /// can detach the previous hosting controller first.
+    var suggestionsHosting: NSHostingController<AnyView>?
 
     override func build() {
         switch page {
@@ -1138,6 +1149,7 @@ public final class TextEditingSettingsPane: SettingsPane {
             heading("Code Completion")
             note("Completions come from the language server as you type.")
             buildPredictionRows()
+            buildSuggestionsSection()
         case .indentation:
             backRow("Editing") { [weak self] in self?.page = .main }
             heading("Indentation")

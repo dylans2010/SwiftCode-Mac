@@ -15,6 +15,12 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Hashable {
     case openCode
     /// The Hermes CLI agent, driven one-shot (Wave 9: Legacy Hermes).
     case hermes
+    /// Direct Anthropic Messages API (wiring-backend: Legacy's direct
+    /// Anthropic client, `AnthropicProvider`). The Messages API is not
+    /// OpenAI-compatible, so it is a kind of its own instead of hiding
+    /// behind `.openRouter`, which misreported the provider in
+    /// selection, availability survey and model routing.
+    case anthropic
     /// Apple's on-device Foundation Models (Wave 9: Legacy
     /// `Services/FoundationModels.swift`). No key, no account.
     case foundationModels
@@ -44,6 +50,7 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Hashable {
         case .foundationModels: "Foundation Models"
         case .scCloud: "SwiftCode Cloud"
         case .metaAssist: "Assist with Meta"
+        case .anthropic: "Anthropic"
         }
     }
 

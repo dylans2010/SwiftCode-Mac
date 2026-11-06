@@ -4,11 +4,14 @@ import SwiftCodeIDECore
 
 /// The `use_workers` batch runtime: Legacy's validation, ported
 /// exactly, plus topological ordering and durable persistence of
-/// the batch plan. Execution itself is still honestly unavailable:
-/// there is no LLM/subagent runtime in the MCP host (the
-/// LLM-wiring family owns it), so after the plan is persisted the
-/// handler fails naming the missing runtime — no worker is ever
-/// claimed to have run. See `specs/ide/gap-closure-failing-tools.md` §7.
+/// the batch plan, plus real execution through
+/// `WorkerScheduler.shared` (SwiftCodeAssistant) — Legacy's
+/// `UseWorkersTool.execute` steps 4–6 (record, schedule-and-execute,
+/// persist, reconcile). The scheduler's default turn runner is the
+/// real MetaAssist turn executor, so a run fails honestly (not
+/// installed / not signed in) instead of claiming a run. The
+/// `workersTestExecutor` seam still overrides execution in tests.
+/// See `specs/ide/gap-closure-failing-tools.md` §7.
 ///
 /// Legacy's validation (`UseWorkersTool`, verified live):
 /// * input may be an array, a stringified JSON array, a single
@@ -169,8 +172,14 @@ extension SwiftCodeMCPHost {
     }
 
     /// `use_workers`: Legacy validation + topological order +
-    /// approval + persistence, then the honest execution failure
-    /// (or the test executor's results when one is installed).
+    /// approval + persistence, then real execution through
+    /// `WorkerScheduler.shared` (SwiftCodeAssistant) — Legacy's
+    /// `UseWorkersTool.execute` steps 4–6 (record, schedule-and-execute,
+    /// persist, reconcile). The scheduler's default turn runner is the
+    /// real MetaAssist turn executor, so a run fails honestly (not
+    /// installed / not signed in) instead of claiming a run. The
+    /// `workersTestExecutor` seam still overrides execution in tests.
+    /// See `specs/ide/gap-closure-failing-tools.md` §7.
     func useWorkersReal(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let workersJSON = call.arguments["workers"]?.array else {
             throw MCPToolError("Invalid input: 'workers' argument is required and must contain worker assignments.")
@@ -178,14 +187,15 @@ extension SwiftCodeMCPHost {
         let assignments = try Self.workersValidate(workersJSON)
         let order = try Self.workersTopologicalOrder(assignments)
         let s = try session(for: call)
+        let root = Self.folder(of: s.model)
         try await terminalApproveChange(
             tool: "use_workers",
-            summary: "Plan a batch of \(assignments.count) worker(s): \(order.map(\.name).joined(separator: ", ")). Workers are planned and persisted; they do not run until a subagent runtime is connected.",
+            summary: "Run a batch of \(assignments.count) worker(s): \(order.map(\.name).joined(separator: ", ")).",
             in: s, call: call)
         let plan = FailingToolsWorkerPlan(batchID: UUID().uuidString.lowercased(), assignments: assignments,
                                           order: order, createdAt: Date())
         let (url, missing) = try workersPersistPlan(plan, in: s)
-        let relative = Self.relativePath(url.path, root: Self.folder(of: s.model).path)
+        let relative = Self.relativePath(url.path, root: root.path)
         if let executor = Self.workersTestExecutor {
             let results = try await executor.execute(plan: plan)
             return .structured(["batchId": .string(plan.batchID), "workerCount": .int(assignments.count),
@@ -193,13 +203,66 @@ extension SwiftCodeMCPHost {
                                 "results": .array(results.map(AnyJSON.string))],
                                summary: "Worker batch \(plan.batchID) executed (\(assignments.count) workers, plan at \(relative)):\n" + results.joined(separator: "\n"))
         }
-        var summary = "Worker batch \(plan.batchID) validated and persisted to \(relative) " +
-            "(\(assignments.count) workers, execution order: \(order.map(\.name).joined(separator: ", "))).\n" +
-            "No worker was run: use_workers needs the Assist worker runtime (an LLM/subagent runtime), which the MCP host does not have yet. " +
-            "The plan is saved so a runtime can pick it up later."
-        if !missing.isEmpty {
-            summary += "\nMissing target files: " + missing.map { "\($0.key): \($0.value)" }.joined(separator: "; ")
+        // WIRING (wiring-backend): Legacy `UseWorkersTool.execute`
+        // steps 4–6 — record the batch, run it through the real
+        // scheduler, persist the worker tree, reconcile claimed file
+        // changes against the filesystem. The catalogue's assignment
+        // shape has no `role` (Legacy's default is "General
+        // Engineer") and no `preferredModel`; both keep their
+        // defaults. The plan is already persisted above, so a
+        // scheduler failure still leaves it on disk for a later run.
+        let parentTaskID = UUID(uuidString: plan.batchID) ?? UUID()
+        let workerAssignments = order.map { assignment in
+            WorkerAssignment(name: assignment.name,
+                             scope: assignment.scope ?? "General",
+                             task: assignment.task,
+                             role: "General Engineer",
+                             dependencies: assignment.dependencies,
+                             targetFiles: assignment.targetFiles)
         }
-        throw MCPToolError(summary)
+        WorkerPersistenceStore.shared.recordAssignments(workerAssignments)
+        // `scheduleAndExecute` is non-throwing: a worker whose turn
+        // fails reports it in its own `WorkerResult` (build /
+        // verification), so a batch never fails as a whole here.
+        let results = await WorkerScheduler.shared.scheduleAndExecute(
+            assignments: workerAssignments,
+            parentTaskID: parentTaskID,
+            context: WorkerExecutionContext(sessionId: parentTaskID, workspaceRoot: root))
+        WorkerPersistenceStore.shared.persistWorkers(
+            WorkerRuntimeState.shared.allWorkers,
+            parentTaskID: parentTaskID,
+            workspaceRoot: root)
+        let reconciliation = WorkerPersistenceStore.shared.reconcileWithFilesystem(workspaceRoot: root)
+        var output = "Successfully executed \(results.count) Assist Workers under Parent Coordination:\n\n"
+        for result in results {
+            output += "### Worker: \(result.workerName)\n"
+            output += "- Summary: \(result.summary)\n"
+            output += "- Build: \(result.buildResult) | Verification: \(result.verificationResult)\n"
+            if !result.modifiedFiles.isEmpty {
+                output += "- Modified Files: \(result.modifiedFiles.joined(separator: ", "))\n"
+            }
+            if !result.completedWork.isEmpty {
+                output += "- Completed Milestones: \(result.completedWork.joined(separator: "; "))\n"
+            }
+            output += "- Recommended Action: \(result.recommendedParentAction)\n\n"
+        }
+        output += "### Filesystem Reconciliation\n\(reconciliation.summary)\n"
+        for discrepancy in reconciliation.discrepancies.prefix(5) {
+            output += "- \(discrepancy.description)\n"
+        }
+        if !missing.isEmpty {
+            output += "\nMissing target files: " + missing.map { "\($0.key): \($0.value)" }.joined(separator: "; ")
+        }
+        var data: [String: AnyJSON] = [
+            "batchId": .string(plan.batchID),
+            "workerCount": .int(results.count),
+            "planPath": .string(relative),
+            "verifiedClaims": .int(reconciliation.verifiedClaims),
+            "discrepancyCount": .int(reconciliation.discrepancies.count),
+        ]
+        for result in results {
+            data["worker.\(result.workerName).status"] = .string(result.verificationResult)
+        }
+        return .structured(data, summary: output)
     }
 }

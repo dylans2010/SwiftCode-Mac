@@ -7,11 +7,13 @@ import FoundationNetworking
 /// `SwiftCode/Features/AI/LLMService.swift`'s Anthropic path, Dylan's
 /// own code, ported under MIT).
 ///
-/// `kind` reports `.openRouter`: there is no `ProviderKind.anthropic`
-/// in the destination (Anthropic models are routed through OpenRouter
-/// there), and this client is used directly rather than through the
-/// kind dispatch. It is a full `AssistantProvider` so it can be
-/// driven by the same `send` / `availability` contract.
+/// WIRING (wiring-backend): `kind` is now `.anthropic`
+/// (`ProviderKind.anthropic`, added in `Core.swift` and wired into the
+/// `AssistantBackends.provider(_:)` dispatch). It previously reported
+/// `.openRouter`, which misreported the provider in selection, the
+/// availability survey and model routing. It is a full
+/// `AssistantProvider` so it can be driven by the same `send` /
+/// `availability` contract.
 /// Why only Anthropic is ported as a direct client: Legacy's Gemini,
 /// Mistral and Qwen base URLs are OpenAI-compatible endpoints
 /// (`generativelanguage.googleapis.com/v1beta/openai`,
@@ -26,7 +28,7 @@ import FoundationNetworking
 /// API key: read from the secret store (`SecretAccount.anthropicKey`)
 /// when no key is passed in; never stored by this client.
 public struct AnthropicProvider: AssistantProvider {
-    public let kind = ProviderKind.openRouter
+    public let kind = ProviderKind.anthropic
     public static let defaultBaseURL = "https://api.anthropic.com/v1"
     public static let anthropicVersion = "2023-06-01"
 
