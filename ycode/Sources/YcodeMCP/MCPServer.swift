@@ -358,6 +358,13 @@ public final class MCPServer: @unchecked Sendable {
         "reporttouser": "report_to_user",
         "task_complete": "report_to_user",
         "task_completion": "report_to_user",
+        // Wave 5 aliases (Legacy registry). `reverse_analyze` maps
+        // to itself, so it needs no entry.
+        "simulator": "simulator_controller",
+        "binary_plist": "binary_plist_converter",
+        "json_validator": "json_validator_tool",
+        "yaml_parser": "yaml_parser_tool",
+        "reverse": "reverse_analyze",
     ]
 
     public static let modernVersion = "2026-07-28"

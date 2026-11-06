@@ -54,6 +54,7 @@ extension YcodeMCPHost {
             + fileReadingTools + fileInspectionTools + artifactTools + fileWritingTools
             + searchTools + gitTools
             + terminalTools + memoryTools + planningTools
+            + artboardTools + simulatorTools + mediaTools + archiveTools + dataTools + engineTools
     }
 
     /// A tool whose handler runs on the main actor.

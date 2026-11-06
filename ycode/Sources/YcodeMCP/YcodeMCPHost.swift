@@ -42,6 +42,11 @@ public final class YcodeMCPHost {
     var runOrder: [String] = []
     /// Lines of the remote simulator's launcher (boot, launch, stop).
     var simulatorLog: [String] = []
+    /// Artboards of the Visual UI Builder port (Wave 5): in-memory only,
+    /// like Legacy's `DocumentCoordinator.visualUIDocument` — there is
+    /// no artboard file format yet, so they live and die with the server.
+    var artboards: [ArtboardRecord] = []
+    var activeArtboardID: UUID?
     /// Reports the running build's or test's activity to its caller.
     var activityProgress: MCPProgress?
     var activityCount = 0

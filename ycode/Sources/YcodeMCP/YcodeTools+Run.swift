@@ -32,14 +32,28 @@ extension YcodeMCPHost {
                  output: Schema.output(["runId": Schema.str, "state": Schema.str]), annotations: execute) { h, call in
                 try await h.stop(call)
             },
+            // ALIGNED (Wave 5): Ycode's registration, extended to
+            // cover Legacy's `simulator_list` (`AssistSimulatorListTool`,
+            // `simctl list devices -j`). The Ycode keys keep their
+            // meaning; `appleSimulators` carries Legacy's listing
+            // (empty when `xcrun` is absent). See
+            // `specs/ide/assist-artboards-media-tools.md` (Part A §3).
             tool("simulator_list", "List simulators",
-                 "The Ycode Simulator devices on the remote simulator host (device type and runtime) and whether each is running. Empty when no host is set up.",
-                 input: Schema.object([:]), output: Schema.output(["simulators": Schema.anyArray, "configured": Schema.bool])) { h, _ in
-                h.simulatorList()
+                 "The simulators available to this IDE: the Ycode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent).",
+                 input: Schema.object([:]), output: Schema.output(["simulators": Schema.anyArray, "configured": Schema.bool, "appleSimulators": Schema.anyArray])) { h, _ in
+                await h.simulatorList()
             },
+            // ALIGNED (Wave 5): Ycode's registration, extended with
+            // Legacy's `simulator_boot` parameters (`udid`, `action`
+            // from `AssistSimulatorBootTool`). Without a `udid` it
+            // boots the Ycode Simulator as before; with one it runs
+            // `simctl boot`/`shutdown` on the Apple simulator and
+            // verifies the resulting state.
             tool("simulator_boot", "Boot simulator",
-                 "Starts a Ycode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it.",
-                 input: Schema.object(["simulator": simulatorArg]),
+                 "Starts a Ycode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead.",
+                 input: Schema.object(["simulator": simulatorArg,
+                                       "udid": Schema.string("An Apple simulator's UDID (UUID) to boot or shut down with simctl instead of the Ycode Simulator."),
+                                       "action": Schema.string("boot or shutdown (Apple-simulator path only; default boot).", oneOf: ["boot", "shutdown"])]),
                  output: Schema.output(["simulator": Schema.str, "state": Schema.str]), annotations: execute) { h, call in
                 try await h.simulatorBoot(call)
             },
@@ -202,17 +216,36 @@ extension YcodeMCPHost {
         throw MCPToolError("no Ycode Simulator \"\(name)\"; there are: \(all.map(\.destination.name).joined(separator: ", "))")
     }
 
-    func simulatorList() -> MCPToolResult {
+    func simulatorList() async -> MCPToolResult {
+        // The aligned Apple section (Legacy's `simctl list`): empty
+        // when `xcrun` is absent, never an error — the Ycode keys
+        // keep their meaning either way.
+        let apple = await Self.appleSimulators()
+        let appleJSON: [AnyJSON] = apple.map { a in
+            ["name": .string(a.name), "udid": .string(a.udid), "state": .string(a.state),
+             "runtime": .string(a.runtime), "available": .bool(a.isAvailable)]
+        }
+        let appleText: String
+        if apple.isEmpty {
+            appleText = FileManager.default.fileExists(atPath: "/usr/bin/xcrun")
+                ? "Apple simulators: none installed."
+                : "Apple simulators: unavailable (xcrun not found; install Xcode command line tools)."
+        } else {
+            let booted = apple.filter { $0.state == "Booted" }.count
+            appleText = "Apple simulators (\(apple.count), \(booted) booted):\n"
+                + apple.map { "  \($0.name) (\($0.udid)) - \($0.state) - \($0.runtime)" }.joined(separator: "\n")
+        }
         guard let settings = remoteSimulator, settings.isConfigured else {
-            return MCPToolResult(content: [.textBlock("No Ycode Simulator host is set up.")], structured: ["simulators": [], "configured": false])
+            return MCPToolResult(content: [.textBlock("No Ycode Simulator host is set up.\n" + appleText)],
+                                 structured: ["simulators": [], "configured": false, "appleSimulators": .array(appleJSON)])
         }
         let list: [AnyJSON] = RemoteSimulator.all(settings).map { r in
             ["name": .string(r.destination.name), "id": .optional(r.destination.identifier), "runtime": .optional(r.runtimeVersion),
              "device": .string((r.remoteDevicePath as NSString).lastPathComponent),
              "running": .bool(RemoteDeviceSessions.shared.isRunning(r) || session?.simulatorRun?.remote?.remoteDevicePath == r.remoteDevicePath)]
         }
-        return MCPToolResult(content: [.textBlock(list.map { "\($0["name"]?.string ?? "")\($0["running"] == .bool(true) ? " (running)" : "")" }.joined(separator: "\n"))],
-                             structured: ["simulators": .array(list), "configured": true])
+        return MCPToolResult(content: [.textBlock(list.map { "\($0["name"]?.string ?? "")\($0["running"] == .bool(true) ? " (running)" : "")" }.joined(separator: "\n") + "\n" + appleText)],
+                             structured: ["simulators": .array(list), "configured": true, "appleSimulators": .array(appleJSON)])
     }
 
     func noteSimulator(_ line: String) {
@@ -239,6 +272,23 @@ extension YcodeMCPHost {
     }
 
     func simulatorBoot(_ call: MCPToolCall) async throws -> MCPToolResult {
+        // The aligned Apple path (Legacy's `AssistSimulatorBootTool`):
+        // a UDID routes to `simctl` instead of the Ycode Simulator.
+        if let rawUdid = call.string("udid") {
+            let udid = rawUdid.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard UUID(uuidString: udid) != nil else {
+                throw MCPToolError("Invalid udid: '\(udid)' is not a valid UUID.")
+            }
+            let rawAction = (call.string("action") ?? "boot").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard rawAction == "boot" || rawAction == "shutdown" else {
+                throw MCPToolError("Invalid action: '\(rawAction)'. Expected boot or shutdown.")
+            }
+            return try await simctlBootOrShutdown(udid: udid, action: rawAction, call: call)
+        }
+        if let rawAction = call.string("action") {
+            // An action without a UDID has no Apple device to act on.
+            throw MCPToolError("Invalid action: '\(rawAction)'. Pass a udid to boot or shut down an Apple simulator with simctl.")
+        }
         let r = try remote(named: call.string("simulator"))
         let sessions = RemoteDeviceSessions.shared
         sessions.output = { [weak self] line in self?.noteSimulator(line) }

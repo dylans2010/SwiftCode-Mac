@@ -6372,6 +6372,1369 @@ failing (§120); `intel_explain_code` is honest static analysis, not an
 LLM call (§121); `plan-AskUser` never blocks (§123). No Autopilot
 anywhere in this family.
 
+## Wave 5 — artboards / media / engines tools
+
+Wave 5 ports the remaining small Assist families: Artboards (8),
+Simulator & devices (4), Image (7), Archive (6), Data (5), Engines (4),
+Web (1) and Reverse (1) — 36 tools, taking the MCP catalogue from 138
+to 172 registrations. Two of the four simulator tools already existed
+as Ycode registrations and are aligned in place rather than
+re-registered (§3 of the behaviour spec). The behaviour spec is
+`specs/ide/assist-artboards-media-tools.md` (Part A artboards/simulator,
+Part B image/archive/data, Part C engines/web/reverse).
+
+## 126. Wave 5 artboards / simulator conventions
+
+- Artboards live in an in-memory store on the host (`YcodeMCPHost.artboards`
+  / `activeArtboardID`); there is no artboard file format yet, so they live
+  and die with the server, like Legacy's `DocumentCoordinator.visualUIDocument`.
+- Artboard compilation renders through `YcodePreviews` (`PreviewRenderRunner`);
+  `artboard_run_app` delegates to the existing `run` tool. The Visual UI Builder
+  itself, the live preview session and Apple-simulator runs are not ported.
+- Simulator/device tools run `xcrun devicectl` / `simctl` as fixed-argv
+  subprocesses via Wave 4's `terminalRunFixed`; mutating actions go through the
+  Wave 2 approval gate. `simulator_boot` and `simulator_list` are aligned in
+  place in `YcodeTools+Run.swift` (§3 of the behaviour spec) — Ycode's Ycode
+  Simulator behaviour is unchanged, and the Legacy `simctl` behaviour is added.
+
+## 127. Wave 5 image / archive / data conventions
+
+- Image tools use the pure-Foundation header parser (PNG/JPEG/GIF/BMP/WebP/TIFF)
+  on both platforms; the AppKit/ImageIO paths are macOS-only behind `canImport`
+  guards and fail honestly on Linux with the exact macOS-only message.
+- Archive tools run system commands as fixed-argv subprocesses (`ditto` on macOS,
+  `zip`/`unzip`/`tar`/`gzip` elsewhere), 120 s timeout; no ZIPFoundation
+  dependency was added. Plist conversion uses `PropertyListSerialization`, not `plutil`.
+- YAML tools port Legacy's own heuristic verbatim — it is not a full YAML parser.
+  `json_validate` vs `json_validator_tool` are kept as separate tools with their
+  distinct Legacy behaviour (fragments, parameters, messages).
+- Validate-only tools that can write are `writes: true`, per the Wave 2 precedent
+  (`json_validate`, `json_validator_tool`, `yaml_validate`).
+
+## 128. Wave 5 engines / web / reverse conventions
+
+- Engines port Legacy's exact logic where it runs locally with no provider account
+  (`code_mutation_engine`, `patch_application_engine`); `dependency_resolution_engine`
+  runs `xcodebuild -resolvePackageDependencies` and is macOS-only;
+  `external_resource_gateway` is HTTPS-only with a JSON body.
+- `fetch_documentation` is the full Legacy pipeline (DocC JSON first, HTML fallback,
+  24 h in-memory cache, 20,000-char cap). `reverse_analyze` is honestly failing:
+  it runs Legacy's validation chain, then fails naming the missing Node REA bridge.
+- The patch engine reports Legacy's naive line diff, not a Myers unified diff —
+  Ycode has no Myers engine yet (same gap as Wave 2's `code_replace`).
+
+## 129. `artboard_compile` — Compile Artboard Preview
+
+- **Description (verbatim):** "Triggers compilation and preview generation of a custom artboard or the active SwiftUI file."
+- **Capability:** `compilation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Triggers compilation and preview generation of a custom artboard or the active SwiftUI file.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "identifier": {
+      "type": "string",
+      "description": "Optional artboard UUID or name to compile. If omitted, compiles active document/artboard."
+    },
+    "targetView": {
+      "type": "string",
+      "description": "Optional name of the SwiftUI View or #Preview target to compile."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `status`, `preview_target`.
+Message: `Artboard compiled successfully.\nHosted View: Ready`.
+
+**Notes.** Renders through `YcodePreviews` (`PreviewRenderRunner`) and returns the PNG as an image block. An artboard with no custom source fails: the MCP host has no active document for Legacy's fallback. Approval is requested before compiling. See `assist-artboards-media-tools.md` (Part A, "`artboard_compile`").
+
+## 130. `artboard_create` — Create Artboard
+
+- **Description (verbatim):** "Creates a new artboard in the Visual UI Builder with custom SwiftUI code or standard component layout."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a new artboard in the Visual UI Builder with custom SwiftUI code or standard component layout.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "name": {
+      "type": "string",
+      "description": "Name of the new artboard (e.g., 'SettingsView', 'ProfileCanvas')."
+    },
+    "deviceFrame": {
+      "type": "string",
+      "description": "Target device simulator frame (e.g., 'iPhone 16 Pro', 'iPad Pro'). Defaults to 'iPhone 16 Pro'."
+    },
+    "sourceCode": {
+      "type": "string",
+      "description": "Optional custom SwiftUI source code with #Preview to render in this artboard."
+    },
+    "appearance": {
+      "type": "string",
+      "description": "Color appearance: 'System', 'Light', or 'Dark'. Defaults to 'System'."
+    },
+    "isPortrait": {
+      "type": "boolean",
+      "description": "Orientation: true for portrait, false for landscape. Defaults to true."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `id`, `name`, `deviceFrame`.
+Message: `Successfully created artboard '<name>' (ID: <artboard.id.uuidString>) with frame '<deviceFrame>'.`.
+
+**Notes.** Creates the record with Legacy's defaults (`deviceFrame` `iPhone 16 Pro`, `appearance` `System`, `isPortrait` true), root node `vStack` named `"<name> Root"`, and makes it the active artboard. Duplicate names are allowed, as in Legacy; `appearance` is stored as given. Approval is requested before creating. See `assist-artboards-media-tools.md` (Part A, "`artboard_create`").
+
+## 131. `artboard_delete` — Delete Artboard
+
+- **Description (verbatim):** "Deletes an artboard from the Visual UI Builder canvas by identifier or name."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Deletes an artboard from the Visual UI Builder canvas by identifier or name.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "identifier": {
+      "type": "string",
+      "description": "The UUID or name of the artboard to delete."
+    }
+  },
+  "required": [
+    "identifier"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `id`, `name`.
+Message: `Artboard '<artboard.name>' (ID: <artboard.id.uuidString>) deleted successfully.`.
+
+**Notes.** Deletes by identifier or name. Approval is requested before deleting. See `assist-artboards-media-tools.md` (Part A, "`artboard_delete`").
+
+## 132. `artboard_get` — Get Artboard Details
+
+- **Description (verbatim):** "Retrieves full configuration, component tree hierarchy, and custom SwiftUI source code for a specified artboard."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Retrieves full configuration, component tree hierarchy, and custom SwiftUI source code for a specified artboard.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "identifier": {
+      "type": "string",
+      "description": "The name or UUID of the artboard to inspect. If omitted, inspects the active artboard."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `id`, `name`, `deviceFrame`, `hasCustomSource`.
+
+**Notes.** Reads the in-memory artboard record. There is no artboard file format yet, so artboards live and die with the server, like Legacy's `DocumentCoordinator.visualUIDocument`. See `assist-artboards-media-tools.md` (Part A, "`artboard_get`").
+
+## 133. `artboard_list` — List Artboards
+
+- **Description (verbatim):** "Lists all artboards in the active Visual UI Builder workspace, including IDs, device frames, appearance, and component counts."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists all artboards in the active Visual UI Builder workspace, including IDs, device frames, appearance, and component counts.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `artboard_count`, `active_artboard_id`, `artboards`.
+Message: `No artboards currently configured in workspace.`.
+
+**Notes.** Lists the in-memory artboard records of the session. See `assist-artboards-media-tools.md` (Part A, "`artboard_list`").
+
+## 134. `artboard_run_app` — Run Full App
+
+- **Description (verbatim):** "Builds the active project and runs it directly inside an iOS/macOS simulator, reporting logs and execution status."
+- **Capability:** `compilation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds the active project and runs it directly inside an iOS/macOS simulator, reporting logs and execution status.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `runId`, `state`, `output`.
+
+**Notes.** Delegates to the existing `run` tool. Apple-simulator runs are not ported: the Visual UI Builder itself was not ported. See `assist-artboards-media-tools.md` (Part A, "`artboard_run_app`").
+
+## 135. `artboard_update` — Update Artboard
+
+- **Description (verbatim):** "Updates an existing artboard's source code, device frame, appearance, or properties."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Updates an existing artboard's source code, device frame, appearance, or properties.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "identifier": {
+      "type": "string",
+      "description": "The UUID or name of the artboard to update. Defaults to active artboard."
+    },
+    "name": {
+      "type": "string",
+      "description": "New name for the artboard."
+    },
+    "deviceFrame": {
+      "type": "string",
+      "description": "New device simulator frame."
+    },
+    "sourceCode": {
+      "type": "string",
+      "description": "Updated custom SwiftUI source code."
+    },
+    "appearance": {
+      "type": "string",
+      "description": "'System', 'Light', or 'Dark'."
+    },
+    "isPortrait": {
+      "type": "boolean",
+      "description": "Orientation: true for portrait, false for landscape."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `id`, `name`.
+Message: `Updated artboard '<artboard.name>': \(updatedFields.joined(separator: ", "))`.
+
+**Notes.** Updates the in-memory record. Approval is requested before updating. See `assist-artboards-media-tools.md` (Part A, "`artboard_update`").
+
+## 136. `fix_artboards` — Fix Artboards and Visual UI Builder Errors
+
+- **Description (verbatim):** "Audits the entire Artboards, Visual UI Builder, and Preview subsystem, diagnoses simulator, destination, code signing, and syntax errors, and applies automated repairs until compilation succeeds."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits the entire Artboards, Visual UI Builder, and Preview subsystem, diagnoses simulator, destination, code signing, and syntax errors, and applies automated repairs until compilation succeeds.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "errorContext": {
+      "type": "string",
+      "description": "Optional error message or log excerpt that triggered the fix request."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Optional repair scope: 'preview', 'full_app', 'all'. Defaults to 'all'."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `repaired`, `actions_count`.
+Message: `\n        Fix with Assist completed audit and repairs:\n        \(actionsTaken.map { "  • \($0)" }.joined(separator: "\n"))\n\n        Result Status: \(isSuccess ? "Healthy / Resolved" : "Repairs Applied, verifying compiler logs")\n        Logs Summary:\n        \(String(log.suffix(1000)))\n        `.
+
+**Notes.** Fix passes 3–4 are real (compile errors, missing previews). Pass 1 (realignment/booting) and pass 2 (DerivedData clean) are not ported, and the live preview session is not ported; see Part A §6. See `assist-artboards-media-tools.md` (Part A, "`fix_artboards`").
+
+## 137. `device_list` — List Devices
+
+- **Description (verbatim):** "Lists connected Apple devices via devicectl, falling back to xctrace. Fails clearly when no devices are found or the tooling is unavailable."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists connected Apple devices via devicectl, falling back to xctrace. Fails clearly when no devices are found or the tooling is unavailable.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `devices`, `device_count`, `source`.
+Message: `Connected devices: <devices.count>\n`; `Connected devices (via xctrace): <lines.count>\n`.
+
+**Notes.** Runs `xcrun devicectl list devices -j` as a fixed-argv subprocess. Empty when `xcrun` is absent; fails with Legacy's clear message, never an invented device. See `assist-artboards-media-tools.md` (Part A, "`device_list`").
+
+## 138. `simulator_boot` — Boot simulator
+
+- **Description (verbatim):** "Starts a Ycode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead."
+- **Capability:** `systemExecution`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Starts a Ycode Simulator device without an app (as Device Hub's Start). Use simulator_screenshot to see it. With udid, boots (or shuts down) an Apple simulator via simctl instead.",
+  "properties": {
+    "simulator": {
+      "type": "string",
+      "description": "The Ycode Simulator destination's name or id (default: the first; see simulator_list)."
+    },
+    "udid": {
+      "type": "string",
+      "description": "An Apple simulator's UDID (UUID) to boot or shut down with simctl instead of the Ycode Simulator."
+    },
+    "action": {
+      "type": "string",
+      "description": "boot or shutdown (Apple-simulator path only; default boot).",
+      "enum": [
+        "boot",
+        "shutdown"
+      ]
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `simulator`, `state`.
+Message: `<name> is running already.`; `<name> is starting (a warm restore takes seconds, a cold boot a minute or more); take a screenshot to see it.`.
+
+**Notes.** ALIGNED in place (see Part A §3.2): Ycode's registration, extended with Legacy's `udid` + `action` (boot/shutdown) routing to `simctl` with Legacy's verification pass. Without a `udid` it boots the Ycode Simulator as before. See `assist-artboards-media-tools.md` (Part A, "`simulator_boot`").
+
+## 139. `simulator_controller` — Simulator Controller
+
+- **Description (verbatim):** "Controls Apple platform simulators (boot, shutdown, install app, open URL) via simctl."
+- **Capability:** `systemExecution`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Controls Apple platform simulators (boot, shutdown, install app, open URL) via simctl.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'boot', 'shutdown', 'install', 'launch', or 'openurl'."
+    },
+    "device": {
+      "type": "string",
+      "description": "Device name or UDID (e.g. 'booted', 'iPhone 16 Pro', or UUID)."
+    },
+    "appPath": {
+      "type": "string",
+      "description": "Path to .app bundle when action is 'install'."
+    },
+    "bundleId": {
+      "type": "string",
+      "description": "Bundle identifier when action is 'launch'."
+    },
+    "url": {
+      "type": "string",
+      "description": "URL string when action is 'openurl'."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `action`, `device`, `output`.
+Message: `Simulator operation '<action>' succeeded on device '<device>'. <out>`.
+
+**Notes.** Runs `simctl` subcommands (`boot`, `shutdown`, `list`, `erase`, `openurl`, `io`, `spawn`) as fixed-argv subprocesses through the approval gate for mutating actions. See `assist-artboards-media-tools.md` (Part A, "`simulator_controller`").
+
+## 140. `simulator_list` — List simulators
+
+- **Description (verbatim):** "The simulators available to this IDE: the Ycode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent)."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "The simulators available to this IDE: the Ycode Simulator devices on the remote simulator host (device type and runtime, and whether each is running; empty when no host is set up) and the Apple simulators installed on this Mac (via simctl; empty when Xcode command line tools are absent).",
+  "properties": {},
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `simulators`, `configured`, `appleSimulators`.
+Message: `No Ycode Simulator host is set up.\n`.
+
+**Notes.** ALIGNED in place (see Part A §3.1): Ycode's registration, unchanged Ycode keys, plus an `appleSimulators` array from Legacy's `simctl list devices -j` (empty when `xcrun` is absent, never an error). See `assist-artboards-media-tools.md` (Part A, "`simulator_list`").
+
+## 141. `image_convert_format` — Convert Image Format
+
+- **Description (verbatim):** "Converts an image file between formats (png, jpeg, tiff, bmp, gif) with optional compression quality."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Converts an image file between formats (png, jpeg, tiff, bmp, gif) with optional compression quality.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the source image."
+    },
+    "format": {
+      "type": "string",
+      "description": "Target image format: 'png', 'jpeg', 'jpg', 'tiff', 'bmp', or 'gif'."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative destination path. Defaults to source path with new extension."
+    },
+    "quality": {
+      "type": "number",
+      "description": "Compression quality for JPEG/HEIC (0.0 to 1.0). Default: 0.9."
+    }
+  },
+  "required": [
+    "path",
+    "format"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `size`, `format`.
+Message: `Successfully converted `<sourceRaw>` to \(formatRaw.uppercased()) at `<destRaw>` (<outputData.count> bytes).`.
+
+**Notes.** macOS-only: needs AppKit/ImageIO. On Linux the handler fails honestly with the exact macOS-only message (Wave 4 pattern); Ycode has no image decoder/encoder to substitute. See `assist-artboards-media-tools.md` (Part B, "`image_convert_format`").
+
+## 142. `image_decode_base64` — Decode Base64 to Image
+
+- **Description (verbatim):** "Decodes a Base64-encoded string into an image file (PNG, JPEG, TIFF, GIF) and saves it to disk."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Decodes a Base64-encoded string into an image file (PNG, JPEG, TIFF, GIF) and saves it to disk.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "base64String": {
+      "type": "string",
+      "description": "The base64 encoded image string (accepts raw base64 or data:image/...;base64,... URI)."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative file path where the decoded image will be saved (e.g. Assets/icon.png)."
+    }
+  },
+  "required": [
+    "base64String",
+    "destination"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `size`.
+Message: `Successfully decoded base64 string and saved image to `<destRaw>` (<data.count> bytes).`.
+
+**Notes.** Decodes Base64 to an image file through the approval gate. Format support is whatever the platform image stack provides. See `assist-artboards-media-tools.md` (Part B, "`image_decode_base64`").
+
+## 143. `image_encode_base64` — Encode Image to Base64
+
+- **Description (verbatim):** "Reads an image file from the workspace and encodes it into a Base64 string or Data URI."
+- **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads an image file from the workspace and encodes it into a Base64 string or Data URI.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the image file."
+    },
+    "includeDataUri": {
+      "type": "boolean",
+      "description": "Whether to return as a full data:image/<type>;base64,... URI. Defaults to false."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `mimeType`, `byteCount`, `charCount`, `base64`.
+Message: `Successfully encoded `<raw>` into Base64 (<data.count> bytes raw, <base64.count> chars base64).\nPreview: <preview>`.
+
+**Notes.** Reads the image file and returns its Base64 encoding. No conversion is performed. See `assist-artboards-media-tools.md` (Part B, "`image_encode_base64`").
+
+## 144. `image_extract_metadata` — Extract Image Metadata
+
+- **Description (verbatim):** "Extracts all embedded EXIF, TIFF, GPS, and camera metadata from an image as structured JSON."
+- **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts all embedded EXIF, TIFF, GPS, and camera metadata from an image as structured JSON.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the image file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `metadataCount`, `metadataJSON`.
+Message: `Extracted metadata from `<raw>` (<sanitized.count> property groups):\n<jsonString>`; `Extracted metadata from `<raw>` (<groups.count> property groups):\n<jsonString>`.
+
+**Notes.** Returns the full ImageIO metadata dictionary on macOS and the embedded-chunk subset (PNG tEXt, JPEG EXIF APP1) on Linux, from the pure-Foundation header parser — the shapes differ per platform, stated in Part B §6. See `assist-artboards-media-tools.md` (Part B, "`image_extract_metadata`").
+
+## 145. `image_generate_thumbnail` — Generate Image Thumbnail
+
+- **Description (verbatim):** "Generates a scaled thumbnail image maintaining aspect ratio and writes it to disk."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a scaled thumbnail image maintaining aspect ratio and writes it to disk.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the source image."
+    },
+    "maxPixelSize": {
+      "type": "integer",
+      "description": "Maximum width or height of the thumbnail in pixels (e.g. 256). Default: 256."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative path for output thumbnail. Defaults to <name>_thumb.png."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `width`, `height`, `size`.
+Message: `Successfully generated <thumbnailCG.width>x<thumbnailCG.height> thumbnail for `<sourceRaw>` at `<destRaw>` (<pngData.count> bytes).`.
+
+**Notes.** macOS-only: needs AppKit/ImageIO. On Linux the handler fails honestly with the exact macOS-only message. Validates `maxPixelSize > 0`. See `assist-artboards-media-tools.md` (Part B, "`image_generate_thumbnail`").
+
+## 146. `image_get_dimensions` — Get Image Dimensions and Specs
+
+- **Description (verbatim):** "Extracts image dimensions (width, height), scale, color space, and format without loading full bitmap."
+- **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts image dimensions (width, height), scale, color space, and format without loading full bitmap.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the image file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `width`, `height`, `colorModel`, `depth`, `hasAlpha`, `format`.
+Message: `\n        Image Specifications for <raw>:\n        - Dimensions: <info.width> x <info.height> pixels\n        - Aspect Ratio: \(info.height > 0 ? String(format: "%.2f", Double(info.width) / Double(info.height)) : "N/A")\n        - Color Model: <info.colorModel> (<info.depth>-bit)\n        - Has Alpha Channel: \(info.hasAlpha ? "Yes" : "No")\n        - Resolution: \(Int(info.dpiWidth)) x \(Int(info.dpiHeight)) DPI\n        - Format / UTI: <info.format>\n        `.
+
+**Notes.** Reads dimensions from the pure-Foundation header parser (PNG/JPEG/GIF/BMP/WebP/TIFF) on both platforms, with the ImageIO fallback on macOS. See `assist-artboards-media-tools.md` (Part B, "`image_get_dimensions`").
+
+## 147. `svg_to_png` — Convert SVG to PNG
+
+- **Description (verbatim):** "Renders an SVG vector graphic into a raster PNG image file at a specified scale or dimensions."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Renders an SVG vector graphic into a raster PNG image file at a specified scale or dimensions.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .svg file."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative destination path for .png. Defaults to <path>.png."
+    },
+    "scale": {
+      "type": "number",
+      "description": "Scale multiplier for rendering (e.g. 1.0, 2.0 for @2x, 3.0 for @3x). Default: 2.0."
+    },
+    "width": {
+      "type": "integer",
+      "description": "Explicit width in pixels (optional; overrides scale if provided)."
+    },
+    "height": {
+      "type": "integer",
+      "description": "Explicit height in pixels (optional; overrides scale if provided)."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `width`, `height`, `size`.
+Message: `Successfully rendered SVG `<sourceRaw>` to PNG `<destRaw>` (\(Int(targetSize.width))x\(Int(targetSize.height)), <pngData.count> bytes).`.
+
+**Notes.** macOS-only: needs AppKit SVG rasterisation. On Linux the handler fails honestly with the exact macOS-only message; Ycode has no SVG rasterizer to substitute. See `assist-artboards-media-tools.md` (Part B, "`svg_to_png`").
+
+## 148. `gzip_compress_file` — Gzip Compress File
+
+- **Description (verbatim):** "Compresses a file into a .gz file using system gzip."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Compresses a file into a .gz file using system gzip.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the source file to compress."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative path for output .gz file. Defaults to <path>.gz."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `size`.
+Message: `Successfully compressed `<sourceRaw>` to `<destRaw>` (<run.stdout.count> bytes).`.
+
+**Notes.** Runs the system `gzip` as a fixed-argv subprocess (raw-`Data` runner, since the text runner would corrupt binary output), 120 s timeout (Legacy had none). See `assist-artboards-media-tools.md` (Part B, "`gzip_compress_file`").
+
+## 149. `gzip_decompress_file` — Gzip Decompress File
+
+- **Description (verbatim):** "Decompresses a .gz file into a destination file using system gzip."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Decompresses a .gz file into a destination file using system gzip.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .gz file to decompress."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative path for decompressed file. Defaults to removing .gz suffix."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `size`.
+Message: `Successfully decompressed `<sourceRaw>` to `<destRaw>` (<run.stdout.count> bytes).`.
+
+**Notes.** Runs the system `gzip -d` as a fixed-argv subprocess, 120 s timeout. See `assist-artboards-media-tools.md` (Part B, "`gzip_decompress_file`").
+
+## 150. `tar_archive_create` — Create Tar Archive
+
+- **Description (verbatim):** "Creates a .tar or .tar.gz archive from a directory or files using system tar."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a .tar or .tar.gz archive from a directory or files using system tar.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file or directory to archive."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative path for the resulting archive file (.tar or .tar.gz)."
+    },
+    "gzip": {
+      "type": "boolean",
+      "description": "Whether to apply gzip compression (defaults to true for .tar.gz or .tgz, false for .tar)."
+    }
+  },
+  "required": [
+    "path",
+    "destination"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `size`.
+Message: `Successfully created tar archive `<destRaw>` (<size> bytes).`.
+
+**Notes.** Runs the system `tar` as a fixed-argv subprocess, 120 s timeout. See `assist-artboards-media-tools.md` (Part B, "`tar_archive_create`").
+
+## 151. `tar_archive_extract` — Extract Tar Archive
+
+- **Description (verbatim):** "Extracts a .tar or .tar.gz archive into a destination directory using system tar."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts a .tar or .tar.gz archive into a destination directory using system tar.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the archive file (.tar, .tar.gz, .tgz)."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative destination directory to extract into."
+    }
+  },
+  "required": [
+    "path",
+    "destination"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `extractedCount`.
+Message: `Successfully extracted archive `<sourceRaw>` into `<destRaw>` (<count> extracted items).`.
+
+**Notes.** Runs the system `tar` as a fixed-argv subprocess, 120 s timeout. See `assist-artboards-media-tools.md` (Part B, "`tar_archive_extract`").
+
+## 152. `unzip_file` — Unzip Archive
+
+- **Description (verbatim):** "Extracts a .zip archive into a destination directory using the macOS system archive tool."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts a .zip archive into a destination directory using the macOS system archive tool.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .zip archive to extract."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative path to the target directory to extract files into."
+    }
+  },
+  "required": [
+    "path",
+    "destination"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `extractedCount`.
+Message: `Successfully extracted `<sourceRaw>` into `<destRaw>` (<count> extracted items).`.
+
+**Notes.** Runs `/usr/bin/ditto` on macOS and system `unzip` on Linux as fixed-argv subprocesses; fails honestly naming the missing command if it is uninstalled. See `assist-artboards-media-tools.md` (Part B, "`unzip_file`").
+
+## 153. `zip_file` — Zip File or Directory
+
+- **Description (verbatim):** "Compresses a file or directory into a .zip archive using the macOS system archive tool."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Compresses a file or directory into a .zip archive using the macOS system archive tool.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the source file or directory to compress."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative path for the resulting .zip archive."
+    }
+  },
+  "required": [
+    "path",
+    "destination"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `destination`, `size`.
+Message: `Successfully compressed `<sourceRaw>` into `<destRaw>` (<size> bytes).`.
+
+**Notes.** Runs `/usr/bin/ditto` on macOS and system `zip` on Linux as fixed-argv subprocesses; fails honestly naming the missing command if it is uninstalled. No ZIPFoundation dependency was added. See `assist-artboards-media-tools.md` (Part B, "`zip_file`").
+
+## 154. `binary_plist_converter` — Binary Plist Converter
+
+- **Description (verbatim):** "Converts property list files between XML and Binary formats using plutil."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Converts property list files between XML and Binary formats using plutil.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to the .plist file."
+    },
+    "format": {
+      "type": "string",
+      "description": "Target format: 'xml1' (human-readable) or 'binary1'. Defaults to 'xml1'."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully converted `<raw>` to <format> format.`.
+
+**Notes.** Converts with `PropertyListSerialization` instead of Legacy's `plutil` subprocess, so it works on Linux too. Path confinement is tightened vs Legacy (workspace-relative only). See `assist-artboards-media-tools.md` (Part B, "`binary_plist_converter`").
+
+## 155. `json_validate` — Validate JSON
+
+- **Description (verbatim):** "Validates a JSON file, and optionally formats it as pretty-printed sorted-keys JSON, writing the result back only when write is true."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates a JSON file, and optionally formats it as pretty-printed sorted-keys JSON, writing the result back only when write is true.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the JSON file."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: validate or format. Default: validate."
+    },
+    "write": {
+      "type": "string",
+      "description": "Pass \"true\" to write the formatted JSON back to the file on format. Default: false."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `valid`, `written`.
+Message: `Valid JSON in <rel>.`; `Valid JSON in <rel>. Formatted JSON written back to the file.`; `Valid JSON in <rel>. Formatted preview returned without writing.`.
+
+**Notes.** Kept separate from `json_validator_tool` (Legacy near-duplicate pair): fragments allowed, `write` string + `action` parameters, its own messages. `writes: true` even for validate-only calls, per the Wave 2 precedent for tools that can write. See `assist-artboards-media-tools.md` (Part B, "`json_validate`").
+
+## 156. `json_validator_tool` — JSON Validator & Formatter
+
+- **Description (verbatim):** "Validates JSON syntax, highlights line errors, and beautifies JSON configuration files."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates JSON syntax, highlights line errors, and beautifies JSON configuration files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to JSON file in workspace."
+    },
+    "formatInPlace": {
+      "type": "boolean",
+      "description": "If true, reformats and writes pretty-printed JSON back to disk. Defaults to false."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `JSON is valid! Successfully reformatted and saved `<raw>` with standard 2-space pretty-printing.`; `✅ JSON syntax valid for `<raw>` (<data.count> bytes). Top-level type: \(type(of: jsonObject)).`.
+
+**Notes.** Kept separate from `json_validate`: fragments not allowed, `formatInPlace` bool, its own messages. `writes: true` even for validate-only calls, per the Wave 2 precedent. See `assist-artboards-media-tools.md` (Part B, "`json_validator_tool`").
+
+## 157. `yaml_parser_tool` — YAML Parser & Validator
+
+- **Description (verbatim):** "Validates structure and syntax of YAML files (workflows, project.yml, fastlane) in the workspace."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates structure and syntax of YAML files (workflows, project.yml, fastlane) in the workspace.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to YAML file in workspace."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** Parses with Legacy's own heuristic ported verbatim — it is not a full YAML parser (Part B §4.5 states exactly what it does and does not do). Read-only. See `assist-artboards-media-tools.md` (Part B, "`yaml_parser_tool`").
+
+## 158. `yaml_validate` — Validate YAML
+
+- **Description (verbatim):** "Heuristic YAML validation (no full YAML parser): rejects tab indentation, unbalanced brackets/quotes, duplicate top-level keys, and mapping lines without a colon. Format normalizes indentation to 2 spaces per level and only writes back when write is true and validation passes."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Heuristic YAML validation (no full YAML parser): rejects tab indentation, unbalanced brackets/quotes, duplicate top-level keys, and mapping lines without a colon. Format normalizes indentation to 2 spaces per level and only writes back when write is true and validation passes.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the YAML file."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: validate or format. Default: validate."
+    },
+    "write": {
+      "type": "string",
+      "description": "Pass \"true\" to write the formatted YAML back to the file on format, only when validation passes. Default: false."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `valid`, `heuristic`, `written`.
+Message: `YAML validation passed (heuristic — no full YAML parser) in <rel>.`; `YAML validation passed (heuristic — no full YAML parser) in <rel>. Formatted YAML written back to the file.`; `YAML validation passed (heuristic — no full YAML parser) in <rel>. Formatted preview returned without writing.`.
+
+**Notes.** Validates with Legacy's own heuristic ported verbatim, not a full YAML parser. `writes: true` even for validate-only calls, per the Wave 2 precedent. See `assist-artboards-media-tools.md` (Part B, "`yaml_validate`").
+
+## 159. `code_mutation_engine` — Controlled Mutation Engine
+
+- **Description (verbatim):** "Applies safe, minimal source mutations scoped to a symbol or an exact range."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Applies safe, minimal source mutations scoped to a symbol or an exact range.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to mutate."
+    },
+    "replacement": {
+      "type": "string",
+      "description": "Replacement source text."
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Symbol name whose body will be replaced. Provide either symbol or target."
+    },
+    "target": {
+      "type": "string",
+      "description": "Exact text to replace (all occurrences). Provide either symbol or target."
+    }
+  },
+  "required": [
+    "path",
+    "replacement"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `bytes_before`, `bytes_after`.
+Message: `Applied minimal mutation to <path>`.
+
+**Notes.** Legacy's exact logic: symbol-body brace-counted replacement (the counter is deliberately naive about strings/comments, exactly as in Legacy) or replace-all of an exact target, through the `commit()` approval gate. The mutation must change the file; an unchanged result fails. See `assist-artboards-media-tools.md` (Part C, "`code_mutation_engine`").
+
+## 160. `dependency_resolution_engine` — Dependency Resolution Engine
+
+- **Description (verbatim):** "Resolves the workspace project's existing Swift Package dependencies via xcodebuild."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Resolves the workspace project's existing Swift Package dependencies via xcodebuild.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "packageURL": {
+      "type": "string",
+      "description": "Package URL label for the resolution report. The tool resolves the project's existing dependencies; it does not add this package."
+    }
+  },
+  "required": [
+    "packageURL"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `output`, `package`, `exitCode`.
+Message: `Resolved dependencies for <packageURL>`.
+
+**Notes.** macOS-only: runs `/usr/bin/xcodebuild -resolvePackageDependencies` as a fixed argv via `terminalRunFixed` (300 s) after the approval gate. `packageURL` stays a report label only — it never adds a package. Non-macOS fails with Legacy's own `Dependency resolution requires macOS runtime`. See `assist-artboards-media-tools.md` (Part C, "`dependency_resolution_engine`").
+
+## 161. `external_resource_gateway` — External Resource Gateway
+
+- **Description (verbatim):** "Fetches external APIs and returns structured JSON response data."
+- **Capability:** `general`. **Risk:** `externalSideEffect`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Fetches external APIs and returns structured JSON response data.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "url": {
+      "type": "string",
+      "description": "Fully qualified HTTPS URL to fetch. Must return a JSON body. http://, file://, and other schemes are rejected."
+    }
+  },
+  "required": [
+    "url"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `status_code`, `json`.
+Message: `Fetched external resource.`.
+
+**Notes.** HTTPS-only fetch, 30 s timeout, non-2xx fails, body must be JSON, returned pretty-printed with sorted keys, via `YcodeAssistant.HTTP.send`. No credential is sent. See `assist-artboards-media-tools.md` (Part C, "`external_resource_gateway`").
+
+## 162. `patch_application_engine` — Patch Application Engine
+
+- **Description (verbatim):** "Generates and applies line-level patches with integrity validation."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates and applies line-level patches with integrity validation.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to patch."
+    },
+    "original": {
+      "type": "string",
+      "description": "Block that must exist verbatim in the file."
+    },
+    "updated": {
+      "type": "string",
+      "description": "Replacement block."
+    }
+  },
+  "required": [
+    "path",
+    "original",
+    "updated"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `diff`.
+Message: `Patch applied to <path>`.
+
+**Notes.** Verbatim-block integrity check, then replace-all. The diff it reports is Legacy's naive line diff, not a Myers unified diff — Ycode has no Myers engine yet (same gap as Wave 2's `code_replace`). See `assist-artboards-media-tools.md` (Part C, "`patch_application_engine`").
+
+## 163. `fetch_documentation` — Fetch Apple Documentation
+
+- **Description (verbatim):** "Retrieves real Apple Developer documentation: API references (Swift/ObjC), framework guides, declarations, availability, and code examples from official Apple sources."
+- **Capability:** `general`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true, openWorld: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Retrieves real Apple Developer documentation: API references (Swift/ObjC), framework guides, declarations, availability, and code examples from official Apple sources.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "query": {
+      "type": "string",
+      "description": "Natural-language topic, framework, API symbol, or question. Examples: 'SwiftUI View', 'URLSession', 'AppStorage property wrapper', 'how to request camera permission'."
+    },
+    "url": {
+      "type": "string",
+      "description": "Direct Apple Developer documentation URL, e.g. https://developer.apple.com/documentation/swiftui/view."
+    },
+    "framework": {
+      "type": "string",
+      "description": "Framework or technology to scope the lookup, e.g. 'SwiftUI', 'Foundation', 'AppKit'."
+    },
+    "platform": {
+      "type": "string",
+      "description": "Target platform for availability filtering, e.g. 'iOS', 'macOS', 'watchOS'. Informational: full availability is still reported."
+    },
+    "language": {
+      "type": "string",
+      "description": "Preferred declaration language: 'swift' or 'objc'. Defaults to Swift when both exist."
+    },
+    "includeExamples": {
+      "type": "boolean",
+      "description": "Include code examples from the documentation. Defaults to true."
+    },
+    "maxResults": {
+      "type": "integer",
+      "description": "Maximum documentation pages to return (1-5). Defaults to 3."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `content`, `truncated`, `count`.
+Message: `Retrieved <pages.count> Apple documentation page(s) via <retrieval> in <duration>s.`.
+
+**Notes.** Full Legacy pipeline: candidate probing, DocC JSON first (`tutorials/data/...json`), HTML fallback, declaration/availability/discussion/examples/related-links parsing, 24 h in-memory cache (100 entries), per-hop redirect allow-list, 20,000-char output cap. Size caps are enforced after download, not during transfer. See `assist-artboards-media-tools.md` (Part C, "`fetch_documentation`").
+
+## 164. `reverse_analyze` — Reverse Analyze
+
+- **Description (verbatim):** "Analyze an authorized binary or artifact with the native Reverse subsystem (REA rea-agents@6.5.0, static inspection only). Use when the user invoked @Reverse, or when an investigation needs artifact structure, Mach-O/plist/signature facts, Go/managed metadata, SQLite schema, or objdump output. Never use for circumventing DRM, license checks, anti-cheat, or authentication. targetPath must be an absolute path inside the open project, ~/Downloads, ~/Desktop, or ~/Documents."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Analyze an authorized binary or artifact with the native Reverse subsystem (REA rea-agents@6.5.0, static inspection only). Use when the user invoked @Reverse, or when an investigation needs artifact structure, Mach-O/plist/signature facts, Go/managed metadata, SQLite schema, or objdump output. Never use for circumventing DRM, license checks, anti-cheat, or authentication. targetPath must be an absolute path inside the open project, ~/Downloads, ~/Desktop, or ~/Documents.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "targetPath": {
+      "type": "string",
+      "description": "Absolute path of the artifact to analyze (must be in scope: open project, ~/Downloads, ~/Desktop, ~/Documents)."
+    },
+    "operation": {
+      "type": "string",
+      "description": "Allow-listed operation: inspect_artifact, inspect_macho, inspect_plist, inspect_signature, list_architectures, demangle_swift, inspect_go_binary, inspect_managed_artifact, inspect_managed_members, inspect_sqlite_database, inspect_with_objdump."
+    },
+    "task": {
+      "type": "string",
+      "description": "The user's investigation request (what to determine about the artifact)."
+    },
+    "objdumpOperation": {
+      "type": "string",
+      "description": "Required for inspect_with_objdump: file_headers, section_headers, symbols, relocations, dwarf, disassemble, disassemble_all."
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Swift symbol to demangle (demangle_swift only)."
+    },
+    "timeoutSeconds": {
+      "type": "number",
+      "description": "Timeout in seconds (default 300, clamped to 10...1800)."
+    }
+  },
+  "required": [
+    "targetPath"
+  ]
+}
+```
+
+**Output (success).** None — the handler always fails (see Notes).
+
+**Notes.** HONESTLY FAILING: registered with the full Legacy schema and Legacy's complete validation chain (operation allow-list, REA-disclaimer task screen, target/scope validation, objdump sub-op, timeout clamp 10–1800 s), then fails naming the exact prerequisite — Node.js 22/24/26 + pinned `rea-agents@6.5.0` + `ReverseBridge.mjs`, none of which exist in Ycode. No Evidence envelope is faked. A future seam is `YcodeMachO` for host-local `list_architectures`/`inspect_macho`, but that would change the tool's output contract, so it belongs to a later wave's decision. See `assist-artboards-media-tools.md` (Part C, "`reverse_analyze`").
+
+## 165. Summary: capability / risk / permission / writes (Wave 5)
+
+| Tool | Capability | Risk | Permission | Writes |
+|---|---|---|---|---|
+| `artboard_compile` | compilation | safeMutation | fileSystem | yes |
+| `artboard_create` | fileModification | safeMutation | fileSystem | yes |
+| `artboard_delete` | fileModification | safeMutation | fileSystem | yes |
+| `artboard_get` | diagnostics | safeRead | none | no |
+| `artboard_list` | diagnostics | safeRead | none | no |
+| `artboard_run_app` | compilation | safeMutation | fileSystem | yes |
+| `artboard_update` | fileModification | safeMutation | fileSystem | yes |
+| `fix_artboards` | diagnostics | safeMutation | fileSystem | yes |
+| `device_list` | diagnostics | safeRead | none | no |
+| `simulator_boot` | systemExecution | execution | none | no |
+| `simulator_controller` | systemExecution | safeMutation | fileSystem | yes |
+| `simulator_list` | diagnostics | safeRead | none | no |
+| `image_convert_format` | fileModification | safeMutation | fileSystem | yes |
+| `image_decode_base64` | fileModification | safeMutation | fileSystem | yes |
+| `image_encode_base64` | fileReading | safeRead | none | no |
+| `image_extract_metadata` | fileReading | safeRead | none | no |
+| `image_generate_thumbnail` | fileModification | safeMutation | fileSystem | yes |
+| `image_get_dimensions` | fileReading | safeRead | none | no |
+| `svg_to_png` | fileModification | safeMutation | fileSystem | yes |
+| `gzip_compress_file` | fileModification | safeMutation | fileSystem | yes |
+| `gzip_decompress_file` | fileModification | safeMutation | fileSystem | yes |
+| `tar_archive_create` | fileModification | safeMutation | fileSystem | yes |
+| `tar_archive_extract` | fileModification | safeMutation | fileSystem | yes |
+| `unzip_file` | fileModification | safeMutation | fileSystem | yes |
+| `zip_file` | fileModification | safeMutation | fileSystem | yes |
+| `binary_plist_converter` | fileModification | safeMutation | fileSystem | yes |
+| `json_validate` | fileModification | safeMutation | fileSystem | yes |
+| `json_validator_tool` | diagnostics | safeMutation | fileSystem | yes |
+| `yaml_parser_tool` | diagnostics | safeRead | none | no |
+| `yaml_validate` | fileModification | safeMutation | fileSystem | yes |
+| `code_mutation_engine` | fileModification | safeMutation | fileSystem | yes |
+| `dependency_resolution_engine` | compilation | execution | none | yes |
+| `external_resource_gateway` | general | externalSideEffect | none | yes |
+| `patch_application_engine` | fileModification | safeMutation | fileSystem | yes |
+| `fetch_documentation` | general | safeRead | none | no |
+| `reverse_analyze` | diagnostics | safeRead | none | no |
 ## Evidence
 
 | Claim | Level | Source |
@@ -6408,3 +7771,8 @@ anywhere in this family.
 | Wave 4 (Planning): all 8 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `intel_autofix` honestly failing; `plan-AskUser` handoff, never blocking | 1 | Legacy `SwiftCode/Backend/Assist/Tools/ExecutionPlanTool.swift`, `AssistPlanTaskTool.swift`, `AssistBreakdownTaskTool.swift`, `AssistAutoFixErrorsTool.swift`, `AssistExplainCodeTool.swift`, `AssistGenerateTestsTool.swift`, `PlanAskUserTool.swift`, `ReportToUserTool.swift`, `AssistToolRegistry.swift` (register lines 116–120, 142–143, 147; alias table lines 484–491), `Functions/System Assets/ExecutionPlans.md`, `Resources/WriteExecutionPlan.md`, read directly |
 | Wave 4 (Planning): `plan-AskUser` hyphenated ID is the documented intentional exception to snake_case; `execution_plan` honours documented lowercase `"plan"` / `"autopilot"` (Legacy's `rawValue` init only matches capitalised forms) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/validate_tools.py`; `AgentSessionState.swift:4-6` (`ExecutionMode` raw values `"Plan"` / `"Autopilot"`); `ExecutionPlanTool.swift:28-32` |
 | Wave 4: registry aliases for this wave (terminal / memory / planning) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 5 (Artboards): all 8 IDs, titles, descriptions, capabilities, risk levels, and input schemas; in-memory artboard store, PreviewRenderRunner compile, `run` delegation | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistArtboard{Compile,Create,Delete,Get,List,RunApp,Update}Tool.swift`, `AssistFixArtboardsTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Artboards.swift`, `YcodePreviews/PreviewRenderRunner.swift` |
+| Wave 5 (Simulator): all 4 IDs; `simulator_boot` / `simulator_list` aligned in place onto Ycode's existing registrations (Ycode Simulator behaviour unchanged, `simctl` behaviour added); `device_list` / `simulator_controller` new via `devicectl` / `simctl` subprocesses | 1 | Legacy `Tools/AssistDeviceListTool.swift`, `AssistSimulatorBootTool.swift`, `AssistSimulatorControllerTool.swift`, `AssistSimulatorListTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Run.swift` (aligned), `YcodeTools+Simulator.swift` |
+| Wave 5 (Image/Archive/Data): all 18 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `json_validate` vs `json_validator_tool` kept separate; YAML is Legacy's heuristic, not a full parser | 1 | Legacy `Tools/AssistImageInspectionTools.swift`, `AssistImageMutationTools.swift`, `AssistArchiveTools.swift`, `AssistBinaryPlistConverterTool.swift`, `AssistJsonValidateTool.swift`, `AssistJSONValidatorTool.swift`, `AssistYAMLParserTool.swift`, `AssistYamlValidateTool.swift`, read directly |
+| Wave 5 (Engines/Web/Reverse): all 6 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `reverse_analyze` honestly failing (missing Node REA bridge) | 1 | Legacy `Tools/AssistCodeMutationEngine.swift`, `AssistDependencyResolutionEngine.swift`, `AssistExternalResourceGateway.swift`, `AssistPatchApplicationEngine.swift`, `AssistFetchDocumentationTool.swift`, `API/Internal API/Reverse/ReverseToolAdapter.swift`, read directly |
+| Wave 5: registry aliases for this wave (`simulator` → `simulator_controller`, `binary_plist` → `binary_plist_converter`, `json_validator` → `json_validator_tool`, `yaml_parser` → `yaml_parser_tool`, `reverse` → `reverse_analyze`); `reverse_analyze` maps to itself, so it needs no entry | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
