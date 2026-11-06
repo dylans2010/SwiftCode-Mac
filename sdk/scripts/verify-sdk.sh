@@ -15,6 +15,14 @@ SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$SDK_ROOT/Distribution"
 DEST="$DIST_DIR/SwiftCodeSDK"
 
+# Portable file-size probe (Wave 16): see assemble-sdk.sh — Legacy used
+# BSD-only `stat -f %z`, which fails on GNU stat.
+if stat -f '%z' "$0" >/dev/null 2>&1; then
+    _STAT_SIZE=(stat -f %z)
+else
+    _STAT_SIZE=(stat -c %s)
+fi
+
 echo "=== SwiftCode SDK Verification ==="
 echo "Target: $DEST"
 
@@ -46,7 +54,7 @@ echo "2. Testing swiftcode-sdk CLI from staging directory..."
 
 # 3. Verify Size Gate
 echo "3. Verifying installed file size..."
-TOTAL_BYTES=$(find "$DEST" -type f -exec stat -f '%z' {} + | awk '{ total += $1 } END { printf "%.0f\n", total }')
+TOTAL_BYTES=$(find "$DEST" -type f -exec "${_STAT_SIZE[@]}" {} + | awk '{ total += $1 } END { printf "%.0f\n", total }')
 DECIMAL_MB=$(awk "BEGIN { printf \"%.2f\", $TOTAL_BYTES / 1000000 }")
 MIB=$(awk "BEGIN { printf \"%.2f\", $TOTAL_BYTES / 1048576 }")
 FILE_COUNT=$(find "$DEST" -type f | wc -l | tr -d ' ')
@@ -64,7 +72,7 @@ fi
 echo "4. Distribution Breakdown by Component:"
 for dir in bin lib tools templates extensions languages documentation resources examples tests manifests; do
     if [ -d "$DEST/$dir" ]; then
-        DIR_BYTES=$(find "$DEST/$dir" -type f -exec stat -f '%z' {} + | awk '{ total += $1 } END { printf "%.0f\n", total }')
+        DIR_BYTES=$(find "$DEST/$dir" -type f -exec "${_STAT_SIZE[@]}" {} + | awk '{ total += $1 } END { printf "%.0f\n", total }')
         DIR_MB=$(awk "BEGIN { printf \"%.2f\", $DIR_BYTES / 1000000 }")
         echo "  - $dir/: $DIR_BYTES bytes ($DIR_MB MB)"
     fi

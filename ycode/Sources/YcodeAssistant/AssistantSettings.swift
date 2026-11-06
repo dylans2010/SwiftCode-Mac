@@ -76,6 +76,19 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     /// model is eligible under every routing strategy and bypasses
     /// provider credentials entirely.
     public var useSwiftCodeCloudModel = false
+    /// The Meta reasoning effort for `turn/start` (Wave 16:
+    /// Legacy `AppSettings.metaReasoningEffort`, default
+    /// `"high"`). The `/effort` slash command updates it through
+    /// the host; the provider reads it at `send` time.
+    public var metaReasoningEffort = "high"
+    /// "Gemini Key Rotation" (Wave 16: Legacy
+    /// `AppSettings.alternativeKeysEnabled`, default false). When
+    /// on, a rate-limited Gemini turn rotates to the next stored
+    /// alternative key (`GeminiKeyRotationManager`) instead of
+    /// failing over to the next model. Off by default: rotation
+    /// only happens when Dylan has stored alternative keys and
+    /// switched this on.
+    public var alternativeKeysEnabled = false
 
     public init() {}
 
@@ -109,6 +122,8 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
         useProviderModelsOnly = (try? c.decode(Bool.self, forKey: .useProviderModelsOnly)) ?? d.useProviderModelsOnly
         onlyUseFreeModels = (try? c.decode(Bool.self, forKey: .onlyUseFreeModels)) ?? d.onlyUseFreeModels
         useSwiftCodeCloudModel = (try? c.decode(Bool.self, forKey: .useSwiftCodeCloudModel)) ?? d.useSwiftCodeCloudModel
+        metaReasoningEffort = (try? c.decode(String.self, forKey: .metaReasoningEffort)) ?? d.metaReasoningEffort
+        alternativeKeysEnabled = (try? c.decode(Bool.self, forKey: .alternativeKeysEnabled)) ?? d.alternativeKeysEnabled
     }
 }
 
@@ -168,7 +183,7 @@ public struct AssistantBackends: Sendable {
             }
             return SCCloudProvider(baseURL: settings.scCloudURL, fingerprint: fingerprint)
         case .metaAssist:
-            return MetaAssistProvider(locator: locator)
+            return MetaAssistProvider(locator: locator, reasoningEffort: settings.metaReasoningEffort)
         }
     }
 

@@ -56,6 +56,31 @@ public enum SecretAccount {
     /// The signed-in Appwrite user id, kept so callers can identify the
     /// account without a network round-trip.
     public static let appwriteUserID = "appwrite.user-id"
+    /// The primary Gemini API key (Wave 16: Legacy
+    /// `LLMProvider.google.keychainKey` / `APIKeyManager` Google key,
+    /// used by `AssistModelDiscoveryService` for the direct Gemini
+    /// list endpoint).
+    public static let geminiKey = "gemini.api-key"
+    /// The primary Anthropic API key (Wave 16: Legacy Anthropic key,
+    /// used by `AssistModelDiscoveryService`).
+    public static let anthropicKey = "anthropic.api-key"
+    /// The primary Mistral API key (Wave 16: Legacy Mistral key,
+    /// used by `AssistModelDiscoveryService`).
+    public static let mistralKey = "mistral.api-key"
+    /// The primary Qwen (DashScope) API key (Wave 16: Legacy Qwen
+    /// key, used by `AssistModelDiscoveryService`).
+    public static let qwenKey = "qwen.api-key"
+    /// One alternative Gemini key per account, suffixed with the
+    /// key's UUID (Wave 16: Legacy `AlternativeKeyManager`
+    /// `com.swiftcode.gemini.altkey.<uuid>`).
+    public static let geminiAltKeyPrefix = "gemini.alt-key."
+    /// The alternative-keys metadata envelope (masked values,
+    /// SHA-256 hashes, states, counts — never raw keys) for
+    /// `GeminiKeyRotationManager` (Wave 16: Legacy kept the same
+    /// metadata in UserDefaults; Ycode keeps it in the secret
+    /// store because `SecretStore` has no enumeration and the
+    /// metadata is the manager's index).
+    public static let geminiAltKeysMetadata = "gemini.alt-keys.metadata"
 }
 
 public enum SecretStoreError: Error, Equatable, LocalizedError {

@@ -44,6 +44,15 @@ public final class CodingAssistantModel {
     /// ends it. Set by the window; nil: no agent mode.
     public var agentAttachment: ((UUID) -> (AgentAttachment, () -> Void)?)?
     private var attachmentCleanups: [UUID: () -> Void] = [:]
+    /// The live MCP tool catalogue for providers that normalize tool
+    /// names against it (Wave 16: `MetaAssistProvider.knownToolIDs`).
+    /// YcodeIDECore cannot depend on YcodeMCP, so the shell supplies
+    /// the ids lazily — the macOS shell reads them off its MCP host
+    /// (`Set(server.tools.map(\.name))` plus `MCPServer.toolAliases`
+    /// keys); the Linux shell leaves this unset and the provider
+    /// records unmapped names instead of claiming they exist.
+    /// Nil means no catalogue: never invent ids.
+    public var mcpToolIDsProvider: (() -> Set<String>)?
     /// Agent changes waiting for review, by message and code-block index.
     struct AgentEditKey: Hashable { var message: UUID; var block: Int }
     private var pendingAgentEdits: [AgentEditKey: (conversation: UUID, proposed: String, done: CheckedContinuation<Bool, Never>)] = [:]
@@ -268,6 +277,15 @@ public final class CodingAssistantModel {
             return id
         }
         var provider = services.provider(kind, prefs: prefs)
+        // Wave 16: Meta normalizes tool names against Ycode's MCP
+        // catalogue. The provider cannot fetch it itself
+        // (YcodeAssistant cannot depend on YcodeMCP), so the shell
+        // injects it here when it supplied one. Without it the
+        // provider records names unmapped rather than claiming them.
+        if var meta = provider as? MetaAssistProvider, let ids = mcpToolIDsProvider?() {
+            meta.knownToolIDs = ids
+            provider = meta
+        }
         var instructions = PromptBuilder.instructions
         if settings.agentMode, let attachable = provider as? AgentAttachable, let (attachment, cleanup) = agentAttachment?(id) {
             let attached = attachable.attaching(attachment)
@@ -275,7 +293,15 @@ public final class CodingAssistantModel {
                 provider = attached
                 instructions = PromptBuilder.agentInstructions
                 attachmentCleanups[id] = cleanup
-                appendActivity(id, "Agent mode: Ycode's tools are attached; each change is a proposal you review")
+                if kind == .metaAssist {
+                    // Wave 16: the "Ycode's tools are attached" line
+                    // overclaims for Meta — the Muse host runs its own
+                    // tools and Ycode cannot intercept its file edits,
+                    // so they are not reviewed as proposals.
+                    appendActivity(id, "Agent mode: Meta runs its own tools in the Muse host; Ycode's tools are named, not executed, and its file edits are not reviewed as proposals")
+                } else {
+                    appendActivity(id, "Agent mode: Ycode's tools are attached; each change is a proposal you review")
+                }
             } else {
                 cleanup()
             }

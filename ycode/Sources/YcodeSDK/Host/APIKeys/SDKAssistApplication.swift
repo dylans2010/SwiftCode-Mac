@@ -11,6 +11,18 @@ import Foundation
 // `developerAIAllowsCloud` when the app's data leaves the device — on
 // the developer's API key. The grant happens BEFORE the approval is
 // persisted, so a stored approval never lacks its entitlement.
+//
+// KEY-ID ONLY (Wave 16 revision of the §5 / §19 item 8 flag): the
+// application record stores only the key ID (`Field.apiKeyID`), never
+// the presented secret. The secret is presented once at submit time as
+// proof of possession — verified against the Keychain-backed key store,
+// then dropped; nothing derived from the secret persists. Approval
+// grants entitlements by key ID alone (re-reading key metadata, so a
+// key revoked between submit and approve fails closed) and needs no
+// secret. This restores Legacy's own shape: Legacy's
+// `SDKAssistApplication` stored `apiKeyID: UUID`, never a secret — the
+// presented-secret field was a Wave 14 port deviation, not Legacy
+// behaviour.
 
 /// Which Assist SDK variant the application is for.
 public enum SDKAssistSDKVariant: String, Sendable, Codable, CaseIterable {
@@ -54,7 +66,11 @@ public struct SDKAssistApplication: Sendable, Codable {
     public struct Field: Sendable, Codable {
         public let extensionID: String
         public let displayName: String
-        public let apiKey: String
+        /// The developer API key the entitlements bind to on approval.
+        /// Key ID ONLY — the presented secret is verified at submit time
+        /// (see `SDKAssistApplicationStore.submit(_:apiKeySecret:)`) and
+        /// never stored, in this field or anywhere derived from it.
+        public let apiKeyID: UUID
         public let sdkVariant: SDKAssistSDKVariant
         public let usageDescription: String
         public let hasOwnUI: Bool
@@ -68,7 +84,7 @@ public struct SDKAssistApplication: Sendable, Codable {
         public init(
             extensionID: String,
             displayName: String,
-            apiKey: String,
+            apiKeyID: UUID,
             sdkVariant: SDKAssistSDKVariant,
             usageDescription: String,
             hasOwnUI: Bool,
@@ -81,7 +97,7 @@ public struct SDKAssistApplication: Sendable, Codable {
         ) {
             self.extensionID = extensionID
             self.displayName = displayName
-            self.apiKey = apiKey
+            self.apiKeyID = apiKeyID
             self.sdkVariant = sdkVariant
             self.usageDescription = usageDescription
             self.hasOwnUI = hasOwnUI
@@ -91,6 +107,66 @@ public struct SDKAssistApplication: Sendable, Codable {
             self.dataLeavesDevice = dataLeavesDevice
             self.dataDestination = dataDestination
             self.contactEmail = contactEmail
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case extensionID, displayName, apiKeyID, sdkVariant, usageDescription
+            case hasOwnUI, ownUIDescription, usesThirdPartyModels, thirdPartyModels
+            case dataLeavesDevice, dataDestination, contactEmail
+            /// Pre–Wave 16 key: records written while `Field` stored the
+            /// presented secret. Read-only migration source, never written.
+            case legacyAPIKey = "apiKey"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            extensionID = try container.decode(String.self, forKey: .extensionID)
+            displayName = try container.decode(String.self, forKey: .displayName)
+            if let id = try container.decodeIfPresent(UUID.self, forKey: .apiKeyID) {
+                apiKeyID = id
+            } else if let secret = try container.decodeIfPresent(String.self, forKey: .legacyAPIKey),
+                      let idString = SDKAPIKeyCodec.extractPresentedKeyID(from: secret),
+                      let id = UUID(uuidString: idString) {
+                // One-way migration: recover the key ID from a stored
+                // presented secret. The secret itself is discarded here —
+                // the re-encoded record carries only the ID. Extraction
+                // is unverified parsing (name only); the ID is trusted
+                // only as a pointer — approval re-reads key metadata
+                // from the store and refuses revoked/unknown keys.
+                apiKeyID = id
+            } else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .apiKeyID, in: container,
+                    debugDescription: "Assist application field has neither apiKeyID nor a parseable legacy apiKey secret.")
+            }
+            sdkVariant = try container.decode(SDKAssistSDKVariant.self, forKey: .sdkVariant)
+            usageDescription = try container.decode(String.self, forKey: .usageDescription)
+            hasOwnUI = try container.decode(Bool.self, forKey: .hasOwnUI)
+            ownUIDescription = try container.decodeIfPresent(String.self, forKey: .ownUIDescription)
+            usesThirdPartyModels = try container.decode(Bool.self, forKey: .usesThirdPartyModels)
+            thirdPartyModels = try container.decodeIfPresent([String].self, forKey: .thirdPartyModels) ?? []
+            dataLeavesDevice = try container.decode(Bool.self, forKey: .dataLeavesDevice)
+            dataDestination = try container.decodeIfPresent(String.self, forKey: .dataDestination)
+            contactEmail = try container.decode(String.self, forKey: .contactEmail)
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(extensionID, forKey: .extensionID)
+            try container.encode(displayName, forKey: .displayName)
+            try container.encode(apiKeyID, forKey: .apiKeyID)
+            try container.encode(sdkVariant, forKey: .sdkVariant)
+            try container.encode(usageDescription, forKey: .usageDescription)
+            try container.encode(hasOwnUI, forKey: .hasOwnUI)
+            try container.encodeIfPresent(ownUIDescription, forKey: .ownUIDescription)
+            try container.encode(usesThirdPartyModels, forKey: .usesThirdPartyModels)
+            try container.encode(thirdPartyModels, forKey: .thirdPartyModels)
+            try container.encode(dataLeavesDevice, forKey: .dataLeavesDevice)
+            try container.encodeIfPresent(dataDestination, forKey: .dataDestination)
+            try container.encode(contactEmail, forKey: .contactEmail)
+            // Deliberately never writes the legacy "apiKey" key: a
+            // migrated record re-encodes with the ID only, so the secret
+            // leaves the store on the next persist.
         }
 
         /// Validates the application. Usage descriptions must be at least
@@ -152,18 +228,23 @@ public actor SDKAssistApplicationStore {
     }
 
     /// Submits an application: validates the fields, requires the
-    /// extension to be installed, and requires the named API key to
-    /// exist and be live (not revoked/expired). The stored record is
-    /// timestamped here and starts `pending`.
-    public func submit(_ field: SDKAssistApplication.Field) async throws -> SDKAssistApplication {
+    /// extension to be installed, and verifies the presented secret
+    /// against the Keychain-backed key store. The secret is proof of
+    /// possession only: it must verify AND name the key the application
+    /// binds to (`field.apiKeyID`) — a secret for any other key is
+    /// rejected, so an application can never be bound to a key its
+    /// submitter does not hold. The secret is dropped after verification;
+    /// the stored record carries only the key ID. `verify` enforces
+    /// liveness (revoked/expired keys fail there), and approval later
+    /// re-reads key metadata, so revocation between submit and approve
+    /// is honoured without any secret at approval time.
+    public func submit(_ field: SDKAssistApplication.Field, apiKeySecret: String) async throws -> SDKAssistApplication {
         try field.validate()
         guard await SDKExtensionRegistry.shared.installedExtension(id: field.extensionID) != nil else {
             throw SDKError(code: .invalidArgument, message: "The extension is not installed.")
         }
-        // The application names an API key by its presented secret; the
-        // store verifies it and the record must be live.
-        let key = try await SDKAPIKeyStore.shared.verify(secret: field.apiKey)
-        guard !key.isRevoked, !key.isExpired else {
+        let key = try await SDKAPIKeyStore.shared.verify(secret: apiKeySecret)
+        guard key.id == field.apiKeyID else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
         }
         let application = SDKAssistApplication(field: field)
@@ -179,7 +260,7 @@ public actor SDKAssistApplicationStore {
         guard var application = try read(id: id), application.status == .pending else {
             throw SDKError(code: .invalidArgument, message: "Only a pending application can be decided.")
         }
-        let keyID = try keyID(for: application)
+        let keyID = keyID(for: application)
         try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: keyID)
         if application.field.usesThirdPartyModels || application.field.dataLeavesDevice {
             try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAllowsCloud, toKeyID: keyID)
@@ -211,7 +292,7 @@ public actor SDKAssistApplicationStore {
     public func revokeEntitlementsForExtension(_ extensionID: String) async -> Int {
         var count = 0
         for application in list() where application.field.extensionID == extensionID {
-            guard let keyID = try? keyID(for: application) else { continue }
+            let keyID = keyID(for: application)
             _ = try? await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, fromKeyID: keyID)
             _ = try? await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAllowsCloud, fromKeyID: keyID)
             count += 1
@@ -236,15 +317,12 @@ public actor SDKAssistApplicationStore {
 
     // MARK: - Private
 
-    private func keyID(for application: SDKAssistApplication) throws -> UUID {
-        // The application stores the presented secret, not the key ID:
-        // extract the (unverified) ID for the store lookup, then let the
-        // key store re-verify lifecycle state on every grant.
-        guard let idString = SDKAPIKeyCodec.extractPresentedKeyID(from: application.field.apiKey),
-              let id = UUID(uuidString: idString) else {
-            throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
-        }
-        return id
+    private func keyID(for application: SDKAssistApplication) -> UUID {
+        // The record stores the key ID directly — no extraction from a
+        // secret, no unverified parsing on the approval path. The key
+        // store re-verifies lifecycle state on every grant, so a key
+        // revoked between submit and approve fails closed there.
+        application.field.apiKeyID
     }
 
     private func persist(_ application: SDKAssistApplication) throws {

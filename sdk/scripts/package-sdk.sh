@@ -14,6 +14,14 @@ ARCHIVE_ZIP="$DIST_DIR/SwiftCodeSDK-1.0.0.zip"
 ARCHIVE_TGZ="$DIST_DIR/SwiftCodeSDK-1.0.0.tar.gz"
 CHECKSUMS="$DIST_DIR/checksums.txt"
 
+# Portable file-size probe (Wave 16): see assemble-sdk.sh — Legacy used
+# BSD-only `stat -f %z`, which fails on GNU stat.
+if stat -f '%z' "$0" >/dev/null 2>&1; then
+    _STAT_SIZE=(stat -f %z)
+else
+    _STAT_SIZE=(stat -c %s)
+fi
+
 echo "=== SwiftCode SDK Packaging Pipeline ==="
 
 # 1. Run verification
@@ -50,9 +58,9 @@ fi
 "$TEST_BIN" --version
 "$TEST_BIN" doctor
 
-ZIP_SIZE=$(stat -f '%z' "$ARCHIVE_ZIP")
+ZIP_SIZE=$("${_STAT_SIZE[@]}" "$ARCHIVE_ZIP")
 ZIP_MB=$(awk "BEGIN { printf \"%.2f\", $ZIP_SIZE / 1000000 }")
-TGZ_SIZE=$(stat -f '%z' "$ARCHIVE_TGZ")
+TGZ_SIZE=$("${_STAT_SIZE[@]}" "$ARCHIVE_TGZ")
 TGZ_MB=$(awk "BEGIN { printf \"%.2f\", $TGZ_SIZE / 1000000 }")
 
 echo "=========================================================="

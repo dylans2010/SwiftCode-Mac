@@ -46,19 +46,35 @@ import Foundation
 //   * Legacy's routing strategies `"default"` / `"rotation"` /
 //     `"app_models"` were Antigravity-SDK strategies: the first two
 //     restricted selection to the SDK's live model catalog. Ycode
-//     has no such catalog, so both collapse to the discovered set
-//     (see `AssistRoutingStrategy`); the strategy is still
-//     persisted, because the distinction matters again if a
-//     catalog ever exists.
-//   * `buildSDKConfiguration(for:)` (Legacy) is NOT ported: it
-//     builds a `GoogleCloudSDKConfiguration` for the Antigravity
-//     SDK session, which does not exist in Ycode. The Ycode
-//     equivalent is `ChatRequest` + the chosen `ProviderKind`.
-//   * Gemini key rotation (`AlternativeKeyManager`) and Google
-//     OAuth (`GoogleAccountAuthService`) are NOT ported: no such
-//     systems exist in Ycode. A rate-limited turn therefore
-//     fails over to the next model (or returns nil when
-//     auto-switch is off) instead of rotating a key.
+//     now has that catalog (`AntigravitySDKCatalog`, Wave 16),
+//     so `selectModelForSDK` restricts `"default"` / `"rotation"`
+//     to it again; the plain router paths (`resolveDefaultModel`,
+//     `eligibleCandidates`) still take the discovered set, and
+//     `"rotation"` (and any unknown value) still decodes to
+//     `.providerDefault` here because key rotation is a failover
+//     behaviour, not a selection strategy (see
+//     `handleTurnFailureWithKeyRotation`).
+//   * `buildSDKConfiguration(for:)` (Legacy) is ported as
+//     `SDKSessionConfiguration` + `AssistModelRouter.
+//     selectModelForSDK` in `AssistSDKModelSelection.swift`:
+//     the Ycode equivalent is `ChatRequest` + the chosen
+//     `ProviderKind`, with the SDK session's model, thinking
+//     level and execution mode carried in the configuration.
+//     There is no `GoogleCloudSDKConfiguration` and no
+//     Antigravity SDK session in Ycode, so the fields that only
+//     a live SDK session consumes (vertex/project/location,
+//     skills paths, workspaces, LiteRT) are not carried over.
+//   * Gemini key rotation (`AlternativeKeyManager`) is ported
+//     as `GeminiKeyRotationManager` in `GeminiKeyRotation.swift`,
+//     and the failover branch that rotates a key before failing
+//     over to the next model is `AssistModelRouter.
+//     handleTurnFailureWithKeyRotation` (see
+//     `AssistSDKModelSelection.swift`). The plain
+//     `handleTurnFailure` below still fails over to the next
+//     model, as before, when no rotation manager is supplied.
+//     Google OAuth (`GoogleAccountAuthService`) is NOT ported
+//     here: the router takes an `isGoogleOAuthAuthenticated`
+//     flag from the host instead of owning the session.
 //   * Failure classification is text-only. Legacy also matched
 //     `NSURLErrorDomain` codes; this portable target does not
 //     import FoundationNetworking, and the text checks
@@ -667,6 +683,11 @@ public struct AssistCandidateModel: Sendable, Equatable {
     /// The endpoint this model talks to, when it is not the
     /// provider's default (Legacy set one for Mistral and Codex).
     public var endpointURL: String?
+    /// True when this candidate was synthesized from a catalog
+    /// (the Antigravity SDK catalog) rather than discovered from
+    /// a provider's list endpoint. Synthetic candidates must
+    /// never be presented as discovered models.
+    public var isSynthetic: Bool
 
     public init(
         id: String,
@@ -686,7 +707,8 @@ public struct AssistCandidateModel: Sendable, Equatable {
         hasCredentials: Bool = true,
         source: AssistModelSource = .provider,
         statusDescription: String = "",
-        endpointURL: String? = nil
+        endpointURL: String? = nil,
+        isSynthetic: Bool = false
     ) {
         self.id = id
         self.modelIdentifier = modelIdentifier ?? id
@@ -706,6 +728,7 @@ public struct AssistCandidateModel: Sendable, Equatable {
         self.source = source
         self.statusDescription = statusDescription
         self.endpointURL = endpointURL
+        self.isSynthetic = isSynthetic
     }
 
     /// A candidate built from the name-based specification
@@ -1183,10 +1206,14 @@ public actor AssistModelRouter {
     /// The caller passes the already-eligible ranked candidates
     /// (from `eligibleCandidates`); the router does not re-run
     /// discovery here. The Legacy Gemini key-rotation branch is
-    /// not ported (no `AlternativeKeyManager` in Ycode), and the
-    /// returned pair carries no SDK configuration (Legacy
-    /// returned a `GoogleCloudSDKConfiguration` for the
-    /// Antigravity session, which does not exist in Ycode).
+    /// `handleTurnFailureWithKeyRotation` (see
+    /// `AssistSDKModelSelection.swift`): this plain form fails
+    /// over to the next model, and the returned pair carries no
+    /// SDK configuration (Legacy returned a
+    /// `GoogleCloudSDKConfiguration` for the Antigravity session,
+    /// which does not exist in Ycode — the Ycode equivalent is
+    /// `SDKSessionConfiguration`, built by the rotation-aware
+    /// form).
     public func handleTurnFailure(
         failedModel: AssistCandidateModel,
         error: Error,

@@ -539,18 +539,22 @@ import Testing
         #expect(await provider.contextWindow(model: "no-such-model") == nil)
     }
 
-    @Test func sendFailsHonestlyWithoutBridge() async throws {
+    @Test func sendFailsHonestlyWithoutBinary() async throws {
+        // Wave 16: `send` runs a real turn through the bridge, so
+        // a missing binary fails as `.failed` with the install
+        // hint — it no longer throws `.unsupported` naming the
+        // (now ported) bridge.
         let provider = MetaAssistProvider(locator: Self.absentLocator())
         let request = ChatRequest(model: "muse-wonder-1.0", instructions: "Be helpful.", messages: [ChatMessage(.user, "Hello")])
         do {
             for try await _ in provider.send(request) { }
             Issue.record("expected send to throw")
         } catch let error as AssistantError {
-            guard case .unsupported(let message) = error else {
-                Issue.record("expected unsupported, got \(error)")
+            guard case .failed(let message) = error else {
+                Issue.record("expected failed, got \(error)")
                 return
             }
-            #expect(message.contains("MSP bridge"))
+            #expect(message.contains("muse"))
         }
     }
 

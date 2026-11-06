@@ -96,6 +96,36 @@ const REQUIRED_TOP_LEVEL = [
 ];
 
 // Capability IDs across the canonical SDK registry (SDKCapability.swift + ScopesIDLists.ts).
+//
+// DECISION (Wave 16, Slice A — canonical manifest vocabulary, pinned by
+// `sdk/package/tests/scopes-sync.test.mjs` "validate.mjs manifest
+// vocabulary pin"): this 32-entry mirror IS the canonical vocabulary for
+// `swiftcode.json` `capabilities[].id`, and it is deliberately NOT the
+// 34-case `SDKCapabilityID` enum. Verified live in both repos:
+//   - The mirror's set is identical to the JSON schema enum in
+//     `sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json` (and to
+//     Legacy's schema + Legacy `validate.mjs`) — 26 SDK enum ids + the 6
+//     `use.Security.*` method scopes below.
+//   - The 8 enum ids NOT admitted here are non-manifest by design:
+//     `assist.ui` / `assist.headless` / `assist.main` are entitlement-only
+//     (Legacy `SDKCapabilityInfo.grantableInCurrentRelease == false`,
+//     unlocked by the key-bound entitlement flow, never by a grant), and
+//     the 5 `security.*` method ids (`security.addValue`,
+//     `security.hasValue`, `security.listValueIDs`, `security.deleteValue`,
+//     `security.useValue`) are enforced under the single `use.Security`
+//     grant, never granted separately. Admitting them would bless manifests
+//     the broker must then deny. They remain real enum cases and real
+//     `ScopesIDLists` entries (runtime scope surface), just not
+//     manifest-declarable.
+//   - No manifest in the wild declares any of the 8 (Legacy
+//     `ExampleManifests`, `Examples/RepositoryBuildExtension`, destination
+//     `sdk/templates/extension-typescript`, destination example manifest).
+//   - Known Legacy divergence, recorded not fixed: the host validator's
+//     `supportedCapabilities` (registry 34 ∪ scopes 32 = the 34 enum ids)
+//     admits the 8 but NOT the 6 `use.Security.*` method scopes, while this
+//     mirror + the schema admit the 6 but not the 8. The two sides disagree
+//     in opposite directions; this mirror follows the schema (fast local
+//     check) and the Swift host remains authoritative at install time.
 const CAPABILITY_IDS = [
   "project.read",
   "workspace.read",

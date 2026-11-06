@@ -556,7 +556,8 @@ struct SDKEnterSecurityView: View {
 // (S-5) goes to the Host slice's `SDKAssistApplicationStore` — the API
 // key secret is pasted into a `SecureField`, held in memory only for
 // the submit call, verified against the Keychain-backed key store, and
-// never persisted by the form. Approval stays a separate host action;
+// never persisted by the form or the store (Wave 16: the stored record
+// carries only the key ID). Approval stays a separate host action;
 // the form never approves applications itself.
 
 @MainActor

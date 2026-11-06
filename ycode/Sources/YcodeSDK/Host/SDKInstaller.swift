@@ -23,6 +23,23 @@ import Foundation
 //     SDK copy (parameter or bundle resource) and says so honestly via
 //     `InstallResult.usedFallback`.
 //
+// FINAL DECISION (Wave 16, Slice D): the bundled fallback stays
+// ABSENT — no tarball ships in this repo, and none was invented
+// or copied from Legacy. A genuine distributable CAN be produced
+// from this repo's own build: `npm pack` in `sdk/package`
+// produces `swiftcode-sdk-1.0.0.tgz` (@swiftcode/sdk 1.0.0,
+// verified 2026-11-06: 52.8 kB, 29 files, from the checked-in
+// `dist/`). What Dylan must supply before the fallback can
+// exist: publish that tarball to the `sdk-v1.0.0` branch at
+// `SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz` (the
+// `downloadURL` above — the remote path), or bundle it as a
+// YcodeSDK resource with the `Package.swift` resource wiring
+// (a coordinator decision: a checked-in binary blob plus
+// resource wiring was out of scope for this slice). Until
+// then `bundledFallbackStatus()` reports `.absent` with this
+// reason, and `install` fails honestly when GitHub is
+// unreachable — it never claims a bundled copy exists.
+//
 // Testability: the npm executable, the reachability probe, the prefix,
 // and the fallback source are all injectable via `InstallOptions`, so
 // tests can point at a stub home directory and a stub `npm` script.
@@ -422,6 +439,25 @@ public enum SDKInstaller {
             URL(fileURLWithPath: "\(currentDir)/SDK/Distribution/swiftcode-sdk-1.0.0.tgz")
         ]
         return candidates.compactMap { $0 }.first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// Whether a bundled SDK copy ships with the app (Wave 16,
+    /// Slice D). Presence only: the tarball's contents are
+    /// verified by `npm install` + `inspect` when it is used, not
+    /// here. Absence carries the exact reason and what Dylan must
+    /// supply, so Settings / the installer UI can show it instead
+    /// of a bare failure.
+    public enum BundledFallbackStatus: Sendable, Equatable {
+        case present(url: URL)
+        case absent(reason: String)
+    }
+
+    public static func bundledFallbackStatus() -> BundledFallbackStatus {
+        if let url = defaultBundledFallbackURL(),
+           FileManager.default.fileExists(atPath: url.path) {
+            return .present(url: url)
+        }
+        return .absent(reason: "No SDK tarball ships in this repo. A genuine one can be produced from this repo's own build with `npm pack` in sdk/package (@swiftcode/sdk 1.0.0, 52.8 kB) and published to the sdk-v1.0.0 branch at SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz, or bundled as a YcodeSDK resource with Package.swift wiring. Until then the installer fails honestly when GitHub is unreachable.")
     }
 
     /// Explicit developer override first; otherwise use the shipped toolkit.

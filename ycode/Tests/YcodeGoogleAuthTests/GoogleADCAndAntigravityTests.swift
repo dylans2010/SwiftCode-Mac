@@ -91,12 +91,12 @@ struct GoogleADCFileTests {
 
     @Test("ADC paths try GOOGLE_APPLICATION_CREDENTIALS first, then the standard location")
     func adcFilePaths() {
-        let home = URL(fileURLWithPath: "/Users/fixture")
+        let home = URL(fileURLWithPath: "/Users/user")
         let paths = GoogleAmbientCredentials.adcFilePaths(
             environment: ["GOOGLE_APPLICATION_CREDENTIALS": "/tmp/fixture-adc.json"], homeDirectory: home)
         #expect(paths.count == 2)
         #expect(paths[0].path == "/tmp/fixture-adc.json")
-        #expect(paths[1].path == "/Users/fixture/.config/gcloud/application_default_credentials.json")
+        #expect(paths[1].path == "/Users/user/.config/gcloud/application_default_credentials.json")
         let defaultOnly = GoogleAmbientCredentials.adcFilePaths(environment: [:], homeDirectory: home)
         #expect(defaultOnly.count == 1)
     }
@@ -110,11 +110,11 @@ struct GoogleADCFileTests {
 
     @Test("The agy CLI candidates list AGY_PATH first, then the standard locations")
     func agyCLICandidates() {
-        let home = URL(fileURLWithPath: "/Users/fixture")
+        let home = URL(fileURLWithPath: "/Users/user")
         let candidates = GoogleAmbientCredentials.agyCLICandidates(
             environment: ["AGY_PATH": "/opt/custom/agy"], homeDirectory: home)
         #expect(candidates.first == "/opt/custom/agy")
-        #expect(candidates.contains("/Users/fixture/.local/bin/agy"))
+        #expect(candidates.contains("/Users/user/.local/bin/agy"))
         #expect(candidates.contains("/usr/local/bin/agy"))
     }
 

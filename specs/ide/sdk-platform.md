@@ -270,11 +270,17 @@ them. Differences from Legacy's shapes: `SDKBuildResult.exitCode` is
   full namespaced string is preserved as the account). Values are a
   JSON envelope `{data base64, label, created, modified}`.
   `readValue` is INTERNAL (host-only, for `useValue` injection).
-- **Flag — application records store the presented secret:**
-  Legacy's `SDKAssistApplication.Field.apiKey` holds the presented
-  secret, and this port keeps that (the store encrypts it at rest via
-  Keychain). A future revision should store only the key ID. Do not
-  "fix" silently — it changes the approval flow.
+- **Flag — application records store the key ID only (corrected
+  in Wave 16, §26.1.3):** the Wave 14 spec claimed Legacy's
+  `SDKAssistApplication.Field.apiKey` held the presented secret. Wrong
+  — verified live in Wave 16, Legacy's flat `SDKAssistApplication`
+  stores `apiKeyID: UUID` and its submit looks the key up by ID. The
+  secret field was a Wave 14 port deviation, not Legacy behaviour.
+  Wave 16 revised it to key-ID-only (`Field.apiKeyID: UUID`;
+  `submit(_:apiKeySecret:)` verifies the presented secret by HMAC +
+  liveness, requires the verified key's ID to match the field, then
+  drops the secret; legacy secret records migrate by unverified ID
+  extraction and re-encode ID-only).
 - Session presentation: `SWIFTCODE_API_KEY` env var, trimmed, blank →
   nil. The secret is toxic: verify it, then drop it.
 - Entitlements: `SDKEntitlement` (Wave 13 deferral, now ported) —
@@ -482,6 +488,28 @@ Wave 15 (§16).
   seam. Legacy's window managers and notification bridges are NOT
   re-ported. `SDKHostedWindow` (macOS-only generic NSWindow host) is
   available for openers that own their window.
+- **View host implemented (Wave 16, Slice C, §26.3).** `YcodeSDKViewHost`
+  (YcodeUI) implements `SDKViewHost` behind the injectable
+  `SDKViewSurfaceActions` protocol and is installed at startup by
+  `YcodeSDKInstaller` (with the active-workspace provider and the
+  Assist backend attachment; `SDKBootstrap` runs from the same
+  installer). 5 of the 12 views open on real Ycode surfaces:
+  `deviceconnect.open` → Device Hub (Devices),
+  `simulator.view` → Device Hub (Simulators), `uibuilder.open` →
+  Interface Builder editor on the project's first `.storyboard`/
+  `.xib`, `symbols.browse` → Library panel (Symbols tab),
+  `preview.live` → preview canvas; `assist.main` → Coding
+  Assistant pane on the same seam. 7 are honestly unavailable
+  (`YcodeSDKViewHost.unavailableReasons`): `db.ExploreView` (no
+  SQLite browser), `docs.search` (no DocC browser),
+  `dictionary.open` (no term data — Legacy's was LLM-generated),
+  `sandbox.view` (no integrated terminal), `deployConsole.view`
+  (no deployments console), `ci.VisualWF` (no workflow dashboard),
+  `virtualization.view` (no console UI for the hypervisor engine).
+  All open through the key workspace window; with none open they
+  throw `.serviceUnavailable`. The macOS live-preview surface is
+  the editor canvas, not `PreviewOpenViewsHost` (the Linux payload
+  host).
 - Sibling openers: CI (`ci.VisualWF`) and virtualization require a
   project (via injectable `SDKActiveWorkspaceProviding`; no provider →
   `.projectNotOpen`); live preview needs none. The CI dashboard is the
@@ -999,11 +1027,11 @@ public enum SDKDoctor { public static func diagnose(sdkRoot: URL?) -> [Diagnosti
 
 | Piece | Exact blocker |
 |---|---|
-| 12 view windows (`SDKViewHost`) | No YcodeUI seam exists under Legacy names (no `DatabaseExplorerWindowManager` etc., no `ToolbarActionManager`). Opener logic ported; windows delegate to the new `SDKViewHost` protocol — YcodeUI must implement it. Until then opens throw `.serviceUnavailable` naming the missing seam. |
-| Assist backend (`SDKAssistBackend`) | No attachment point exists that wouldn't leak user conversation/keys (`AssistManager` / agent sessions / `LLMService` audited and rejected). `send` / `sendStreaming` / `executeTool` throw `.serviceUnavailable`, never fabricate. |
+| 12 view windows (`SDKViewHost`) | Implemented in Wave 16 Slice C (§26.3): 5 open on real Ycode surfaces, 7 honestly unavailable with per-window reasons (`YcodeSDKViewHost.unavailableReasons`). A SQLite explorer, DocC browser, coding dictionary, terminal, deployments console, CI dashboard, and VM console remain unbuilt subsystems, not seam gaps. |
+| Assist backend (`SDKAssistBackend`) | Attached in Wave 16 Slice C (§26.3) for `send` / `sendStreaming` only (`SDKAssistHostBackend` over the host's text-completion providers; agent providers refused; no key or host conversation crosses the boundary). `executeTool` is still unattached — no grant-enforcing tool runner exists yet. |
 | Real Assist choke points | Host session loop / LLM service have no extension caller identity — the gate guards the IPC surface only. |
-| Build scheme discovery | No `AssistXcodeProjectResolver` / `xcodebuild -list` seam — container resolved from project root, target used as scheme. |
-| Installer bundled fallback | No tarball ships in-repo; falls back honestly when absent. |
+| Build scheme discovery | Wired in Wave 16 Slice D (§26.4): `XcodeSchemeDiscovery` (`xcodebuild -list -json` → `.xcscheme` files via Ycode's `Scheme.discover` → container-name fallback, reason recorded at every step), wired into `SDKBuildService.run`. |
+| Installer bundled fallback | Final decision in Wave 16 Slice D (§26.4): stays absent. A genuine tarball can be produced (`npm pack --dry-run`: 52.8 kB, 29 files), but shipping it needs `Package.swift` resource wiring plus a checked-in binary blob — coordinator decision, not shipped. `SDKInstaller.bundledFallbackStatus()` reports `.absent(reason:)` honestly. |
 | Runtime adapter `adapter.ts` | Rewritten in Wave 15 from the README spec (§24). `dist/adapter.js` builds; live smoke tests pass. |
 | `cli-roundtrip` + `scopes-sync` tests | Adapted to destination paths in Wave 15 (§24); both pass (13/13 and 4/4; full package suite 112/112). |
 | Grant tombstones / digests / names (S-2) | Wired in Wave 15 (Slice B, §25): `SDKGrantStore` in YcodeSDK (tombstones, digests, 30-day prune, `capabilities:request` issuance gate) + Studio adapter merge + grant-manager revoked history. |
@@ -1022,7 +1050,7 @@ public enum SDKDoctor { public static func diagnose(sdkRoot: URL?) -> [Diagnosti
 5. `ProjectInspector` `.xcodeproj` detection is name-only; no pbxproj parsing.
 6. `SourceControlService.getStatus` collapses `A`/`D`/`R`/`C` porcelain codes to `.modified` (Legacy behaviour; only `??` → `.untracked` is distinguished).
 7. `BuildService` has no timeout/cancellation: Legacy blocked on `waitUntilExit()`; `Subprocess.run` is likewise synchronous. The `SDKBuildContracts` timeout/cancel semantics live with the host dispatcher.
-8. `SDKAssistApplication.Field.apiKey` stores the presented secret (§5 flag).
+8. `SDKAssistApplication.Field.apiKey` — REMOVED from this list in Wave 16: it was never a Legacy defect. Legacy stored `apiKeyID: UUID`; the secret field was a Wave 14 port deviation, corrected to key-ID-only in §26.1.3.
 9. `SDKAssistGate.check` deny-list contains mixed-case `"sendMessage"`
     matched against a lowercased method, so it never matches (Legacy
     defect, ported faithfully in Wave 14; the exemption itself is
@@ -1067,9 +1095,7 @@ No collision exists for `SDKError`, `SDKVersion`, `WorkspacePath`,
 8. **Seams wired by the coordinator:** S-1 (installer), S-3 (API
    keys), G-1 (audit log). S-2, S-4, S-5 stay open for Wave 15 with
    the exact blockers in §18.
-9. **Secret storage flag:** `SDKAssistApplication` keeps Legacy's
-   presented-secret storage; a key-ID-only revision is flagged, not
-   silently applied (§5).
+9. **Secret storage flag — resolved in Wave 16 (§26.1.3):** the Wave 14 claim that Legacy stored the presented secret was wrong (Legacy stored `apiKeyID: UUID`); the port now stores the key ID only (§5).
 10. **Wave 15 (Slice B) — S-2 home:** the grant-record store lives in
     `YcodeSDK` (`SDKGrantStore`), NOT as tombstone support in
     `PermissionManager` — the item allowed either, and
@@ -1371,15 +1397,15 @@ router needs; the contract/adapter files are untouched.
 
 | Piece | Exact blocker |
 |---|---|
-| `buildSDKConfiguration` / `selectModelForSDK` | Returns a `GoogleCloudSDKConfiguration` for the Antigravity SDK session, which does not exist in Ycode. Ycode equivalent: `ChatRequest` + the chosen `ProviderKind`. |
-| Gemini key rotation on failover | No `AlternativeKeyManager` in Ycode. A rate-limited turn fails over to the next model (or returns nil when auto-switch is off) instead of rotating a key. |
+| `buildSDKConfiguration` / `selectModelForSDK` | Wired in Wave 16 Slice D (§26.4): `SDKSessionConfiguration` + `AssistModelRouter.selectModelForSDK` on `ChatRequest` + the chosen `ProviderKind`, with Legacy's execution-mode rules. Fields only a live Antigravity session consumes were not carried over (documented in the file header). |
+| Gemini key rotation on failover | Wired in Wave 16 Slice D (§26.4): `GeminiKeyRotationManager` ports `AlternativeKeyManager` verbatim (fewest-failures-then-circular, 60s cooldown); raw keys in `SecretStore`, metadata-only envelope. |
 | Google OAuth auth mode | No `GoogleAccountAuthService` in Ycode (separate GoogleAccount slice). No OAuth token path exists in the router. |
-| Antigravity SDK catalog (`sdkDefaultModelIDs`, `createSyntheticSDKModel`) | No `AntigravitySDKModelFetcher` in Ycode. The `"default"` / `"rotation"` strategies collapse to the discovered set (§23.2). |
-| Muse Code MSP bridge + Meta turn execution | `MuseCodeMSPBridge` / lifecycle / slash commands not ported (§23.4). `send` fails honestly. |
-| `AssistModelDiscoveryService` (1,185 lines) | Discovery is Ycode's `AssistantBackends.survey()` + each provider's `availability()`; the router consumes discovered candidates abstractly. No separate discovery service was built. |
+| Antigravity SDK catalog (`sdkDefaultModelIDs`, `createSyntheticSDKModel`) | Wired in Wave 16 Slice D (§26.4): 9 seed models verbatim, `agy models` fetch, synthetic candidates marked `isSynthetic`. No Python fallback (Legacy's vendored Google Cloud SDK python was never copied). |
+| Muse Code MSP bridge + Meta turn execution | Wired in Wave 16 Slice B (§26.2): `MuseCodeMSPBridge` (NDJSON JSON-RPC), lifecycle manager, 36 slash commands, turn executor, `normalizeToolName` against the injected MCP catalogue. `send` no longer throws for a missing bridge. |
+| `AssistModelDiscoveryService` (1,185 lines) | Wired in Wave 16 Slice D (§26.4): `AssistModelDiscovery` actor (Gemini / Anthropic / OpenAI / Mistral / Qwen legs, 300s cache, failing leg contributes nothing), feeding the router via `candidates(from:)` — no parallel registry. |
 | `AgentModelAdapter.queryModel` / `extractJSON` / `OfflineFallbackManager` | Bound to Legacy's `LLMService` session loop and its offline-fallback provider; the host session loop is out of scope for this slice. |
 | `AssistModelManager` singleton | `ObservableObject` + `OfflineFallbackManager` health. Its selection state is covered by `AssistantSettings` + the router. |
-| `MetaAssistProvider.normalizeToolName` | Resolves against Legacy's `AssistManager` tool registry; Ycode's tools live behind MCP. |
+| `MetaAssistProvider.normalizeToolName` | Wired in Wave 16 Slice B (§26.2): Legacy prefix-strip + synonym rules verbatim, then lookup in the injected MCP catalogue (`knownToolIDs`, wired by the coordinator in §26.5); unmapped names return `.passthrough` and are recorded. |
 
 ### 23.7 Tests
 
@@ -1657,6 +1683,18 @@ method ids (`security.addValue`, `security.hasValue`,
 validate, so that decision moves to Wave 16 with the exact IDs named
 here; `scopes-sync` pins the current mapping and passes.
 
+**Coordinator decision (Wave 16, §26.1.1):** the 32-entry mirror IS the
+canonical manifest vocabulary — the 8 excluded ids are non-manifest by
+Legacy's own registry design (the 3 `assist.*` ids are entitlement-only;
+the 5 `security.*` method ids are enforced under the single
+`use.Security` grant, never granted separately), and no manifest in the
+wild declares any of them. The mirror is unchanged; `scopes-sync` now
+pins it with 3 new tests (115/115 pass). Recorded, not fixed: the host
+validator's `supportedCapabilities` admits the 8 but NOT the 6
+`use.Security.*` method scopes, while schema + `validate.mjs` admit the
+6 but not the 8; and the destination has no ported Swift host manifest
+validator yet.
+
 ### 23.7 What is still pending (not this slice)
 
 - Mac `swift build` / `swift test` for the SDK targets (no Swift
@@ -1923,8 +1961,1967 @@ was made for this item beyond this spec text.
 - `SwiftCodeManifest` public init signature was verified live for
   the test seed helpers (`SwiftCodeManifest.swift`).
 - The `SDKAssistApplication` presented-secret storage flag (Wave 14
-  §5 / §21.9) remains: a key-ID-only revision is flagged, not
-  silently applied.
+  §5 / §21.9) is RESOLVED in Wave 16 (§26.1.3): the Wave 14 premise
+  was wrong (Legacy stored `apiKeyID: UUID`, never the secret); the
+  port now stores the key ID only, with proof-of-possession
+  verification at submit and a migration that re-encodes ID-only.
+
+## 26. Wave 16 — SDK/Assist remainder (validate.mjs vocabulary · Distribution decision · key-ID-only applications · Muse Code MSP bridge · view host + Assist backend · scheme discovery · model discovery · Antigravity catalog · Gemini rotation · SDK session configuration)
+
+### 26.1 Slice A — validate.mjs capability admission · Distribution regeneration decision · SDKAssistApplication key-ID-only revision
+
+Sources read live for this section (Legacy read-only, main `d51a8f0d`;
+destination main `d7cf1872` at wave start): Legacy
+`SwiftCode/SDK/Contracts/Capability/SDKCapability.swift`,
+`SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json`,
+`SwiftCode/SDK/Contracts/Manifest/ExampleManifests/`,
+`SwiftCode/SDK/Examples/RepositoryBuildExtension/swiftcode.json`,
+`SwiftCode/SDK/TypeScript/cli/commands/validate.mjs`,
+`SwiftCode/SDK/Host/ExtensionRegistry/SDKManifestValidator.swift`,
+`SwiftCode/SDK/Host/ScopesIDLists.swift`,
+`SwiftCode/SDK/TypeScript/package/src/ScopesIDLists.ts`,
+`SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift`,
+`SwiftCode/SDK/Scripts/{assemble-sdk,build-sdk,package-sdk,verify-sdk}.sh`,
+`SwiftCode/SDK/Scripts/populate-distribution.py`,
+`SwiftCode/SDK/Scripts/{cross-200mb,reach-gate,expand-to-target,final-gate,reach-threshold,expand-final,cross-gate-now,add-final-delta,add-final-push,add-fixtures}.py`,
+`SwiftCode/SDK/Distribution/SwiftCodeSDK/` (measured, never copied);
+destination `sdk/cli/commands/validate.mjs`,
+`sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json`,
+`sdk/Contracts/Manifest/ExampleManifests/`,
+`sdk/templates/extension-typescript/swiftcode.json`,
+`sdk/package/src/ScopesIDLists.ts`,
+`sdk/package/tests/scopes-sync.test.mjs`,
+`ycode/Sources/YcodeExtensions/Capabilities.swift`,
+`ycode/Sources/YcodeSDK/Host/ScopesIDLists.swift`,
+`ycode/Sources/YcodeSDK/Host/CapabilityBroker/SDKCapabilityRegistry.swift`,
+`ycode/Sources/YcodeSDK/Host/APIKeys/{SDKAssistApplication,SDKAPIKey,SDKAPIKeyStore}.swift`,
+`ycode/Sources/YcodeSDKStudio/SDKStudioModels.swift`,
+`ycode/Sources/ycode-ide/SDKStudio/SDKStudioSecurityViews.swift`,
+`ycode/Tests/YcodeSDKTests/{SDKAssistApplicationTests,SDKStudioTests}.swift`,
+`sdk/scripts/{assemble-sdk,build-sdk,package-sdk,verify-sdk}.sh`.
+
+All three items end DECIDED and implemented (or, for Distribution,
+decided with the regeneration path verified and extended). No ledger
+row changes state in this slice: the validate decision keeps the
+current vocabulary, the Distribution rows stay NOT STARTED by design
+(the output tree is never copied), and the Assist revision corrects
+already-IMPLEMENTED rows in place.
+
+---
+
+### 26.1.1 validate.mjs capability admission — DECIDED: keep the 32-entry mirror
+
+#### 26.1.1.1 Decision
+
+The 32-entry `CAPABILITY_IDS` mirror in
+`sdk/cli/commands/validate.mjs` **is the canonical manifest
+vocabulary** for `swiftcode.json` `capabilities[].id`. It is
+deliberately NOT the 34-case `SDKCapabilityID` enum, and the 8
+excluded enum ids are NOT admitted. The mirror itself is unchanged;
+the decision is now recorded in a comment above `CAPABILITY_IDS` in
+`validate.mjs` and pinned by three new tests in
+`sdk/package/tests/scopes-sync.test.mjs` ("validate.mjs manifest
+vocabulary pin").
+
+#### 26.1.1.2 The three vocabularies (verified live)
+
+| Vocabulary | Size | Contents |
+|---|---|---|
+| `SDKCapabilityID` enum (`Capabilities.swift`, identical 34 cases in Legacy `SDKCapability.swift`) | 34 | All capability ids, including non-manifest ones |
+| `ScopesIDLists` (TS + Swift, 32 entries, 12 views + 20 api) | 32 | 32 enum ids: every case EXCEPT `use.Security` and `assist.main` ("umbrella/entitlement surfaces, not separately requestable scopes") |
+| Manifest vocabulary: JSON schema enum == `validate.mjs` mirror | 32 | 26 enum ids + the 6 `use.Security.*` method scopes |
+
+The 8 enum ids excluded from the manifest vocabulary, each for a
+documented reason:
+
+- **Entitlement-only Assist variants (3)** — `assist.ui`,
+  `assist.headless`, `assist.main`: `grantableInCurrentRelease ==
+  false` in Legacy `SDKCapabilityInfo` and in the destination
+  `SDKCapabilityRegistry` ("unlocked by the key-bound entitlement
+  flow, never by a grant"). Admitting them would bless manifests the
+  broker must then deny.
+- **Security method scopes (5)** — `security.addValue`,
+  `security.hasValue`, `security.listValueIDs`,
+  `security.deleteValue`, `security.useValue`: "Method scope for the
+  `security.*` IPC method, enforced under the single `use.Security`
+  grant — not a separately grantable permission"
+  (`SDKCapabilityRegistry`). They remain real runtime surface
+  (`ScopesIDLists` entries), just not manifest-declarable.
+
+The 6 `use.Security.*` entries in the mirror
+(`use.Security.keychain/audit/crypto/securePrompt/redaction/policy`)
+are a different, deliberate vocabulary: fine-grained Security-kit
+method scopes that Legacy's schema admits. The asymmetry (schema
+admits `use.Security.*` but not `security.*`) is Legacy's own design,
+not a port drift.
+
+#### 26.1.1.3 Evidence for "keep", not "admit to 40"
+
+1. **Legacy's own schema enum is exactly the same 32 entries**
+   (verified live by parsing both JSON files: identical sets), and
+   Legacy's `validate.mjs` carries the identical 32-entry mirror.
+   The destination mirror is faithful to Legacy, not a drift.
+2. **Legacy's own registry says the 8 are non-manifest** (see §26.1.1.2:
+   `grantableInCurrentRelease == false` for the Assist variants;
+   method-scope enforcement under `use.Security` for the 5
+   `security.*` ids).
+3. **No manifest in the wild declares any of the 8.** Checked live:
+   Legacy `ExampleManifests/repository-build-extension.swiftcode.json`
+   (`source-control.read`, `build.execute`), Legacy
+   `Examples/RepositoryBuildExtension/swiftcode.json`
+   (`source-control.read`, `build.execute`, `project.read`,
+   `workspace.read`, `credentials.use`, `network.request`),
+   destination `sdk/templates/extension-typescript/swiftcode.json`
+   (`source-control.read`, `build.execute`), destination example
+   manifest (same two ids). Admitting the 8 would serve no existing
+   manifest.
+4. **The 40-entry alternative was rejected on purpose**: it would
+   change what manifests validate (a manifest declaring `assist.ui`
+   would newly pass the fast local check and then be denied at the
+   broker), with no wild manifest needing it and against Legacy's
+   registry design.
+
+#### 26.1.1.4 Known Legacy divergence, recorded not fixed
+
+The host validator and the schema disagree in opposite directions,
+in Legacy itself:
+
+- Legacy `SDKManifestValidator.supportedCapabilities` = registry
+  (34 enum ids) ∪ scopes (32) = **the 34 enum ids**. It admits the 8
+  excluded ids but NOT the 6 `use.Security.*` method scopes.
+- The schema + `validate.mjs` admit the 6 method scopes but NOT the
+  8 enum ids.
+
+So a manifest declaring `use.Security.keychain` passes `swiftcode
+validate` but fails host install validation with
+`UNKNOWN_CAPABILITY`, while a manifest declaring `assist.ui` fails
+`validate` but would pass the host's known-id check (and then be
+denied at grant time as restricted). `validate.mjs` mirrors the
+schema (fast local check); the Swift host remains authoritative at
+install time. This divergence is Legacy's, not introduced by the
+port, and fixing it would mean changing either the schema or the host
+validator's known-id set — out of scope for this slice. (Note: the
+destination has no ported Swift host manifest validator yet — no
+`SDKManifestValidator` exists under `ycode/Sources/YcodeSDK/`; the
+host-side check is a gap for a later wave, not something this slice
+creates.)
+
+#### 26.1.1.5 What changed
+
+- `sdk/cli/commands/validate.mjs`: `CAPABILITY_IDS` list unchanged
+  (32 entries); the comment above it is now the decision record
+  (§26.1.1.1–§26.1.1.4 in short form). The `capabilities.length > 32` cap is
+  unchanged and matches the schema `maxItems: 32`.
+- `sdk/package/tests/scopes-sync.test.mjs`: new `describe`
+  ("validate.mjs manifest vocabulary pin", 3 tests) parsing the
+  mirror, the schema enum, and `SDKCapabilityID` cases from disk and
+  asserting: mirror == schema enum (32 each, same set); mirror = 26
+  enum values + exactly the 6 `use.Security.*` scopes; enum − mirror
+  = exactly the 3 entitlement-only `assist.*` ids + the 5
+  `security.*` method ids (and that the 5 stay `ScopesIDLists`
+  entries). Full node suite: **115/115 pass** (112 baseline + 3 new).
+
+---
+
+### 26.1.2 SDK/Distribution/ regeneration — DECIDED: output tree stays unported; the regeneration path already exists (Wave 14) and is verified + extended here
+
+#### 26.1.2.1 Decision
+
+**The `Distribution/` output tree is never copied and never
+regenerated as a tree. Its rows stay NOT STARTED in the ledger.**
+What *is* ported — and what this slice verified live and extended —
+is the **regeneration pipeline**: `sdk/scripts/{assemble-sdk,
+build-sdk,package-sdk,verify-sdk}.sh` (Wave 14), plus a new
+`sdk/scripts/smoke-sdk-scripts.sh` smoke check (this slice). The
+pipeline assembles a distribution from real artifacts only; the
+synthetic filler that inflated Legacy's tree is dropped by design and
+must never be re-run.
+
+#### 26.1.2.2 What Legacy's Distribution really is (measured live)
+
+Legacy `SwiftCode/SDK/Distribution/SwiftCodeSDK/` is 201,299,944
+bytes / 2,478 files / 575,450 lines. By content:
+
+| Part | Size | Nature |
+|---|---|---|
+| `languages/python/stubs/` — 46 fake `.pyi` files (46 modules × 1,200 stub functions + stub classes each) | 37.2 MB | Synthetic filler (`populate-distribution.py` §26.1.1) |
+| `languages/swift/diagnostics/` — 13 files × 3,500 fake rules | 18.6 MB | Synthetic filler (§26.1.2) |
+| `languages/swift/symbols/` — 12 files × 3,000 fake framework symbols | 23.5 MB | Synthetic filler (§26.1.2) |
+| `documentation/api/` — 7 files × 1,000 fake components | 6.5 MB | Synthetic filler (§26.1.3) |
+| `documentation/offline-index/search-index.json` — 25,000 fake tokens | 5.5 MB | Synthetic filler (§26.1.3) |
+| `documentation/tutorials/` | 0.3 MB | Synthetic filler (§26.1.3, small) |
+| `tests/fixtures/` — 25 fake fixture extensions | 0.02 MB | Synthetic filler (§4, small) |
+| `languages/typescript/` — real TS package/cli/runtime-adapter trees **including 32.7 MB of `node_modules`** (archiver et al.) | 75.0 MB | Real content (copied trees, incl. deps) |
+| `languages/python/` remainder, `resources/` (6.8 MB), `bin/` (0.9 MB), `lib/` (4.6 MB), `tools/` (4.3 MB), `templates/`, `extensions/`, `manifests/`, `examples/` | ~17.7 MB + python remainder | Real content (binaries, libs, schemas, templates) |
+| Archives `SwiftCodeSDK-1.0.0.{zip,tar.gz,tgz}` + `checksums.txt` | ~70.2 MB (outside the tree above; whole `Distribution/` dir is 271,554,921 bytes) | Build output of the same tree |
+
+Filler subtotal from `populate-distribution.py` alone: **~91.6 MB**
+of the 201 MB tree. The filler exists for one reason: the 200 MB
+size gates. `assemble-sdk.sh` §8 and `verify-sdk.sh` §26.1.3 both hard-fail
+(`exit 1`) when the assembled tree is under 200,000,000 bytes — a
+threshold only reachable with filler, since the real content is
+~110 MB including `node_modules`.
+
+The other 10 Legacy `Scripts/*.py` files are the same game, not
+regeneration: `cross-200mb.py`, `reach-threshold.py`,
+`reach-gate.py`, `expand-to-target.py`, `expand-final.py`,
+`final-gate.py`, `cross-gate-now.py`, `add-final-delta.py`,
+`add-final-push.py`, `add-fixtures.py` generate numbered fake
+benchmark/security-policy/guide documents into the tree (e.g.
+`cross-200mb.py` writes 120 fake benchmarks + 120 fake security
+policies into `documentation/guides/`; its destination path is a
+hardcoded absolute path under the author's home directory (`~/Downloads/...`)). None of them
+produces anything a user, a build, or a test consumes.
+
+#### 26.1.2.3 What regenerates for real (and what does not)
+
+Real regeneration, via the Wave 14 scripts (verified live by reading
+each script against the destination layout):
+
+- `assemble-sdk.sh` (§26.1.1–5, §7): writes `VERSION`/`LICENSE`/`README.md`
+  heredocs; copies the Swift release binaries + tools + `.a` /
+  `.swiftmodule` libs from `ycode/.build/release` (step 2, needs
+  `swift build`); writes the macOS-app / Swift-package template
+  heredocs and copies `sdk/templates/` (§26.1.3); copies the manifest
+  schema + example manifests from `sdk/Contracts/Manifest/` (§4);
+  rsyncs `sdk/package/`, `sdk/cli/`, `sdk/runtime-adapter/` (§5);
+  writes the Python runner stub, `swift-format.json`,
+  `sdk-defaults.json`, and `SDKManifest.json` (§5/§7).
+- `build-sdk.sh`: `swift build -c release` + `sdk-test-runner`.
+- `package-sdk.sh`: verify → zip + tar.gz → SHA-256 checksums →
+  clean-room extraction test (`--version` + `doctor`).
+- `verify-sdk.sh`: required files/tools → CLI `--version`/`doctor`
+  from the staging dir → size report → per-directory breakdown.
+
+Does NOT regenerate (dropped by design, do not re-run): everything
+in §26.1.2.2's filler rows — `populate-distribution.py` (§6 of Legacy's
+assemble, removed in Wave 14) and the 10 threshold-gaming scripts.
+The 200 MB gates are report-only in the destination scripts for the
+same reason. `manifests/components.json` (written by
+`populate-distribution.py`) was removed from `verify-sdk.sh`'s
+required-files check in Wave 14.
+
+#### 26.1.2.4 What this slice changed
+
+- **Portability fix (genuine defect in the regeneration path):**
+  all three scripts used BSD-only `stat -f '%z'`, which fails on GNU
+  stat (it reads `-f` as "filesystem" and treats the format string as
+  a path — verified live on this Linux box). Each script now probes
+  once (`stat -f '%z'` vs `stat -c '%s'`) into `_STAT_SIZE` and uses
+  it at every size call site (`assemble-sdk.sh` §8 total,
+  `verify-sdk.sh` §26.1.3 total + §4 per-directory breakdown,
+  `package-sdk.sh` zip/tgz sizes). macOS behaviour is unchanged.
+- **New smoke check `sdk/scripts/smoke-sdk-scripts.sh`** (96 lines,
+  runs with no Swift toolchain and no Legacy output): `bash -n` on
+  all five scripts; every `assemble-sdk.sh` source tree exists;
+  no filler references in live code (comments stripped first) and no
+  BSD-only `stat -f` at call sites; the 200 MB gate is report-only;
+  `verify-sdk.sh` and `package-sdk.sh` fail closed on a missing
+  distribution (exercised on copies in a temp dir); the size probe
+  agrees with `wc -c`; no `sdk/Distribution/` output is committed.
+  **Result: SMOKE PASS (8/8 checks)** on this machine.
+- No `sdk/Distribution/` directory exists in the destination repo
+  (verified: `git ls-files sdk/Distribution` is empty).
+
+#### 26.1.2.5 Still pending (Mac)
+
+- Full `assemble-sdk.sh` end-to-end run on Dylan's Mac (needs
+  `swift build` for the `swiftcode-sdk` binary + 5 tools; the
+  `swiftcode-sdk` executable product exists in `ycode/Package.swift`,
+  the 6 tools' products are the Wave 14 executables).
+- `build-sdk.sh`'s test step will fail until the `sdk-test-runner`
+  product exists: `ycode/Package.swift:148` notes "no
+  `sdk-test-runner`" — creating it is a `Package.swift` change for a
+  later wave (this slice may not edit `Package.swift`).
+- `assemble-sdk.sh` §5 rsyncs all of `sdk/package/` into the
+  distribution, including `node_modules/` (32 MB in Legacy's tree)
+  and `tests/` — faithful to Legacy, which did the same
+  (`--exclude='.git*'` only), and the CLI plausibly needs its
+  `node_modules` at runtime (Legacy's `bundle-sdk.sh` required
+  `cli/node_modules/archiver/package.json`). Whether to exclude
+  `node_modules`/`tests` from the shipped tree is a follow-up
+  decision, not silently changed here.
+
+---
+
+### 26.1.3 SDKAssistApplication presented-secret → key-ID-only — IMPLEMENTED
+
+#### 26.1.3.1 Correction to the spec's premise
+
+Spec §5's flag ("Legacy's `SDKAssistApplication.Field.apiKey` holds
+the presented secret") is **wrong about Legacy**. Verified live in
+Legacy `SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift`:
+Legacy's struct is flat and stores **`apiKeyID: UUID`** ("The
+developer API key the entitlements are bound to on approval",
+"Verified at submit time (key must exist, not be revoked or
+expired)"); its `submit` looks the key up by ID in
+`SDKAPIKeyStore.list()` — no secret is presented or stored at any
+point, and `approve(id:)` grants entitlements by `apiKeyID` alone.
+The presented-secret field was a **Wave 14 port deviation**, not
+Legacy behaviour: the destination's nested `Field.apiKey: String`
+stored the secret the submitter pasted, and the store persisted the
+whole `Field` (Keychain-backed, but still the secret at rest, and
+recoverable from every stored application record). This revision
+restores Legacy's shape and keeps Wave 15's improvement (below).
+
+#### 26.1.3.2 Design (no secret needed at approval time)
+
+Legacy genuinely does **not** require the secret at approval time,
+so no re-prompt or alternative flow is needed. The design keeps
+Wave 15 Slice B's proof-of-possession at submit (which is strictly
+stronger than Legacy's trust-the-caller-naming-a-key-ID) and removes
+the persistence:
+
+- `SDKAssistApplication.Field.apiKey: String` →
+  **`apiKeyID: UUID`**. The record stores only the key ID.
+- `SDKAssistApplicationStore.submit(_:apiKeySecret:)` (new
+  signature): validates the field; requires the extension to be
+  installed; **verifies the presented secret** via
+  `SDKAPIKeyStore.verify` (HMAC + metadata re-read; liveness —
+  revoked/expired — enforced there); requires
+  `verifiedKey.id == field.apiKeyID`, so an application can never be
+  bound to a key its submitter does not hold. The secret is dropped
+  after verification; the persisted record carries only the ID.
+- `approve(id:)` / `deny(id:)` / `revokeEntitlementsForExtension(_:)`
+  now use `application.field.apiKeyID` directly. `keyID(for:)` is
+  non-throwing (no unverified extraction from a secret on the
+  approval path). Grant calls re-read key metadata and refuse revoked
+  keys, so a key revoked between submit and approve fails closed —
+  exactly Legacy's "grant first, persist after" behaviour.
+- **Studio model** (`SDKStudioAssistAccessApplication`): `makeField`
+  now takes `apiKeyID: UUID`; `submit(apiKeySecret:)` extracts the
+  (unverified, naming-only) key ID from the presented secret via
+  `SDKAPIKeyCodec.extractPresentedKeyID`, rejects a secret naming a
+  different key than the model's `keyID` (existing-application
+  variant) with `.apiKeyInvalid`, then calls the store. The secret
+  stays a parameter only; the view's in-memory `SecureField` is still
+  cleared after submit (Wave 15 behaviour, unchanged). The view
+  itself needed no signature change.
+- **Migration of existing stored applications:** `Field` has custom
+  `Codable`: it decodes `apiKeyID` when present, else recovers the ID
+  from a pre–Wave 16 legacy `"apiKey"` secret via
+  `extractPresentedKeyID` (unverified parse, name only — trusted
+  only as a pointer; approval re-reads metadata) and discards the
+  secret; it **never writes** the legacy `"apiKey"` key, so a
+  migrated record re-encodes with the ID only and the secret leaves
+  the store on the next persist. A record with neither a usable ID
+  nor a parseable legacy secret fails to decode and is skipped by
+  `list()` — the same treatment as any corrupt record today. No
+  stored application is silently dropped that was decodable before:
+  every Wave 14/15 record carries a parseable secret (it was produced
+  by `SDKAPIKeyStore.createKey`).
+
+#### 26.1.3.3 What changed (files)
+
+- `ycode/Sources/YcodeSDK/Host/APIKeys/SDKAssistApplication.swift`
+  (+122/−~30): `Field.apiKeyID`, custom `Codable` with legacy
+  migration, `submit(_:apiKeySecret:)` with the binding check,
+  direct `keyID(for:)`, updated header/field/store comments.
+- `ycode/Sources/YcodeSDKStudio/SDKStudioModels.swift`:
+  `makeField(apiKeyID:)`, `submit(apiKeySecret:)` with
+  extract + `keyID`-mismatch rejection.
+- `ycode/Sources/ycode-ide/SDKStudio/SDKStudioSecurityViews.swift`:
+  header comment only (store persists only the key ID now).
+- `ycode/Tests/YcodeSDKTests/SDKAssistApplicationTests.swift`:
+  all constructors/submits moved to the new shape; 3 new tests —
+  `testSubmitRejectsSecretForDifferentKey`,
+  `testSubmittedRecordStoresKeyIDNotSecret` (encoded record contains
+  the key ID, no `sc_dev_` fragment, no `"apiKey"` key),
+  `testLegacySecretRecordMigratesToKeyID` (legacy JSON with a
+  from-parts fake secret decodes to the right ID and re-encodes
+  secret-free). Fake secret assembled from parts (zero signature
+  bytes — verifies nowhere), no real key material anywhere.
+- `ycode/Tests/YcodeSDKTests/SDKStudioTests.swift`: `makeField`
+  call updated to `makeField(apiKeyID:)` + `field.apiKeyID` assertion.
+
+#### 26.1.3.4 Verification status and gaps
+
+- Swift static checks only (no Swift toolchain in this environment):
+  delimiter balance verified on all five edited Swift files; no
+  TODO/FIXME; no remaining references to the old API
+  (`makeField(apiKeySecret:)`, `submit(field)`, `field.apiKey`)
+  anywhere under `ycode/Sources` / `ycode/Tests`; `scan-public`
+  reports 0 findings in Slice A files.
+- **Mac `swift build` / `swift test` pending** (notably
+  `SDKAssistApplicationTests` + `SDKStudioTests`): the custom
+  `Field.init(from:)`/`encode(to:)` and the new `submit` signature
+  are uncompiled here. The memberwise `Field` init is explicit (not
+  synthesized), so adding `init(from:)` does not remove it — call
+  sites are safe on that point — but compilation is still unverified.
+- **Untested branch:** `SDKStudioModels.submit(apiKeySecret:)`'s
+  `keyID`-mismatch rejection has no unit test (it needs the shared
+  store + install record + real key; store-level
+  `testSubmitRejectsSecretForDifferentKey` covers the binding check
+  itself). The model's extract-failure path (unparseable secret →
+  `.apiKeyInvalid`) is likewise exercised only through the store
+  tests, not at the model layer.
+
+---
+
+### 26.1.4 Evidence
+
+- **Item 1:** parsed live — destination + Legacy schema enums
+  (identical 32-entry sets), destination + Legacy `validate.mjs`
+  mirrors (identical 32), `SDKCapabilityID` case lists in both repos
+  (34 each, identical sets), `ScopesIDLists` TS + Swift in both repos
+  (32 entries each, identical sets; `cap − scopes` = `use.Security`,
+  `assist.main`), Legacy `SDKManifestValidator.supportedCapabilities`
+  (registry ∪ scopes), Legacy + destination
+  `SDKCapabilityRegistry` grantability comments, wild manifests listed
+  in §26.1.1.3 (capability ids enumerated from the JSON files). Test run:
+  `npm run build && npm test` in `sdk/package/` → **115/115 pass**
+  (112 baseline + 3 new pin tests); `node --check` clean on both
+  edited `.mjs` files.
+- **Item 2:** measured live — `du -sb` / file counts / `wc -l` over
+  Legacy `Distribution/SwiftCodeSDK/` (201,299,944 bytes, 2,478 files,
+  575,450 lines); filler subtotals per `populate-distribution.py`
+  section (§26.1.1–§4); read all four Legacy SDK scripts + all 11
+  `Scripts/*.py` (headers + generation loops); read all four
+  destination scripts; `stat -f '%z'` failure reproduced on this
+  Linux box (GNU stat treats the format as a path); smoke script run
+  → **SMOKE PASS 8/8** (`bash sdk/scripts/smoke-sdk-scripts.sh`).
+- **Item 3:** read live — Legacy `SDKAssistApplication.swift`
+  (flat struct, `apiKeyID: UUID`, submit-by-ID lookup,
+  approve-by-ID grant) vs destination pre-change `Field.apiKey:
+  String` + `submit(field)` persisting the secret; destination
+  `SDKAPIKeyCodec.extractPresentedKeyID` (unverified parse, documented
+  as name-only) and `SDKAPIKeyStore.verify` (HMAC + liveness). Static
+  checks only — see §26.1.3.4.
+- **Clean-room:** no reference Xcode copy, Ghidra, simulator IPSW,
+  `research/dirty/`, or Ghidra project was opened, run, or observed.
+  Legacy source is Dylan's own code; direct porting was authorised
+  under MIT. Specs + public docs + Legacy (Dylan's own) code only.
+- **Incidental findings (not Slice A, not changed):**
+  `scan-public` reports 2 findings in
+  `ycode/Tests/YcodeGoogleAuthTests/GoogleADCAndAntigravityTests.swift`
+  (home-folder fixture paths, lines 99/117) — that file is
+  unmodified vs `d7cf1872` (Wave 15), so the findings are
+  pre-existing at HEAD, not introduced here. Spec §5's flag
+  misattributes the presented-secret field to Legacy (§26.1.3.1) — the
+  spec itself was not edited (forbidden to this slice); the correction
+  belongs in the spec at §5 / §19 item 8. `ycode/Package.swift:148`
+  notes the missing `sdk-test-runner` product (§26.1.2.5).
+
+### 26.1.5 File inventory (destination repo only, uncommitted)
+
+Modified (10 files, `git diff --stat`: 439 insertions, 75 deletions):
+
+- `sdk/cli/commands/validate.mjs` (+30) — decision comment above
+  `CAPABILITY_IDS`; list unchanged.
+- `sdk/package/tests/scopes-sync.test.mjs` (+126) — "validate.mjs
+  manifest vocabulary pin" describe block, 3 tests.
+- `sdk/scripts/assemble-sdk.sh` (+11/−) — portable `_STAT_SIZE`
+  probe + use at the §8 size call.
+- `sdk/scripts/package-sdk.sh` (+12/−) — portable `_STAT_SIZE`
+  probe + use at zip/tgz size calls.
+- `sdk/scripts/verify-sdk.sh` (+12/−) — portable `_STAT_SIZE`
+  probe + use at §26.1.3 total + §4 breakdown.
+- `ycode/Sources/YcodeSDK/Host/APIKeys/SDKAssistApplication.swift`
+  — `Field.apiKeyID`, custom `Codable` + legacy migration,
+  `submit(_:apiKeySecret:)` binding check, direct `keyID(for:)`.
+- `ycode/Sources/YcodeSDKStudio/SDKStudioModels.swift` —
+  `makeField(apiKeyID:)`, `submit(apiKeySecret:)` extract + mismatch
+  rejection.
+- `ycode/Sources/ycode-ide/SDKStudio/SDKStudioSecurityViews.swift`
+  (+3/−) — header comment only.
+- `ycode/Tests/YcodeSDKTests/SDKAssistApplicationTests.swift` —
+  new-shape constructors/submits + 3 new tests.
+- `ycode/Tests/YcodeSDKTests/SDKStudioTests.swift` —
+  `makeField(apiKeyID:)` + `field.apiKeyID` assertion.
+
+Created (1 file, untracked):
+
+- `sdk/scripts/smoke-sdk-scripts.sh` (96 lines, executable) — SDK
+  distribution regeneration smoke check (see §26.1.2.4).
+
+Not touched, as instructed: `ycode/Package.swift`, the ledger
+(`ledgers/MIGRATION_FEATURE_PARITY.md` — no row changes state),
+`specs/ide/sdk-platform.md` (corrections for §5/§19 item 8 and the
+§23.6/§24.6 decision are in this draft for the coordinator to fold
+in), SwiftCode-Legacy (clean at `d51a8f0d`), SwiftCode-New
+(pre-existing working-tree residue untouched by this slice).
+
+Ledger rows: none change state. The validate decision keeps the
+current vocabulary; Distribution rows stay NOT STARTED by decision
+(§26.1.2.1); the Assist revision corrects already-IMPLEMENTED rows in
+place.
+
+### 26.2 Slice B — Muse Code MSP bridge + lifecycle + slash commands + executeTurn + normalizeToolName
+
+> Draft for the coordinator to merge into `specs/ide/sdk-platform.md`
+> (suggested: a new §26, plus a one-line update to §23.4's "Not
+> ported" paragraph and §23.6's bridge row, which this slice closes
+> except for the honestly-unavailable items in §26.2.2.6 below).
+> Do NOT edit the ledger from this draft; the coordinator marks rows
+> 580–585 (see §26.2.2.8).
+
+Sources read live for this section (Legacy read-only, main
+`d51a8f0d`; destination main `d7cf1872` at slice start):
+`SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseCodeMSPBridge.swift`
+(368 lines), `MetaAssistLifecycleManager.swift` (141),
+`MetaSlashCommandManager.swift` (655),
+`MuseCodeCLIHelper.swift` (523),
+`MuseOtherModelsBridge.swift` (732),
+`MetaAssistProvider.swift` (785, `executeTurn` /
+`normalizeToolName` / `fetchModels` / `switchModel` /
+`unqueueTurn` / `cancelTurn` / `isRateLimitError`).
+Destination: `ycode/Sources/YcodeAssistant/` (host; the only
+target touched — no `Package.swift` change, no new target),
+`ycode/Tests/YcodeAssistantTests/`.
+Public corroboration (secondary — Legacy is the source):
+Meta's own Muse Code docs say `muse serve` "hosts a session
+over stdio using Meta's session protocol" and `muse schema`
+exports that wire schema, with `@muse-code/sdk` / `muse-code-sdk`
+wrapping it; the CLI's `--help` (v1.4.14) lists `serve`,
+`skills`, `mcp`, `auth`, `login`, `logout` among its commands.
+
+### 26.2.1 What landed
+
+`MetaAssistProvider.send` no longer throws
+`AssistantError.unsupported` naming the missing bridge. It runs
+a real turn through the MSP host, under Ycode's Assist host
+only: no parallel registry, no transplanted session loop, no
+Autopilot, no bypass of the approval gate. Every file is in the
+existing `YcodeAssistant` target (which depends only on
+`YcodeSubprocess`); `YcodeMCP` is not imported anywhere in this
+slice, so the dependency direction (`YcodeMCP` → `YcodeAssistant`)
+is preserved.
+
+| Legacy piece | Destination |
+|---|---|
+| `MuseCodeMSPBridge` (NDJSON JSON-RPC host session, `Process` + pipes, string request ids, pending continuations, `approval/request` cookbook ack) | `MuseCodeMSPBridge` (actor, `ycode/Sources/YcodeAssistant/MuseCodeMSPBridge.swift`) — `startHost` / `stopHost` / `sendCommand` / `sendNotification` / `sendResponse` / `sendRPCError`, `MuseCodeMSPError` (`MspError`), `MuseCodeCLIError`, `MuseUUIDv7` |
+| `MetaAssistLifecycleManager` (start/stop/restart, 5 s health check, 4 s restart throttle, restart count) | `MetaAssistLifecycleManager` (actor, same file name) — `startMonitoring` / `stopMonitoring` / `startEngine` / `stopEngine` / `restartEngine` / `ensureRunning` / `healthCheckOnce` |
+| `MetaSlashCommandManager` (36 built-ins, `muse skills list` capture, search, `executeCommand`) | `MetaSlashCommandManager` (struct, same file name) — `builtInCommands` (36, verbatim), `parseSkillsList`, `mergeCapturedSkills`, `captureCommandsFromTerminal`, `searchCommands`, `executeCommand` returning `(text, effect)` |
+| `MuseOtherModelsBridge` (model resolution, local proxy, `<think>` splitter, ```tool_call parsing) | `MuseOtherModelsBridge` (same file name) — `availableOtherModels` / `resolveActiveModel` (pure, injected inputs), `MuseThinkingTokenizer`, `MuseToolCallParser`, `MuseLocalProxyServer` on `LoopbackServer` |
+| `MetaAssistProvider.executeTurn` (initialize, session start/resume, turn/start, notification routing, turn tracker, rate-limit failover trigger) | `MetaAssistTurnExecutor.executeTurn` (`ycode/Sources/YcodeAssistant/MetaAssistTurnExecutor.swift`) + `MetaTurnNotificationRouter` + `MetaTurnState` |
+| `MetaAssistProvider.normalizeToolName` | `MetaToolNameNormalizer.normalize` (same file) — prefix strip + synonym map, resolved against injected Ycode MCP ids |
+| `MetaAssistProvider.fetchModels` (`model/list`) | `MetaAssistProvider.fetchModels` (live list, fallback otherwise) + `MetaAssistTurnExecutor.parseModelList` / `parseSessionID` |
+| `switchModel` / `unqueueTurn` / `cancelTurn` / `isRateLimitError` | `MetaAssistTurnExecutor` methods (same names, same rules) |
+| `MuseCodeCLIError` (5 cases) | Same enum in `MuseCodeMSPBridge.swift` |
+
+### 26.2.2 The wire protocol (verified live from Legacy)
+
+Transport: one `muse serve` child process (argv `serve`, or
+`--base-url <url> serve` when the other-models proxy serves the
+models), NDJSON over stdin/stdout — one JSON-RPC 2.0 message per
+line, `jsonrpc: "2.0"`. Request ids are UUID strings
+(Legacy's `sendCommand` used `UUID().uuidString`); session/turn
+`commandId`s are UUIDv7. Environment: inherited, with
+`/opt/homebrew/bin:/usr/local/bin` appended to `PATH`.
+`SIGPIPE` is ignored (`SIG_IGN`, as in `ACPClient`) so a write
+to an exited host fails instead of ending Ycode.
+
+Client → host requests (all verified in Legacy's provider):
+
+| Method | Params | Notes |
+|---|---|---|
+| `initialize` | `clientInfo: {name: "swiftcode", title: "SwiftCode", version: "1.0.0"}` | Once per bridge lifetime; followed by the `initialized` notification |
+| `model/list` | `{}` | `result.models[]`: `modelId`, `displayLabel`, `releaseDate`, `description`, `contextLimit` (default 1,000,000), `outputLimit` (default 128,000), `isDefault`, `variants`, `defaultReasoningEffort`; empty/missing → fallback catalog |
+| `session/start` | `commandId` (UUIDv7), `workspaceRoot`, `modelId` | Session id read as `result.session.sessionId`, else `session.sessionId`, else top-level `sessionId`, else the command id |
+| `session/resume` | `sessionId`, `history: "inline"` | Failure clears the cached session and a fresh `session/start` follows |
+| `session/setModel` | `sessionId`, `commandId`, `model: {providerId, modelId}` | Mid-session model switch; default `providerId` is `"openai"` (Legacy's default argument) |
+| `turn/start` | `commandId` (UUIDv7), `sessionId`, `reasoningEffort`, `ifBusy: "queue"`, `displayText`, `input: [{type: "text", text}]` | Turn id read from `result.turnId`; on "session is not loaded on this host" (`MspError.kind == "sessionNotLoaded"` or the text) a fresh session is started and the turn retried once |
+| `turn/unqueue` | `sessionId`, `commandId`, `turnId` | Reclaims a pending turn |
+| `turn/cancel` | `sessionId`, `commandId`, `turnId?` | `already_terminal` (`MspError.reason`) is swallowed |
+| `approval/decide` | `sessionId`, `approvalId`, `requirementId`, `choiceId` (`allow_once` / `abort`), `feedback: null` | `requirementId` is `currentRequirementId` or `requirementId` from the request, else `{approvalId, sourceIndex: 0}` |
+
+Host → client. Server requests (id + method): answered by the
+bridge — a custom handler's result, else `{}` for
+`approval/request` (the Muse SDK Cookbook acknowledgement, "I
+am handling this"), else JSON-RPC `-32601 Method not found`.
+Notifications: `item/started`, `item/delta`, `item/completed`,
+`turn/completed`, `turn/unqueued`, `session/modelChanged`,
+`approval/requested`, `approval/resolved`. Responses: an
+`error` resumes the pending continuation with
+`MuseCodeMSPError` (code, message, `kind` from
+`error.data["kind"]`, `data`); a `result` resumes it with the
+whole response message (Legacy returned the whole response
+dict; callers read `["result"]`).
+
+### 26.2.3 Turn execution (`MetaAssistTurnExecutor.executeTurn`)
+
+1. Preconditions: no located `muse` binary →
+   `MuseCodeCLIError.executableNotFound`; no credential file
+   and no proxy URL → `AssistantError.notSignedIn` with the
+   "run `muse` once in Terminal" hint. Ycode never launches an
+   interactive `muse login`.
+2. `bridge.startHost` (no-op when already running), then the
+   `initialize` + `initialized` handshake once per bridge
+   lifetime.
+3. Session: resume the cached session for the same workspace
+   root, else `session/start`.
+4. Turn: `turn/start` with the request's model (default
+   `muse-wonder-1.0`), the provider's reasoning effort
+   (default `"high"`, from `AssistantSettings.metaReasoningEffort`),
+   `ifBusy: "queue"`, and the effective prompt — the host's
+   instructions, then the last 12 history turns (excluding a
+   duplicate of the current prompt), then `# CURRENT USER
+   REQUEST`. See §26.2.2.6 for what Legacy's prompt had that this
+   does not.
+5. Notification routing (`MetaTurnNotificationRouter`, pure
+   over fixtures — see §26.2.2.7):
+   - `item/started` (`toolCall` / `userShell`): the tool name
+     is normalized (see §26.2.2.4); an `.activity` line names it
+     (`name: path|command|query|pattern`, Hermes' style).
+   - `item/delta`: `field == "text"` (or no field, or kind
+     `agentMessage`) → `.text`; `field` starting with
+     `summary` or kind `reasoning` → thinking, accumulated and
+     emitted as `.activity("Thinking: …")` once the buffer
+     holds a blank line or passes 240 characters (the ACP
+     provider's precedent — `ChatEvent` has no thinking case);
+     `field == "output"` or a tool kind → tracked on the item
+     and reported as tool-progress activity, never dumped into
+     chat text (Legacy's own rule).
+   - `item/completed` (`toolCall` / `userShell`): `.activity("<name> ✓")`
+     with the visible output (or the tracked output) recorded
+     on the turn.
+   - `turn/completed`: records the turn in `completedTurns`
+     and resumes the turn; `turn/unqueued` resumes only when
+     its id is this turn's.
+   - `session/modelChanged`: recorded in `reportedModelID`
+     (the host reads it; settings are not written from here).
+   - `approval/requested`: see §26.2.2.5.
+   - `approval/resolved`: observed only.
+6. The caller (`MetaAssistProvider.send`) yields `.finished`
+   after `executeTurn` returns. `send` maps
+   `MuseCodeCLIError` to `AssistantError.failed` and never
+   fabricates a reply or reroutes the turn.
+
+The executor is an actor with a shared instance
+(`MetaAssistTurnExecutor.shared`): a second turn waits for the
+first, because the shared bridge carries one notification
+handler at a time. Session state (`activeSessionID`,
+`activeWorkspaceRoot`, `activeTurnID`, `completedTurns`,
+`lastTurnUnmappedToolNames`, `reportedModelID`) lives on the
+executor, not on the provider struct — `AssistantBackends`
+builds a fresh provider per call, so struct state would not
+survive between turns.
+
+### 26.2.4 `normalizeToolName` — against Ycode's MCP tools
+
+`MetaToolNameNormalizer.normalize(_:knownToolIDs:)` ports
+Legacy's rules verbatim, then changes the registry lookup:
+
+1. Strip one namespace prefix (`muse.`, `Muse.`, `muse_`,
+   `Muse_`, `muse:`, `Muse:`, `muse-`, `Muse-`), first match.
+2. Synonyms (Legacy, verbatim): `use_workers` / `useworkers` /
+   `workers` / `workflow` / `use_worker` → `use_workers`;
+   `plan_askuser` / `planaskuser` / `askuser` / `ask_user` →
+   `plan-AskUser` (the hyphenated id is kept — the documented
+   intentional exception); `report_to_user` / `reporttouser` /
+   `report` → `report_to_user`.
+3. Registry: exact, then case-insensitive, against the injected
+   `knownToolIDs` — the set of Ycode MCP tool ids. Legacy
+   consulted `AssistManager.shared.registry`; that registry does
+   not exist in Ycode, and `YcodeAssistant` cannot import
+   `YcodeMCP` (the dependency runs the other way), so the set
+   is injected: `MetaAssistProvider.knownToolIDs` (default
+   empty), threaded through `send` → `executeTurn` → the
+   router. The full alias table stays where it belongs —
+   `MCPServer.toolAliases`, applied at `tools/call` time —
+   except the three aliases this executor can produce on its
+   own (`bash` / `sh` / `zsh` → `use_terminal`, Legacy's table,
+   Wave 4).
+4. No match → the cleaned name, source `.passthrough`, and the
+   name is appended to the turn's `unmappedToolNames`
+   (deduped, in order; exposed as
+   `executor.lastTurnUnmappedToolNames`). Until the host injects
+   the live catalogue, every non-synonym name is recorded
+   unmapped rather than silently claimed to exist.
+
+Host wiring still open (coordinator): pass the live catalogue
+(`Set(server.tools.map(\.name))` plus `MCPServer.toolAliases`
+keys) into `AssistantBackends` → `MetaAssistProvider
+(knownToolIDs:)` — or through `attaching(_:)` when the
+attachment carries it. The provider cannot fetch
+`tools/list` itself: it has no MCP endpoint without the host.
+
+### 26.2.5 Approvals — the gate, and what Autopilot did
+
+Legacy decided approvals in the provider and, in Autopilot
+mode, approved everything at system level (`isAllowed =
+isAutopilot ? true : …`). That is NOT ported. The Ycode rule:
+
+- The bridge still acknowledges the server request
+  `approval/request` with `{}` immediately (the cookbook
+  acknowledgement — "I am handling this", not a decision).
+- The notification `approval/requested` is answered with
+  `approval/decide` only after the host's permission UI
+  decides: `AgentAttachment.requestPermission` with the
+  options `allow_once` ("Allow once") and `abort` ("Abort").
+  Only the id `allow_once` ever reaches the host as an allow;
+  anything else, including a cancelled prompt, becomes
+  `abort`.
+- With no attachment (chat mode, or any caller that did not
+  attach one), the decision is `abort` — deny by default.
+
+`MetaAssistProvider` conforms to `AgentAttachable` so the IDE
+model attaches it in agent mode (the same path as the CLI
+agents and ACP). Two consequences the coordinator should
+know: (a) the attachment's `proposeChange` / `readFile`
+hooks are unused by this provider — the `muse` host edits
+files itself and Ycode cannot intercept those edits; (b) the
+IDE model appends "Agent mode: Ycode's tools are attached;
+each change is a proposal you review" for every attached
+provider, which overclaims for Meta (Ycode's MCP server is
+not connected to the `muse` host — see §26.2.2.6). That line
+should be qualified by the host for `.metaAssist`.
+
+### 26.2.6 What was NOT ported, honestly unavailable
+
+| Piece | Exact blocker |
+|---|---|
+| Ycode MCP tool execution inside the provider | `YcodeAssistant` cannot depend on `YcodeMCP`. Host tool calls are named and reported as `.activity` only. Connecting Ycode's MCP endpoint to `muse serve` would need a documented CLI mechanism; Legacy passed no MCP configuration to the host, and Meta's public docs describe `muse serve` only as hosting the session protocol. |
+| Legacy's SystemIndex turn prompt (`baselinePrompt`, retrieved instructions, full native-tool catalog with JSON schemas) | No `SystemIndexService` in Ycode; the MCP catalog cannot be listed from this target. The turn carries the host's instructions + history + request only. |
+| `MuseOtherModelsBridge.executeTurn` as a direct LLM turn | Needs `LLMService.streamChat` + `AssistManager` tool execution, neither of which exists in Ycode. Replaced by the proxy path (§26.2.2.7) + the host router's failover. Its portable pieces survive: `MuseThinkingTokenizer` (`<think>` splitting) and `MuseToolCallParser` (```tool_call parsing, names normalized, execution not included). The Autopilot rule inside it (approvals bypassed entirely) is not recreated anywhere. |
+| Rate-limit failover inside the turn (Legacy's catch ran the turn again through the other-models bridge) | Same missing `LLMService` path. `isRateLimitError` is ported verbatim so the host-level router (Wave 15 failover) can fail over across providers instead. |
+| `MuseCodeCLIHelper.readAuthInfo` / `getUserEmail` | Reads credential files (access tokens / API keys / email). Ycode checks existence only, never reads. Deliberate, not a gap to close. |
+| `MuseCodeCLIHelper.runLoginFlow` / `MetaAccountAuthService` | Interactive browser sign-in (`muse login`, `NSWorkspace.open`). A turn without credentials fails honestly with a sign-in hint; the `/login` slash command returns the `.startLogin` effect for the host. |
+| `MuseCodeCLIHelper.ensureMuseConfigHealth` | Rewrites `~/.config/muse/settings.json` (schema version, default model, reasoning efforts). Ycode never rewrites the user's Muse config. |
+| `MuseCodeCLIHelper.installCLIViaNPM` | Installs `@muse-code/sdk` globally via npm. Out of scope; the provider reports `.notInstalled` with the install hint. |
+| `MuseCodeCLIHelper.MuseAuthConfigFile` | Decodes credential files (see `readAuthInfo` above). Not ported. |
+| `MetaAssistLifecycleManager` Combine/`AppSettings`/`ProjectSessionStore` observation | No Combine in this target; the host supplies `workspaceRoot`, the `muse` executable, and `isMetaActive` as closures. |
+| Turn timeout / cancellation of a hung turn | Legacy waited indefinitely on `turn/completed` too. `cancelTurn` exists (`turn/cancel`, `already_terminal` swallowed) and `bridge.stopHost()` fails pending requests, but `executeTurn` has no timeout and a cancelled consumer leaks the inner turn task until the host answers. A turn timeout belongs to a later slice. |
+| `/clear` and `/login` host effects | The manager returns `.clearSession` / `.startLogin` effects; the host must apply them (clear the conversation / start the Meta login flow). The provider itself applies neither. |
+| Legacy `MuseOtherModelsBridge` availability/rate-limit filtering (`isAvailable`, `isCurrentlyRateLimited`) | `AssistCandidateModel` carries no such flags; eligibility/quarantine is the router's `eligibleCandidates`. The bridge filters only on provider (`meta_assist`) and the `muse-` prefix. |
+
+### 26.2.7 The other-models bridge (`MuseOtherModelsBridge`)
+
+What it bridges: the Muse SDK session runs on a third-party /
+custom / cloud model instead of Meta's own. Mechanism (Legacy,
+verbatim): the MSP host is started with
+`--base-url http://127.0.0.1:<port>` pointing at a local
+loopback proxy. The proxy serves the resolved other model:
+
+- `/muse-code/models`, `/models`, `/v1/models` — the dynamic
+  catalog: one model, Legacy's verbatim entry shape
+  (`muse-code` metadata, family `custom-bridge`, release date
+  `2026-10-12`, `attachment`/`reasoning`/`tool_call: true`,
+  `limit: {context: 128_000, output: 16_384}`,
+  `options: {reasoningEffort: "high"}`).
+- `/responses`, `/v1/responses`, `/chat/completions` — the
+  request body is parsed as `messages[]`, else `input[]`
+  (empty → a single `"Hello"` user message), streamed through
+  the injected `streamChat` closure as
+  `response.output_text.delta` SSE events, then
+  `response.completed`. Anything else → 404.
+
+The proxy is rebuilt on Ycode's portable `LoopbackServer`
+(BSD sockets, already in this target) instead of Legacy's
+`NWListener` (Network framework, Apple-only). Default port is
+still 19855 when free, otherwise any free loopback port
+(`LoopbackServer` reports the real one). One deliberate
+difference: `LoopbackServer` always answers
+`Connection: close`, so the proxy does not send Legacy's
+`Connection: keep-alive` (a duplicate header would confuse
+the host); streaming is unaffected.
+
+Model resolution is pure over injected inputs (no discovery
+service, no settings store):
+
+- `availableOtherModels(discovered:customEndpoints:cloudModelIDs:onlyUseFree:)`:
+  discovered candidates minus `meta_assist` / `muse-`
+  models, plus custom-endpoint models, plus cloud models
+  (the default `swiftcode-cloud` id is always listed when no
+  cloud model was discovered), then the free-only filter
+  (`AssistModelEligibilityPolicy`), then the fallbacks when
+  empty — `openrouter/free` when free-only, else Legacy's
+  five paid fallbacks (`gpt-4o`, `gpt-4o-mini`,
+  `claude-3-7-sonnet-20250219`, `gemini-2.5-pro`,
+  `gemini-2.5-flash`).
+- `resolveActiveModel(...)` — Legacy's five steps in order:
+  (1) the explicitly selected other model (cloud ids resolve
+  to `SwiftCode Cloud: <endpoint>`; a custom-endpoint hit to
+  `"<name>: <id>"`; otherwise the discovered display name, or
+  the router's provider display name via
+  `AssistModelSpecification` — Legacy used
+  `LLMService.provider(for:)` here); (2) the first custom
+  endpoint's first eligible model; (3) the user's overall
+  selected model when it is not a Meta model; (4) the first
+  agent-compatible discovered model; (5) `openrouter/free` or
+  `gpt-4o`.
+
+The `streamChat` closure is injected by whoever starts the
+proxy: the host routes the resolved model through Ycode's own
+provider dispatch (`AssistantBackends.provider(forModelID:)`),
+which is the Ycode equivalent of Legacy's
+`LLMService.streamChat`. The bridge never picks a provider
+itself. The provider's `proxyBaseURL` is nil until the host
+starts a proxy and hands it over — other-model mode is off by
+default, and nothing in this slice starts a proxy on its own.
+
+### 26.2.8 Slash commands
+
+All 36 built-ins are ported verbatim (id, name, title,
+description, syntax, icon, category, arguments) — see
+`MetaSlashCommandManager.builtInCommands`. Count verified
+against Legacy: 36 ids, unique, all names `/`-prefixed.
+Categories: Model (effort, model), Skills (skills, plugins),
+Research (deep-research), Agent (goal, stop, init, subagents,
+tasks, workflows), System (rules, voice, feedback, mcp, login,
+logout), Session (export, copy, name, resume, fork, clear,
+rewind, side, compact, recap, status, usage, questions),
+Configuration (settings, keymap, theme, permissions, hud),
+General (help).
+
+- `muse skills list` capture: TSV parsing is the pure
+  `parseSkillsList(_:)` (name + one more tab field minimum;
+  `#` lines and blank names skipped; description from the
+  fifth field, else the fourth, else `"Execute <name>
+  skill"`; title is the name with `-`/`_` as spaces,
+  capitalized; id `skill-<name>`, category `"Meta Skills"`).
+  The runner uses a plain `Process` with Legacy's 15-second
+  timeout — enforced here by terminating the child (Legacy's
+  `runProcess` accepted a timeout but never enforced it).
+  Failure, a missing binary, or empty output leaves the
+  built-ins untouched, exactly as Legacy silently fell back.
+- `searchCommands`: name/title/description/category, leading
+  `/` ignored, empty query returns everything.
+- `executeCommand` returns `(text, effect)`; the host applies
+  the effect. Legacy's wording is kept verbatim for the four
+  effect commands (`effort` → `.setReasoningEffort`,
+  `model` → `.setModel`, `clear` → `.clearSession`,
+  `login` → `.startLogin`); every other command returns its
+  full command string as `.insertText`.
+- Faithful quirk kept: the built-in `/model` choices list
+  `muse-swift-2.0`, which is not in the fallback model catalog.
+  Legacy shipped the same mismatch.
+
+### 26.2.9 Lifecycle manager
+
+Actor, shared instance. `startMonitoring(workspaceRoot:executable:isMetaActive:)`
+(prewarms once, then the health loop), `stopMonitoring`,
+`startEngine` (missing binary → idle, no throw — Legacy's
+behaviour), `stopEngine` (sets the intentional-stop flag),
+`restartEngine` (Legacy's quirk kept: `stopEngine` sets the
+flag, `startEngine` clears it, so a restart never suppresses
+the health check), `ensureRunning`, and `healthCheckOnce`
+(the loop body as a pure step, so tests can drive it):
+restarts only when monitoring, Meta is active, the stop was
+not intentional, a binary and workspace are supplied, the
+bridge is not running, and the last restart attempt is more
+than 4 seconds ago. Numbers are Legacy's verbatim: check
+every 5 seconds, at most one auto-restart per 4 seconds,
+`restartCount` incremented per attempt.
+
+### 26.2.10 Availability / discovery (consistency with §23.4)
+
+Unchanged gate: binary + credential-file existence only,
+never read. `availability()` now goes one step further than
+Wave 15: installed + signed in → it asks the bridge for the
+live list (`model/list`, 15-second timeout so a hung host
+cannot hang the provider survey) and reports `.ready` with
+the live models, falling back to the three-model catalog on
+any failure. The fallback catalog is unchanged (context
+1,007,997, output 128,000, reasoning variants). `send` with a
+missing binary throws `.failed` with the install hint; with
+no credentials, `.notSignedIn` with the sign-in hint.
+
+`AssistantSettings` gains one field (Wave 16):
+`metaReasoningEffort: String = "high"` (Legacy
+`AppSettings.metaReasoningEffort`), decoded leniently
+(missing key keeps the default), passed to the provider by
+`AssistantBackends.provider(.metaAssist)`. No other settings
+were added: the model travels in `ChatRequest.model`, and the
+other-model toggles live with the host that owns the proxy.
+
+### 26.2.11 File inventory (destination only, uncommitted)
+
+New files (all `ycode/Sources/YcodeAssistant/`, existing
+target — no `Package.swift` change, no new target):
+
+| File | Lines | Contents |
+|---|---|---|
+| `MuseCodeMSPBridge.swift` | 388 | `MuseCodeMSPError`, `MuseCodeCLIError`, `MuseUUIDv7`, `MuseCodeMSPBridge` actor |
+| `MetaAssistLifecycleManager.swift` | 165 | `MetaAssistLifecycleManager` actor |
+| `MetaSlashCommandManager.swift` | 489 | `MetaCommandArgument`, `MetaSlashCommand`, `MetaSlashCommandEffect`, `MetaSlashCommandManager` |
+| `MuseOtherModelsBridge.swift` | 573 | `MuseOtherModel`, `MuseCustomEndpoint`, `MuseOtherModelResolution`, `MuseOtherModelsBridge`, `MuseThinkingTokenizer`, `MuseToolCallParser`, `MuseLocalProxyServer` |
+| `MetaAssistTurnExecutor.swift` | 807 | `MetaToolNameSource`, `MetaNormalizedToolName`, `MetaToolNameNormalizer`, `MetaTurnItemState`, `MetaTurnEvent`, `MetaTurnNotificationRouter`, `MetaTurnState`, `MetaAssistTurnExecutor` |
+
+Modified files:
+
+| File | Change |
+|---|---|
+| `ycode/Sources/YcodeAssistant/MetaAssistProvider.swift` | Header rewritten (bridge ported); `bridgeUnavailableMessage` removed; new init params (`reasoningEffort`, `attachment`, `knownToolIDs`, `proxyBaseURL`, `bridge`, `executor`); `fetchModels` (live `model/list`); `availability()` (live list with 15 s timeout, fallback otherwise); `send` runs a real turn; `AgentAttachable` conformance; private `withTimeout` helper |
+| `ycode/Sources/YcodeAssistant/AssistantSettings.swift` | `metaReasoningEffort = "high"` + lenient decode; `provider(.metaAssist)` passes it (note: the same diff hunk region also carries a sibling slice's `alternativeKeysEnabled` — not this slice's) |
+| `ycode/Tests/YcodeAssistantTests/AssistModelRoutingTests.swift` | Wave 15 test `sendFailsHonestlyWithoutBridge` renamed to `sendFailsHonestlyWithoutBinary` and updated to the new `.failed` behaviour |
+
+Tests: `ycode/Tests/YcodeAssistantTests/MetaAssistBridgeTests.swift`
+(728 lines, swift-testing, `@Suite(.serialized)` — serialized
+because the fixture-`muse` tests mutate process-environment
+variables the fake host reads).
+
+### 26.2.12 Tests
+
+`MetaAssistBridgeTests` (fixtures only — no live `muse`
+binary, no real credentials):
+
+- UUIDv7 shape / version nibble / variant bits / embedded
+  timestamp / uniqueness.
+- Bridge argv (`serve`, `--base-url <url> serve`) and
+  environment (Homebrew paths appended); `startHost` with a
+  nonexistent executable throws and leaves `isRunning` false.
+- `normalizeToolName`: nil/empty → `system_tool`; prefix
+  strip + registry hit (exact and case-insensitive); the three
+  synonym rules; `bash` → `use_terminal` alias; an unknown
+  name → `.passthrough`; a real MCP name with no injected
+  registry → `.passthrough` (recorded, not claimed).
+- Notification routing with fixtures: tool start (normalized
+  name, described activity, unmapped recorded exactly once),
+  tool output delta (tracked, never chat text), text /
+  thinking deltas, `turn/completed`, `turn/unqueued` (only
+  this turn's id settles), `session/modelChanged`,
+  `approval/requested`, `approval/resolved` ignored, unknown
+  method ignored.
+- `parseModelList` (skips entries without `modelId`,
+  defaults, empty → nil), `parseSessionID` (all three shapes
+  + fallback), `isRateLimitError` / `isSessionNotLoaded`
+  (including the `sessionNotLoaded` kind).
+- `buildEffectivePrompt` (instructions + last 12 turns,
+  duplicate of the current prompt excluded).
+- Slash catalog (36, unique ids, `/`-prefixed names),
+  search, `executeCommand` effects (verbatim text for the
+  four effect commands; `.insertText` otherwise), skills-list
+  TSV parsing (fifth/fourth-field description fallback,
+  comment/blank/short lines skipped), merge/replace of
+  terminal skills, terminal capture with a stub runner
+  (missing binary / throwing runner keeps the catalog).
+- Other models: exclusion of Meta models, custom-endpoint
+  and cloud append, free-only filter + fallback, the five
+  paid fallbacks, all five `resolveActiveModel` steps.
+- `MuseThinkingTokenizer` (`<think>` open/close/split,
+  cancel stops delivery) and `MuseToolCallParser` (no marker
+  → `[]`; one valid block parsed, malformed block skipped).
+- Proxy over a real `LoopbackServer`: `/v1/models` catalog
+  (verbatim entry shape), `/responses` SSE translation
+  (`response.output_text.delta` + `response.completed`),
+  unknown path → 404.
+- Lifecycle: monitoring flags, intentional-stop suppression,
+  restart + throttle (fixture `sleep` binary as the host),
+  idle without an executable.
+- End to end against a fixture Python `muse` script
+  (skipped when `python3` is absent): `availability()` lists
+  the live model; `send` streams `"Hello world"` and
+  `.finished`; a second turn resumes the session
+  (`sess-1`); approval without an attachment is denied
+  (`abort` reaches the host); approval with an attachment
+  asks the permission UI once (`allow_once` / `abort`
+  options) and the decision reaches the host.
+- `send` without a binary → `.failed` with the install hint;
+  without credentials (binary absent) → `.failed` (binary is
+  checked first).
+
+Updated Wave 15 test: `sendFailsHonestlyWithoutBinary`
+(see §26.2.2.11). The other Wave 15 Meta tests
+(`fallbackCatalog`, `availabilityWithoutBinary`,
+`availabilityWithoutCredentials`,
+`availabilityReadyWithCredentials`,
+`metaAssistIsDispatchedByBackends`) are unchanged and still
+pass by construction: the ready-with-credentials test uses a
+locator whose binary path does not exist, so `fetchModels`
+fails fast and the fallback catalog is reported.
+
+Static checks only (no Swift toolchain in this environment):
+delimiter balance 0/0/0 on all 9 touched files; no
+TODO/FIXME/`fatalError`; no secret-pattern hits in new files;
+`python3 -I .github/scripts/scan-public.py` was not re-run
+here (it scans tracked files; these are uncommitted — the
+coordinator runs it at integration). `swift build` / `swift
+test` and a live `muse` CLI run are pending on Dylan's Mac.
+
+### 26.2.13 Ledger rows completed by this slice
+
+(For the coordinator to mark; this draft does not edit the
+ledger.)
+
+| Ledger row | New state |
+|---|---|
+| `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MetaAssistLifecycleManager.swift` (line 580) | IMPLEMENTED — `ycode/Sources/YcodeAssistant/MetaAssistLifecycleManager.swift` |
+| `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MetaAssistProvider.swift` (line 581) | IMPLEMENTED — update note: `send` now runs real turns via `MetaAssistTurnExecutor`; `normalizeToolName` ported as `MetaToolNameNormalizer` (MCP ids, injected) |
+| `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MetaSlashCommandManager.swift` (line 582) | IMPLEMENTED — `ycode/Sources/YcodeAssistant/MetaSlashCommandManager.swift` (36 built-ins + capture + search + effects) |
+| `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseCodeCLIHelper.swift` (line 583) | IMPLEMENTED (partial, as before) — update note: `MuseCodeCLIError` ported in `MuseCodeMSPBridge.swift`; credential-reading, login flow, config rewrite, and npm install deliberately NOT ported (§26.2.2.6) |
+| `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseCodeMSPBridge.swift` (line 584) | IMPLEMENTED — `ycode/Sources/YcodeAssistant/MuseCodeMSPBridge.swift` |
+| `SwiftCode/Backend/Assist/Assist Frameworks/Meta/MuseOtherModelsBridge.swift` (line 585) | IMPLEMENTED — `ycode/Sources/YcodeAssistant/MuseOtherModelsBridge.swift` (resolution + proxy + tokenizer + tool-call parsing; direct-LLM `executeTurn` honestly unavailable, §26.2.2.6) |
+
+Not attempted (out of this slice's scope, still NOT STARTED):
+`SwiftCode/Views/Assist/MuseCallsNativeToolsUI.swift` and
+`SwiftCode/Views/Assist/MuseSDKToolCall.swift` (lines
+10959–10960) — UI for Muse SDK tool calls; a UI slice, not
+the bridge slice.
+
+### 26.2.14 Evidence
+
+- Legacy protocol: read live from Legacy @ `d51a8f0d` —
+  `MuseCodeMSPBridge.swift` (368 lines),
+  `MetaAssistProvider.swift` (785 lines, `executeTurn`
+  notification handler, `normalizeToolName`,
+  `isRateLimitError`, session/turn methods),
+  `MuseOtherModelsBridge.swift` (732 lines, proxy paths,
+  catalog JSON, SSE event names, resolution precedence,
+  fallbacks), `MetaSlashCommandManager.swift` (655 lines,
+  36 built-ins counted by `grep -c 'MetaSlashCommand(id:'`
+  = 36, ids verified unique by sort/uniq),
+  `MetaAssistLifecycleManager.swift` (141 lines, 5 s / 4 s),
+  `MuseCodeCLIHelper.swift` (523 lines, incl. the
+  credential-reading and login-flow code deliberately not
+  ported).
+- Public corroboration (web, 2026-11-06): Meta's Muse Code
+  docs — "`muse serve` runs the protocol, and `muse schema`
+  prints its JSON schema"; third-party CLI survey
+  (2026-11-02) — "`muse serve` hosts a session over stdio
+  using Meta's session protocol"; 1.4 changelog — `muse
+  serve` gained `--provider`/`--model`, multi-workspace
+  roots, plugins through the session protocol. No public
+  source documents passing an MCP endpoint into `muse
+  serve`; none was invented.
+- Destination architecture: `ycode/Sources/YcodeAssistant/`
+  (provider protocol, `AgentAttachment`, `JSONRPCMessage` /
+  `LineFramer`, `LoopbackServer`, `CLIToolLocator`,
+  `AssistantSettings` / `AssistantBackends`,
+  `AssistModelSpecification` / `AssistCandidateModel` /
+  `AssistModelEligibilityPolicy`, `SCCloudProvider`,
+  `MCPServer.toolAliases` in `YcodeMCP` — read, not imported),
+  `ycode/Package.swift` (YcodeAssistant depends only on
+  `YcodeSubprocess`; YcodeMCP depends on YcodeAssistant —
+  the cycle that forbids importing MCP types here),
+  `ycode/Sources/YcodeIDECore/Assistant/CodingAssistantModel.swift`
+  (attachment happens only for `AgentAttachable` providers,
+  in agent mode).
+- Verification in this environment (no Swift toolchain):
+  delimiter balance 0/0/0 on all 9 touched files; 36
+  built-in slash ids verified unique; no TODO/FIXME/
+  `fatalError`; no secret-pattern hits; Legacy clean at
+  `d51a8f0d`; destination main `d7cf1872`; SwiftCode-New
+  untouched (its 3 modified files are pre-existing residue
+  from earlier waves). `swift build` / `swift test` were not
+  run here and are not claimed.
+- Still pending (Mac): `swift build` + `swift test`
+  (notably the fixture-`muse` end-to-end tests and the proxy
+  SSE test), a live run against a real installed `muse` CLI
+  (Dylan's Mac must have the CLI + sign-in), the host wiring
+  for `knownToolIDs` (§26.2.2.4) and for the `/effort` /
+  `/model` / `/clear` / `/login` slash effects, the host
+  qualification of the "Ycode's tools are attached" line for
+  Meta (§26.2.2.5), and starting the other-models proxy from the
+  host when other-model mode is on (§26.2.2.7).
+
+### 26.3 Slice C — SDK view windows seam + Assist backend attachment
+
+### 26.3.1 What this slice does
+
+What this slice does
+
+Two honest-unavailable items from `specs/ide/sdk-platform.md` §18 are
+closed:
+
+1. **The 12 SDK view windows** — `SDKViewHost` is now implemented in
+   YcodeUI (`YcodeSDKViewHost`), installed at app startup, and every
+   one of the 12 view IDs is accounted for: 5 open on a real Ycode
+   surface, 7 throw `.serviceUnavailable` with the exact reason no
+   hostable surface exists. No window is faked; no empty placeholder
+   is opened and called the window.
+2. **The Assist backend attachment** — `SDKAssistService`'s
+   `send` / `sendStreaming` are now served by `SDKAssistHostBackend`,
+   a narrow adapter over Ycode's own `AssistantProvider.send`
+   (`ChatRequest`). It executes through the host's configured provider
+   with the extension's granted capabilities only, and the extension
+   receives only the turn's results — never the host's conversation
+   or credentials. `executeTool` is deliberately NOT attached (§4.3);
+   it still throws `.serviceUnavailable` with the exact reason.
+
+### 26.3.2 The 12 view windows — per-window disposition
+
+The 12 view windows — per-window disposition
+
+Legacy evidence (read live from Legacy source, not remembered):
+Legacy's 12 openers are `SDKViewOpenerBuiltIns.registerBuiltInOpeners`
+(`SwiftCode/SDK/Host/ViewOpener/`): 4 native-window managers
+(`DatabaseExplorerWindowManager`, `DocumentationBrowserWindowManager`,
+`CodingDictionaryWindowManager`, `VisualUIBuilderWindowManager`) and 5
+toolbar-notification bridges (`deviceConnect`, `simulatorMain`,
+`sfSymbolsBrowser`, `terminal`, `deployments` via
+`ToolbarActionManager.destination(for:)` + `com.swiftcode.toolbarToolActivated`),
+plus the 3 sibling openers (CI dashboard, virtualization console, live
+preview). Legacy's window managers and notification bridge do not exist
+in Ycode and are NOT re-ported; the opener logic was already ported in
+Wave 14 and delegates to the `SDKViewHost` seam — this slice supplies
+the host side of that seam.
+
+| # | View ID | Legacy window (verified) | Ycode surface | Disposition |
+|---|---|---|---|---|
+| 1 | `db.ExploreView` | Database Explorer — SQLite browser (`SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowManager.swift`) | None. The only SQLite client in Ycode (`CSQLite`) serves the Health store, not a browsable explorer; no DB UI file exists in YcodeUI/ycode-ide. | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no SQLite database browser." Building a SQLite explorer is a separate subsystem slice, not a host seam. |
+| 2 | `docs.search` | Documentation browser — WebKit DocC bookshelf, offline, SQLite-backed (`SwiftCode/Features/AdvancedTools/Views/DocumentationBrowserView.swift`, window title "Documentation - Developer Bookshelf (Offline)") | None. Ycode's `QuickHelpView` is per-symbol help, not a DocC browser; no doc archive exists in Ycode. | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no documentation browser." |
+| 3 | `dictionary.open` | Coding dictionary (`SwiftCode/Views/Utilities/CodingDictionaryView.swift`) — definitions are generated per query through `LLMService` ("Failed to parse dictionary response from LLMService"); no bundled term data exists in Legacy (no terms file found). | None. Nothing to port: no data, only an LLM call. | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no coding dictionary." |
+| 4 | `uibuilder.open` | Visual UI Builder — standalone window (`VisualUIBuilderWindowManager`) | **Interface Builder editor** (`YcodeUI/Editor/InterfaceBuilderController`, opened via `WorkspaceWindowController.open(path:line:)` which routes `.storyboard`/`.xib` to the IB editor). | **Working (adapted).** The host opens the active project's first `.storyboard`/`.xib` (deterministic by path, build/dependency dirs skipped). Adaptation: Ycode's builder is document-based, not a standalone artboard window; a project with no IB document throws `.serviceUnavailable` naming that, instead of opening an empty builder. |
+| 5 | `deviceconnect.open` | Device Connect sheet (toolbar bridge `deviceConnect`) | **Device Hub, Devices section** (`WorkspaceWindowController.presentDevices()` + `DevicesController.show(.devices)`; ⇧⌘2). | **Working.** |
+| 6 | `simulator.view` | Simulator workspace sheet (toolbar bridge `simulatorMain`) | **Device Hub, Simulators section** (`presentDevices()` + `show(.simulators)`). Ycode has no separate simulator window — the sim viewer is a separate executable and simulators are hub rows — so the hub is the honest host. | **Working (adapted).** |
+| 7 | `symbols.browse` | SF Symbol picker sheet (toolbar bridge `sfSymbolsBrowser`) | **Library panel, Symbols tab** (`WorkspaceWindowController.showLibrary(nil)` + `LibraryController.select(tab: .symbols)`; ⇧⌘L). The panel's Symbols tab is a real symbol browser for source and IB documents. | **Working (adapted).** |
+| 8 | `sandbox.view` | Terminal sheet (toolbar bridge `terminal` — Legacy's own comment: "the REAL TerminalView (full interactive shell …). HIGH-RISK: this is not a sandbox"). | None. No terminal emulator exists anywhere in Ycode (no `TerminalView`, no shell surface; the debug console is output-only). | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no integrated terminal." Opening the debug console as a shell would misrepresent it. |
+| 9 | `deployConsole.view` | Deployments console sheet (toolbar bridge `deployments` — Netlify / Vercel / GitHub Pages production deployments). | None. `YcodeRelease` is toolchain/release metadata, not deployments; no deployment provider exists in Ycode. | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no deployments console." |
+| 10 | `ci.VisualWF` | CI / visual-workflows dashboard in its own window (`SDKCIWorkflowViewOpener`: "Opens the CI / visual-workflows dashboard in its own window"; local-automation surface, not a GitHub Actions inspector). | None. No visual-workflow or CI dashboard exists in Ycode. | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no visual-workflow or CI dashboard." |
+| 11 | `virtualization.view` | Virtualization console in its own window (project required). | None as a surface. `YcodeHypervisor` (KVM/VZ engine) exists but has no console UI and is consumed only by `ycode-simd` internals; no hypervisor UI exists in YcodeUI/ycode-ide. | **Honestly unavailable.** `.serviceUnavailable`: "Ycode has no virtualization console." Engine ≠ surface; building a VM console is a separate slice. |
+| 12 | `preview.live` | Live preview (no project required). | **Preview canvas in the editor area** (`WorkspaceWindowController.setCanvasShown(true)` + `refreshPreviews()`; `PreviewCanvasController`). Note: the Wave 14 comment naming YcodePreviews' `PreviewOpenViewsHost` as the attachment point is wrong for macOS — that type is the *Linux* OpenViews payload host. macOS live preview is the canvas. | **Working.** Shows the real canvas; with no Swift file focused it shows its genuine "No Previews" empty state (the surface's own honest state, not a placeholder). |
+
+Also served by the same seam (not one of the 12, but the same
+`SDKViewHost`): `assist.main` → the Coding Assistant pane
+(`WorkspaceWindowController.revealCodingAssistant()`), via the
+already-ported `SDKAssistUIOpener`. Working.
+
+Rules the host enforces:
+- Every workspace-anchored surface needs the key workspace window
+  (`NSApp.keyWindow ?? NSApp.mainWindow`); with none open, opens
+  throw `.serviceUnavailable` ("No workspace window is open.") —
+  never presenting into the void. On Linux there is no YcodeUI, so
+  the seam stays uninstalled and opens keep throwing
+  `.serviceUnavailable` exactly as before.
+- The unavailable set is a single source of truth:
+  `YcodeSDKViewHost.unavailableReasons` (7 entries). The test
+  `testAllTwelveViewIDsAreAccountedFor` asserts the working set ∪
+  the unavailable set equals `SDKViewOpenerBuiltIns.builtInViewIDs`
+  exactly — a 13th ID or a dropped ID fails the test.
+- Surface failures propagate unchanged (a `.projectNotOpen` from the
+  IB path is not rewritten as `.serviceUnavailable`).
+
+### 26.3.3 Assist backend attachment — what it does
+
+Assist backend attachment — what it does
+
+`SDKAssistHostBackend` (`ycode/Sources/YcodeSDK/Host/Assist/`,
+new, YcodeSDK already depends on YcodeAssistant — no new
+dependency) conforms to `SDKAssistBackend` and is installed as
+`SDKAssistService.shared.backend` at startup by
+`YcodeSDKInstaller`. The service's existing checks run first, as
+before: verified-key `developerAIAssist` entitlement, session
+ownership (`liveSession`), message/history bounds, and the
+`allowedToolIDs` snapshot. The backend trusts only what the service
+passes it (an already-checked session) and re-derives identity from
+nothing.
+
+Per call:
+- `complete(session:message:)` — resolves a text-completion provider
+  (§4), builds one fresh `ChatRequest` from ONLY the extension's own
+  session (§4.1), collects `.text` events, returns the joined text.
+- `stream(session:message:)` — same resolution and request; yields
+  text deltas, then the final empty-string element per the protocol;
+  consumer cancellation cancels the provider request
+  (`continuation.onTermination`).
+- `executeTool(session:call:)` — NOT attached (§4.3).
+
+The resolver (`YcodeSDKAssistResolver`, YcodeUI) answers which host
+provider serves the turn: the session's requested model, when set,
+routed through the host's existing `AssistantBackends.providerKind
+(forModelID:)`; otherwise the provider the user chose in Settings ▸
+Coding Assistant; model = session model, else the user's configured
+model for that provider. The provider is built by
+`CodingAssistantServices` from host settings + the host secret store.
+The resolver runs on the main actor (`CodingAssistantServices` is
+`@MainActor`).
+
+### 26.3.4 Security argument (attachment point)
+
+Security argument (attachment point)
+
+#### 26.3.4.1 The request contains only the extension's own content
+
+`ChatRequest` is built from exactly three inputs, all owned by the
+extension's session: `instructions` = the session's system prompt
+(or the host's fixed `defaultInstructions` when none — host-supplied
+text stating the turn has no tools, files, or host conversation),
+`messages` = the session's own history plus the new message,
+`model` = the resolved model ID. `workingDirectory` is always `nil`.
+Nothing else is read: no `Conversation` / `CodingAssistantModel`,
+no host transcript, no workspace file, no settings beyond the
+provider/model choice. The test
+`testCompleteSendsOnlyTheExtensionSession` asserts the built request
+equals the session content exactly (instructions, roles, order,
+`workingDirectory == nil`).
+
+#### 26.3.4.2 No key or credential ever crosses the boundary
+
+`ChatRequest` has no key field. The provider is constructed inside
+`AssistantBackends.provider(_:)`, which reads the host's stored key
+from the secret store and holds it opaquely inside the provider; the
+backend, the resolver, and the extension never see a key value. The
+extension supplies no credential and cannot choose one: a
+session-supplied model ID is only ever routed through the host's
+`providerKind(forModelID:)` and then through the host's provider
+factory. Provider failures are mapped to a generic
+`.serviceUnavailable` (provider kind named, message not forwarded),
+so host configuration state (e.g. an invalid key) is not reported to
+the extension; the underlying failure is logged host-side to
+`SDKDeveloperLogger` with identifiers only (provider kind, session
+ID, error type — never message content, redacted again by the logger).
+
+#### 26.3.4.3 Caller identity and the deny-by-default gate
+
+Identity is the Wave 15 grant identity, unchanged: the service keys
+sessions by `(extensionID, keyID)` — `createSession` snapshots
+`allowedToolIDs` from the extension's ACTIVE grants, `liveSession`
+rejects another extension's session with `.permissionDenied`, and
+key revocation closes the sessions (`SDKAPIKeyStore` revocation hook
+→ `closeSessions(forKeyID:)`), so a revoked caller's next turn fails
+at the service before the backend is reached. The IPC dispatcher
+still runs `SDKAssistGate.check` first and the entitlement check on
+`assist.invoke`. The backend adds one local check (`session.isClosed`
+→ `.invalidArgument`) so a stale session passed directly still fails.
+
+#### 26.3.4.4 Why only text-completion providers may serve turns
+
+`AssistantProvider.send` is a per-call seam, but not every provider
+behind it is a text completion. CLI-agent providers (Claude Code,
+Codex, Antigravity), ACP agents, Hermes (one-shot agent CLI that
+runs in a directory), OpenCode (agent server — `send` creates a
+server session and posts a prompt to it), and Meta Assist (Muse Code
+CLI bridge) execute tools on the user's machine outside the
+extension's granted set. The backend refuses all seven with
+`.serviceUnavailable` (never a silent downgrade); the allowlist is
+exactly Ollama, llama.cpp, OpenAI, OpenRouter, Foundation Models,
+SwiftCode Cloud. The partition is pinned by
+`testProviderKindPartitionCoversAllCases` (allowed ∪ rejected ==
+`ProviderKind.allCases`, disjoint), so a future provider kind
+cannot slip through unclassified — the test fails until it is placed
+on one side. Consequences, stated plainly: an extension turn spends
+the host user's configured provider/quota (same as a host Assist
+turn — the user granted the `developerAIAssist` entitlement); there
+is no per-extension quota, and a turn on an agent-configured host
+fails honestly until Dylan configures a text provider. Agent-provider
+support is a separate, deliberate decision (it needs a working-
+directory/tool sandbox scoped to the extension's grants), not a
+follow-up bug.
+
+#### 26.3.4.5 What is NOT attached, and why
+
+- **`executeTool`**: no tool runner reachable from the SDK host
+  enforces the extension's granted capabilities. YcodeSDK does not
+  depend on YcodeMCP, and the MCP runner's approval gate
+  (`MCPWritePolicy` / `approve`) has no extension caller identity.
+  Attaching it would let an extension drive host tools outside its
+  grant snapshot. It throws `.serviceUnavailable` with that exact
+  reason. Attaching it needs (a) a YcodeMCP dependency for YcodeSDK
+  or a runner seam, and (b) caller identity plumbed through the MCP
+  approval gate — both future work, not a wiring detail.
+- **Host conversation**: the Legacy candidates were re-audited and
+  remain rejected for the reasons Legacy recorded —
+  `AssistManager.sendMessage` drives the user's shared visible
+  conversation and returns `Void`; the agent session is
+  singleton-owned and executes tools with no caller identity;
+  `LLMService` spends the user's keys with no caller identity or
+  Assist tool pipeline. Ycode's equivalents are the same shape
+  (`CodingAssistantModel` owns the user's conversations; providers
+  are per-call and stateless, which is exactly why the per-call
+  `send(ChatRequest)` is the safe seam and the session loop is not).
+- **`.activity` events** are dropped, never forwarded: they describe
+  host-side agent activity (e.g. file reads) and are not the turn's
+  result.
+
+### 26.3.5 File inventory (destination repo only, uncommitted)
+
+File inventory (destination repo only, uncommitted)
+
+New:
+- `ycode/Sources/YcodeSDK/Host/Assist/SDKAssistHostBackend.swift` (252 lines) — backend adapter + resolver protocol + resolution type.
+- `ycode/Sources/YcodeUI/SDK/YcodeSDKViewHost.swift` (274 lines) — `SDKViewSurfaceActions` protocol, `WorkspaceSDKViewSurfaceActions`, `YcodeSDKViewHost`, `YcodeActiveWorkspaceProvider`, `YcodeSDKInstaller`.
+- `ycode/Sources/YcodeUI/SDK/YcodeSDKAssistResolver.swift` (58 lines) — host provider resolver.
+- `ycode/Tests/YcodeSDKTests/SDKAssistHostBackendTests.swift` (285 lines) — 13 tests.
+- `ycode/Tests/YcodeUITests/YcodeSDKViewHostTests.swift` (162 lines) — 7 tests.
+
+Modified:
+- `ycode/Sources/YcodeUI/App/AppSupport.swift` (+3 lines) — `AppDelegate.applicationDidFinishLaunching` calls `YcodeSDKInstaller.installIfNeeded()` (after the layout-probe early return).
+
+Not modified (deliberate): `ycode/Package.swift` (coordinator wiring,
+§6), the ledger, `specs/ide/sdk-platform.md` (this draft is the
+proposed §12/§18 text — see §7). Legacy untouched (clean at
+`d51a8f0d`); SwiftCode-New untouched.
+
+### 26.3.6 Package.swift wiring (applied by the coordinator)
+
+No new target. Three one-line dependency additions, applied in
+Wave 16 by the coordinator: `"YcodeSDK"` added to the `YcodeUI`
+target, `"YcodeAssistant"` added to `YcodeSDKTests`, `"YcodeSDK"`
+added to `YcodeUITests` (all in `ycode/Package.swift`).
+
+### 26.3.7 Proposed spec text — applied
+
+The §12/§18 text proposed in the slice draft was applied by the
+coordinator as the §12 view-host paragraph and the §18 row
+updates below, not pasted here.
+
+### 26.3.8 Tests
+
+Tests
+
+`SDKAssistHostBackendTests` (13 tests, `YcodeSDKTests`; needs the
+`YcodeAssistant` test-dep wiring in §6):
+- Request construction: `complete` sends exactly the extension's
+  session (instructions/roles/order, `workingDirectory == nil`,
+  resolved model); default instructions when no system prompt.
+- Isolation: two sessions with distinct marker messages — caller A
+  receives only A's echo, caller B only B's.
+- Streaming: text deltas + final `""`; a scripted `.activity`
+  event naming a host file never reaches the output.
+- Refusals: provider-kind partition covers all 13 `ProviderKind`
+  cases; every agent kind refused and never receives a request;
+  no-resolver, provider-not-ready, and closed-session cases throw
+  `.serviceUnavailable` / `.invalidArgument`; a provider error is
+  mapped to generic `.serviceUnavailable` without its message.
+- `executeTool` throws `.serviceUnavailable` ("not attached").
+
+`YcodeSDKViewHostTests` (7 tests, `YcodeUITests`; needs the
+`YcodeSDK` test-dep wiring in §6): every working ID routes to
+exactly its surface (fake records the call); every unavailable ID
+throws `.serviceUnavailable` with its recorded reason and touches
+no surface; the 12 IDs are exactly working ∪ unavailable; unknown
+IDs throw; a surface failure propagates unchanged; the registry seam
+routes through an installed host and throws without one.
+
+### 26.3.9 Still pending
+
+Still pending
+
+- **Mac `swift build` / `swift test`** on Dylan's Mac (no Swift
+  toolchain here): `swift test --filter SDKAssistHostBackendTests`,
+  `swift test --filter YcodeSDKViewHostTests`, and a full build after
+  the §6 wiring. Live verification still needed: open each working
+  window from an installed extension (`ui.openView` for the 5 + 
+  `assist.main`), confirm the 7 unavailable windows fail with the
+  recorded reasons, and run one entitled `assist.invoke` turn
+  end-to-end against the user's configured provider.
+- **Dylan prerequisites (unchanged):** a configured text-completion
+  provider for extension turns (Ollama running, or an OpenAI /
+  OpenRouter key in Settings ▸ Coding Assistant; SCCloud needs its
+  endpoint URL). Without one, turns fail honestly with
+  `.serviceUnavailable` and the provider hint. No new credential is
+  needed for this slice — the extension never supplies one.
+- **`executeTool` attachment** (§4.5): needs a grant-enforcing tool
+  runner — a YcodeMCP seam and caller identity in the MCP approval
+  gate. Not a wiring detail; a design slice.
+- **Agent-provider turns**: a deliberate product decision, not a
+  bug (§4.4). Needs a working-directory/tool sandbox scoped to the
+  extension's grants before any agent provider is admitted.
+- **Linux**: the view host is macOS-only (YcodeUI); on Linux the
+  seam stays uninstalled and view opens keep their previous
+  `.serviceUnavailable`. The backend adapter itself is portable
+  (YcodeSDK builds on Linux) but has no resolver installed there —
+  installing one for the `ycode-ide` shell is follow-up, not part of
+  this slice.
+
+### 26.3.10 Evidence
+
+Evidence
+
+Evidence levels per the repo's clean-room protocol (AGENTS.md rule 4):
+
+- **5 — read verbatim from Legacy source (Dylan's own code):** the
+  12 view IDs and opener styles (`SwiftCode/SDK/Host/ViewOpener/
+  SDKViewOpenerBuiltIns.swift`: 4 window managers, 5 notification
+  bridges with exact `toolID` strings, 3 sibling openers); the
+  Documentation Browser as a WebKit DocC bookshelf
+  (`SwiftCode/Features/AdvancedTools/Views/
+  DocumentationBrowserView.swift`); the dictionary as LLM-generated
+  with no term data (`SwiftCode/Views/Utilities/
+  CodingDictionaryView.swift:1207-1215`); the Deployments sheet
+  providers (BuiltIns comment + `SwiftCode/Views/Deployments/
+  DeploymentsView.swift`); the CI dashboard as a local-automation
+  window (`SwiftCode/SDK/Host/ViewOpener/
+  SDKCIWorkflowViewOpener.swift`); the Assist backend boundary and
+  the rejected candidates with reasons (`SwiftCode/SDK/Host/Assist/
+  SDKAssistService.swift` header); the terminal sheet as a full
+  unsandboxed shell (BuiltIns comment). Direct porting authorised
+  by Dylan under MIT.
+- **5 — read verbatim from destination source:** every Ycode surface
+  cited in §26.3.2 and every API used by the new code
+  (`WorkspaceWindowController.presentDevices/showDevices/showLibrary/
+  setCanvasShown/revealCodingAssistant/open(path:line:)`,
+  `DevicesController.show(_:)`, `LibraryController.select(tab:)`,
+  `CodingAssistantServices`/`AssistantBackends.provider(_:)`/
+  `providerKind(forModelID:)`/`AssistantSettings.model(for:)`,
+  `AssistantProvider.send(ChatRequest)`, `ChatEvent` cases,
+  `SDKDeveloperLogger.log`, `SDKError`/`SDKAssistGate`/
+  `SDKAssistService`/`SDKViewOpenerBuiltIns.builtInViewIDs`,
+  `SDKBootstrap`, `AppDelegate.applicationDidFinishLaunching`).
+  No Apple binaries, Ghidra, simulator IPSW, or `research/dirty/`
+  were opened, run, or observed; no Apple code enters this work.
+- **Behaviour verified by inspection only:** surface routing was
+  verified by reading the Ycode controllers, not by running the app
+  (no Swift toolchain, no Mac here). The "working" verdicts mean
+  "a real Ycode surface exists and the host calls its real entry
+  point" — visual/UX verification is part of the pending Mac check
+  in §10.
+
+### 26.4 Slice D — scheme discovery · model discovery · Antigravity catalog · installer fallback · Gemini key rotation · SDK session configuration
+
+DRAFT for `specs/ide/sdk-platform.md` (§26). Written by Slice D, 2026-11-06.
+Do NOT edit the ledger or the spec directly — the coordinator merges this
+section. No commit, no push by this slice.
+
+Sources read live for this section (Legacy read-only, main `d51a8f0d`;
+destination main `d7cf1872` at wave start):
+`SwiftCode/Backend/Assist/Tools/AssistXcodeProjectResolver.swift`,
+`SwiftCode/Backend/Assist/AssistModelDiscoveryService.swift`,
+`SwiftCode/Backend/Assist/AlternativeKeyManager.swift`,
+`SwiftCode/Backend/Assist/AssistModelRouter.swift`
+(`sdkDefaultModelIDs`, `selectModelForSDK`, `createSyntheticSDKModel`,
+`buildSDKConfiguration`, the key-rotation branch of
+`handleTurnFailure`, `resolveAPIKey`, `hasCredentials`),
+`SwiftCode/Services/AntigravitySDKModelFetcher.swift`,
+`SwiftCode/Backend/Assist/Assist Frameworks/Google Cloud SDK/GoogleCloudSDKConfiguration.swift`,
+`SwiftCode/SDK/Host/SDKInstaller.swift`.
+Destination: `ycode/Sources/YcodeAssistant/` (host: `AssistModelRouting.swift`,
+`AssistantSettings.swift`, `SecretStore.swift`, `Core.swift`,
+`OpenRouterProvider.swift`, `OpenAIProvider.swift`, `HTTP.swift`),
+`ycode/Sources/YcodeBuild/` (`XcodebuildEngine.swift`, `SwiftBuildEngine.swift`,
+`BuildEngine.swift`), `ycode/Sources/YcodeWorkspace/Scheme.swift`
+(`Scheme.discover`), `ycode/Sources/YcodeSDK/Host/SDKInstaller.swift`,
+`ycode/Sources/YcodeSDK/Host/ServiceAdapters/Build/SDKBuildService.swift`,
+`specs/ide/schemes.md`, `sdk/scripts/package-sdk.sh`,
+`sdk/package/package.json` + `dist/`.
+Public docs checked live: Anthropic `GET /v1/models`
+(`x-api-key` + `anthropic-version: 2023-06-01`, confirmed by web
+search 2026-11-06) and Mistral `GET /v1/models` (confirmed the
+same way). Gemini `GET /v1beta/models` and DashScope
+compatible-mode `GET /v1/models` are taken from Legacy's own
+source, which called them in production.
+
+### 26.4.1 What landed
+
+All six carried-over items from §18 / §23.6 are now ported, except
+the installer bundled fallback, which is a recorded final decision
+to stay absent (§26.4.4.5).
+
+| Legacy piece | Destination |
+|---|---|
+| `AssistXcodeProjectResolver.resolveScheme` / `firstListedScheme` (`xcodebuild -list -json`, explicit → first listed → bundle name) | `XcodeSchemeDiscovery` (`ycode/Sources/YcodeBuild/XcodeSchemeDiscovery.swift`), wired into `SDKBuildService.run` |
+| `AssistModelDiscoveryService` Gemini / Anthropic / OpenAI / Mistral / Qwen legs | `AssistModelDiscoveryService` (`ycode/Sources/YcodeAssistant/AssistModelDiscovery.swift`); OpenRouter stays in `OpenRouterProvider.listModels` (Wave 9) |
+| `AntigravitySDKModelFetcher` (seed catalog, `agy models` fetch + parse, derive helpers) + `AssistModelRouter.sdkDefaultModelIDs` / `createSyntheticSDKModel` | `AntigravitySDKCatalog` (`ycode/Sources/YcodeAssistant/AntigravitySDKCatalog.swift`) |
+| `AlternativeKeyManager` (import, selection, rate-limit cooldown, failure counting, rotation) | `GeminiKeyRotationManager` (`ycode/Sources/YcodeAssistant/GeminiKeyRotation.swift`) |
+| `AssistModelRouter.buildSDKConfiguration` / `selectModelForSDK` | `SDKSessionConfiguration` + `SDKSessionConfigurationBuilder` + `AssistModelRouter.selectModelForSDK` (`ycode/Sources/YcodeAssistant/AssistSDKModelSelection.swift`) |
+| Key-rotation branch of `AssistModelRouter.handleTurnFailure` | `AssistModelRouter.handleTurnFailureWithKeyRotation` (same file) |
+| Installer bundled fallback | Stays absent — final decision (§26.4.4.5); `SDKInstaller.bundledFallbackStatus()` reports it |
+
+### 26.4.2 Build scheme discovery
+
+`XcodeSchemeDiscovery` (YcodeBuild — it already depends on
+YcodeWorkspace and YcodeSubprocess, so no new target and no
+`Package.swift` change) composes Ycode's existing machinery in
+Legacy's precedence order instead of duplicating it:
+
+1. **Explicit scheme, when it names a scheme this container has.**
+   Deliberate deviation from Legacy: Legacy's explicit parameter
+   was a user-supplied *scheme*; the callers here pass a *target*
+   name, which is often not a scheme. Using it blindly reproduces
+   the old bug (the target used as the scheme). An unknown explicit
+   name falls through to discovery and is used only as the last
+   resort, with the reason recorded.
+2. **First scheme from `xcodebuild -list -json`** — run through
+   an injectable `XcodebuildListRunner` (default: `/usr/bin/xcodebuild`
+   on macOS only; on Linux, or anywhere the tool is absent, the
+   runner returns nil). Output parsed exactly like Legacy
+   (`{"project": {"schemes": [...]}}` / `{"workspace": {"schemes":
+   [...]}}` via `JSONSerialization`); anything unparseable yields
+   no schemes, never an error.
+3. **First `.xcscheme` file on disk** — `Scheme.discover(in:user:)`
+   (shared, then the current user's). Projects read their own
+   bundle; workspaces read their own bundle plus every sibling
+   `.xcodeproj` in the same directory (the usual layout for
+   workspace members). Members referenced from elsewhere are
+   covered by the `-list` leg when it can run; the file leg does
+   not parse `.xcworkspacedata`.
+4. **Explicit name, or the container bundle's base name** (Legacy's
+   final fallback), with the exact reason recorded.
+
+`resolveScheme(explicit:container:) -> ResolvedScheme` always
+carries `scheme`, `source` (`.explicit` / `.listed` /
+`.fileDiscovered` / `.containerName`) and `reason` (set whenever
+the answer is a fallback). Discovery never throws and never fails
+a build: when `xcodebuild` is absent the file leg still runs.
+Packages have no schemes — the target name is used as the scheme,
+with that reason recorded.
+
+Wiring: `SDKBuildService.run` resolves the scheme through an
+injected `XcodeSchemeDiscovery` (default: the live one) after the
+container is resolved and before the `BuildRequest` is built, and
+logs the fallback reason via `SDKLog.info` when one exists. The
+container half is still resolved from the project root
+(`.xcworkspace` > `.xcodeproj` > `Package.swift`); the resolver's
+`locate(relativePath:)` and pbxproj introspection (`groupID`,
+`sourcesBuildPhaseID`) belong to the MCP project tools, not to this
+service, and are not ported here.
+
+Tests: `ycode/Tests/YcodeBuildTests/XcodeSchemeDiscoveryTests.swift`
+(13 tests, swift-testing, stub `-list` runner + temporary
+`.xcodeproj` / `.xcworkspace` fixtures with minimal `.xcscheme`
+files; no real `xcodebuild` is ever run): `-list` JSON parsing
+(project / workspace / malformed), file discovery (project,
+workspace + siblings with dedup, package empty), precedence
+(explicit-when-known, first listed over files, unknown explicit
+falling through to listed, file leg when `-list` is unavailable,
+container-name fallback with its reason, package target-as-scheme,
+container args / name).
+
+### 26.4.3 Model discovery — Gemini / Anthropic / OpenAI / Mistral / Qwen
+
+`AssistModelDiscoveryService` (YcodeAssistant actor; no
+`@Observable` / `@MainActor` singleton, no `shared` — the host
+owns one per secret store and transport, which is what makes it
+testable) ports the five direct-provider legs. OpenRouter stays
+where Wave 9 put it (`OpenRouterProvider.listModels`); Apple
+Foundation Models, OpenCode, Hermes, Meta and the local servers
+stay with the host's `survey()` / `availability()`.
+
+Real list endpoints, nothing invented (Legacy's endpoints,
+verbatim, plus the two web-confirmed above):
+
+| Provider | Endpoint | Auth |
+|---|---|---|
+| Gemini | `GET https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=<key>` | key in query (Legacy's behaviour; the key is never logged) |
+| Anthropic | `GET https://api.anthropic.com/v1/models?limit=1000` | `x-api-key`, `anthropic-version: 2023-06-01` |
+| OpenAI | `GET https://api.openai.com/v1/models` | `Bearer` |
+| Mistral | `GET https://api.mistral.ai/v1/models` | `Bearer` |
+| Qwen | `GET https://dashscope.aliyuncs.com/compatible-mode/v1/models` | `Bearer` |
+
+Parsing and filtering are Legacy verbatim per provider: Gemini
+only `generateContent` models (an empty method list passes),
+`models/` prefix stripped, embedding / aqa / imagen excluded,
+context from `inputTokenLimit` (default 1,000,000), flash
+priority 10 else 20; Anthropic `data[].id` / `display_name`,
+context 200,000, priorities sonnet 15 / haiku 14 / else 25;
+OpenAI `data[].id` with Legacy's exclusion list (embedding,
+dall-e, tts, whisper, moderation, audio, realtime, text-search /
+text-similarity, davinci, babbage, curie), vision on `4o` /
+`vision`, context 128,000, mini priority 18 else 12; Mistral
+`data[].id` excluding `embed`, vision on `pixtral`, priority 28,
+context 128,000; Qwen `data[].id` excluding `embed`, vision on
+`vl`, priority 30, context 128,000.
+
+Behaviour, Legacy verbatim in shape:
+
+- Keys come from the `SecretStore` — one canonical account per
+  provider (`gemini.api-key`, `anthropic.api-key`, `mistral.api-key`,
+  `qwen.api-key`; OpenAI reuses the existing `openai.api-key`).
+  Legacy also tried several alternate keychain keys and
+  `APIKeyManager`; Ycode keeps one account per provider, so a key
+  stored under a Legacy-era name must be re-entered in Settings.
+  A provider with no key contributes nothing (except Gemini,
+  below) and is not an error.
+- The five legs run concurrently in `discoverAllModels`
+  (300s cache, `forceRefresh` bypasses it). A failing leg (non-200,
+  network error, unparseable body, empty after filtering) contributes
+  no models; Gemini records its error in `lastDiscoveryErrors`,
+  the other legs fail silently, as in Legacy. Discovery never
+  invents a model to fill the gap.
+- Gemini with no key, with Google OAuth, or with a failed / empty
+  live fetch falls back to the Antigravity catalog (Legacy
+  `fallbackAntigravityModels`): catalog models are returned marked
+  synthetic, configured/available only when the host reports a
+  Google OAuth session (`isGoogleOAuthAuthenticated`, set by the
+  host — the sign-in flow is not model fetching). When a Gemini
+  key is present but the alternative-keys store also has keys, the
+  rotation manager's active key is used as the Gemini key.
+- `hiddenProviderNames` / `removedModelIDs` are session state in
+  this service (Legacy persisted them in UserDefaults; persisting
+  them in `AssistantSettings` is follow-up work). Foundation
+  Models can never be removed or hidden, as in Legacy.
+- No custom / local endpoint legs and no cloud-catalog leg:
+  custom & local endpoints belong to another slice; the cloud
+  catalog belongs to the SCCloud work. The host's `survey()`
+  covers those sources.
+
+Feeding the router (no parallel registry): `candidates(from:)`
+converts discovered models to `AssistCandidateModel`s, and the
+host passes those to `AssistModelRouter.eligibleCandidates` /
+`resolveDefaultModel`. The host provider mapping follows Wave 15
+§23.2: Gemini / Anthropic / Mistral / Qwen route through
+`.openRouter`, OpenAI through `.openAI`. Because OpenRouter only
+serves models in `provider/model` form, a natively-discovered id
+is translated to its OpenRouter id in `modelIdentifier` —
+`google/<id>`, `anthropic/<id>`, `mistralai/<id>`, `qwen/<id>`
+— while `id` keeps the native id the list endpoint returned.
+Callers must send `modelIdentifier`, not `id`, when the provider
+is OpenRouter. The translation uses OpenRouter's published
+provider slugs; it is a routing translation, not a discovery
+claim — the model itself was genuinely listed by its own
+provider. Mistral candidates also carry the endpoint URL
+`https://api.mistral.ai/v1`, matching what
+`AssistCandidateModel.fromSpecification` already does for
+Mistral ids. The synthetic marking survives the conversion
+(`isSynthetic` on `AssistCandidateModel`, new in this wave).
+
+Transport: `ModelDiscoveryTransport` (`get(url:headers:timeout:)`)
+is injectable; the live transport is `HTTP.send` (the same minimal
+HTTP the providers use), 8s per request like Legacy. Tests use a
+stub transport keyed by host.
+
+Tests: `ycode/Tests/YcodeAssistantTests/AssistModelDiscoveryTests.swift`
+(15 tests, swift-testing, stub transport, `MemorySecretStore`,
+fake keys assembled from parts): per-provider parsing (all five
+legs, including every Legacy exclusion), malformed bodies, a full
+concurrent run (5 calls, Legacy order), a failing leg (Gemini 429
+→ catalog fallback + recorded error; other legs contribute
+nothing), no keys → only the 9-model catalog fallback (synthetic,
+unconfigured), OAuth → catalog fallback configured, cache reuse /
+force refresh (call counts), Foundation-model removal refusal,
+agent-compatible exclusion of unconfigured models, and the
+OpenRouter id translation (all five providers) plus synthetic
+marking preservation.
+
+### 26.4.4 Antigravity SDK catalog
+
+`AntigravitySDKCatalog` (YcodeAssistant actor) ports
+`AntigravitySDKModelFetcher` faithfully:
+
+- `seedModels`: Legacy's 9 entries verbatim (ids, display names,
+  thinking levels, context windows, categories). They are Dylan's
+  own catalog entries — but they are a *seed*, not a discovery:
+  callers must present them as catalog models, never as
+  live-listed.
+- Live fetch: `agy models` on Legacy's binary candidates in
+  order (`~/.gemini/bin/agy`, `~/.local/bin/agy`,
+  `/usr/local/bin/agy`, `/opt/homebrew/bin/agy`), run via
+  `Subprocess.run` with `PAGER=cat`, `NO_COLOR=1`, `TERM=dumb`.
+  `parseAgyModelsOutput` is Legacy verbatim (ANSI stripping,
+  braille stripping, "Fetching available models..." removal,
+  first token = id, rest = display name). An empty result keeps
+  the current list ("Retaining current registry"). The fetched
+  list replaces the seed list in memory; `sdkDefaultModelIDs`
+  is the live list when non-empty, otherwise the seeds (Legacy
+  `AssistModelRouter.sdkDefaultModelIDs`, now owned by the
+  catalog).
+- `deriveThinkingLevel` / `deriveContextWindow` /
+  `deriveCategory` are Legacy verbatim. `getModel(byID:)` checks
+  live models, then seeds. `isAntigravityCatalogModel` is
+  case-insensitive membership; membership is metadata, not
+  authorization — it never implies a credential exists.
+- `createSyntheticCandidate(modelID:isConfigured:)` ports
+  `createSyntheticSDKModel` onto `AssistCandidateModel`: the
+  candidate is marked `isSynthetic` and its `statusDescription`
+  names the catalog ("… Thinking · Antigravity catalog
+  (synthetic)"). `isConfigured` is the caller's credential
+  verdict — the catalog itself never claims a credential exists.
+  The provider comes from `AssistModelSpecification.specification(for:)`,
+  consistent with §23.2 (Gemini / Claude ids route through
+  `.openRouter`, `gpt-oss` through `.openAI`).
+
+Adaptations: no SwiftUI (`iconName` / `thinkingColor` not
+ported — callers derive icons from `thinkingLevel` /
+`isImageModel` themselves); no `@Observable` / `@Published`
+(actor instead); no disk cache (Legacy persisted the fetched
+list in UserDefaults — Ycode keeps it in memory only and falls
+back to the seed catalog on a fresh launch, exactly as Legacy
+did with an empty cache; persisting the cache is follow-up
+work, not a behaviour change); **no Python fallback** —
+Legacy's `runPythonSDKModelDiscoverySync` ran the vendored
+Google Cloud SDK's bundled python3, and that vendored tree is
+`EXTERNAL_OR_UNAVAILABLE` in the migration inventory and was
+never copied into Ycode, so there is no bundled runtime to run.
+Live discovery here is the `agy` binary only.
+
+Tests: `ycode/Tests/YcodeAssistantTests/AntigravitySDKCatalogTests.swift`
+(9 tests): seed catalog verbatim (9 ids, categories, context
+windows), default-id fallback to seeds, `getModel` seed fallback,
+case-insensitive membership, `agy` output parsing (ANSI +
+braille), all three derive helpers, synthetic candidate marking
+(+ unknown-id derivation, + image-model subagent exclusion).
+
+### 26.4.5 Installer bundled fallback — final decision: stays absent
+
+`SDKInstaller.bundledFallbackStatus()` (new in
+`ycode/Sources/YcodeSDK/Host/SDKInstaller.swift`) reports
+`.present(url:)` or `.absent(reason:)`; presence is file
+existence only — contents are verified by `npm install` +
+`inspect` when the fallback is used, not here. In this checkout
+it reports `.absent` with the exact reason.
+
+**Decision: the bundled fallback stays absent. No tarball ships
+in-repo; none was invented and Legacy's tarball was never copied.**
+A genuine distributable CAN be produced from this repo's own
+build: `npm pack` in `sdk/package` produces
+`swiftcode-sdk-1.0.0.tgz` — verified 2026-11-06 with
+`npm pack --dry-run` (no file written): `@swiftcode/sdk`
+1.0.0, 52.8 kB, 29 files, shasum
+`1a1c24f569db8532ea9a839b27ecea1694c8acfa`, from the checked-in
+`dist/` (the package version is 1.0.0, matching
+`SDKInstaller.expectedVersion`). What Dylan must supply before
+the fallback can exist:
+
+1. Publish that tarball to the `sdk-v1.0.0` branch at
+   `SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz` (the
+   `downloadURL` — the remote path the installer already probes),
+   or
+2. Bundle it as a YcodeSDK resource with the `Package.swift`
+   resource wiring — a coordinator decision, since a checked-in
+   binary blob plus resource wiring was out of scope for this
+   slice.
+
+Until then the installer fails honestly when GitHub is
+unreachable — it never claims a bundled copy exists. Note
+`sdk/scripts/package-sdk.sh` does NOT produce this tarball: it
+packages the full assembled SDK (`SwiftCodeSDK-1.0.0.tar.gz`,
+including the Swift CLI binary) and its clean-room extraction
+test fails until the Swift SDK migration wave lands. The
+installer fallback needs the npm package tarball (`npm pack`),
+not the assembled-SDK archive.
+
+Test: `testBundledFallbackIsAbsentWithReason` in
+`ycode/Tests/YcodeSDKTests/SDKInstallerTests.swift` — asserts
+`.absent` with the reason naming `npm pack` and `sdk-v1.0.0`,
+and fails loudly (asking to be updated to assert `.present`)
+if a tarball is ever bundled.
+
+### 26.4.6 Gemini key rotation
+
+`GeminiKeyRotationManager` (YcodeAssistant actor) ports
+`AlternativeKeyManager` faithfully:
+
+- Types verbatim: `AlternativeKeyState`, `AlternativeKeyMetadata`
+  (id, masked value, SHA-256 hash, state, last used,
+  rate-limited-until, failure / success counts, order index,
+  added at), `KeyImportResult`.
+- Import rules verbatim: comma / newline / `;` separated,
+  surrounding quotes stripped, 20–120 characters with no
+  whitespace to be valid, duplicates detected by hash against
+  both the batch and the stored keys, an un-storable key counts
+  as invalid, first available key becomes active.
+- Masking verbatim (`AIza` prefix or first 4 chars + bullets +
+  last 4; short keys show only bullets) and hashing verbatim
+  (SHA-256 hex — computed with YcodeAssistant's own pure-Swift
+  `SHA256` in `Crypto.swift`, so the manager builds on Linux
+  without CryptoKit; the digest is the same one CryptoKit
+  computed).
+- Selection verbatim: fewest failures first, then the shortest
+  circular distance from the active key's position; the previous
+  active key returns to `.ready`.
+- `markRateLimited` (default 60s, minimum 2s, counts a failure),
+  `markHealthy` (clears rate-limit / failure state, counts a
+  success), `markFailed` (`.invalid` on permanent auth error),
+  `rotateNow`, `resetHealth` (leaves `.disabled` / `.invalid`
+  alone) — all verbatim.
+
+Storage adaptation (the one structural change): Legacy kept raw
+keys in the Keychain and metadata in UserDefaults. Ycode keeps
+raw keys in the `SecretStore` (`gemini.alt-key.<uuid>`, Keychain
+on macOS, a 0600 file on Linux) and the metadata envelope in the
+same store (`gemini.alt-keys.metadata`). The metadata holds only
+masked values and SHA-256 hashes — never a raw key — and it is
+the manager's index, because `SecretStore` has no enumeration:
+if the metadata is deleted, any stored raw keys become
+unreachable orphans (they stay in the store until the user
+removes them by re-importing, which dedups by hash). New
+`SecretAccount` entries: `geminiKey` (`gemini.api-key`, the
+primary key used by discovery), `geminiAltKeyPrefix`,
+`geminiAltKeysMetadata`, `anthropicKey`, `mistralKey`, `qwenKey`.
+No `@Observable` / `@MainActor` singleton and no `shared` — the
+host owns one per secret store, which is what makes the manager
+testable with `MemorySecretStore`. No `os.Logger` — the manager
+is silent; callers log the masked value when they rotate. No
+`reorderKeys(from:to:)` with `IndexSet` (an AppKit type):
+`reorderKeys(_:)` takes the ordered ids instead.
+
+The failover branch (Legacy `handleTurnFailure`'s rotation
+branch) is `AssistModelRouter.handleTurnFailureWithKeyRotation`
+(see §26.4.4.7): when rotation is enabled
+(`AssistantSettings.alternativeKeysEnabled`, new in this wave —
+Legacy `AppSettings.alternativeKeysEnabled`, default false) and
+the failure is a rate limit / quota exhaustion, the active key
+is marked rate-limited for 60s and the next available key is
+selected — the SAME model is retried with the new key, and the
+handoff names the rotated key's masked value. Only when no other
+key is usable does the turn fall through to the plain
+`handleTurnFailure` (next model, or nil when automatic switching
+is off). The plain `handleTurnFailure` is unchanged.
+
+Tests: `ycode/Tests/YcodeAssistantTests/GeminiKeyRotationTests.swift`
+(11 tests, `MemorySecretStore` only, fake keys assembled from
+parts): masking / hashing / validation, import counts (new /
+duplicate / invalid), quote / semicolon handling, active-key
+return + marking, fewest-failures-then-circular selection,
+rate-limit cooldown blocking then `markHealthy` clearing,
+permanent-auth-error → `.invalid` (never selected again,
+`resetHealth` leaves it alone), `rotateNow` (including the
+single-key nil case), metadata persistence across manager
+instances sharing a store, removal fallback, reordering.
+
+### 26.4.7 SDK session configuration and model selection
+
+`SDKSessionConfiguration` is the Ycode equivalent of Legacy's
+`GoogleCloudSDKConfiguration`: the model id to send, the host
+provider that will run the turn (`ChatRequest` + the chosen
+`ProviderKind`), the thinking level, `enableSubagents`, the
+execution mode (`"antigravity"` for a Google OAuth session,
+`"api_key"` for a stored provider key, nil when neither is
+available and the turn cannot run), `hasAPIKey` (a boolean —
+never the key itself), `isOAuthAuthenticated`, and `baseURL`.
+`SDKSessionConfigurationBuilder.build(for:...)` ports
+`buildSDKConfiguration`'s execution-mode rules verbatim in
+shape: OAuth when the host reports a Google OAuth session and
+the model is a Google / catalog model or no direct key exists;
+otherwise `"api_key"` when the model is a Google model and key
+rotation is enabled; otherwise `"api_key"` when a direct key
+exists, `"antigravity"` when only an OAuth token exists, else
+nil. The thinking level comes from the catalog's derive rules.
+
+Not carried over (no Antigravity SDK session in Ycode to
+consume them): `vertex` / `project` / `location` (Vertex AI),
+`skillsPaths` / `workspaces` / `appDataDir` / `saveDir` (the
+SDK's on-disk session), `tools` (the SDK's tool table),
+`litertModelPath` / `litertBackend`, `serviceTier`,
+`maxSubagentDepth` / `allowedSubagents`, `systemInstructions`,
+`useSavedModels`, `toolkit`, `downloadIfMissing`,
+`enableSpeculativeDecoding`, `activeExecutionMode`. The
+`objective` parameter is kept for API parity (Legacy passed it
+to `resolveDefault`); it does not change the configuration.
+
+`AssistModelRouter.selectModelForSDK` ports Legacy's selection
+verbatim in shape:
+
+- SwiftCode Cloud short-circuit: when the cloud toggle is on and
+  the selected id is a cloud id, the cloud model is used under
+  every strategy.
+- `"default"` / `"rotation"` (both decode to
+  `.providerDefault` here; rotation is a failover behaviour, not
+  a selection strategy): ONLY models listed in the Antigravity
+  catalog (`sdkDefaultModelIDs`), restricted to the ones that are
+  configured. An explicit custom / third-party id (contains `/`,
+  or mentions ollama / llama / claude / gpt) is honoured as-is;
+  otherwise the first configured catalog model wins. When the
+  catalog does not know the effective id (stale selection, fetch
+  not completed), the discovered-candidate list is consulted
+  before falling back to a synthetic catalog record.
+- `"app_models"`: the whole discovered-candidate list.
+- Anything else: `resolveDefaultModel`.
+
+The method never returns nil: the last resort is a synthetic
+catalog record for the effective id, as in Legacy. `candidates`
+is the eligible, ranked candidate list (the caller passes
+`eligibleCandidates` output).
+
+Tests: `ycode/Tests/YcodeAssistantTests/AssistSDKModelSelectionTests.swift`
+(14 tests, fixtures only): configuration building (Gemini model,
+thinking levels, OAuth-wins, no-key/no-OAuth → no execution
+mode, rotation mode), `selectModelForSDK` (cloud short-circuit,
+default-strategy catalog restriction, catalog selection honoured,
+explicit third-party id honoured, app-models discovered set +
+fallback), rotation-aware failover (rotates the key and retries
+the same model with the masked value in the handoff, falls
+through to the next model when no other key exists, returns nil
+when auto-switch is off and there is nothing to rotate to, does
+not rotate for non-rate-limit errors).
+
+### 26.4.8 What is still pending (not this slice)
+
+- Mac `swift build` / `swift test` for everything in this
+  slice (no Swift toolchain in this environment) — static
+  checks only (§26.4.4.9).
+- The `validate.mjs` capability admission, Muse Code MSP bridge
+  + lifecycle + slash commands, the 12 SDK view windows seam,
+  Assist backend attachment, and the Distribution regeneration
+  decision are other slices' work; nothing in this slice touches
+  them.
+- `hiddenProviderNames` / `removedModelIDs` persistence
+  (session state in this slice; `AssistantSettings` is the
+  natural home).
+- Antigravity catalog disk cache (in-memory only in this slice;
+  Legacy persisted it in UserDefaults).
+- No Settings UI for the new pieces in this slice: the Gemini /
+  Anthropic / Mistral / Qwen key fields, the alternative-keys
+  management UI (Legacy `AlternativeKeysView`), and the
+  `alternativeKeysEnabled` toggle have no pane yet — the keys
+  can be stored programmatically via the `SecretStore`
+  accounts, and rotation only runs when the toggle is on.
+- Dylan prerequisites, unchanged: a Gemini API key (and
+  alternative keys, if he wants rotation), Anthropic / OpenAI /
+  Mistral / Qwen API keys for the new discovery legs, a Google
+  OAuth session for the catalog-fallback path, and the SDK
+  tarball publication described in §26.4.4.5 if he wants a bundled
+  installer fallback.
+
+### 26.4.9 File inventory (this slice only)
+
+New files (destination repo only, uncommitted):
+
+- `ycode/Sources/YcodeAssistant/AntigravitySDKCatalog.swift` (344 lines)
+- `ycode/Sources/YcodeAssistant/AssistModelDiscovery.swift` (733 lines)
+- `ycode/Sources/YcodeAssistant/GeminiKeyRotation.swift` (421 lines)
+- `ycode/Sources/YcodeAssistant/AssistSDKModelSelection.swift` (324 lines)
+- `ycode/Sources/YcodeBuild/XcodeSchemeDiscovery.swift` (232 lines)
+- `ycode/Tests/YcodeAssistantTests/AssistModelDiscoveryTests.swift` (310 lines, 15 tests)
+- `ycode/Tests/YcodeAssistantTests/AntigravitySDKCatalogTests.swift` (113 lines, 9 tests)
+- `ycode/Tests/YcodeAssistantTests/GeminiKeyRotationTests.swift` (164 lines, 11 tests)
+- `ycode/Tests/YcodeAssistantTests/AssistSDKModelSelectionTests.swift` (272 lines, 14 tests)
+- `ycode/Tests/YcodeBuildTests/XcodeSchemeDiscoveryTests.swift` (188 lines, 13 tests)
+
+Modified files (destination repo only, uncommitted):
+
+- `ycode/Sources/YcodeAssistant/AssistModelRouting.swift` (+63/−25: `isSynthetic` on `AssistCandidateModel`, header + `handleTurnFailure` doc updates)
+- `ycode/Sources/YcodeAssistant/AssistantSettings.swift` (+17: `alternativeKeysEnabled`, default false)
+- `ycode/Sources/YcodeAssistant/SecretStore.swift` (+25: `geminiKey`, `anthropicKey`, `mistralKey`, `qwenKey`, `geminiAltKeyPrefix`, `geminiAltKeysMetadata`)
+- `ycode/Sources/YcodeSDK/Host/SDKInstaller.swift` (+36: bundled-fallback final-decision comment + `bundledFallbackStatus()`)
+- `ycode/Sources/YcodeSDK/Host/ServiceAdapters/Build/SDKBuildService.swift` (+27: `schemeDiscovery` injection + scheme resolution in `run`, deviation comment updated)
+- `ycode/Tests/YcodeSDKTests/SDKInstallerTests.swift` (+18: `testBundledFallbackIsAbsentWithReason`)
+
+Not edited (per task constraints): `ycode/Package.swift`, the
+ledger (`ledgers/MIGRATION_FEATURE_PARITY.md`), `specs/ide/sdk-platform.md`,
+SwiftCode-New, Legacy (read-only).
+
+Ledger rows this slice completes (coordinator to mark):
+`SwiftCode/Backend/Assist/AlternativeKeyManager.swift` (NOT STARTED),
+`SwiftCode/Services/AntigravitySDKModelFetcher.swift` (NOT STARTED),
+`SwiftCode/Backend/Assist/Tools/AssistXcodeProjectResolver.swift`
+(NOT STARTED — scheme half only; `locate(relativePath:)` and
+pbxproj introspection belong to the MCP project tools),
+`SwiftCode/Backend/Assist/AssistModelDiscoveryService.swift`
+(IMPLEMENTED with a PARTIAL note — the five direct-provider legs
+are now ported; custom/local/cloud legs remain with the host),
+`SwiftCode/Backend/Assist/AssistModelRouter.swift` (IMPLEMENTED
+with a PARTIAL note — `buildSDKConfiguration` /
+`selectModelForSDK`, Gemini key rotation and the Antigravity
+catalog are now ported).
+`SwiftCode/SDK/Host/SDKInstaller.swift` was already IMPLEMENTED;
+this slice adds the final bundled-fallback decision to it.
+
+## Evidence
+
+- Scheme discovery: Legacy `AssistXcodeProjectResolver.swift`
+  (read live — `locate`, `resolveScheme`, `firstListedScheme`,
+  `xcodebuild -list -json`); Ycode `Scheme.discover`
+  (`ycode/Sources/YcodeWorkspace/Scheme.swift`), `Container.schemes`
+  (`YcodeXcodebuild/Containers.swift`), `specs/ide/schemes.md`
+  (shared vs user scheme file locations). Evidence level 2
+  (file formats) + Legacy source (Dylan's own code).
+- Model discovery endpoints: Legacy
+  `AssistModelDiscoveryService.swift` (read live — all five
+  legs, headers, filters, priorities); Anthropic + Mistral
+  endpoints additionally confirmed by public web search
+  2026-11-06 (Anthropic `GET /v1/models` with `x-api-key` +
+  `anthropic-version: 2023-06-01`; Mistral `GET /v1/models`).
+  Evidence level 1 (public docs) + Legacy source.
+- Antigravity catalog: Legacy
+  `AntigravitySDKModelFetcher.swift` (read live — seed models,
+  `agy` candidates, parser, derive helpers) + Legacy
+  `AssistModelRouter.swift` (`sdkDefaultModelIDs`,
+  `createSyntheticSDKModel`). Evidence level 1 (Dylan's own code).
+- Key rotation: Legacy `AlternativeKeyManager.swift` (read live
+  — import, selection, cooldown, failure counting) + Legacy
+  `AssistModelRouter.swift` rotation branch. Evidence level 1.
+- SDK configuration: Legacy `AssistModelRouter.swift`
+  (`buildSDKConfiguration`, `selectModelForSDK`) + Legacy
+  `GoogleCloudSDKConfiguration.swift` (field list). Evidence
+  level 1.
+- Installer fallback: `sdk/scripts/package-sdk.sh` (read live —
+  packages the assembled SDK, not the npm tarball) +
+  `npm pack --dry-run` in `sdk/package` (run live 2026-11-06:
+  `@swiftcode/sdk` 1.0.0, 52.8 kB, 29 files, shasum
+  `1a1c24f569db8532ea9a839b27ecea1694c8acfa`; no file written).
+  Evidence level 1 (own build output).
+- No Swift toolchain in this environment: `swift build` /
+  `swift test` not run; static checks only (§26.4.4.9).
+
+### 26.5 Coordinator reconciliation
+
+- **Package.swift wiring (Slice C):** applied by the coordinator — `"YcodeSDK"` on `YcodeUI`, `"YcodeAssistant"` on `YcodeSDKTests`, `"YcodeSDK"` on `YcodeUITests`. No new target.
+- **knownToolIDs host wiring (Slice B):** applied by the coordinator — `CodingAssistantModel.mcpToolIDsProvider` (YcodeIDECore, injectable, nil by default) is set by the macOS shell to the live catalogue (`Set(mcpHost.server.tools.map(\.name))` plus `MCPServer.toolAliases` keys, lazily — creating the host installs all 433 tools, so it happens only on a turn that needs the catalogue) and injected into `MetaAssistProvider.knownToolIDs` in `send()` before the agent-mode attachment, so it survives `attaching(_:)`. The Linux shell (`YcodeIDEShell`) has no YcodeMCP dependency and leaves it unset — names record unmapped there, never claimed. The IDE model's agent-mode activity line is qualified for `.metaAssist` (the Muse host runs its own tools; Ycode's tools are named, not executed, and its file edits are not reviewed as proposals).
+- **Scan fix:** the 2 `scan-public` findings Slice A flagged (home-folder fixture paths in `GoogleADCAndAntigravityTests.swift`, pre-existing at `d7cf1872`) were fixed by the coordinator — fixture home changed to `/Users/user/` (same pattern as Wave 15). Scan is 0 findings.
+- **No slice conflicts:** `AssistantSettings.swift` carries both new fields (`metaReasoningEffort` from Slice B, `alternativeKeysEnabled` from Slice D) with matching decode + provider wiring; all other slice files are disjoint.
+- **Still open (Wave 17):** slash-command host effects (`/effort` / `/model` / `/clear` / `/login` — the manager returns effects, the host must apply them); starting the other-models proxy when other-model mode is on; `executeTool` attachment (needs a grant-enforcing tool runner — a YcodeMCP seam and caller identity in the MCP approval gate); the 7 honestly-unavailable view windows (separate subsystems, not seam gaps); a turn timeout for `executeTurn` (Legacy waited indefinitely too).
 
 ## Evidence
 
@@ -1940,7 +3937,9 @@ was made for this item beyond this spec text.
 - **4** — The 32-scope / 34-capability counts (§4, §13.1): consistent
   across the Swift host table, the TS list, the validator's
   `CAPABILITY_IDS`, and the snippet store.
-- **3** — The `SDKAssistApplication` secret-storage flag (§5) and the
+- **3** — The `SDKAssistApplication` secret-storage flag (§5, corrected in
+  Wave 16 §26.1.3 — the flag's premise was wrong; Legacy stored the key
+  ID, never the secret) and the
   `SDKAssistGate` cloud-denial wording being proposed (§7): single
   Legacy source each, no corroboration beyond the port.
 - **2** — The `YcodeSDKStudio` cycle analysis (§1, §21.7): inferred
@@ -1994,3 +3993,44 @@ was made for this item beyond this spec text.
 - **1** — Everything in §25 (Slice B) that depends on compilation:
   `swift build` / `swift test` were never run in this environment
   (no Swift toolchain). Mac build/test pending on Dylan's Mac.
+
+## Wave 16 evidence (§26)
+
+- **5** — `validate.mjs` vocabulary decision (§26.1.1): destination + Legacy
+  schema enums identical 32-entry sets, Legacy's `validate.mjs` identical
+  32-entry mirror, `SDKCapabilityID` 34 cases in both repos, the 8 excluded
+  ids' non-manifest status from Legacy's registry (`grantableInCurrentRelease
+  == false` for the `assist.*` ids; the 5 `security.*` method ids enforced
+  under the single `use.Security` grant), and the manifest survey (only
+  `source-control.read`, `build.execute`, `project.read`, `workspace.read`,
+  `credentials.use`, `network.request` appear) — all read live from both
+  repos; node suite 115/115 run here.
+- **5** — Distribution measurement (§26.1.2): Legacy `Distribution/SwiftCodeSDK/`
+  = 201,299,944 bytes / 2,478 files / 575,450 lines; `populate-distribution.py`
+  filler ~91.6 MB; the other `Scripts/*.py` files generate fake benchmarks/guides
+  to hit the 200 MB gates; the BSD-only `stat -f '%z'` defect reproduced live
+  on GNU stat and fixed; smoke script 8/8 run here.
+- **5** — Key-ID-only correction (§26.1.3): Legacy's flat `SDKAssistApplication`
+  stores `apiKeyID: UUID` and its submit looks the key up by ID — read live
+  from Legacy source, contradicting the Wave 14 spec premise.
+- **5** — MSP wire protocol, turn execution, lifecycle numbers, 36 slash
+  commands, other-models proxy (§26.2): read verbatim from Legacy source
+  (`MuseCodeMSPBridge`, `MetaAssistLifecycleManager`,
+  `MetaSlashCommandManager`, `MuseOtherModelsBridge`, turn executor);
+  `normalizeToolName` rules verbatim, registry lookup re-pointed at the
+  injected MCP catalogue.
+- **5** — The 12 view IDs and opener styles (§26.3): read verbatim from
+  Legacy's `SDKViewOpenerBuiltIns` (4 window managers, 5 notification
+  bridges, 3 sibling openers); every Ycode surface cited read verbatim from
+  destination source; the Assist backend boundary and rejected candidates
+  from Legacy's `SDKAssistService` header.
+- **5** — Scheme discovery, model-discovery endpoints/filters/priorities,
+  Antigravity seed models + `agy models` behaviour, `AlternativeKeyManager`
+  rules, SDK session-configuration shape (§26.4): read verbatim from Legacy
+  source; Anthropic and Mistral list endpoints confirmed by web search
+  2026-11-06; `npm pack --dry-run` for the installer-fallback decision run
+  live (52.8 kB, 29 files, no file written).
+- **1** — Everything in §26 that depends on compilation: `swift build` /
+  `swift test` were never run in this environment (no Swift toolchain). Mac
+  build/test pending on Dylan's Mac, including the `Package.swift` wiring,
+  the `mcpToolIDsProvider` injection, and all new test files.

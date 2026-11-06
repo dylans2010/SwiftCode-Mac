@@ -143,7 +143,7 @@ let package = Package(
                                                  .product(name: "Crypto", package: "swift-crypto")],
                 resources: [.copy("Resources/SwiftCodeSDK.json")]),
         .target(name: "YcodeSDKStudio", dependencies: ["YcodeSDK", "YcodeExtensions"]),
-        .testTarget(name: "YcodeSDKTests", dependencies: ["YcodeSDK", "YcodeExtensions", "YcodeSDKStudio"]),
+        .testTarget(name: "YcodeSDKTests", dependencies: ["YcodeSDK", "YcodeExtensions", "YcodeSDKStudio", "YcodeAssistant"]),
         // The `swiftcode` CLI and SDK tools (Legacy SwiftCode/SDK/Sources/):
         // thin wrappers over YcodeSDK entry points; no `sdk-test-runner`
         // product — Legacy's hand-rolled runner is superseded by `swift test`.
@@ -206,11 +206,11 @@ package.targets += [
     .target(name: "YcodeDeviceUI", dependencies: ["YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel"]),
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
-    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodeGoogleAuth", "YcodePaywall",
+    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodeGoogleAuth", "YcodePaywall", "YcodeSDK",
                                              // The StoreKit editor controller (specs/ide/storekit-paywall.md).
                                              .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
     .executableTarget(name: "YcodeApp", dependencies: ["YcodeRelease", "YcodeUI"]),
-    .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell", "YcodeCloud", "YcodeGoogleAuth"]),
+    .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell", "YcodeCloud", "YcodeGoogleAuth", "YcodeSDK"]),
 ]
 #else
 // The Linux viewer: an SDL 3 window (loaded at run time) on the portable viewer (display-stream.md §13).

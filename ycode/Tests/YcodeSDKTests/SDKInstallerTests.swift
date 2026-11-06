@@ -90,4 +90,22 @@ final class SDKInstallerTests: XCTestCase {
         XCTAssertFalse(result.success)
         XCTAssertFalse(result.usedFallback)
     }
+
+    /// Wave 16, Slice D — the bundled fallback stays absent: no
+    /// tarball ships in this repo. The status names the exact
+    /// reason and what Dylan must supply, so the UI can show it
+    /// instead of a bare failure. If a tarball is ever bundled,
+    /// this test fails loudly and must be updated to assert
+    /// `.present`.
+    func testBundledFallbackIsAbsentWithReason() {
+        let status = SDKInstaller.bundledFallbackStatus()
+        switch status {
+        case .present(let url):
+            XCTFail("Expected no bundled SDK copy, found one at \(url.path) — update this test to assert .present.")
+        case .absent(let reason):
+            XCTAssertTrue(reason.contains("No SDK tarball ships in this repo."))
+            XCTAssertTrue(reason.contains("npm pack"))
+            XCTAssertTrue(reason.contains("sdk-v1.0.0"))
+        }
+    }
 }

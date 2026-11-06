@@ -473,6 +473,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
     public func applicationDidFinishLaunching(_ n: Notification) {
         // YCODE_LAYOUT_PROBE: measure the chrome, write the report, quit.
         if LayoutProbe.startIfRequested() { return }
+        // Install the SDK host seams (view host, Assist backend
+        // attachment; Wave 16 Slice C). Idempotent; no-ops on repeat.
+        Task { await YcodeSDKInstaller.installIfNeeded() }
         YcodeDocumentController.showWelcome = { [weak self] in self?.showWelcomeWindow(nil) }
         if case .open(let all) = LaunchAction.decide(arguments: Array(CommandLine.arguments.dropFirst()), openDocumentCount: 0) {
             // Gauge traces open in a profiler window (specs/ide/profiler.md §6).

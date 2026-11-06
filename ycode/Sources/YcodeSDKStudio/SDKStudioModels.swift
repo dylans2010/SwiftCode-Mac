@@ -998,16 +998,19 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         self.contactEmail = contactEmail
     }
 
-    /// Builds the Host slice's application field. The API key secret is
-    /// a parameter, never a stored property: the secret lives only in
-    /// the form's in-memory `SecureField` for the duration of the submit
-    /// call and is never persisted by this model. The comma-separated
-    /// third-party model list is split into individual names.
-    public func makeField(apiKeySecret: String) -> SDKAssistApplication.Field {
+    /// Builds the Host slice's application field for the given key ID.
+    /// The ID comes from the presented secret (see `submit(apiKeySecret:)`:
+    /// extracted — unverified, naming only — from the secret the caller
+    /// holds; the store verifies the secret authoritatively and binds
+    /// only on a match). The secret itself is never a stored property:
+    /// it lives only in the form's in-memory `SecureField` for the
+    /// duration of the submit call. The comma-separated third-party
+    /// model list is split into individual names.
+    public func makeField(apiKeyID: UUID) -> SDKAssistApplication.Field {
         SDKAssistApplication.Field(
             extensionID: extensionID,
             displayName: displayName,
-            apiKey: apiKeySecret,
+            apiKeyID: apiKeyID,
             sdkVariant: sdkVariant,
             usageDescription: usageDescription,
             hasOwnUI: hasOwnUI,
@@ -1025,13 +1028,25 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
     /// Submits the application to the Host slice's
     /// `SDKAssistApplicationStore` (S-5): validates the fields, requires
     /// the extension to be installed, and verifies the presented secret
-    /// against the Keychain-backed key store. Returns the stored
-    /// application (status `pending`); approval is a separate host
-    /// action (`SDKAssistApplicationStore.approve`) that grants the
-    /// entitlements. Throws `SDKError` on any failure — the secret is
-    /// never included in an error.
+    /// against the Keychain-backed key store. The secret proves possession
+    /// of the key the application binds to and is dropped after
+    /// verification — the persisted record carries only the key ID.
+    /// Returns the stored application (status `pending`); approval is a
+    /// separate host action (`SDKAssistApplicationStore.approve`) that
+    /// grants the entitlements by key ID alone. Throws `SDKError` on any
+    /// failure — the secret is never included in an error. If this model
+    /// names a key (`keyID`, the existing-application variant) and the
+    /// presented secret names a different one, submission is rejected:
+    /// the secret must belong to the key being bound.
     public func submit(apiKeySecret: String) async throws -> SDKAssistApplication {
-        try await SDKAssistApplicationStore.shared.submit(makeField(apiKeySecret: apiKeySecret))
+        guard let idString = SDKAPIKeyCodec.extractPresentedKeyID(from: apiKeySecret),
+              let apiKeyID = UUID(uuidString: idString) else {
+            throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
+        }
+        if let namedKeyID = keyID, let named = UUID(uuidString: namedKeyID), named != apiKeyID {
+            throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
+        }
+        return try await SDKAssistApplicationStore.shared.submit(makeField(apiKeyID: apiKeyID), apiKeySecret: apiKeySecret)
     }
 
     /// Field errors keyed by field name, mirroring Legacy's form

@@ -21,10 +21,16 @@ import YcodeBuild
 // - Legacy located the project via the app's
 //   `AssistXcodeProjectResolver` and resolved the scheme with
 //   `xcodebuild -list` (explicit scheme, else first scheme, else bundle
-//   name). Neither seam exists in Ycode: the container is resolved from
-//   the project root (`.xcworkspace` > `.xcodeproj` > `Package.swift`)
-//   and the requested target is used as the scheme; when no scheme can
-//   be determined the engine decides and failure surfaces truthfully.
+//   name). The scheme half now exists in Ycode (Wave 16, Slice D):
+//   `XcodeSchemeDiscovery` (YcodeBuild) resolves the scheme in
+//   Legacy's precedence order — explicit-when-known, first listed,
+//   first `.xcscheme` file, else the requested target / container
+//   name — and the resolution (including the fallback reason) is
+//   logged. The container half is still resolved from the project
+//   root (`.xcworkspace` > `.xcodeproj` > `Package.swift`); the
+//   resolver's `locate(relativePath:)` and pbxproj introspection
+//   (`groupID`, `sourcesBuildPhaseID`) belong to the MCP project
+//   tools, not to this service.
 
 public actor SDKBuildService {
     public static let shared = SDKBuildService()
@@ -40,9 +46,14 @@ public actor SDKBuildService {
 
     private let engine: any BuildEngine
     private var activeHandles: [String: SDKBuildHandle] = [:]
+    /// Resolves the scheme to build (Wave 16: `XcodeSchemeDiscovery`).
+    /// Injectable so tests can stub discovery; the default runs the
+    /// real `xcodebuild -list` leg on macOS and the file leg anywhere.
+    private let schemeDiscovery: XcodeSchemeDiscovery
 
-    public init(engine: any BuildEngine = XcodebuildEngine()) {
+    public init(engine: any BuildEngine = XcodebuildEngine(), schemeDiscovery: XcodeSchemeDiscovery = XcodeSchemeDiscovery()) {
         self.engine = engine
+        self.schemeDiscovery = schemeDiscovery
     }
 
     /// Starts a build for `caller`. Authorizes `.buildExecute` first.
@@ -57,9 +68,13 @@ public actor SDKBuildService {
         }
         let validated = try validate(request)
         let container = try resolveContainer(projectRoot: caller.projectRootPath)
+        let resolvedScheme = await schemeDiscovery.resolveScheme(explicit: validated.target, container: container)
+        if let reason = resolvedScheme.reason {
+            SDKLog.info("SDKBuildService: scheme '\(resolvedScheme.scheme)' (\(resolvedScheme.source.rawValue)): \(reason)")
+        }
         let buildRequest = BuildRequest(
             container: container,
-            scheme: validated.target,
+            scheme: resolvedScheme.scheme,
             configuration: validated.configuration,
             destination: validated.destination
         )

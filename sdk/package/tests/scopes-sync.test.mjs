@@ -299,3 +299,129 @@ describe("ScopesIDLists two-way sync", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// validate.mjs manifest vocabulary pin (Wave 16 Slice A decision)
+//
+// The 32-entry CAPABILITY_IDS mirror in sdk/cli/commands/validate.mjs is
+// the CANONICAL vocabulary for swiftcode.json `capabilities[].id` —
+// deliberately not the 34-case SDKCapabilityID enum. This block pins the
+// exact three-way relationship so any drift fails loudly:
+//   mirror (validate.mjs) == schema enum (32 entries)
+//   mirror = 26 SDKCapabilityID raw values + the 6 `use.Security.*`
+//     method scopes (which are NOT enum cases)
+//   enum cases NOT in the mirror = exactly the 8 non-manifest ids:
+//     assist.ui / assist.headless / assist.main (entitlement-only, never
+//     grantable via a manifest) and the 5 security.* method ids (enforced
+//     under the single use.Security grant, never granted separately).
+// See the DECISION comment above CAPABILITY_IDS in validate.mjs.
+// ---------------------------------------------------------------------------
+
+const validateMjsPath = path.join(
+  repoRoot,
+  "sdk",
+  "cli",
+  "commands",
+  "validate.mjs",
+);
+const manifestSchemaPath = path.join(
+  repoRoot,
+  "sdk",
+  "Contracts",
+  "Manifest",
+  "swiftcode-extension-v1.schema.json",
+);
+
+function parseValidateMirror() {
+  const src = readFileSync(validateMjsPath, "utf8");
+  const block = src.match(/const CAPABILITY_IDS = \[([\s\S]*?)\];/);
+  assert.ok(block, "validate.mjs: could not find the CAPABILITY_IDS array");
+  const ids = [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(ids.length > 0, "validate.mjs: parsed 0 CAPABILITY_IDS entries");
+  assert.deepEqual([...new Set(ids)], ids, "validate.mjs: duplicate CAPABILITY_IDS entries");
+  return ids;
+}
+
+function parseSchemaCapabilityEnum() {
+  const schema = JSON.parse(readFileSync(manifestSchemaPath, "utf8"));
+  const cap = schema?.properties?.capabilities;
+  assert.ok(cap, "schema: missing properties.capabilities");
+  assert.equal(
+    cap.maxItems,
+    32,
+    "schema: capabilities maxItems must be 32 (the mirror size)",
+  );
+  const ids = cap?.items?.properties?.id?.enum;
+  assert.ok(Array.isArray(ids) && ids.length > 0, "schema: missing capabilities[].id enum");
+  return ids;
+}
+
+describe("validate.mjs manifest vocabulary pin", () => {
+  it("mirror equals the schema enum (same 32 entries)", () => {
+    const mirror = parseValidateMirror();
+    const schemaEnum = parseSchemaCapabilityEnum();
+    assert.equal(mirror.length, 32, `validate.mjs mirror must have 32 entries, got ${mirror.length}`);
+    assert.equal(schemaEnum.length, 32, `schema enum must have 32 entries, got ${schemaEnum.length}`);
+    assert.deepEqual(
+      [...mirror].sort(),
+      [...schemaEnum].sort(),
+      "validate.mjs CAPABILITY_IDS must match the schema capabilities[].id enum exactly",
+    );
+    // The manifest cap in validate.mjs must stay in step with the schema.
+    const src = readFileSync(validateMjsPath, "utf8");
+    assert.ok(
+      /capabilities\.length > 32/.test(src),
+      "validate.mjs: the capabilities length cap must be 32",
+    );
+  });
+
+  it("mirror is 26 SDKCapabilityID values + the 6 use.Security.* method scopes", () => {
+    const mirror = parseValidateMirror();
+    const enumIds = new Set(parseCapabilityCaseMap().values());
+    const inEnum = mirror.filter((id) => enumIds.has(id));
+    const notInEnum = mirror.filter((id) => !enumIds.has(id));
+    assert.equal(inEnum.length, 26, `mirror must contain 26 SDKCapabilityID values, got ${inEnum.length}: ${inEnum}`);
+    assert.deepEqual(
+      [...notInEnum].sort(),
+      [
+        "use.Security.audit",
+        "use.Security.crypto",
+        "use.Security.keychain",
+        "use.Security.policy",
+        "use.Security.redaction",
+        "use.Security.securePrompt",
+      ],
+      "the 6 mirror entries outside SDKCapabilityID must be exactly the use.Security.* method scopes",
+    );
+  });
+
+  it("exactly 8 enum ids are excluded, each for a documented reason", () => {
+    const mirror = new Set(parseValidateMirror());
+    const enumIds = new Set(parseCapabilityCaseMap().values());
+    assert.equal(enumIds.size, 34, `SDKCapabilityID must have 34 cases, got ${enumIds.size}`);
+    const excluded = [...enumIds].filter((id) => !mirror.has(id)).sort();
+    // Entitlement-only Assist variants: never grantable via a manifest.
+    const entitlementOnly = ["assist.headless", "assist.main", "assist.ui"];
+    // Method scopes enforced under the single use.Security grant.
+    const methodScopes = [
+      "security.addValue",
+      "security.deleteValue",
+      "security.hasValue",
+      "security.listValueIDs",
+      "security.useValue",
+    ];
+    assert.deepEqual(
+      excluded,
+      [...entitlementOnly, ...methodScopes].sort(),
+      "the enum ids excluded from the manifest vocabulary must be exactly the 3 entitlement-only assist.* ids + the 5 security.* method ids",
+    );
+    // The excluded ids stay real runtime surface: the 5 security.* ids
+    // are ScopesIDLists entries and the 3 assist.* ids are enum cases
+    // with registry entries — this test pins only that they are not
+    // manifest-declarable, not that they do not exist.
+    const tsIds = new Set(SCOPES_ID_LIST.map((e) => e.id));
+    for (const id of methodScopes) {
+      assert.ok(tsIds.has(id), `excluded method scope ${id} must remain a ScopesIDLists entry`);
+    }
+  });
+});

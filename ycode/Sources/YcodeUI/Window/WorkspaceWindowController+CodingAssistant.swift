@@ -41,6 +41,14 @@ extension WorkspaceWindowController {
                                          archiveURL: Self.isTestProcess ? nil : CodingAssistantModel.archiveURL(forWorkspace: session.model.url),
                                          prefs: prefs, services: services)
         model.contextProvider = { [weak self] in self?.codingAssistantContext() ?? WorkspaceContext() }
+        // Wave 16: the live MCP tool catalogue for providers that
+        // normalize tool names against it (Meta). Lazy — creating
+        // the host installs all 433 tools, so it happens only on a
+        // turn that needs the catalogue, never at pane open.
+        model.mcpToolIDsProvider = { [weak self] in
+            guard let host = self?.mcpHost else { return [] }
+            return Set(host.server.tools.map(\.name)).union(MCPServer.toolAliases.keys)
+        }
         installAgentMode(model)
         let c = CodingAssistantViewController(model: model)
         c.onReviewProposal = { [weak self] p, m, conversation in self?.reviewProposal(p, message: m, conversation: conversation) }

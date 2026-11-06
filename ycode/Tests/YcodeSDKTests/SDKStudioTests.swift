@@ -490,16 +490,17 @@ final class SDKStudioModelTests: XCTestCase {
             dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
         XCTAssertNil(exact.validationErrors()["usageDescription"])
         // makeField splits comma-separated third-party models and
-        // carries the secret only as a parameter, never a stored
-        // property on the model.
+        // takes the key ID (not the secret) — the secret is a
+        // submit-time parameter only, never a stored property.
         let thirdParty = SDKStudioAssistAccessApplication(
             extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
             usageDescription: "We use Assist to summarize code for the user.",
             hasOwnUI: false, ownUIDescription: nil,
             usesThirdPartyModels: true, thirdPartyModels: "openai/gpt-4o, anthropic/claude-sonnet",
             dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
-        let field = thirdParty.makeField(apiKeySecret: "sc_dev_test_secret")
-        XCTAssertEqual(field.apiKey, "sc_dev_test_secret")
+        let keyID = UUID()
+        let field = thirdParty.makeField(apiKeyID: keyID)
+        XCTAssertEqual(field.apiKeyID, keyID)
         XCTAssertEqual(field.sdkVariant, .assistSDKUI)
         XCTAssertEqual(field.thirdPartyModels, ["openai/gpt-4o", "anthropic/claude-sonnet"])
         XCTAssertEqual(field.contactEmail, "dev@example.com")

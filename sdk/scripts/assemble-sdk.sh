@@ -20,6 +20,15 @@ SWIFT_PACKAGE_DIR="$REPO_ROOT/ycode"
 DIST_DIR="$SDK_ROOT/Distribution"
 DEST="$DIST_DIR/SwiftCodeSDK"
 
+# Portable file-size probe (Wave 16): Legacy used BSD-only `stat -f %z`,
+# which fails on GNU stat (it reads `-f` as "filesystem" and treats the
+# format as a path). Probe once; every size call below uses this.
+if stat -f '%z' "$0" >/dev/null 2>&1; then
+    _STAT_SIZE=(stat -f %z)
+else
+    _STAT_SIZE=(stat -c %s)
+fi
+
 echo "Assembling SwiftCode SDK distribution at $DEST..."
 rm -rf "$DEST"
 
@@ -285,7 +294,7 @@ EOF
 # hard gate was only passable via the dropped synthetic-filler generators,
 # so it is no longer enforced; real SDK content is far smaller).
 echo "Installed size is reported, not gated."
-TOTAL_BYTES=$(find "$DEST" -type f -exec stat -f '%z' {} + | awk '{ total += $1 } END { printf "%.0f\n", total }')
+TOTAL_BYTES=$(find "$DEST" -type f -exec "${_STAT_SIZE[@]}" {} + | awk '{ total += $1 } END { printf "%.0f\n", total }')
 DECIMAL_MB=$(awk "BEGIN { printf \"%.2f\", $TOTAL_BYTES / 1000000 }")
 MIB=$(awk "BEGIN { printf \"%.2f\", $TOTAL_BYTES / 1048576 }")
 
