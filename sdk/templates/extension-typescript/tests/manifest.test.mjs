@@ -17,18 +17,34 @@ const schema = JSON.parse(await readFile(schemaPath, "utf8"));
 const knownCapabilityIds = new Set(schema.properties.capabilities.items.properties.id.enum);
 
 describe("manifest", () => {
-  it("declares exactly source-control.read and build.execute", () => {
+  it("declares the seven demonstration capabilities", () => {
     const ids = manifest.capabilities.map((c) => c.id);
-    assert.deepEqual(ids, ["source-control.read", "build.execute"]);
+    assert.deepEqual(ids, [
+      "source-control.read",
+      "build.execute",
+      "project.read",
+      "terminal.sandbox",
+      "use.SwiftCodeModel",
+      "use.Security",
+      "docs.search",
+    ]);
   });
 
   it("does not request Assist", () => {
     assert.equal(manifest.assist.requested, false);
   });
 
-  it("contributes exactly inspect-repository and run-build", () => {
+  it("contributes the seven demonstration commands", () => {
     const ids = manifest.contributes.commands.map((c) => c.id);
-    assert.deepEqual(ids, ["inspect-repository", "run-build"]);
+    assert.deepEqual(ids, [
+      "inspect-repository",
+      "run-build",
+      "inspect-project",
+      "terminal-command",
+      "cloud-model",
+      "security-vault",
+      "open-docs",
+    ]);
   });
 
   it("every capability id is a real, grantable registry id from the shipped schema", () => {

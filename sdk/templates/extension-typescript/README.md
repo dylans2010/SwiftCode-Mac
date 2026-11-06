@@ -2,8 +2,8 @@
 
 A SwiftCode TypeScript extension built with `@swiftcode/sdk`.
 
-- **Capabilities:** `source-control.read`, `build.execute`
-- **Commands:** `inspect-repository` (Inspect Repository), `run-build` (Build Current Project)
+- **Capabilities:** `source-control.read`, `build.execute`, `project.read`, `terminal.sandbox`, `use.SwiftCodeModel`, `use.Security`, `docs.search`
+- **Commands:** `inspect-repository` (Inspect Repository), `run-build` (Build Current Project), `inspect-project` (Inspect Project Metadata), `terminal-command` (Run Sandboxed Terminal Command), `cloud-model` (Complete with Cloud Model), `security-vault` (Inspect Security Secret IDs), `open-docs` (Open Documentation Browser)
 - **Assist:** not requested and not used (unavailable to extensions).
 
 ## Prerequisites
@@ -56,3 +56,23 @@ The `run-build` command calls `build.run({ target: "" })` with an empty
 target: the host resolves the default scheme/build target of the currently
 open SwiftCode project. The extension never hardcodes a target name that
 might not exist in the user's project.
+
+## The other five commands
+
+- `inspect-project` asks the host for the current project metadata. The
+  `project.getCurrent` route is not in the host dispatcher yet, so until it
+  lands the host answers with a typed error and the command logs a warning
+  and returns `null` — it never fabricates a project.
+- `terminal-command` runs `git --version` through the host's sandboxed
+  terminal service. Only allow-listed bare executable names and absolute
+  paths are accepted; shell syntax is rejected.
+- `cloud-model` completes a fixed prompt through the host Cloud Model
+  service (`use.SwiftCodeModel`). The host denies honestly with a typed
+  error when no cloud endpoint is configured or no grant exists — the
+  command never invents a completion.
+- `security-vault` lists the IDs of the secrets stored under the
+  extension's own id (`use.Security` grant). Only names are ever returned;
+  secret values stay in the host vault and are never revealed.
+- `open-docs` asks the host to open the `docs.search` view. The host
+  rejects with a typed error until that view lands; the rejection
+  propagates to the caller instead of pretending the view opened.

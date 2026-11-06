@@ -1,6 +1,6 @@
 // Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
 //   SwiftCode/Services/SoundCatalog.swift
-// Adapted for SwiftCode: Verbatim. NOTE: the 35 custom .aiff resources are not in this repo yet — AppSound.isAvailable/resolvedURL return nil honestly until they land (see the dispositions TSV / wiring list).
+// Adapted for SwiftCode: Verbatim, plus a Bundle.module lookup in bundleURL (Wave 19 slice E). The 57 Legacy .aiff files (32 distinct sounds; 25 are byte-identical aliases of the 32) are staged at SwiftCodeUI/Resources/Sounds/ (Package.swift: resources: [.copy("Resources/Sounds")] on SwiftCodeUI); SwiftPM puts them in the SwiftCodeUI module bundle, which Bundle.main cannot see. The dev-repo fallback (Resources/Sounds under this file's target) is unchanged.
 
 import Foundation
 import AppKit
@@ -139,6 +139,14 @@ public struct AppSound: Identifiable, Hashable, Sendable {
         for name in candidates {
             let soundName = (name as NSString).deletingPathExtension
             let soundExt = (name as NSString).pathExtension
+            // SwiftPM (Wave 19 slice E): target resources live in the
+            // SwiftCodeUI module bundle, not in Bundle.main.
+            if let url = Bundle.module.url(forResource: soundName, withExtension: soundExt, subdirectory: "Sounds") {
+                return url
+            }
+            if let url = Bundle.module.url(forResource: soundName, withExtension: soundExt) {
+                return url
+            }
             if let url = Bundle.main.url(forResource: soundName, withExtension: soundExt) {
                 return url
             }

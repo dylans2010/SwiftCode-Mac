@@ -42,8 +42,12 @@ import SwiftCodeSDK
 //                             Slice C: open a SQLite file, browse
 //                             tables/rows, run SQL — over SwiftCode's
 //                             existing `SQLiteDatabase`)
+//   - `docs.search`         → Documentation Browser window (Wave 19,
+//                             Slice A: the 57-topic offline cache,
+//                             fetched live once from the public DocC
+//                             endpoints and served offline; see
+//                             `specs/ide/wave19-docs.md`)
 //   Honestly unavailable (no hostable surface in SwiftCode):
-//   - `docs.search`         → no DocC documentation browser exists
 //   - `sandbox.view`        → no integrated terminal (the debug
 //                             console is output-only)
 //   - `deployConsole.view`  → no deployments console / providers
@@ -89,6 +93,8 @@ public protocol SDKViewSurfaceActions: AnyObject {
     func showCodingDictionary() throws
     /// Shows the SQLite Explorer window (Wave 17, Slice C).
     func showDatabaseExplorer() throws
+    /// Shows the Documentation Browser window (Wave 19, Slice A).
+    func showDocumentationBrowser() throws
 }
 
 /// The live surface actions: the key workspace window's own
@@ -151,17 +157,23 @@ public final class WorkspaceSDKViewSurfaceActions: SDKViewSurfaceActions {
         wc.revealCodingAssistant()
     }
 
-    /// Neither window needs a project — Legacy's dictionary and
-    /// database explorer are both standalone — so these two actions
-    /// do NOT go through the workspace-window gate above. They open
-    /// their own windows directly; the dictionary generates entries
-    /// per query and the explorer asks for a file.
+    /// Neither window needs a project — Legacy's dictionary,
+    /// database explorer, and documentation browser are all
+    /// standalone — so these three actions do NOT go through the
+    /// workspace-window gate above. They open their own windows
+    /// directly; the dictionary generates entries per query, the
+    /// explorer asks for a file, and the browser serves its offline
+    /// cache.
     public func showCodingDictionary() throws {
         CodingDictionaryWindowManager.shared.showWindow()
     }
 
     public func showDatabaseExplorer() throws {
         SQLiteExplorerWindowManager.shared.showWindow()
+    }
+
+    public func showDocumentationBrowser() throws {
+        DocumentationBrowserWindowManager.shared.showWindow()
     }
 
     /// The active project's first .storyboard/.xib, deterministically
@@ -200,7 +212,6 @@ public final class SwiftCodeSDKViewHost: SDKViewHost, @unchecked Sendable {
     /// reason each one cannot be opened. The single source of truth
     /// for the honestly-unavailable set (mirrored in the slice spec).
     public static let unavailableReasons: [String: String] = [
-        "docs.search": "SwiftCode has no documentation browser. Quick Help covers the symbol under the cursor; there is no DocC bookshelf surface to open.",
         "sandbox.view": "SwiftCode has no integrated terminal. The debug console is output-only; opening it as a shell would misrepresent it.",
         "deployConsole.view": "SwiftCode has no deployments console. No Netlify, Vercel, or GitHub Pages deployment surface exists in the IDE.",
         "ci.VisualWF": "SwiftCode has no visual-workflow or CI dashboard. Builds run through the build system; no workflow canvas exists.",
@@ -215,9 +226,11 @@ public final class SwiftCodeSDKViewHost: SDKViewHost, @unchecked Sendable {
 
     public func open(viewID: String) async throws {
         switch viewID {
-        case "docs.search", "sandbox.view",
+        case "sandbox.view",
              "deployConsole.view", "ci.VisualWF", "virtualization.view":
             throw Self.unavailableError(viewID: viewID)
+        case "docs.search":
+            try await actions.showDocumentationBrowser()
         case "db.ExploreView":
             try await actions.showDatabaseExplorer()
         case "dictionary.open":

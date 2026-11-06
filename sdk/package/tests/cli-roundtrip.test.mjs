@@ -350,9 +350,13 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     assert.equal(r.code, 1);
     const typed = parseJsonEnvelope(r.stdout).error.data.error;
     assert.equal(typed.code, "MANIFEST_INVALID");
+    // The injected "mind.read" is appended last, so its index is the
+    // manifest's final capability — the template grew 2 -> 7 capabilities
+    // in Wave 19 slice D, so hardcoding capabilities[2] went stale.
+    const badIndex = manifest.capabilities.length - 1;
     assert.ok(
-      typed.details.problems.some((p) => p.path === "capabilities[2].id"),
-      `expected a capabilities[2].id problem, got ${JSON.stringify(typed.details.problems)}`
+      typed.details.problems.some((p) => p.path === `capabilities[${badIndex}].id`),
+      `expected a capabilities[${badIndex}].id problem, got ${JSON.stringify(typed.details.problems)}`
     );
   });
 

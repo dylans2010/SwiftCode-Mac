@@ -13,6 +13,12 @@ import SwiftCodeSDK
 // their SwiftCode surface, honestly-unavailable windows throw
 // `.serviceUnavailable` with the recorded reason, and unknown IDs
 // throw `.serviceUnavailable` naming the missing registration.
+//
+// Wave 19, Slice A: `docs.search` moved from honestly-unavailable to
+// working — the Documentation Browser window now exists (57-topic
+// offline cache, `specs/ide/wave19-docs.md`). The fake gained
+// `showDocumentationBrowser`, the working-cases table gained the
+// docs.search row, and the unavailable table lost it (4 remain).
 
 @MainActor
 final class SwiftCodeSDKViewHostTests: XCTestCase {
@@ -37,6 +43,7 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         func showCodingAssistant() throws { try record("showCodingAssistant") }
         func showCodingDictionary() throws { try record("showCodingDictionary") }
         func showDatabaseExplorer() throws { try record("showDatabaseExplorer") }
+        func showDocumentationBrowser() throws { try record("showDocumentationBrowser") }
     }
 
     // MARK: - Helpers
@@ -78,6 +85,7 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
             (SDKAssistUIOpener.assistMainViewID, "showCodingAssistant"),
             ("dictionary.open", "showCodingDictionary"),
             ("db.ExploreView", "showDatabaseExplorer"),
+            ("docs.search", "showDocumentationBrowser"),
         ]
         for (viewID, surface) in cases {
             let (host, actions) = makeHost()
@@ -90,7 +98,6 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
 
     func testUnavailableWindowsThrowWithReason() async {
         let cases: [(viewID: String, reason: String)] = [
-            ("docs.search", "no documentation browser"),
             ("sandbox.view", "no integrated terminal"),
             ("deployConsole.view", "no deployments console"),
             ("ci.VisualWF", "no visual-workflow"),
@@ -110,7 +117,7 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         let working: Set<String> = [
             "deviceconnect.open", "simulator.view", "uibuilder.open",
             "symbols.browse", "preview.live",
-            "dictionary.open", "db.ExploreView",
+            "dictionary.open", "db.ExploreView", "docs.search",
         ]
         let unavailable = Set(SwiftCodeSDKViewHost.unavailableReasons.keys)
         XCTAssertTrue(working.isDisjoint(with: unavailable))

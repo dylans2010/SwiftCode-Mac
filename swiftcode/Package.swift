@@ -228,7 +228,7 @@ package.targets += [
                                              // probes KVM through SwiftCodeHypervisor.
                                              "SwiftCodeHypervisor",
                                              // The StoreKit editor controller (specs/ide/storekit-paywall.md).
-                                             .product(name: "StoreKitConfiguration", package: "swiftcode-storekit")]),
+                                             .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"), .product(name: "Markdown", package: "swift-markdown")], resources: [.copy("Resources/Sounds")]),
     .executableTarget(name: "SwiftCodeApp", dependencies: ["SwiftCodeRelease", "SwiftCodeUI"]),
     .testTarget(name: "SwiftCodeUITests", dependencies: ["SwiftCodeMCP", "SwiftCodeUI", "SwiftCodeIDECore", "SwiftCodeCompletion", "SwiftCodePreviews", "SwiftCodeDisplayStream", "SwiftCodeSimFeatures", "SwiftCodeDeviceModel", "SwiftCodeDeviceUI", "SwiftCodeBuild", "SwiftCodeDebug", "SwiftCodeLanguage", "SwiftCodeXcodebuild", "SwiftCodeSubprocess", "SwiftCodeAssistant", "SwiftCodeExtensions", "SwiftCodeProfiler", "SwiftCodeBuildServer", "SwiftCodeIDEShell", "SwiftCodeCloud", "SwiftCodeGoogleAuth", "SwiftCodeSDK"]),
 ]
@@ -289,6 +289,11 @@ package.targets += [
 // Builds and tests on macOS and Linux; SwiftCodeIDECore and the editors use it.
 package.dependencies += [.package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0")]
 
+// The Markdown renderer (specs/ide/wave19-views.md): SwiftCodeUI's
+// MarkdownRenderer renders Legacy's Markdown files with swift-markdown's
+// Document/MarkupVisitor API (Apache-2.0).
+package.dependencies += [.package(url: "https://github.com/apple/swift-markdown.git", from: "0.5.0")]
+
 // The StoreKit configuration file model (specs/ide/storekit-paywall.md
 // §8.1): frameworks/storekit is a sibling package in this repo. The
 // .storekit editor model in SwiftCodeIDECore reads/writes real .storekit
@@ -327,7 +332,7 @@ package.targets += [
                                                  .product(name: "StoreKitEngine", package: "swiftcode-storekit"),
                                                  "SwiftCodeHealthStore",
                                                  // SHA-256 and the asset service's ES256 chain (runtime downloads, route B).
-                                                 .product(name: "Crypto", package: "swift-crypto")]),
+                                                 .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/Licenses")]),
     .testTarget(name: "SwiftCodeIDECoreTests", dependencies: ["SwiftCodeIDECore", "SwiftCodeSyntax", "SwiftCodeProject", "SwiftCodeWorkspace", "SwiftCodeSettings", "SwiftCodePlist",
                                                           "SwiftCodeBuild", "SwiftCodeDebug", "SwiftCodeLanguage", "SwiftCodeXcodebuild", "SwiftCodeSubprocess",
                                                           "SwiftCodeAssistant", "SwiftCodeProfiler", "SwiftCodePreviews", "SwiftCodeDeviceModel", "SwiftCodeSimFeatures",
@@ -435,7 +440,10 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
                                                           .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"),
                                                           .product(name: "SwiftUI", package: "swiftcode-swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftcode-swiftui"),
-                                                          .product(name: "OVDBus", package: "swiftcode-swiftui")]),
+                                                          .product(name: "OVDBus", package: "swiftcode-swiftui"),
+                                                          // Wave 19 slice C: ModernGroupBoxStyle lives in
+                                                          // SwiftCodeUI and 15 DevTools views call it.
+                                                          "SwiftCodeUI"]),
     ]
 }
 #else
@@ -445,6 +453,9 @@ package.targets += [
                                                       "SwiftCodePreviews", "SwiftCodeExtensions", "SwiftCodeSDK", "SwiftCodeSDKStudio", "SwiftCodePaywall",
                                                       // Bulk wave (Views-D): backups + PR views.
                                                       "SwiftCodeCloud", "SwiftCodeGitHub",
-                                                      .product(name: "StoreKitConfiguration", package: "swiftcode-storekit")]),
+                                                      .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"),
+                                                      // Wave 19 slice C: ModernGroupBoxStyle lives in
+                                                      // SwiftCodeUI and 15 DevTools views call it.
+                                                      "SwiftCodeUI"]),
 ]
 #endif
