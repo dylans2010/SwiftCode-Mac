@@ -1,6 +1,6 @@
 # SwiftUI 10: implementation rounds and conformance tests
 
-Status: proposal, round 0 (KIT-SWIFTUI, 2026-10-19). @@SWIFTCODE_ORIGINAL@@ plan.
+Status: proposal, round 0 (KIT-SWIFTUI, 2026-10-19). Ycode-original plan.
 Clean-room agents implement from files 03–09, `golden-layout.md` and
 `api-inventory.md` only. They must not open the reference tools (the Xcode
 copy, Ghidra, the IPSW), `research/dirty/`, Ghidra projects, or the
@@ -99,7 +99,7 @@ the log, and only then implements.
 | T-KEYFRAME | the keyframe timeline of `05` §6 | 31 values | 0.01 |
 | T-COLOR | `Color.resolve(in:)` light/dark for 32 colours; increased contrast for `blue`/`accentColor` | `07` §4 | exact hex |
 | T-DF | the `dataflow` script: body sets per step, appear/disappear order, preference order | `03` §2, §4.1 | exact |
-| T-IMG | Headless renders at scale 2 on white (black in dark mode), sampled at points: colours fill exact frames (07 §4 values, light and dark); shapes, strokes (centred, inside, dashed), `trim`; linear/radial/angular gradients; colour and modifier opacity, `hidden`, multiply blending, background/overlay order, `border`; `clipShape`, `clipped`, `cornerRadius`, `mask`; `offset`, `rotationEffect`, `scaleEffect`; shadow and blur; `colorMultiply`; PNG/JPEG, template and named images; text ink and colour; symbols (box, tint, missing-name placeholder and the reference's 0 × 0 mode); `Canvas`; `ImageRenderer`; right-to-left. Golden scenes `img.shapes`, `img.gradients`, `img.composite`(`.dark`); the Vulkan compositor's read-back against the CPU rasteriser | @@SWIFTCODE_ORIGINAL@@ scenes; colours `07` §4; symbol boxes `07` §3 | ±2 per channel (gradients ±3–8, JPEG ±12, angular ±30); goldens ±3 per channel with ≤ 0.2 % of values beyond; Vulkan vs CPU ±2 |
+| T-IMG | Headless renders at scale 2 on white (black in dark mode), sampled at points: colours fill exact frames (07 §4 values, light and dark); shapes, strokes (centred, inside, dashed), `trim`; linear/radial/angular gradients; colour and modifier opacity, `hidden`, multiply blending, background/overlay order, `border`; `clipShape`, `clipped`, `cornerRadius`, `mask`; `offset`, `rotationEffect`, `scaleEffect`; shadow and blur; `colorMultiply`; PNG/JPEG, template and named images; text ink and colour; symbols (box, tint, missing-name placeholder and the reference's 0 × 0 mode); `Canvas`; `ImageRenderer`; right-to-left. Golden scenes `img.shapes`, `img.gradients`, `img.composite`(`.dark`); the Vulkan compositor's read-back against the CPU rasteriser | Ycode-original scenes; colours `07` §4; symbol boxes `07` §3 | ±2 per channel (gradients ±3–8, JPEG ±12, angular ±30); goldens ±3 per channel with ≤ 0.2 % of values beyond; Vulkan vs CPU ±2 |
 | T-LAYOUT-F | font-independent golden cases: colours, shapes, spacers, dividers, fixed frames, flexible frames on colours, padding on colours, aspect ratios, stacks of fixed-size colours (`hstack.colors`, `hstack.twoColors`, `hstack.threeColors.spacing0`, `vstack.colors`, `hstack.top`, `layoutPriority.vstack`), `zstack` around a fixed colour, `clipped`, `lazyvgrid.*`, `geometryReader`, `circle`, `capsule`, `frame.minmax`, `frame.ideal*` | `golden-layout.md` | 0.01 pt |
 | T-LAYOUT-T | text-dependent cases checked as **relations** with our font: wrapped width ≤ proposal and = longest line; height = first line + (n−1) × pitch; zero proposal → 0 × 0; `lineLimit`; stack spacing = 8 horizontally; vertical text spacing derived from metrics; centring offsets = (container − child)/2; priority distribution order (`hstack.priority`: low-priority child gets what remains after the other's answer) | `04` §3–4 | exact relations |
 | T-LAYOUT-SF | (macOS only, optional) the same cases with the reference font installed locally from a Mac (never redistributed) must match the golden values exactly | `golden-layout.md` | 0.01 pt |
@@ -179,4 +179,4 @@ read from the local system, never copied into the repository).
 |---|---|
 | Expected values referenced by the suites | 3 (reference runs; see the files cited per suite) |
 | R11 API names (commands, menus, toolbars, focused values, context menus, `Settings`) | 1 (public API documentation; `docs/PARITY.md` §5.4) |
-| Plan, rounds, tolerances, fonts policy | @@SWIFTCODE_ORIGINAL@@ (no evidence claim) |
+| Plan, rounds, tolerances, fonts policy | Ycode-original (no evidence claim) |

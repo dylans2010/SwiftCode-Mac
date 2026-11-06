@@ -1,6 +1,6 @@
 # HealthKit spec: design note for an open implementation
 
-> **@@SWIFTCODE_ORIGINAL@@ design.** This note is our own proposal, not a description
+> **Ycode-original design.** This note is our own proposal, not a description
 > of Apple's implementation. It is derived only from the behavior in the
 > other files of this directory. Clean-room implementers may follow it or
 > improve it; the conformance tests (`plan.md`) are what must pass.
@@ -190,7 +190,7 @@ rowid)` for anchors, `metadata(key, text|number)`, `sync_ids` unique.
 
 ## 10. Data seeding (SwiftCode feature)
 
-A @@SWIFTCODE_ORIGINAL@@ side-car (JSON) per device: sources, samples (with units),
+A Ycode-original side-car (JSON) per device: sources, samples (with units),
 workouts and routes, characteristics, authorization decisions. The developer
 tool imports it into the store so that apps under test see realistic data —
 the simulator has no sensors or Health app on 27.1. Values in examples must

@@ -2,7 +2,7 @@
 
 Status: **implemented** (agent SIM-VIEWER, 2026-10-19; Linux viewer, stage
 timing, H.264, sound and remote x86 viewing: REMOTE-X86, 2026-10-31).
-@@SWIFTCODE_ORIGINAL@@ design: nothing here describes Apple software. It defines
+Ycode-original design: nothing here describes Apple software. It defines
 how `swiftcode-simd` serves a device's display and sound and takes input over
 one socket, and how the viewers (`swiftcode-sim-viewer` on macOS, §7, and on
 Linux, §13) use it. How input then enters the guest is `hid-input.md`; how

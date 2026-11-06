@@ -48,7 +48,7 @@ same store, external purchase and advanced commerce APIs, ad attribution
 | `configuration-file.md` | The `.storekit` file format and what the daemon does with it |
 | `ide.md` | Xcode's StoreKit tooling: scheme option (XML and Run behavior), editor, Transaction Manager, command-line tools, what SwiftCode's IDE must provide |
 | `errors.md` | StoreKit 2, StoreKitTest and StoreKit 1 errors and value sets, with observed mappings |
-| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: guest dependencies, IDE installation route, open StoreKit sketch |
+| `design.md` | **Ycode-original design note**: guest dependencies, IDE installation route, open StoreKit sketch |
 | `plan.md` | Implementation rounds (R1…R10), golden values, conformance tests |
 | `api-inventory.md` | Generated appendix: every public Swift type of `StoreKit`/`StoreKitTest` with member names, and the Objective-C StoreKit 1 / StoreKitTest classes with selectors and properties |
 

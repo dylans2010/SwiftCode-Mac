@@ -41,7 +41,7 @@ marine, tides, highlights — seen only as internal keys, see `codable.md`).
 | `behavior.md` | Behavior of the Swift API: request composition, location handling, caching and expiry, errors, concurrency, display strings, attribution and display requirements, region limits |
 | `codable.md` | The `Codable` archive format of the model types (the only way apps can construct values, so it matters for tests and persistence) |
 | `rest-api.md` | WeatherKit REST API: endpoints, developer-token (JWT) format, data sets, JSON objects, units, enums, status codes |
-| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: an open WeatherKit for Linux and for SwiftCode's simulator, with pluggable backends (Apple REST, open data sources) |
+| `design.md` | **Ycode-original design note**: an open WeatherKit for Linux and for SwiftCode's simulator, with pluggable backends (Apple REST, open data sources) |
 | `plan.md` | Implementation rounds and conformance tests |
 
 Black-box observations behind these files are in

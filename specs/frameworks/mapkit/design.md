@@ -1,6 +1,6 @@
 # MapKit spec: design note for an open implementation
 
-> **@@SWIFTCODE_ORIGINAL@@ design.** Nothing in this file describes how Apple builds
+> **Ycode-original design.** Nothing in this file describes how Apple builds
 > MapKit. It is our plan for (a) running Apple's MapKit in SwiftCode's simulator
 > and (b) an open, Linux-buildable MapKit with the same interface, built from
 > open data and permissively licensed renderers. Facts it relies on are cited

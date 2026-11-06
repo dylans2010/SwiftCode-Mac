@@ -1,6 +1,6 @@
 // Default characteristic definitions for the in-memory test accessory.
 //
-// @@SWIFTCODE_ORIGINAL@@ table (open-design.md §5 "Characteristic metadata defaults
+// Ycode-original table (open-design.md §5 "Characteristic metadata defaults
 // per type": HomeKit's own defaults resource is Apple's and must not be used).
 // The formats, permissions, ranges and units follow the HAP conventions of
 // Apple's HomeKit ADK catalog (Apache-2.0, level 1); they were written from

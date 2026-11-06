@@ -39,7 +39,7 @@ virtual-conference extension point (names only), macOS-only API.
 | `authorization.md` | Usage keys, statuses, requests, what each access level sees, the three prompts as observed, TCC records, `simctl privacy` |
 | `errors.md` | `EKErrorDomain` codes, which situations produce them, exceptions |
 | `ui.md` | `EKEventEditViewController`, `EKEventViewController`, `EKCalendarChooser` |
-| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: guest dependencies for the baseline; open implementation (daemon, store, recurrence engine, authorization broker, UI) |
+| `design.md` | **Ycode-original design note**: guest dependencies for the baseline; open implementation (daemon, store, recurrence engine, authorization broker, UI) |
 | `plan.md` | Implementation rounds R1–R8 and conformance tests with golden values; open questions |
 | `identifiers.md` | Generated appendix: every enumeration with raw values; string constants with values |
 | `api-inventory.md` | Generated appendix: every class with superclass and member names, with introduction versions |

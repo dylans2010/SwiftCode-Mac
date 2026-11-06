@@ -3,7 +3,7 @@
 Status: **implemented** (agent XR-DEPTH, 2026-11-01; the surround by default,
 the camera hold and sweep, the cube's frame and probe: XR-DEPTH-2,
 2026-11-02). Measurements in §8.
-@@SWIFTCODE_ORIGINAL@@ design. It extends the headset viewer (`xr-viewer.md`) and
+Ycode-original design. It extends the headset viewer (`xr-viewer.md`) and
 the display stream (`display-stream.md` §19) so that the x86 viewer can
 re-project the newest picture of SwiftCode's visionOS simulator to the current
 head pose every headset frame (90 Hz), make both eyes from one view, and

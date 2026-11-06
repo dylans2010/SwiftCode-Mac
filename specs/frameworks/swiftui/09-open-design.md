@@ -1,7 +1,7 @@
 # SwiftUI 9: design note for an open, Linux-buildable implementation
 
 Status: proposal, round 0 (KIT-SWIFTUI, 2026-10-19). **This file is a
-@@SWIFTCODE_ORIGINAL@@ design note.** It is not a description of Apple's
+Ycode-original design note.** It is not a description of Apple's
 implementation: nothing here was learned from Apple's binaries, and where it
 resembles SwiftUI's internals that is because the public behaviour
 (files 03–08) forces the shape. Clean-room implementers may read it.
@@ -156,7 +156,7 @@ Compositor and surface live on the host's main thread. When no Vulkan device
 works, `.automatic` falls back to the CPU compositor and presents through
 copies; offscreen surfaces always work (tests, `swiftcode preview --render`).
 
-**Rendering decisions (R5, @@SWIFTCODE_ORIGINAL@@; implemented in `OVRender`).**
+**Rendering decisions (R5, Ycode-original; implemented in `OVRender`).**
 
 - *Rasteriser.* ThorVG 1.1.3 (MIT), vendored unmodified as a SwiftPM C++
   target (`CThorVG`: CPU engine, PNG/JPEG loaders, C API; no threads, no
@@ -223,7 +223,7 @@ copies; offscreen surfaces always work (tests, `swiftcode preview --render`).
 
 ### 4.1 Platform decisions (round R7, OV-R7, 2026-10-30)
 
-@@SWIFTCODE_ORIGINAL@@ decisions; implementation in `frameworks/swiftui/Sources/
+Ycode-original decisions; implementation in `frameworks/swiftui/Sources/
 OVPlatform/`, `COVSDL/` and `SwiftUI/App/`.
 
 - **SDL3 integration.** Release 3.4.18 (zlib). Its public headers (the 37
@@ -281,7 +281,7 @@ OVPlatform/`, `COVSDL/` and `SwiftUI/App/`.
 
 ### 4.2 Controls, look and text editing (round R8, OV-R8, 2026-10-30)
 
-@@SWIFTCODE_ORIGINAL@@ decisions; implementation in `frameworks/swiftui/Sources/
+Ycode-original decisions; implementation in `frameworks/swiftui/Sources/
 SwiftUI/Controls/`, `App/Popups.swift` and `Sources/OVText/Editing/`. Sizes
 follow `golden-layout.md` (all 21 control rows); the rules that produce them
 are in the package README ("Controls design (R8)").
@@ -320,7 +320,7 @@ are in the package README ("Controls design (R8)").
 
 ### 4.3 Containers and presentation (round R9, OV-R9, 2026-10-30)
 
-@@SWIFTCODE_ORIGINAL@@ decisions; implementation in `frameworks/swiftui/Sources/
+Ycode-original decisions; implementation in `frameworks/swiftui/Sources/
 SwiftUICore/Layout/LazyStacks.swift`, the graph's suspension and `Sources/
 SwiftUI/Containers/`. Measured values come from 06 §2, §3, §6 and the golden
 `scrollView` rows; the rest is ours (package README, "Containers and
@@ -355,7 +355,7 @@ presentation design (R9)").
 
 ### 4.4 Environment, persistence, accessibility, commands (rounds R10 and R11, OV-R11, 2026-10-30)
 
-@@SWIFTCODE_ORIGINAL@@ decisions; implementation in `frameworks/swiftui/Sources/
+Ycode-original decisions; implementation in `frameworks/swiftui/Sources/
 OVPlatform/Settings.swift`, `Sources/SwiftUI/App/`, `Input/` and
 `Accessibility/` (package README, "Environment, persistence and
 accessibility design (R10)" and "Commands, menus and toolbars design (R11)").
@@ -400,7 +400,7 @@ accessibility design (R10)" and "Commands, menus and toolbars design (R11)").
 
 ### 4.5 AT-SPI export (round R10, OV-ATSPI, 2026-10-30)
 
-@@SWIFTCODE_ORIGINAL@@ design; implementation in `frameworks/swiftui/Sources/OVDBus/`,
+Ycode-original design; implementation in `frameworks/swiftui/Sources/OVDBus/`,
 `Sources/OVAccessibilityATSPI/` and `Sources/SwiftUI/Accessibility/ATSPIBridge.swift`
 (package README, "AT-SPI export", with the role table). Written from the
 D-Bus Specification 0.43 and at-spi2-core's public interface XML; no
@@ -512,14 +512,14 @@ compare. Details and tolerances: `10-plan.md`.
 | SDL 3.4.18 licence (zlib) and the API used by `COVSDL` | 1 (`LICENSE.txt` and the public headers of tag `release-3.4.18`, read 2026-10-30) |
 | Vulkan structures and entry points of the surface probe | 1 (Vulkan specification, Khronos registry) |
 | X11 connection descriptor (`XConnectionNumber`), Wayland (`wl_display_get_fd`) | 1 (Xlib and libwayland-client public API) |
-| R7 platform decisions (§4.1) | @@SWIFTCODE_ORIGINAL@@ design (no evidence claim) |
-| R8 look, pop-up and editing decisions (§4.2); the colour values taken from 07 §4 | @@SWIFTCODE_ORIGINAL@@ design; 3 for the 07 §4 values and the golden sizes |
-| R9 container and presentation decisions (§4.3) | @@SWIFTCODE_ORIGINAL@@ design; 3 for the 06 §2, §3, §6 values and the golden `scrollView` rows |
-| R10/R11 decisions (§4.4) | @@SWIFTCODE_ORIGINAL@@ design; 3 for the 08 §1–2 and 06 §8 values; 1 for the public API names, the freedesktop settings portal interface (`org.freedesktop.portal.Settings`: `ReadAll`, `SettingChanged`; the `org.freedesktop.appearance` keys) and the Linux inotify API |
+| R7 platform decisions (§4.1) | Ycode-original design (no evidence claim) |
+| R8 look, pop-up and editing decisions (§4.2); the colour values taken from 07 §4 | Ycode-original design; 3 for the 07 §4 values and the golden sizes |
+| R9 container and presentation decisions (§4.3) | Ycode-original design; 3 for the 06 §2, §3, §6 values and the golden `scrollView` rows |
+| R10/R11 decisions (§4.4) | Ycode-original design; 3 for the 08 §1–2 and 06 §8 values; 1 for the public API names, the freedesktop settings portal interface (`org.freedesktop.portal.Settings`: `ReadAll`, `SettingChanged`; the `org.freedesktop.appearance` keys) and the Linux inotify API |
 | AccessKit licence (MIT OR Apache-2.0; `accesskit-c` 0.23.1's `Cargo.toml` and README, read 2026-10-30) | 1 |
 | D-Bus wire format, messages, addresses, EXTERNAL authentication, the bus and standard interfaces (§4.5) | 1 (D-Bus Specification 0.43, freedesktop.org, read 2026-10-30; dbus is AFL-2.1 OR GPL-2.0-or-later — read as a specification, no code used) |
 | AT-SPI2 interfaces, role and state numbers, Embed, Cache and event signatures (§4.5) | 1 (at-spi2-core `xml/*.xml` on `main`, read 2026-10-30; LGPL-2.1-or-later — interface facts only, no code used) |
-| AT-SPI decisions (§4.5) and the role table | @@SWIFTCODE_ORIGINAL@@ design (no evidence claim) |
+| AT-SPI decisions (§4.5) and the role table | Ycode-original design (no evidence claim) |
 | SDL3 pop-up windows (`SDL_CreatePopupWindow`, `SDL_WINDOW_POPUP_MENU`, `SDL_WINDOW_NOT_FOCUSABLE`) and Xlib `XSetInputFocus` | 1 (SDL 3.4.18 public headers, zlib; the Xlib API) |
 | OpenSwiftUI and Tokamak README statements | 1 (project READMEs) |
 | `Observation` and swift-corelibs-foundation availability on Linux | 1 (open-source Swift toolchain) |
@@ -528,4 +528,4 @@ compare. Details and tolerances: `10-plan.md`.
 | Vulkan 1.3 behaviour used by the compositor (dynamic rendering, swapchain, layouts, blending) | 1 (the Vulkan specification; Khronos headers 1.3.275, Apache-2.0) |
 | PNG, zlib and DEFLATE formats; JPEG frame headers; TrueType `glyf`/`loca` | 1 (W3C PNG specification, RFC 1950, RFC 1951, ITU-T T.81, the OpenType specification) |
 | Symbol layout boxes reused for our artwork | 3 (07 §3 and golden-layout.md measurements; names are interop identifiers) |
-| Everything else in this file | @@SWIFTCODE_ORIGINAL@@ design (no evidence claim) |
+| Everything else in this file | Ycode-original design (no evidence claim) |

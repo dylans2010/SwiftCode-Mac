@@ -596,7 +596,7 @@ parameters with values were not observed (the assets were empty).
 | `Package.realitycomposerpro/WorkspaceData/**` | per-user editor state | preserve, do not write; suggest `.gitignore` for `*.rcuserdata` |
 | RCP 3 `*.tm_*`, `*.tm_buffers/**`, `__*.tm_meta` | content | read later (§4.6), never write |
 | RCP 3 window layouts, recent files, settings | per-user, outside the project, in the app's sandbox container: `Library/Application Support/Reality Composer Pro/settings.json` (keys `window_layouts`, `recent_files` with absolute paths and time stamps, `last_opened_project`, `docking_settings`, `settings_owner`, workspace templates) and `Project Settings/<decimal MurmurHash64A of the project's absolute path>.json` (last opened scene as an asset uuid `{a, b}`, scene settings, window layouts): JSON forms of the same object model (`__type`, `__uuid`) **[run]** | n/a |
-| SwiftCode's own editor state | per-user | `<Package>.ycomposer/` next to the package, git-ignored by default (@@SWIFTCODE_ORIGINAL@@) |
+| SwiftCode's own editor state | per-user | `<Package>.ycomposer/` next to the package, git-ignored by default (Ycode-original) |
 
 ## Open questions
 

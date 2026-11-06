@@ -1,4 +1,4 @@
-// An in-memory accessory server for tests (@@SWIFTCODE_ORIGINAL@@; open-design.md §3
+// An in-memory accessory server for tests (Ycode-original; open-design.md §3
 // describes the networked `swiftcode-hap-sim` of R6, this is its in-process
 // cousin). It answers like a HAP accessory: an attribute database with
 // aid/iid numbering, HAP status codes for refused operations, events only

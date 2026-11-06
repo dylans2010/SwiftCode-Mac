@@ -24,7 +24,7 @@ runtime accepts on this Mac).
 | `06-views-anchoring-input.md` | `RealityView` (iOS), `ARView`, `RealityRenderer`, anchoring, spatial tracking, gestures and input targets, attachments, synchronization |
 | `07-assets.md` | USD/USDZ as interop (schemas RealityKit reads), USDKit, export, `.reality` and Reality Composer Pro as black boxes |
 | `08-simulator-baseline.md` | What Apple's iOS simulator does with RealityKit today (black-box runs of our probe app) — the first target for SwiftCode |
-| `09-open-design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: building blocks for an open implementation, with verified licences |
+| `09-open-design.md` | **Ycode-original design note**: building blocks for an open implementation, with verified licences |
 | `10-plan.md` | Implementation rounds (one agent each) and the conformance-test plan |
 | `api-inventory.md` | Name-only inventory of the public API surface (types, member names, availability), generated from SDK module metadata |
 

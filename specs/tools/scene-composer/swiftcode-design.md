@@ -1,6 +1,6 @@
 # Scene composer 9: SwiftCode design decisions
 
-> **@@SWIFTCODE_ORIGINAL@@ decisions.** This file records how SwiftCode's tool
+> **Ycode-original decisions.** This file records how SwiftCode's tool
 > implements the boundary specs in this folder. It is not a description of
 > the reference. Architecture and rationale: `docs/SCENE-COMPOSER.md`.
 

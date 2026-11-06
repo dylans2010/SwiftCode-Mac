@@ -50,7 +50,7 @@ OpenSwiftUI, see there).
 | `06-app-and-components.md` | App/Scene lifecycle and scene phases, navigation, tabs, lists and scrolling, controls, keyboard and text input, presentations, gestures, persistence |
 | `07-text-images-color.md` | Fonts and Dynamic Type tables, SF Symbols and asset images, colours in light/dark/high contrast |
 | `08-environment-accessibility-localization.md` | Environment values, live setting changes, accessibility tree, localization and right-to-left layout, previews |
-| `09-open-design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: module layout, graph runtime, rendering and text back ends with verified licences |
+| `09-open-design.md` | **Ycode-original design note**: module layout, graph runtime, rendering and text back ends with verified licences |
 | `10-plan.md` | Implementation rounds (one agent each) and the conformance-test plan |
 | `golden-layout.md` | Generated: measured sizes and frames of ~140 composed views at fixed proposals |
 | `api-inventory.md` | Generated: name-only inventory of the iOS API surface (types, members with labels, iOS availability), by area |

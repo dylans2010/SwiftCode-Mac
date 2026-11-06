@@ -1109,7 +1109,7 @@ comes to the foreground.
 | Authorization encoding (§6.4) | 3 | rows written while shut down, public API read back |
 | Offline seeding, ECG mapping, payload gap (§6.5) | 3 | rows inserted while shut down, public API read back |
 | Observer timing, suspension, background delivery clamp and no launches (§7) | 3 | probe `observe`, healthd log |
-| Everything in §8–§9 | design | @@SWIFTCODE_ORIGINAL@@ |
+| Everything in §8–§9 | design | Ycode-original |
 | SwiftCode implementation (§11): agent, channel, commands, import, scenarios, grants, seeding | 1 | §1–§10; `specs/frameworks/healthkit/`; Apple's public HealthKit headers (HKHealthStore, HKWorkoutBuilder, HKWorkoutRouteBuilder, HKQuery predicates); SQLite's public C API; population norms of the cleared note's §9 |
 | A daemon in an app bundle is a HealthKit client with its own source; the request's code 100 and the rows it writes (§11.2–11.3) | 3 | SwiftCode runs e1–e3 and r1–r2 on the Thor: the agent's log, `HKSource.defaultSource`, `authorization` rows (documented columns) of the SwiftCode-booted device (no reference observed) |
 | Grants answered offline honoured; read-only seeding read back; watch-seeded rows sync to the phone; watch → phone sync after a workout; observer per write (§11.3–11.8) | 3 | SwiftCode runs r2–r5: HealthCheck's log and screenshots, `health status` (no reference observed) |

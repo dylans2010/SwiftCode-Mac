@@ -3,7 +3,7 @@
 Part of `specs/frameworks/homekit/`. Rounds are sized for one agent each.
 Track S = parity of SwiftCode's iOS simulator (Apple's runtime HomeKit stack);
 Track O = the open, Linux-buildable implementation (`open-design.md`,
-@@SWIFTCODE_ORIGINAL@@). Implementation agents (anything writing `swiftcode/` or a
+Ycode-original). Implementation agents (anything writing `swiftcode/` or a
 future open-frameworks package) read only `specs/`, public documentation and
 Apache-2.0 sources; they must not open the reference tools, Ghidra,
 `research/dirty/` or the IPSW.
@@ -92,6 +92,6 @@ Expected results are to be filled in from the Mac in R2. Each is a new
 
 ## Evidence
 
-Planning document; @@SWIFTCODE_ORIGINAL@@. Facts referenced are evidenced in the
+Planning document; Ycode-original. Facts referenced are evidenced in the
 other files. Error-code expectations in §3 are level 1 guesses to be
 replaced by level 3 results in R2.

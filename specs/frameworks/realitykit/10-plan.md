@@ -1,6 +1,6 @@
 # RealityKit 10: implementation rounds and conformance tests
 
-Status: proposal, round 0 (KIT-REALITYKIT, 2026-10-19). @@SWIFTCODE_ORIGINAL@@
+Status: proposal, round 0 (KIT-REALITYKIT, 2026-10-19). Ycode-original
 plan. Clean-room agents implement from files 01–09 only; they must not
 open the reference tools (the Xcode copy, Ghidra, the IPSW),
 `research/dirty/` or Ghidra projects.

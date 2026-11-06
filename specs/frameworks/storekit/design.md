@@ -1,4 +1,4 @@
-# StoreKit spec: what SwiftCode must provide (@@SWIFTCODE_ORIGINAL@@ design note)
+# StoreKit spec: what SwiftCode must provide (Ycode-original design note)
 
 Part of `specs/frameworks/storekit/`. This note is SwiftCode's own design. It
 says what SwiftCode's simulator and IDE need so that StoreKit apps behave as in
@@ -92,5 +92,5 @@ use.
 
 ## Evidence
 
-@@SWIFTCODE_ORIGINAL@@ design; requirements trace to the level-2/3 observations
+Ycode-original design; requirements trace to the level-2/3 observations
 cited in the other files of this directory.

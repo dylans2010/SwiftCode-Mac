@@ -20,7 +20,7 @@ Reference versions: Reality Composer Pro 3.0 (1A153), Xcode 27.1
 | `particles-audio.md` | particle emitters, audio files, audio components |
 | `compile.md` | `realitytool compile` / `create-schema` / `image`, Xcode's build tasks, the `.reality` container |
 | `editor-behavior.md` | windows, menus, shortcuts, viewport, import/export, Xcode link, plug-ins, CLI |
-| `swiftcode-design.md` | @@SWIFTCODE_ORIGINAL@@ decisions of the composer (names, what SwiftCode writes, preservation, validation codes); architecture in `docs/SCENE-COMPOSER.md` |
+| `swiftcode-design.md` | Ycode-original decisions of the composer (names, what SwiftCode writes, preservation, validation codes); architecture in `docs/SCENE-COMPOSER.md` |
 
 ## The one decision that shapes everything
 

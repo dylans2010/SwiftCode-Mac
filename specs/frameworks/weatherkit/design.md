@@ -2,7 +2,7 @@
 
 Part of `specs/frameworks/weatherkit/`.
 
-> **@@SWIFTCODE_ORIGINAL@@ design note.** Nothing in this file describes Apple's
+> **Ycode-original design note.** Nothing in this file describes Apple's
 > implementation. It is our proposal for an open-source, Linux-buildable
 > WeatherKit that is source-compatible with the API in `api.md`, and for how
 > SwiftCode's simulator relates to it.

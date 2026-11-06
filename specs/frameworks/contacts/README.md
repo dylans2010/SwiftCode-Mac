@@ -38,7 +38,7 @@ linking/unification internals (not public), contact posters and the
 | `authorization.md` | Usage key and notes entitlement, statuses, implicit prompt, the two-step prompt as observed, limited access, SwiftUI picker and button, `simctl privacy` |
 | `errors.md` | `CNErrorDomain` codes, situations, user-info keys, exceptions |
 | `ui.md` | `CNContactPickerViewController`, `CNContactViewController` |
-| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note** |
+| `design.md` | **Ycode-original design note** |
 | `plan.md` | Rounds R1–R9, conformance tests, open questions |
 | `identifiers.md` | Generated appendix: enumerations with raw values; every string constant (keys, labels, services) with its value |
 | `api-inventory.md` | Generated appendix: classes, superclasses, member names, versions |

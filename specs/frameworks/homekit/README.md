@@ -35,7 +35,7 @@ the names HomeKit uses, and certification/MFi.
 | `type-identifiers.md` | Service and characteristic type UUIDs (184), accessory category strings (33), formats, units, properties, action-set types, significant events, characteristic value enumerations |
 | `errors.md` | `HMErrorCode` catalog, the errors observed in the simulator (incl. the private 2040), proposed HAP status mapping |
 | `accessory-protocols.md` | HAP over IP (discovery, transport, pairing, setup payload, categories), BLE outline, Matter; source licensing |
-| `open-design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: simulator dependencies (Track S), open HomeKit library + daemon (Track O), SwiftCode accessory simulator |
+| `open-design.md` | **Ycode-original design note**: simulator dependencies (Track S), open HomeKit library + daemon (Track O), SwiftCode accessory simulator |
 | `plan.md` | Rounds R1–R9, account-enabled checks HK-A01–A30, owner inputs, open-implementation tests |
 
 Black-box observations: `research/notes/homekit-simulator-observations-2026-10-19.md`.

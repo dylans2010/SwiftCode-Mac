@@ -38,7 +38,7 @@ an app; see `interface.md` §8).
 | `queries.md` | Predicates and their interval rules, sorting, limits, anchors and tombstones, observer and long-running queries, statistics options, merging across sources, collection bucketing and proration, background delivery |
 | `authorization.md` | Entitlements, Info.plist keys, the authorization model and status values, read-privacy semantics, the system sheet flow, historical-data range, per-object authorization |
 | `errors.md` | `HKErrorDomain` codes, exceptions and when each is raised |
-| `design.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: an open implementation (daemon split, SQLite storage engine, query engine, authorization store, statistics engine) |
+| `design.md` | **Ycode-original design note**: an open implementation (daemon split, SQLite storage engine, query engine, authorization store, statistics engine) |
 | `plan.md` | Implementation rounds and the conformance-test plan with measured golden values |
 | `identifiers.md` | Generated appendix: every type identifier with string value, aggregation style, unit family and duration limits; metadata keys and other string constants with their values; every enumeration with raw values |
 | `api-inventory.md` | Generated appendix: every class, superclass and member name, with introduction versions |

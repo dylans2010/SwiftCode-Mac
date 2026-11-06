@@ -1,6 +1,6 @@
 # Spec: the simulator link (SwiftCode's own connection to a simulator host)
 
-Status: **implemented** (agent REMOTE-X86, 2026-10-31). @@SWIFTCODE_ORIGINAL@@
+Status: **implemented** (agent REMOTE-X86, 2026-10-31). Ycode-original
 design: nothing here describes Apple software. It defines how a client (the
 Linux or macOS IDE, the viewer, `swiftcode sim remote`) reaches a simulator host
 (an arm64 Linux machine running `swiftcode-simd`) without ssh: device list,

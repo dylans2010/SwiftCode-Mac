@@ -1,6 +1,6 @@
 # HomeKit spec: open implementation and accessory simulator
 
-> **@@SWIFTCODE_ORIGINAL@@ design note.** This file is our own design, not a
+> **Ycode-original design note.** This file is our own design, not a
 > description of Apple's implementation. It builds on the facts in the other
 > files of `specs/frameworks/homekit/` and on Apache-2.0 sources named in
 > `accessory-protocols.md` §1. Nothing here was derived from Apple binaries.
@@ -153,6 +153,6 @@ a developer download).
 
 ## Evidence
 
-@@SWIFTCODE_ORIGINAL@@ design throughout. Facts it relies on are evidenced in the
+Ycode-original design throughout. Facts it relies on are evidenced in the
 other files (levels 1–4). The lean-boot and service-fidelity references are
 to SwiftCode's own simulator specs.

@@ -34,7 +34,7 @@ Not covered here:
 | `errors-and-states.md` | `ARErrorDomain` codes, tracking states and reasons, world-mapping status, geo-tracking states, exceptions |
 | `coordinates.md` | coordinate systems, units, transform conventions, intrinsics and projection math, display transforms, timing |
 | `simulator-baseline.md` | what ARKit does in Apple's iOS Simulator today (black-box), which SwiftCode matches first |
-| `simulated-world.md` | **@@SWIFTCODE_ORIGINAL@@ design note**: feeding a simulated world into an ARKit implementation |
+| `simulated-world.md` | **Ycode-original design note**: feeding a simulated world into an ARKit implementation |
 | `plan.md` | implementation rounds (one agent each) and the conformance-test plan |
 
 Black-box observations behind `simulator-baseline.md` are in

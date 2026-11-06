@@ -4,7 +4,7 @@ Status: **implemented** (agent XR-VIEWER, 2026-11-01; quality after run 7: §12)
 live on a headset (§2); the whole path Thor → x86 was run with recorded
 tracking scripts in place of the headset (§9.1); the live run with the
 headset is §9.2.
-@@SWIFTCODE_ORIGINAL@@ design. It describes how SwiftCode's own simulator, its display
+Ycode-original design. It describes how SwiftCode's own simulator, its display
 stream (`display-stream.md`) and its visionOS input (`visionos.md` §5.5)
 are viewed and driven from an OpenXR headset. It follows public
 specifications only: the OpenXR 1.1 specification and registry (Khronos),

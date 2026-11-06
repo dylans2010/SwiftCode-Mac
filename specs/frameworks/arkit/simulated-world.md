@@ -1,4 +1,4 @@
-# Design note (@@SWIFTCODE_ORIGINAL@@): a simulated world for ARKit
+# Design note (Ycode-original): a simulated world for ARKit
 
 > **This file is SwiftCode's own design, not a description of Apple's
 > behavior.** Nothing here comes from Apple binaries; it builds on the
@@ -172,6 +172,6 @@ dataset's license separately; many research datasets are non-commercial.
 
 ## Evidence
 
-@@SWIFTCODE_ORIGINAL@@ design. External facts used: license files and GitHub license
+Ycode-original design. External facts used: license files and GitHub license
 metadata of the listed projects (fetched 2026-10-19); ARKit interface facts
 from the other files of this spec.

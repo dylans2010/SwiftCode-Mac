@@ -1,7 +1,7 @@
 import Foundation
 
 // The gesture runtime (round R7; 06-app-and-components.md §7, 10-plan.md
-// T-GEST). @@SWIFTCODE_ORIGINAL@@ design; the observable rules it implements are the
+// T-GEST). Ycode-original design; the observable rules it implements are the
 // spec's, the rest is marked "our rule" in the README.
 //
 // Recognizers. Every gesture value makes a recognizer: a small state machine

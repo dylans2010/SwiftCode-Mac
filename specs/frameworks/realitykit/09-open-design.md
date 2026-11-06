@@ -1,6 +1,6 @@
 # RealityKit 9: design note for an open implementation
 
-> **@@SWIFTCODE_ORIGINAL@@ design note.** This file is not a description of
+> **Ycode-original design note.** This file is not a description of
 > Apple's implementation. It proposes how SwiftCode builds a
 > RealityKit-compatible library ("OpenReality" below, working name) from
 > the behaviour in files 01–08 and from permissively licensed open source.
@@ -47,7 +47,7 @@ Language: Swift 6 (the public API is Swift), with C/C++ libraries through
 Swift's C++ interoperability. The module is named `RealityKit` so
 unchanged app sources build; `RealityFoundation` is a re-exporting alias.
 
-### 2.1 ECS core (@@SWIFTCODE_ORIGINAL@@)
+### 2.1 ECS core (Ycode-original)
 
 - Entities are classes (identity, hierarchy) holding a small
   `ComponentSet`: a dictionary from component type identifier to an
