@@ -7735,6 +7735,2513 @@ Message: `Retrieved <pages.count> Apple documentation page(s) via <retrieval> in
 | `patch_application_engine` | fileModification | safeMutation | fileSystem | yes |
 | `fetch_documentation` | general | safeRead | none | no |
 | `reverse_analyze` | diagnostics | safeRead | none | no |
+## Wave 6 — testing / QA tools
+
+Wave 6 ports the Legacy Assist Testing/QA family: test running &
+coverage (16), static analysis (22), security/privacy/platform audits
+(18), and docs/review/repo tooling (23) — 79 tools, taking the MCP
+catalogue from 172 to 251 registrations. No tool in this wave was
+already a Ycode registration, so none is aligned in place. The
+behaviour spec is `specs/ide/assist-testing-tools.md` (Part A test
+running, Part B static analysis, Part C audits, Part D docs/review).
+
+## 166. Wave 6 test-running conventions
+
+- Test execution runs through the existing session seam
+  (`WorkspaceSession.discoverTests` / `runTests(only:)`, the same path as
+  the `test` tool); no `xcodebuild` process is spawned and no parallel
+  test runner is built. `test_coverage_report` reads `latestCoverage`;
+  `test_coverage_reporter` runs the real `xcrun xccov`.
+- `compiler_diagnostics_engine` runs `s.build(.build)` and still succeeds
+  when the build fails — success means diagnostics were collected.
+- `performance_benchmark` runs its closed allow-list via `terminalRunFixed`
+  with a 300 s/run bound (Legacy waited unboundedly).
+
+## 167. Wave 6 static-analysis conventions
+
+- All tools are Legacy-faithful regex/line heuristics, blind spots included
+  (string/comment mentions count, substring matching where Legacy does it,
+  textual brace counting). `YcodeSyntax` is a tokenizer/block-structure
+  library, not a Swift declaration parser, and `YcodeMCP` does not depend
+  on it, so no AST parser is used; `swift_ast_inspector` implements only
+  Legacy's regex structural fallback.
+- `import_cleanup` is the only writer in this slice (one approval per changed
+  file, in order, stopping at the first refusal). `dead_code_eliminator`
+  is read-only despite its name (Legacy `safeRead`).
+
+## 168. Wave 6 audit conventions
+
+- `mach_o_binary_analyzer` reuses Ycode's `YcodeMachO` (`MachOFile` /
+  `MachOImage`); it reports parsed slices/dylibs instead of Legacy's
+  `/usr/bin/file` + `xcrun otool` text, and fails on non-Mach-O files and
+  32-bit Mach-O binaries. `memory_leak_detector` is a static source scan,
+  as in Legacy — a clean scan means 'no matching patterns', not 'leak-free'.
+- `privacy_manifest_auditor` is the only writer in this slice (`generate`
+  writes `PrivacyInfo.xcprivacy` via `commit()`; `audit` writes nothing).
+- `framework_linker_auditor`, `swift_data_schema_auditor` and
+  `bundle_resource_auditor` declare `path` in Legacy but never read it;
+  the port keeps the schema and likewise ignores it. `secrets_scan`
+  reports `file:line:label` only; secret values never appear in output.
+
+## 169. Wave 6 docs / review conventions
+
+- `code_review` and `safe_undo` are honestly failing (LLM provider and
+  workspace snapshot store respectively — see their sections).
+- `automated_repair_engine` annotates deterministically and never rebuilds,
+  as in Legacy. `session_progress_report` has no phase coordinator in Ycode,
+  so phase counts are always 0; the agent-notes line is real.
+- `tool_capability_lookup` looks up the live `server.tools`; capability and
+  estimated cost are omitted (Ycode tools carry neither).
+
+## 170. `test_run_single` — Run Single Test
+
+- **Description (verbatim):** "Runs one test by ID with xcodebuild test -only-testing and returns pass/fail plus the output tail."
+- **Capability:** `testing`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs one test by ID with xcodebuild test -only-testing and returns pass/fail plus the output tail.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "testId": {
+      "type": "string",
+      "description": "Required. Test identifier, e.g. MyTests/MyTest/testExample."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "Scheme to test. Defaults to the first scheme listed by xcodebuild."
+    },
+    "destination": {
+      "type": "string",
+      "description": "xcodebuild destination. Default: platform=macOS."
+    }
+  },
+  "required": [
+    "testId"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `status`, `testId`, `scheme`, `passed`, `failed`, `skipped`, `tests`, `logTail`.
+
+**Notes.** Runs through the session seam (`discoverTests` / `runTests(only:)`); no `xcodebuild` spawn, no `exitCode` / `resultBundle` keys — the seam reports per-test outcomes, not a process exit code. See `assist-testing-tools.md` (Part A, "`test_run_single`").
+
+## 171. `xctest_discovery` — XCTest Discovery
+
+- **Description (verbatim):** "Discovers XCTestCase subclasses and their test methods across the workspace — a test inventory without running anything."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Discovers XCTestCase subclasses and their test methods across the workspace — a test inventory without running anything.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `classCount`, `testCount`.
+Message: `No XCTestCase subclasses found in the workspace.`.
+
+**Notes.** Session discovery filtered to `.xctest`; a test inventory without running anything. See `assist-testing-tools.md` (Part A, "`xctest_discovery`").
+
+## 172. `test_log_parse` — Parse Test Log
+
+- **Description (verbatim):** "Parses a test log for passed/failed test cases, suite summaries, and errors, returning counts plus the failed test list."
+- **Capability:** `testing`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses a test log for passed/failed test cases, suite summaries, and errors, returning counts plus the failed test list.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "logPath": {
+      "type": "string",
+      "description": "Required. Workspace-relative path to a test log file."
+    }
+  },
+  "required": [
+    "logPath"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `total`, `passed`, `failed`, `errorCount`, `failedTests`.
+Message: `Test log '\(logPath)': \(total) test case(s), \(parsed.passed) passed, \(parsed.failed) failed, \(parsed.errorLines.count) error line(s).`.
+
+**Notes.** Pure log parsing; counts plus the failed-test list. See `assist-testing-tools.md` (Part A, "`test_log_parse`").
+
+## 173. `test_flaky_detect` — Flaky Test Detection
+
+- **Description (verbatim):** "Parses test logs and reports tests that show both pass and fail outcomes across runs."
+- **Capability:** `testing`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses test logs and reports tests that show both pass and fail outcomes across runs.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "logPath": {
+      "type": "string",
+      "description": "Workspace-relative path to a test log file."
+    },
+    "logsDir": {
+      "type": "string",
+      "description": "Workspace-relative path to a directory of test log files. Used when logPath is empty."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `filesRead`, `flakyCount`, `flakyTests`.
+Message: `Flaky test scan across \(filesRead) log file(s): \(distinctCount) distinct tests observed, \(flaky.count) flaky.`.
+
+**Notes.** Pure log analysis across runs; a test is flaky when it shows both pass and fail outcomes. See `assist-testing-tools.md` (Part A, "`test_flaky_detect`").
+
+## 174. `test_coverage_report` — Test Coverage Report
+
+- **Description (verbatim):** "Runs xcodebuild test with code coverage enabled and reports the coverage summary plus pass/fail."
+- **Capability:** `testing`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs xcodebuild test with code coverage enabled and reports the coverage summary plus pass/fail.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "Scheme to test. Defaults to the first scheme listed by xcodebuild."
+    },
+    "destination": {
+      "type": "string",
+      "description": "xcodebuild destination. Default: platform=macOS."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `status`, `scheme`, `coverage`, `passed`, `failed`, `skipped`.
+Message: `Test Coverage — \(s.model.displayName) / \(schemeName): \(status)\n\(coverageText)`.
+
+**Notes.** Runs through the session test seam with coverage; reads `latestCoverage` and says plainly when the scheme gathered no coverage. See `assist-testing-tools.md` (Part A, "`test_coverage_report`").
+
+## 175. `test_coverage_reporter` — Test Coverage Reporter
+
+- **Description (verbatim):** "Extracts line and target test coverage metrics from build and test artifacts via xccov."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts line and target test coverage metrics from build and test artifacts via xccov.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "reportPath": {
+      "type": "string",
+      "description": "Optional explicit path to an .xccovreport file."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No active .xccovreport or coverage archive found in DerivedData. Ensure 'Code Coverage' is enabled in your Xcode Scheme test settings.`; `Coverage report found at \(targetReport.lastPathComponent), but yielded no text metrics.`; `### Test Coverage Report (\(targetReport.lastPathComponent)):\n\n```\n\(snippet)\n````.
+
+**Notes.** Runs the real `xcrun xccov` via `terminalRunFixed` and reports its actual output. See `assist-testing-tools.md` (Part A, "`test_coverage_reporter`").
+
+## 176. `test_data_factory` — Test Data Factory
+
+- **Description (verbatim):** "Writes a test fixture file: a JSON object with sample values per field type, or a Swift struct with a static sample."
+- **Capability:** `testing`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Writes a test fixture file: a JSON object with sample values per field type, or a Swift struct with a static sample.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "name": {
+      "type": "string",
+      "description": "Required. Valid Swift identifier used for the fixture type and file name."
+    },
+    "kind": {
+      "type": "string",
+      "description": "json or swift. Default: json."
+    },
+    "fields": {
+      "type": "string",
+      "description": "Optional comma list, e.g. id:Int,name:String,isActive:Bool. Defaults to id:Int,name:String."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative directory or file path. Default: TestData/."
+    },
+    "overwrite": {
+      "type": "string",
+      "description": "Must be 'true' to replace an existing file. Default: 'false'."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `kind`, `name`.
+Message: `Created test fixture at \(rel)`.
+
+**Notes.** Writes fixture files through `commit()`; approval is requested before writing. See `assist-testing-tools.md` (Part A, "`test_data_factory`").
+
+## 177. `test_snapshot_manage` — Manage Test Snapshots
+
+- **Description (verbatim):** "Lists snapshot test reference images under __Snapshots__ directories, or deletes unreferenced snapshot files when confirm is true."
+- **Capability:** `testing`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists snapshot test reference images under __Snapshots__ directories, or deletes unreferenced snapshot files when confirm is true.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "list or clean. Default: list."
+    },
+    "confirm": {
+      "type": "string",
+      "description": "Must be 'true' for clean. Any other value refuses to delete."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `count`, `files`, `deletedCount`, `keptCount`, `deleted`.
+Message: `No snapshot files found under any __Snapshots__ directory in the workspace.`; `Snapshot references: \(snapshotFiles.count) file(s) under __Snapshots__ directories.`; `No snapshot files found. Nothing to clean.`.
+
+**Notes.** Snapshot deletions go through one `MCPChange` + `approve()` per file. See `assist-testing-tools.md` (Part A, "`test_snapshot_manage`").
+
+## 178. `test_target_add` — Add Test Target
+
+- **Description (verbatim):** "Creates a test directory with a real XCTest file and inserts a PBXNativeTarget block into the project pbxproj."
+- **Capability:** `compilation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a test directory with a real XCTest file and inserts a PBXNativeTarget block into the project pbxproj.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "targetName": {
+      "type": "string",
+      "description": "Required. Valid identifier for the new test target."
+    },
+    "type": {
+      "type": "string",
+      "description": "unit or ui. Default: unit."
+    }
+  },
+  "required": [
+    "targetName"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `targetName`, `type`, `targetID`, `testFile`.
+Message: `Added test target '\(targetName)' (\(type)) with test file \(targetName)/\(targetName)Tests.swift and PBXNativeTarget entry in project.pbxproj.`.
+
+**Notes.** Computes the pbxproj edit in memory before writing anything; the write goes through `commit()`. See `assist-testing-tools.md` (Part A, "`test_target_add`").
+
+## 179. `ui_test_scaffold` — UI Test Scaffold
+
+- **Description (verbatim):** "Creates a real XCTest UI test file with setUp, launch, a launch-state assertion, and tearDown."
+- **Capability:** `testing`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a real XCTest UI test file with setUp, launch, a launch-state assertion, and tearDown.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "testName": {
+      "type": "string",
+      "description": "Required. Valid Swift identifier used for the test class and file name."
+    },
+    "targetApp": {
+      "type": "string",
+      "description": "Optional bundle identifier of the app under test. When empty, XCUIApplication() is used."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory for the new test file. Default: UITests/."
+    },
+    "overwrite": {
+      "type": "string",
+      "description": "Must be 'true' to replace an existing file. Default: 'false'."
+    }
+  },
+  "required": [
+    "testName"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `testName`.
+Message: `Created UI test file at \(rel)`.
+
+**Notes.** Writes the scaffold through `commit()`; approval is requested before writing. See `assist-testing-tools.md` (Part A, "`ui_test_scaffold`").
+
+## 180. `interface_simulator` — Interface Simulator & Accessibility Auditor
+
+- **Description (verbatim):** "Inspects SwiftUI View files, audits accessibility traits, accessibility identifiers, touch targets, and hierarchy structure."
+- **Capability:** `testing`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects SwiftUI View files, audits accessibility traits, accessibility identifiers, touch targets, and hierarchy structure.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "viewPath": {
+      "type": "string",
+      "description": "Workspace-relative path to a SwiftUI View file."
+    }
+  },
+  "required": [
+    "viewPath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** SwiftUI interface/accessibility audit; Legacy's accessibility counting quirks preserved. See `assist-testing-tools.md` (Part A, "`interface_simulator`").
+
+## 181. `preflight_checks` — Preflight Checks
+
+- **Description (verbatim):** "Runs environment preflight checks before a build/task: workspace writable, Xcode tools present, DerivedData reachable, free disk space."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs environment preflight checks before a build/task: workspace writable, Xcode tools present, DerivedData reachable, free disk space.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `checkCount`, `failureCount`.
+
+**Notes.** Read-only readiness checks for build/test. See `assist-testing-tools.md` (Part A, "`preflight_checks`").
+
+## 182. `performance_benchmark` — Performance Benchmark
+
+- **Description (verbatim):** "Runs an allow-listed command N times via Process and reports average, minimum, and maximum wall time plus exit codes."
+- **Capability:** `diagnostics`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs an allow-listed command N times via Process and reports average, minimum, and maximum wall time plus exit codes.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "command": {
+      "type": "string",
+      "description": "Required. Executable path, one of /usr/bin/time, /usr/bin/xcodebuild, /usr/bin/swift, /bin/ls, /usr/bin/du. May include arguments after the executable."
+    },
+    "arguments": {
+      "type": "string",
+      "description": "Optional extra arguments, space-separated. Combined with any arguments in command."
+    },
+    "iterations": {
+      "type": "string",
+      "description": "Run count. Default: 3. Maximum: 10."
+    }
+  },
+  "required": [
+    "command"
+  ]
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `executable`, `iterations`, `averageSeconds`, `minSeconds`, `maxSeconds`, `exitCodes`.
+Message: `Benchmark '\(executable) \(allArguments.joined(separator: " "))' over \(iterations) run(s): avg \(String(format: "%.3f", average))s, min \(String(format: "%.3f", minValue))s, max \(String(format: "%.3f", maxValue))s. Exit codes: \(exitCodes.map { String($0) }.joined(separator: ", ")).\nLast run output tail:\n\(String(lastOutput.suffix(1000)))`.
+
+**Notes.** Runs its closed allow-list via `terminalRunFixed` (300 s/run bound — Legacy waited unboundedly). See `assist-testing-tools.md` (Part A, "`performance_benchmark`").
+
+## 183. `compiler_diagnostics_engine` — Compiler Diagnostics Engine
+
+- **Description (verbatim):** "Runs xcodebuild and parses warnings/errors into structured diagnostics."
+- **Capability:** `diagnostics`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs xcodebuild and parses warnings/errors into structured diagnostics.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "project": {
+      "type": "string",
+      "description": "Workspace-relative path to the .xcodeproj/.xcworkspace to diagnose. Defaults to the project found in the workspace root."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "Build scheme. Defaults to the project's first listed scheme."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `error_count`, `warning_count`, `errors`, `warnings`, `exitCode`, `buildFailed`.
+
+**Notes.** Runs `s.build(.build)` and still succeeds when the build fails — success means diagnostics were collected. See `assist-testing-tools.md` (Part A, "`compiler_diagnostics_engine`").
+
+## 184. `crash_log_parse` — Crash Log Parse
+
+- **Description (verbatim):** "Parses .crash/.ips crash logs: exception type, termination reason, faulting thread, and top blamed frames."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses .crash/.ips crash logs: exception type, termination reason, faulting thread, and top blamed frames.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .crash or .ips file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `hasException`, `frameCount`.
+
+**Notes.** Pure crash-log parsing. See `assist-testing-tools.md` (Part A, "`crash_log_parse`").
+
+## 185. `runtime_diagnostics_engine` — Runtime Diagnostics Engine
+
+- **Description (verbatim):** "Analyzes runtime logs for crashes/anomalies and suggests concrete fixes."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Analyzes runtime logs for crashes/anomalies and suggests concrete fixes.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "logPath": {
+      "type": "string",
+      "description": "Workspace-relative path of the log file to analyze."
+    }
+  },
+  "required": [
+    "logPath"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `crash_count`, `thread_anomaly_count`, `suggestions`, `crashes`.
+Message: `Runtime diagnostics complete.`.
+
+**Notes.** Runtime diagnostics from the session; read-only. See `assist-testing-tools.md` (Part A, "`runtime_diagnostics_engine`").
+
+## 186. `code_lint` — Lint Code
+
+- **Description (verbatim):** "Runs a linter on the specified file or directory."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs a linter on the specified file or directory.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative file path to lint. Default: \".\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `issues`.
+Message: `Basic linting found \(issues.count) issues in \(path)`; `No basic linting issues found in \(path)`.
+
+**Notes.** Line length (>120 chars) and TODO/FIXME markers, exactly as in Legacy. See `assist-testing-tools.md` (Part B, "`code_lint`").
+
+## 187. `swift_format_lint` — Swift Format Linter
+
+- **Description (verbatim):** "Lints Swift source files for code style, line length, indentation, and formatting violations."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lints Swift source files for code style, line length, indentation, and formatting violations.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to Swift file in workspace."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Formatting check passed! No style or whitespace issues found in `\(path)`.`.
+
+**Notes.** Swift style lint of one file; Legacy-faithful heuristic. See `assist-testing-tools.md` (Part B, "`swift_format_lint`").
+
+## 188. `dead_code_scan` — Dead Code Scan
+
+- **Description (verbatim):** "Heuristic scan for Swift declarations that appear to have no references outside their own declaration line. Excludes public/open API, @main entry points, overrides, and well-known lifecycle names. Findings are heuristic leads, not proof of dead code."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Heuristic scan for Swift declarations that appear to have no references outside their own declaration line. Excludes public/open API, @main entry points, overrides, and well-known lifecycle names. Findings are heuristic leads, not proof of dead code.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to scan. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `declarationCount`, `candidateCount`, `candidates`.
+Message: `Dead Code Scan: no Swift files found.`; `Dead Code Scan (heuristic): scanned \(entries.count) Swift file(s), found \(declarationCount) declaration(s), \(candidates.count) candidate(s) with no other whole-word references.\n`.
+
+**Notes.** Heuristic unreferenced declarations; string/comment mentions count, as in Legacy. See `assist-testing-tools.md` (Part B, "`dead_code_scan`").
+
+## 189. `dead_code_eliminator` — Dead Code Eliminator
+
+- **Description (verbatim):** "Identifies unreferenced private functions, unused variables, and unreachable code structures in Swift files."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Identifies unreferenced private functions, unused variables, and unreachable code structures in Swift files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "filePath": {
+      "type": "string",
+      "description": "Workspace-relative path to a Swift file to inspect."
+    }
+  },
+  "required": [
+    "filePath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Dead Code Scan completed for \(filePath): All \(privateDeclarations.count) private declarations have active call sites.`; `Dead Code Scan found \(deadDeclarations.count) unused declarations in \(filePath):\n`.
+
+**Notes.** Read-only despite its name (Legacy `riskLevel` is `safeRead`); it only reports. See `assist-testing-tools.md` (Part B, "`dead_code_eliminator`").
+
+## 190. `duplicate_code_scan` — Duplicate Code Scan
+
+- **Description (verbatim):** "Heuristic scan for duplicated blocks of Swift code. Lines are normalized (trimmed, blank lines and full-line comments and brace-only lines skipped) and compared with a sliding window. Findings are heuristic leads — duplicated blocks may be intentional."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Heuristic scan for duplicated blocks of Swift code. Lines are normalized (trimmed, blank lines and full-line comments and brace-only lines skipped) and compared with a sliding window. Findings are heuristic leads — duplicated blocks may be intentional.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to scan. Defaults to the workspace root."
+    },
+    "minLines": {
+      "type": "string",
+      "description": "Minimum normalized lines per block, as a decimal string. Clamped to at least 3. Default: \"6\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `duplicateGroups`, `groups`.
+Message: `Duplicate Code Scan: no Swift files found.`; `Duplicate Code Scan (heuristic): scanned \(files.count) Swift file(s) with window size \(minLines) normalized line(s), found \(kept.count) duplicated block group(s).\n`.
+
+**Notes.** Heuristic duplicated blocks; Legacy-faithful. See `assist-testing-tools.md` (Part B, "`duplicate_code_scan`").
+
+## 191. `unused_imports_detector` — Unused Imports Detector
+
+- **Description (verbatim):** "Scans Swift files to detect redundant or unused framework imports."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans Swift files to detect redundant or unused framework imports.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to the Swift file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No framework imports found in `\(path)`.`; `Import analysis clean: All imported modules appears to be referenced in `\(path)`.`; `### Potentially Unused Imports in `\(path)`:\n\n`.
+
+**Notes.** Read-only unused-import report. See `assist-testing-tools.md` (Part B, "`unused_imports_detector`").
+
+## 192. `import_cleanup` — Import Cleanup
+
+- **Description (verbatim):** "Removes unused import lines from Swift files. An import is removed only when its module name never appears as a whole word anywhere else in the file. Well-known Apple SDK and test modules (Foundation, SwiftUI, XCTest, Testing, and others) are never removed, because their symbols do not mention the module name. Only files that change are rewritten. Heuristic: it does not resolve re-exports or typealiases across modules."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Removes unused import lines from Swift files. An import is removed only when its module name never appears as a whole word anywhere else in the file. Well-known Apple SDK and test modules (Foundation, SwiftUI, XCTest, Testing, and others) are never removed, because their symbols do not mention the module name. Only files that change are rewritten. Heuristic: it does not resolve re-exports or typealiases across modules.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a Swift file or directory to clean. Required."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `filesChanged`, `removedImports`, `changedFileCount`, `removed`.
+Message: `Import Cleanup: no Swift files found.`; `Import Cleanup: no unused imports found in \(files.count) Swift file(s). Nothing changed.`; `Import Cleanup: removed \(removed.count) unused import(s) across \(changed.count) file(s):\n`.
+
+**Notes.** The only writer in this slice: one approval per changed file, in order, stopping at the first refusal. See `assist-testing-tools.md` (Part B, "`import_cleanup`").
+
+## 193. `force_unwrap_scan` — Force Unwrap Scan
+
+- **Description (verbatim):** "Scans Swift sources for force unwraps (!), try!, and as! — crash-prone constructs worth reviewing."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans Swift sources for force unwraps (!), try!, and as! — crash-prone constructs worth reviewing.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum findings. Default 100, max 1000."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No force-unwrap constructs found.`.
+
+**Notes.** Preserves Legacy's `as! ` trailing-space pattern. See `assist-testing-tools.md` (Part B, "`force_unwrap_scan`").
+
+## 194. `todo_scan` — TODO Scan
+
+- **Description (verbatim):** "Scans Swift source files for TODO, FIXME, XXX, and HACK markers and returns a file:line:text list with counts per tag."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans Swift source files for TODO, FIXME, XXX, and HACK markers and returns a file:line:text list with counts per tag.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to scan. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `totalMarkers`, `todo`, `fixme`, `xxx`, `hack`, `findings`.
+Message: `TODO Scan: no Swift files found.`; `TODO Scan: scanned \(files.count) Swift file(s), found \(total) marker(s) — TODO: \(counts["TODO"] ?? 0), FIXME: \(counts["FIXME"] ?? 0), XXX: \(counts["XXX"] ?? 0), HACK: \(counts["HACK"] ?? 0).\n`.
+
+**Notes.** TODO/FIXME/XXX/HACK markers. See `assist-testing-tools.md` (Part B, "`todo_scan`").
+
+## 195. `todo_fixme_scanner` — TODO & FIXME Scanner
+
+- **Description (verbatim):** "Scans workspace files to index all TODO, FIXME, MARK, HACK, and BUG annotations."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans workspace files to index all TODO, FIXME, MARK, HACK, and BUG annotations.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "tag": {
+      "type": "string",
+      "description": "Optional specific tag filter: 'TODO', 'FIXME', 'BUG', 'HACK', or 'MARK'."
+    },
+    "maxResults": {
+      "type": "integer",
+      "description": "Maximum number of results to return (default: 50)."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No TODO/FIXME/BUG annotations found in workspace.`.
+
+**Notes.** Workspace action-item index; colon-required matching, as in Legacy. See `assist-testing-tools.md` (Part B, "`todo_fixme_scanner`").
+
+## 196. `comment_density_report` — Comment Density Report
+
+- **Description (verbatim):** "Reports comment-to-code ratios per Swift file, flagging the least-documented files."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reports comment-to-code ratios per Swift file, flagging the least-documented files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum files to report. Default 30."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `fileCount`.
+
+**Notes.** Comment-to-code ratios. See `assist-testing-tools.md` (Part B, "`comment_density_report`").
+
+## 197. `code_comment_extract` — Code Comment Extract
+
+- **Description (verbatim):** "Extracts documentation comments (/// and /** */) for a symbol or a whole file, with locations."
+- **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts documentation comments (/// and /** */) for a symbol or a whole file, with locations.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative Swift file to extract from."
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Optional: only extract comments attached to this symbol name."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No documentation comments found in \(raw)\(symbol.map { " for '\($0)'" } ?? "").`.
+
+**Notes.** Documentation comments; multi-line `/** */` handling preserved. See `assist-testing-tools.md` (Part B, "`code_comment_extract`").
+
+## 198. `complexity_analysis` — Complexity Analysis
+
+- **Description (verbatim):** "Analyzes the cyclomatic complexity of code."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Analyzes the cyclomatic complexity of code.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to analyze."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `score`, `rating`.
+Message: `Complexity analysis for \(path): \(rating) (Cyclomatic approximation: \(complexity))`.
+
+**Notes.** Cyclomatic approximation. See `assist-testing-tools.md` (Part B, "`complexity_analysis`").
+
+## 199. `function_size_report` — Function Size Report
+
+- **Description (verbatim):** "Finds the longest functions by line count, highlighting decomposition candidates."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds the longest functions by line count, highlighting decomposition candidates.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "threshold": {
+      "type": "integer",
+      "description": "Only report functions at or above this many lines. Default 60."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum functions to report. Default 30."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No functions with \(threshold)+ lines found.`.
+
+**Notes.** Longest functions. See `assist-testing-tools.md` (Part B, "`function_size_report`").
+
+## 200. `code_metrics_analyzer` — Code Metrics Analyzer
+
+- **Description (verbatim):** "Calculates lines of code, comment density, type counts, and complexity metrics for Swift source files."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Calculates lines of code, comment density, type counts, and complexity metrics for Swift source files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to a Swift file or directory."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** File/directory code metrics. See `assist-testing-tools.md` (Part B, "`code_metrics_analyzer`").
+
+## 201. `string_literal_audit` — String Literal Audit
+
+- **Description (verbatim):** "Finds hardcoded user-facing string literals that are not routed through localization (NSLocalizedString / String(localized:))."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds hardcoded user-facing string literals that are not routed through localization (NSLocalizedString / String(localized:)).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum findings. Default 100, max 1000."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No hardcoded user-facing string literals detected.`.
+
+**Notes.** Unlocalized user-facing strings; textual check. See `assist-testing-tools.md` (Part B, "`string_literal_audit`").
+
+## 202. `deprecation_usage_scan` — Deprecation Usage Scan
+
+- **Description (verbatim):** "Finds declarations marked @available(*, deprecated) in workspace Swift sources and reports where those deprecated symbols are used."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds declarations marked @available(*, deprecated) in workspace Swift sources and reports where those deprecated symbols are used.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum usage sites. Default 100, max 500."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `declarationCount`, `usageCount`.
+Message: `No @available(*, deprecated) declarations found in workspace Swift sources.`.
+
+**Notes.** Checks deprecated names in sorted order (Legacy iterated an `NSMutableSet`, nondeterministically); the finding set is identical. See `assist-testing-tools.md` (Part B, "`deprecation_usage_scan`").
+
+## 203. `swift_ast_inspector` — Swift AST Inspector
+
+- **Description (verbatim):** "Inspects the abstract syntax tree (AST) and type declaration hierarchy of a Swift source file."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects the abstract syntax tree (AST) and type declaration hierarchy of a Swift source file.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to the Swift file within the workspace."
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Optional symbol name to filter AST declarations for."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No major type declarations found in \(path).`; `Swift Structural AST Declarations in \(path):\n\n`.
+
+**Notes.** Legacy's regex structural fallback only — the primary `xcrun swiftc -dump-ast` path is not ported (no Swift toolchain in the MCP host). It still returns real structural results, exactly as Legacy does when `swiftc` is unavailable. See `assist-testing-tools.md` (Part B, "`swift_ast_inspector`").
+
+## 204. `swift_concurrency_analyzer` — Swift Concurrency Analyzer
+
+- **Description (verbatim):** "Audits Swift code for Swift 6 strict concurrency hazards, mutable globals, and actor isolation boundaries."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits Swift code for Swift 6 strict concurrency hazards, mutable globals, and actor isolation boundaries.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to file or directory in workspace."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** Swift 6 hazard audit; heuristic. See `assist-testing-tools.md` (Part B, "`swift_concurrency_analyzer`").
+
+## 205. `concurrency_audit` — Concurrency Audit
+
+- **Description (verbatim):** "Heuristic scan for Swift concurrency hazards: DispatchQueue.main.sync, nonisolated(unsafe), mutable static vars, Task blocks without await, force unwraps inside async functions, and SwiftUI types without @MainActor. All findings are heuristic leads, not confirmed bugs."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Heuristic scan for Swift concurrency hazards: DispatchQueue.main.sync, nonisolated(unsafe), mutable static vars, Task blocks without await, force unwraps inside async functions, and SwiftUI types without @MainActor. All findings are heuristic leads, not confirmed bugs.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to audit. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `findingCount`, `findings`.
+Message: `Concurrency Audit: no Swift files found.`; `Concurrency Audit (heuristic): scanned \(files.count) Swift file(s), found \(findings.count) finding(s).\n`.
+
+**Notes.** Heuristic concurrency hazards. See `assist-testing-tools.md` (Part B, "`concurrency_audit`").
+
+## 206. `entry_points_discover` — Discover Entry Points
+
+- **Description (verbatim):** "Finds application entry points: @main types, main.swift, and AppDelegate/SceneDelegate classes."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds application entry points: @main types, main.swift, and AppDelegate/SceneDelegate classes.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No application entry points discovered (@main, main.swift, AppDelegate).`; `Entry points:\n`.
+
+**Notes.** Application entry points. See `assist-testing-tools.md` (Part B, "`entry_points_discover`").
+
+## 207. `swift_migration_advisor` — Swift 6 Migration Advisor
+
+- **Description (verbatim):** "Audits Swift code for Swift 6 strict concurrency compliance, mutable globals, actor boundaries, and Sendable conformance."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits Swift code for Swift 6 strict concurrency compliance, mutable globals, actor boundaries, and Sendable conformance.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to a Swift file or directory."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Swift 6 Migration Audit passed: All analyzed code in '\(path)' conforms to Swift 6 strict concurrency patterns.`; `Swift 6 Migration Advisor found \(warnings.count) migration opportunities across \(files.count) files in '\(path)':\n\n`.
+
+**Notes.** Swift 6 migration audit. See `assist-testing-tools.md` (Part B, "`swift_migration_advisor`").
+
+## 208. `memory_leak_detector` — Memory Leak Detector
+
+- **Description (verbatim):** "Scans Swift source code for retain cycles, strong self capture in escaping closures, and unowned reference risks."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans Swift source code for retain cycles, strong self capture in escaping closures, and unowned reference risks.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to a Swift file or directory."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Memory Leak Scan passed: No retain cycles or strong self closure hazards detected across \(files.count) files in '\(raw)'.`; `Memory Leak Scan found \(findings.count) potential issues across \(files.count) files in '\(raw)':\n\n`.
+
+**Notes.** Legacy is itself a static source scan (no Instruments/live process), so the port is fully static too. A clean scan means 'no matching patterns', not 'leak-free'. See `assist-testing-tools.md` (Part C, "`memory_leak_detector`").
+
+## 209. `security_audit_scanner` — Security Audit Scanner
+
+- **Description (verbatim):** "Scans Swift source files for hardcoded secrets, API keys, insecure HTTP endpoints, and unsafe storage practices."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans Swift source files for hardcoded secrets, API keys, insecure HTTP endpoints, and unsafe storage practices.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to a directory or Swift file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Security Audit passed: 0 vulnerabilities or hardcoded secrets found across \(files.count) files in '\(raw)'.`; `Security Audit flagged \(findings.count) items in '\(raw)':\n\n`.
+
+**Notes.** Static security audit of the workspace. See `assist-testing-tools.md` (Part C, "`security_audit_scanner`").
+
+## 210. `bundle_resource_auditor` — Bundle Resource Auditor
+
+- **Description (verbatim):** "Audits project resources, asset catalogs, and bundle copy phases for missing or orphaned assets."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits project resources, asset catalogs, and bundle copy phases for missing or orphaned assets.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional directory path to scan. Defaults to workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** Declares `path` in Legacy but never reads it; the port keeps the schema and likewise ignores it. See `assist-testing-tools.md` (Part C, "`bundle_resource_auditor`").
+
+## 211. `core_data_model_inspector` — Core Data Model Inspector
+
+- **Description (verbatim):** "Locates, inspects, and parses Core Data .xcdatamodeld schemas, entities, attributes, and relationships."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Locates, inspects, and parses Core Data .xcdatamodeld schemas, entities, attributes, and relationships.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional path to the .xcdatamodeld bundle. If omitted, the workspace is scanned."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No .xcdatamodeld Core Data models found in the workspace.`; `Found model at \(modelURL.lastPathComponent), but contents XML was unreadable.`.
+
+**Notes.** Inspects Core Data models. See `assist-testing-tools.md` (Part C, "`core_data_model_inspector`").
+
+## 212. `swift_data_schema_auditor` — SwiftData Schema Auditor
+
+- **Description (verbatim):** "Audits SwiftData models (@Model), attributes, relationships, and migration schemas across the workspace."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits SwiftData models (@Model), attributes, relationships, and migration schemas across the workspace.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional directory path to scan. Defaults to workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No SwiftData `@Model` classes discovered in the workspace.`.
+
+**Notes.** Declares `path` in Legacy but never reads it; the port keeps the schema and likewise ignores it. See `assist-testing-tools.md` (Part C, "`swift_data_schema_auditor`").
+
+## 213. `privacy_manifest_auditor` — Privacy Manifest Auditor
+
+- **Description (verbatim):** "Audits or scaffolds Apple Privacy Manifests (PrivacyInfo.xcprivacy) for Required Reason API compliance."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits or scaffolds Apple Privacy Manifests (PrivacyInfo.xcprivacy) for Required Reason API compliance.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'audit' (scan codebase for API usage) or 'generate' (scaffold a valid PrivacyInfo.xcprivacy template)."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully generated compliant PrivacyInfo.xcprivacy at workspace root.`.
+
+**Notes.** The only writer in this slice: the `generate` action writes `PrivacyInfo.xcprivacy` via `commit()`; `audit` writes nothing. See `assist-testing-tools.md` (Part C, "`privacy_manifest_auditor`").
+
+## 214. `mach_o_binary_analyzer` — Mach-O Binary Analyzer
+
+- **Description (verbatim):** "Inspects built application binaries, architectures (arm64, x86_64), and linked dynamic libraries via otool and file."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects built application binaries, architectures (arm64, x86_64), and linked dynamic libraries via otool and file.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "binaryPath": {
+      "type": "string",
+      "description": "Relative or absolute path to the compiled binary or executable file."
+    }
+  },
+  "required": [
+    "binaryPath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** Reuses Ycode's `YcodeMachO` (`MachOFile` / `MachOImage`) — no parallel parser. Reports parsed slices/dylibs instead of Legacy's `/usr/bin/file` + `xcrun otool` text. Fails on non-Mach-O files and 32-bit Mach-O binaries. See `assist-testing-tools.md` (Part C, "`mach_o_binary_analyzer`").
+
+## 215. `framework_linker_auditor` — Framework Linker Auditor
+
+- **Description (verbatim):** "Inspects PBXFrameworksBuildPhase in Xcode projects to audit linked system and dynamic frameworks."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects PBXFrameworksBuildPhase in Xcode projects to audit linked system and dynamic frameworks.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional path to .xcodeproj. Defaults to workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No project.pbxproj file found in workspace.`.
+
+**Notes.** Declares `path` in Legacy but never reads it; the port keeps the schema and likewise ignores it. See `assist-testing-tools.md` (Part C, "`framework_linker_auditor`").
+
+## 216. `network_security_auditor` — Network Security & ATS Auditor
+
+- **Description (verbatim):** "Audits NSAppTransportSecurity in Info.plist for insecure HTTP and ATS exceptions."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits NSAppTransportSecurity in Info.plist for insecure HTTP and ATS exceptions.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional path to Info.plist. Defaults to searching workspace."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No valid Info.plist found in workspace.`; `✅ NSAppTransportSecurity is in default secure mode (all plain HTTP requests blocked, TLS 1.2+ required).`.
+
+**Notes.** Static network-security audit. See `assist-testing-tools.md` (Part C, "`network_security_auditor`").
+
+## 217. `accessibility_audit_scanner` — Accessibility Audit Scanner
+
+- **Description (verbatim):** "Audits SwiftUI views for missing accessibility labels, hints, and VoiceOver tap targets."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits SwiftUI views for missing accessibility labels, hints, and VoiceOver tap targets.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Relative path to Swift file or directory."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** Accessibility scan of the workspace. See `assist-testing-tools.md` (Part C, "`accessibility_audit_scanner`").
+
+## 218. `license_header_check` — License Header Check
+
+- **Description (verbatim):** "Checks the first 15 lines of each Swift file for required header text (default: "Copyright") and reports files missing it."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Checks the first 15 lines of each Swift file for required header text (default: \"Copyright\") and reports files missing it.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to check. Defaults to the workspace root."
+    },
+    "requiredText": {
+      "type": "string",
+      "description": "Header text that must appear in the first 15 lines. Case-insensitive. Default: \"Copyright\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `withHeader`, `missingHeader`, `missingFiles`.
+Message: `License Header Check: no Swift files found.`; `License Header Check: scanned \(files.count) Swift file(s) for header text "\(requiredText)" in the first 15 lines — \(withHeader) with header, \(missing.count) missing.\n`.
+
+**Notes.** License-header presence check. See `assist-testing-tools.md` (Part C, "`license_header_check`").
+
+## 219. `access_level_audit` — Access Level Audit
+
+- **Description (verbatim):** "Counts Swift declarations by access level (public, open, internal, private, fileprivate; default internal when unspecified) and lists the files with the most public API. Heuristic: access is inferred from keywords on the declaration line, with public/open taking precedence over private(set)."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Counts Swift declarations by access level (public, open, internal, private, fileprivate; default internal when unspecified) and lists the files with the most public API. Heuristic: access is inferred from keywords on the declaration line, with public/open taking precedence over private(set).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to audit. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `public`, `open`, `internal`, `private`, `fileprivate`, `total`, `topPublicFiles`.
+Message: `Access Level Audit: no Swift files found.`; `Access Level Audit: scanned \(files.count) Swift file(s), \(total) declaration(s) — public: \(counts["public"] ?? 0), open: \(counts["open"] ?? 0), internal: \(counts["internal"] ?? 0), private: \(counts["private"] ?? 0), fileprivate: \(counts["fileprivate"] ?? 0).\n`.
+
+**Notes.** Access-level audit. See `assist-testing-tools.md` (Part C, "`access_level_audit`").
+
+## 220. `binary_size_report` — Binary Size Report
+
+- **Description (verbatim):** "Reports total size and the 10 largest files for each .app bundle under the workspace build directory or an explicit in-workspace path. DerivedData is never scanned."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reports total size and the 10 largest files for each .app bundle under the workspace build directory or an explicit in-workspace path. DerivedData is never scanned.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative path to a .app bundle or a directory to search for .app bundles. Default: build/."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `appCount`, `totalBytes`, `apps`.
+Message: `No .app bundles found under '\(pathRaw)'. DerivedData is intentionally never scanned.`; `Binary size report: \(appBundles.count) .app bundle(s).`.
+
+**Notes.** Fails when the path does not exist — it needs a built `.app` bundle, and the error says so. See `assist-testing-tools.md` (Part C, "`binary_size_report`").
+
+## 221. `secrets_scan` — Secrets Scan
+
+- **Description (verbatim):** "Scans source and config files for secret patterns. Reports file:line:pattern only and never outputs matched secret values."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans source and config files for secret patterns. Reports file:line:pattern only and never outputs matched secret values.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory or file to scan (optional)."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `finding_count`, `files_scanned`, `files_with_findings`.
+Message: `Secrets scan: \(sorted.count) finding(s) in \(filesWithFindings.count) file(s), \(files.count) file(s) scanned.`.
+
+**Notes.** Reports `file:line:label` only; secret values never appear in the output. See `assist-testing-tools.md` (Part C, "`secrets_scan`").
+
+## 222. `permissions_audit` — Permissions Audit
+
+- **Description (verbatim):** "Audits Info.plist usage descriptions, entitlements, and PrivacyInfo.xcprivacy entries, and flags API usage missing a usage description."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits Info.plist usage descriptions, entitlements, and PrivacyInfo.xcprivacy entries, and flags API usage missing a usage description.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `usage_description_count`, `entitlement_count`, `privacy_api_count`, `missing_count`, `privacy_tracking`.
+Message: `Permissions audit complete.\n`.
+
+**Notes.** Permissions audit. See `assist-testing-tools.md` (Part C, "`permissions_audit`").
+
+## 223. `accessibility_audit` — Accessibility Audit
+
+- **Description (verbatim):** "Heuristic SwiftUI accessibility audit: flags Button/Image without accessibility labels, TextField with empty labels, and color-only state."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Heuristic SwiftUI accessibility audit: flags Button/Image without accessibility labels, TextField with empty labels, and color-only state.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory or file to audit (optional)."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `finding_count`, `files_scanned`.
+Message: `Accessibility audit: \(sorted.count) finding(s) in \(swiftFiles.count) Swift file(s). Findings are heuristics; verify each one.`.
+
+**Notes.** Accessibility audit. See `assist-testing-tools.md` (Part C, "`accessibility_audit`").
+
+## 224. `dependency_licenses` — Dependency Licenses
+
+- **Description (verbatim):** "Inventories third-party dependencies from Package.resolved and Podfile.lock, reporting versions for license review."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inventories third-party dependencies from Package.resolved and Podfile.lock, reporting versions for license review.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No resolvable dependency lockfiles found (checked Package.resolved, Podfile.lock).`; `Dependency license inventory:\n\(table)\n\nNote: license text lives in each package's repository; verify before distribution.`.
+
+**Notes.** Legacy's only non-`diagnostics` tool in this slice (`repositoryDiscovery`). See `assist-testing-tools.md` (Part C, "`dependency_licenses`").
+
+## 225. `image_asset_size_report` — Image Asset Size Report
+
+- **Description (verbatim):** "Reports oversized image files inside .xcassets catalogs — candidates for compression or vectorization."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reports oversized image files inside .xcassets catalogs — candidates for compression or vectorization.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "thresholdKB": {
+      "type": "integer",
+      "description": "Size threshold in KB. Default 500."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `imageCount`, `oversizedCount`, `totalBytes`.
+Message: `No image files found inside .xcassets catalogs.`.
+
+**Notes.** Image asset size report. See `assist-testing-tools.md` (Part C, "`image_asset_size_report`").
+
+## 226. `api_docs_coverage` — API Docs Coverage
+
+- **Description (verbatim):** "Measures the share of public/open Swift declarations that carry documentation comments."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Measures the share of public/open Swift declarations that carry documentation comments.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum undocumented symbols to list. Default 50."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `total`, `documented`, `coverage`.
+
+**Notes.** API documentation coverage. See `assist-testing-tools.md` (Part D, "`api_docs_coverage`").
+
+## 227. `api_endpoint_audit` — API Endpoint Audit
+
+- **Description (verbatim):** "Inventories hardcoded http(s) URL literals in Swift sources, grouped by host — surfacing endpoints that should be configurable."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inventories hardcoded http(s) URL literals in Swift sources, grouped by host — surfacing endpoints that should be configurable.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum URL sites. Default 100, max 500."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `count`, `hostCount`, `siteCount`.
+Message: `No hardcoded http(s) endpoints found in Swift sources.`.
+
+**Notes.** API endpoint audit. See `assist-testing-tools.md` (Part D, "`api_endpoint_audit`").
+
+## 228. `api_surface_extract` — API Surface
+
+- **Description (verbatim):** "Extracts public/open declarations (func, class, struct, enum, protocol, actor, var, let, typealias, extension) from Swift files, grouped by file, with file:line locations and a total count."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts public/open declarations (func, class, struct, enum, protocol, actor, var, let, typealias, extension) from Swift files, grouped by file, with file:line locations and a total count.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to scan. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `scannedFiles`, `declarationCount`, `declarations`.
+Message: `API Surface: no Swift files found.`; `API Surface: scanned \(files.count) Swift file(s), found \(total) public/open declaration(s) across \(grouped.count) file(s).\n`.
+
+**Notes.** Private resolver, 1000-declaration cap; its pattern has no `init` kind, unlike `api_docs_coverage`. See `assist-testing-tools.md` (Part D, "`api_surface_extract`").
+
+## 229. `automated_repair_engine` — Automated Repair Engine
+
+- **Description (verbatim):** "Consumes compiler diagnostics, applies targeted fixes, and validates by rebuilding."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Consumes compiler diagnostics, applies targeted fixes, and validates by rebuilding.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "errors": {
+      "type": "string",
+      "description": "Compiler diagnostic lines in 'path:line:...' format. Only lines containing '.swift:' are processed."
+    }
+  },
+  "required": [
+    "errors"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `fix_count`.
+Message: `Applied \(fixed) automated repair annotations.`.
+
+**Notes.** Deterministic annotation (`// AssistAutoRepair: review required` above the reported line), one `commit()` per file, re-reading per diagnostic as Legacy does. No rebuild — Legacy's `execute()` never rebuilds despite its description. See `assist-testing-tools.md` (Part D, "`automated_repair_engine`").
+
+## 230. `autonomous_review_engine` — Autonomous Review Engine
+
+- **Description (verbatim):** "Performs static self-review, detects inefficient patterns, and proposes refactors."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Performs static self-review, detects inefficient patterns, and proposes refactors.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory to review. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `finding_count`, `findings`.
+Message: `Autonomous review complete.`.
+
+**Notes.** Three literal substring checks. See `assist-testing-tools.md` (Part D, "`autonomous_review_engine`").
+
+## 231. `change_impact_estimate` — Change Impact Estimate
+
+- **Description (verbatim):** "Estimates the blast radius of changing a file: finds Swift files that reference its base symbol name."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Estimates the blast radius of changing a file: finds Swift files that reference its base symbol name.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to change."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum referencing files. Default 50."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `symbol`, `referencingFileCount`, `blastRadius`.
+
+**Notes.** Change-impact estimate. See `assist-testing-tools.md` (Part D, "`change_impact_estimate`").
+
+## 232. `code_review` — Code Review Validation
+
+- **Description (verbatim):** "Validates the completed implementation using an independent AI reviewer stage before finishing the task."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates the completed implementation using an independent AI reviewer stage before finishing the task.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** None — the handler always fails (see Notes).
+
+**Notes.** HONESTLY FAILING: registered with the full Legacy schema, then always fails naming the prerequisite — an LLM provider (Legacy sends task history, repo changes and build state to Apple Foundation Models or the configured provider and requires a JSON verdict with status `task_ready` / `task_failed`). Ycode's MCP host has no LLM wired for this tool. See `assist-testing-tools.md` (Part D, "`code_review`").
+
+## 233. `code_snippet_manager` — Code Snippet & Architecture Template Manager
+
+- **Description (verbatim):** "Retrieves and injects battle-tested Swift architecture templates (SwiftUI MVVM, AsyncStream, Actor isolation, Keychain wrapper)."
+- **Capability:** `general`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Retrieves and injects battle-tested Swift architecture templates (SwiftUI MVVM, AsyncStream, Actor isolation, Keychain wrapper).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "templateId": {
+      "type": "string",
+      "description": "Template identifier: 'observable_viewmodel', 'async_stream', 'keychain_helper', 'swiftui_glass_card', 'actor_service'."
+    },
+    "targetName": {
+      "type": "string",
+      "description": "Name of the type or feature to substitute in the template."
+    }
+  },
+  "required": [
+    "templateId"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `\(title)\n\n```swift\n\(snippet)\n````.
+
+**Notes.** Four templates; `keychain_helper` fails as unknown, exactly as in Legacy (listed in its schema description but absent from its `switch`). See `assist-testing-tools.md` (Part D, "`code_snippet_manager`").
+
+## 234. `color_usage_audit` — Color Usage Audit
+
+- **Description (verbatim):** "Finds hardcoded colors in SwiftUI/UIKit code (Color(red:), UIColor literals, hex strings) that should live in the asset catalog."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds hardcoded colors in SwiftUI/UIKit code (Color(red:), UIColor literals, hex strings) that should live in the asset catalog.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum findings. Default 100, max 500."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No hardcoded colors found — colors appear to use named assets.`.
+
+**Notes.** Color usage audit. See `assist-testing-tools.md` (Part D, "`color_usage_audit`").
+
+## 235. `colorset_builder` — Color Set Builder
+
+- **Description (verbatim):** "Creates or updates adaptive Light/Dark mode colorsets in Xcode asset catalogs."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates or updates adaptive Light/Dark mode colorsets in Xcode asset catalogs.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "catalogPath": {
+      "type": "string",
+      "description": "Relative path to the .xcassets directory."
+    },
+    "colorName": {
+      "type": "string",
+      "description": "Name of the color set (e.g. BrandPrimary, SurfaceElevated)."
+    },
+    "lightHex": {
+      "type": "string",
+      "description": "Hex color for Any/Light mode (e.g. #007AFF, #FFFFFF)."
+    },
+    "darkHex": {
+      "type": "string",
+      "description": "Hex color for Dark mode (e.g. #0A84FF, #1C1C1E)."
+    }
+  },
+  "required": [
+    "catalogPath",
+    "colorName",
+    "lightHex"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully built adaptive ColorSet `\(colorName)` at: \(colorSetURL.path)\n- Light: \(lightHex)\n- Dark: \(darkHex)`.
+
+**Notes.** Verbatim JSON templates; writes through `commit()`. See `assist-testing-tools.md` (Part D, "`colorset_builder`").
+
+## 236. `docstring_generator` — DocC Documentation Generator
+
+- **Description (verbatim):** "Generates Apple DocC compliant documentation comments (///) with Parameters, Returns, and Throws tags for Swift declarations."
+- **Capability:** `fileModification`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates Apple DocC compliant documentation comments (///) with Parameters, Returns, and Throws tags for Swift declarations.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "declaration": {
+      "type": "string",
+      "description": "The Swift function, type, or protocol declaration header."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Brief single-line summary of what the declaration does."
+    }
+  },
+  "required": [
+    "declaration"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Generated DocC Documentation:\n\n```swift\n\(result)\n````.
+
+**Notes.** Returns generated docstrings as text; writes nothing (Legacy `safeRead`). See `assist-testing-tools.md` (Part D, "`docstring_generator`").
+
+## 237. `icon_generator_tool` — App Icon Generator & Validator
+
+- **Description (verbatim):** "Validates, configures, or scaffolds complete AppIcon.appiconset specifications in asset catalogs."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates, configures, or scaffolds complete AppIcon.appiconset specifications in asset catalogs.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "catalogPath": {
+      "type": "string",
+      "description": "Relative path to the .xcassets directory."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'validate' or 'scaffold'."
+    }
+  },
+  "required": [
+    "catalogPath",
+    "action"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully created universal AppIcon.appiconset at: \(iconSetURL.path)`; `AppIcon.appiconset audit for `\(catalogPath)`:\n- Total slots configured: \(images.count)\n- Rendered assets present: \(filledSlots)\n- Empty/unassigned slots: \(emptySlots)`.
+
+**Notes.** Verbatim JSON templates; `writes: true` even for its read-only `validate` action (static flag, per the approval model). See `assist-testing-tools.md` (Part D, "`icon_generator_tool`").
+
+## 238. `markdown_link_check` — Markdown Link Check
+
+- **Description (verbatim):** "Validates links in Markdown files: internal file links must resolve; reports broken ones."
+- **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates links in Markdown files: internal file links must resolve; reports broken ones.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative Markdown file. Omit to check all Markdown files."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `checked`, `broken`.
+Message: `All \(checked) internal links resolve.`.
+
+**Notes.** Markdown link check. See `assist-testing-tools.md` (Part D, "`markdown_link_check`").
+
+## 239. `markdown_toc_generate` — Markdown TOC Generate
+
+- **Description (verbatim):** "Generates a table of contents from a Markdown file's headings and inserts or updates it between TOC markers."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a table of contents from a Markdown file's headings and inserts or updates it between TOC markers.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative Markdown file."
+    },
+    "maxDepth": {
+      "type": "integer",
+      "description": "Heading depth to include. Default 3, max 6."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `path`, `entryCount`.
+Message: `Table of contents (\(entries.count) entries) written to \(raw).`.
+
+**Notes.** Writes the table of contents through `commit()`. See `assist-testing-tools.md` (Part D, "`markdown_toc_generate`").
+
+## 240. `readme_generate` — README Generate
+
+- **Description (verbatim):** "Generates a README.md skeleton from real repository inspection: project name, build systems, targets, structure, and entry points."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a README.md skeleton from real repository inspection: project name, build systems, targets, structure, and entry points.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative output path. Default: README.generated.md."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "Overwrite if the file exists. Default false."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `path`.
+Message: `README skeleton written to \(rawPath).`.
+
+**Notes.** Writes through `commit()`. See `assist-testing-tools.md` (Part D, "`readme_generate`").
+
+## 241. `readme_locate` — Locate README
+
+- **Description (verbatim):** "Finds README files in the workspace (any case/extension), reporting each path and its title line."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds README files in the workspace (any case/extension), reporting each path and its title line.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+
+**Notes.** Locates README files. See `assist-testing-tools.md` (Part D, "`readme_locate`").
+
+## 242. `repo_overview` — Repository Overview
+
+- **Description (verbatim):** "Summarizes the workspace repository: file counts by language, directory breadth, README/license presence, and largest files."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Summarizes the workspace repository: file counts by language, directory breadth, README/license presence, and largest files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "topLanguages": {
+      "type": "integer",
+      "description": "How many top languages to report. Default 8."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `fileCount`, `totalBytes`, `readme`, `license`.
+
+**Notes.** Repository overview. See `assist-testing-tools.md` (Part D, "`repo_overview`").
+
+## 243. `safe_undo` — Undo Last Action
+
+- **Description (verbatim):** "Reverts the last modification made by the agent."
+- **Capability:** `general`. **Risk:** `potentiallyDestructive`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, destructive: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Reverts the last modification made by the agent.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** None — the handler always fails (see Notes).
+
+**Notes.** HONESTLY FAILING: registered `potentiallyDestructive` / `writes: true`, then always fails naming the prerequisite — a workspace snapshot store (Legacy restores `AssistSnapshotFunctions` snapshot[1] and needs at least 2 snapshots). Ycode keeps no snapshots; `commit()` records no previous content, so there is nothing to restore. See `assist-testing-tools.md` (Part D, "`safe_undo`").
+
+## 244. `safe_validate_changes` — Validate Changes
+
+- **Description (verbatim):** "Verifies that the applied changes are correct and don't break functionality."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Verifies that the applied changes are correct and don't break functionality.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative file or directory to validate. Default: \".\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `issue_count`, `issues`.
+Message: `Changes validated successfully`; `Validation completed with \(issues.count) issue(s)`.
+
+**Notes.** Validates pending changes; read-only. See `assist-testing-tools.md` (Part D, "`safe_validate_changes`").
+
+## 245. `session_export` — Export Session
+
+- **Description (verbatim):** "Writes a markdown export with session metadata (title, timestamp, session ID, workspace, notes). Does not read conversation history. Refuses to overwrite unless overwrite is true."
+- **Capability:** `general`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Writes a markdown export with session metadata (title, timestamp, session ID, workspace, notes). Does not read conversation history. Refuses to overwrite unless overwrite is true.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "title": {
+      "type": "string",
+      "description": "Export title (optional)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form notes to include (optional)."
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "Workspace-relative output path. Default is .assist_session_export.md."
+    },
+    "overwrite": {
+      "type": "string",
+      "description": "Set to true to overwrite an existing output file. Default is false."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `output_path`, `output_relative`, `session_id`, `timestamp`.
+Message: `Session export written to \(outputRelative) (session \(sessionId)).`.
+
+**Notes.** String-typed `overwrite`; the session ID is a deterministic UUID derived from the workspace root path (SHA-256) since Ycode has no agent-session UUID. See `assist-testing-tools.md` (Part D, "`session_export`").
+
+## 246. `session_progress_report` — Session Progress Report
+
+- **Description (verbatim):** "Summarizes the active agent session: engineering phases by status, failures, and the last agent-notes save time."
+- **Capability:** `planning`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Summarizes the active agent session: engineering phases by status, failures, and the last agent-notes save time.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `phaseCount`, `completed`, `inProgress`, `failed`, `pending`.
+Message: `No engineering phases are registered for this session.\n\(notesLine)`.
+
+**Notes.** No phase coordinator in Ycode, so phase counts are always 0; the agent-notes line is real (mtime of workspace `agent_notes.md`). See `assist-testing-tools.md` (Part D, "`session_progress_report`").
+
+## 247. `stale_files_report` — Stale Files Report
+
+- **Description (verbatim):** "Reports source files not modified in a long time, surfacing potentially abandoned or legacy code."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reports source files not modified in a long time, surfacing potentially abandoned or legacy code.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "days": {
+      "type": "integer",
+      "description": "Staleness threshold in days. Default 180."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum files to return. Default 50, max 500."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `count`, `days`.
+Message: `No source files older than \(days) days.`.
+
+**Notes.** Stale-files report. See `assist-testing-tools.md` (Part D, "`stale_files_report`").
+
+## 248. `tool_capability_lookup` — Tool Capability Lookup
+
+- **Description (verbatim):** "Looks up a registered tool's capability, risk level, description, and parameter schema from the live registry."
+- **Capability:** `general`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Looks up a registered tool's capability, risk level, description, and parameter schema from the live registry.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "toolId": {
+      "type": "string",
+      "description": "Registered tool id, e.g. repo_overview."
+    }
+  },
+  "required": [
+    "toolId"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `toolId`, `riskLevel`, `required`.
+
+**Notes.** Looks up the live `server.tools` (resolving `MCPServer.toolAliases` first); capability and estimated cost are omitted (Ycode tools carry neither). See `assist-testing-tools.md` (Part D, "`tool_capability_lookup`").
+
+## 249. Summary: capability / risk / permission / writes (Wave 6)
+
+| Tool | Capability | Risk | Permission | Writes |
+|---|---|---|---|---|
+| `test_run_single` | testing | execution | none | no |
+| `xctest_discovery` | diagnostics | safeRead | none | no |
+| `test_log_parse` | testing | safeRead | none | no |
+| `test_flaky_detect` | testing | safeRead | none | no |
+| `test_coverage_report` | testing | execution | none | no |
+| `test_coverage_reporter` | diagnostics | safeRead | none | no |
+| `test_data_factory` | testing | safeMutation | fileSystem | yes |
+| `test_snapshot_manage` | testing | safeMutation | fileSystem | yes |
+| `test_target_add` | compilation | safeMutation | fileSystem | yes |
+| `ui_test_scaffold` | testing | safeMutation | fileSystem | yes |
+| `interface_simulator` | testing | safeRead | none | no |
+| `preflight_checks` | diagnostics | safeRead | none | no |
+| `performance_benchmark` | diagnostics | execution | none | no |
+| `compiler_diagnostics_engine` | diagnostics | execution | none | no |
+| `crash_log_parse` | diagnostics | safeRead | none | no |
+| `runtime_diagnostics_engine` | diagnostics | safeRead | none | no |
+| `code_lint` | diagnostics | safeRead | none | no |
+| `swift_format_lint` | diagnostics | safeRead | none | no |
+| `dead_code_scan` | diagnostics | safeRead | none | no |
+| `dead_code_eliminator` | diagnostics | safeRead | none | no |
+| `duplicate_code_scan` | diagnostics | safeRead | none | no |
+| `unused_imports_detector` | diagnostics | safeRead | none | no |
+| `import_cleanup` | fileModification | safeMutation | fileSystem | yes |
+| `force_unwrap_scan` | diagnostics | safeRead | none | no |
+| `todo_scan` | diagnostics | safeRead | none | no |
+| `todo_fixme_scanner` | repositoryDiscovery | safeRead | none | no |
+| `comment_density_report` | diagnostics | safeRead | none | no |
+| `code_comment_extract` | fileReading | safeRead | none | no |
+| `complexity_analysis` | diagnostics | safeRead | none | no |
+| `function_size_report` | diagnostics | safeRead | none | no |
+| `code_metrics_analyzer` | diagnostics | safeRead | none | no |
+| `string_literal_audit` | diagnostics | safeRead | none | no |
+| `deprecation_usage_scan` | diagnostics | safeRead | none | no |
+| `swift_ast_inspector` | diagnostics | safeRead | none | no |
+| `swift_concurrency_analyzer` | diagnostics | safeRead | none | no |
+| `concurrency_audit` | diagnostics | safeRead | none | no |
+| `entry_points_discover` | repositoryDiscovery | safeRead | none | no |
+| `swift_migration_advisor` | diagnostics | safeRead | none | no |
+| `memory_leak_detector` | diagnostics | safeRead | none | no |
+| `security_audit_scanner` | diagnostics | safeRead | none | no |
+| `bundle_resource_auditor` | diagnostics | safeRead | none | no |
+| `core_data_model_inspector` | diagnostics | safeRead | none | no |
+| `swift_data_schema_auditor` | diagnostics | safeRead | none | no |
+| `privacy_manifest_auditor` | diagnostics | safeMutation | fileSystem | yes |
+| `mach_o_binary_analyzer` | diagnostics | safeRead | none | no |
+| `framework_linker_auditor` | diagnostics | safeRead | none | no |
+| `network_security_auditor` | diagnostics | safeRead | none | no |
+| `accessibility_audit_scanner` | diagnostics | safeRead | none | no |
+| `license_header_check` | diagnostics | safeRead | none | no |
+| `access_level_audit` | diagnostics | safeRead | none | no |
+| `binary_size_report` | diagnostics | safeRead | none | no |
+| `secrets_scan` | diagnostics | safeRead | none | no |
+| `permissions_audit` | diagnostics | safeRead | none | no |
+| `accessibility_audit` | diagnostics | safeRead | none | no |
+| `dependency_licenses` | repositoryDiscovery | safeRead | none | no |
+| `image_asset_size_report` | diagnostics | safeRead | none | no |
+| `api_docs_coverage` | diagnostics | safeRead | none | no |
+| `api_endpoint_audit` | diagnostics | safeRead | none | no |
+| `api_surface_extract` | repositoryDiscovery | safeRead | none | no |
+| `automated_repair_engine` | diagnostics | safeMutation | fileSystem | yes |
+| `autonomous_review_engine` | diagnostics | safeRead | none | no |
+| `change_impact_estimate` | diagnostics | safeRead | none | no |
+| `code_review` | diagnostics | safeRead | none | no |
+| `code_snippet_manager` | general | safeRead | none | no |
+| `color_usage_audit` | diagnostics | safeRead | none | no |
+| `colorset_builder` | fileModification | safeMutation | fileSystem | yes |
+| `docstring_generator` | fileModification | safeRead | none | no |
+| `icon_generator_tool` | fileModification | safeMutation | fileSystem | yes |
+| `markdown_link_check` | fileReading | safeRead | none | no |
+| `markdown_toc_generate` | fileModification | safeMutation | fileSystem | yes |
+| `readme_generate` | fileModification | safeMutation | fileSystem | yes |
+| `readme_locate` | repositoryDiscovery | safeRead | none | no |
+| `repo_overview` | repositoryDiscovery | safeRead | none | no |
+| `safe_undo` | general | potentiallyDestructive | fileSystem | yes |
+| `safe_validate_changes` | diagnostics | safeRead | none | no |
+| `session_export` | general | safeMutation | fileSystem | yes |
+| `session_progress_report` | planning | safeRead | none | no |
+| `stale_files_report` | repositoryDiscovery | safeRead | none | no |
+| `tool_capability_lookup` | general | safeRead | none | no |
+
 ## Evidence
 
 | Claim | Level | Source |
@@ -7776,3 +10283,9 @@ Message: `Retrieved <pages.count> Apple documentation page(s) via <retrieval> in
 | Wave 5 (Image/Archive/Data): all 18 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `json_validate` vs `json_validator_tool` kept separate; YAML is Legacy's heuristic, not a full parser | 1 | Legacy `Tools/AssistImageInspectionTools.swift`, `AssistImageMutationTools.swift`, `AssistArchiveTools.swift`, `AssistBinaryPlistConverterTool.swift`, `AssistJsonValidateTool.swift`, `AssistJSONValidatorTool.swift`, `AssistYAMLParserTool.swift`, `AssistYamlValidateTool.swift`, read directly |
 | Wave 5 (Engines/Web/Reverse): all 6 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `reverse_analyze` honestly failing (missing Node REA bridge) | 1 | Legacy `Tools/AssistCodeMutationEngine.swift`, `AssistDependencyResolutionEngine.swift`, `AssistExternalResourceGateway.swift`, `AssistPatchApplicationEngine.swift`, `AssistFetchDocumentationTool.swift`, `API/Internal API/Reverse/ReverseToolAdapter.swift`, read directly |
 | Wave 5: registry aliases for this wave (`simulator` → `simulator_controller`, `binary_plist` → `binary_plist_converter`, `json_validator` → `json_validator_tool`, `yaml_parser` → `yaml_parser_tool`, `reverse` → `reverse_analyze`); `reverse_analyze` maps to itself, so it needs no entry | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 6 (Test running): all 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas; runs through the session test seam (`discoverTests` / `runTests(only:)`), no `xcodebuild` spawn, no parallel runner | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTestRunSingleTool.swift`, `AssistXctestDiscoveryTool.swift`, `AssistTestLogParseTool.swift`, `AssistTestFlakyDetectTool.swift`, `AssistTestCoverageReportTool.swift`, `AssistTestCoverageReporterTool.swift`, `AssistTestDataFactoryTool.swift`, `AssistTestSnapshotManageTool.swift`, `AssistTestTargetAddTool.swift`, `AssistUITestScaffoldTool.swift`, `AssistInterfaceSimulatorTool.swift`, `AssistPreflightChecksTool.swift`, `AssistPerformanceBenchmarkTool.swift`, `AssistCompilerDiagnosticsEngine.swift`, `AssistCrashLogParseTool.swift`, `AssistRuntimeDiagnosticsEngine.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Testing.swift`, `YcodeBuild/TestResults.swift`, `YcodeXcodebuild/TestActions.swift`, `XCResultReader.swift`, `Coverage.swift` |
+| Wave 6 (Static analysis): all 22 IDs, titles, descriptions, capabilities, risk levels, and input schemas; Legacy-faithful regex/line heuristics, no AST parser (`swift_ast_inspector` is the regex fallback only); `import_cleanup` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistLintTool.swift`, `AssistSwiftFormatLintTool.swift`, `AssistDeadCodeScanTool.swift`, `AssistDeadCodeEliminatorTool.swift`, `AssistDuplicateCodeScanTool.swift`, `AssistUnusedImportsDetectorTool.swift`, `AssistImportCleanupTool.swift`, `AssistForceUnwrapScanTool.swift`, `AssistTodoScanTool.swift`, `AssistTodoFixmeScannerTool.swift`, `AssistCommentDensityReportTool.swift`, `AssistCodeCommentExtractTool.swift`, `AssistComplexityAnalysisTool.swift`, `AssistFunctionSizeReportTool.swift`, `AssistCodeMetricsTool.swift`, `AssistStringLiteralAuditTool.swift`, `AssistDeprecationUsageScanTool.swift`, `AssistSwiftASTInspectorTool.swift`, `AssistSwiftConcurrencyAnalyzerTool.swift`, `AssistConcurrencyAuditTool.swift`, `AssistEntryPointsDiscoverTool.swift`, `AssistMigrationTool.swift`, read directly |
+| Wave 6 (Audits): all 18 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `mach_o_binary_analyzer` reuses Ycode's `YcodeMachO`; `memory_leak_detector` is a static scan, as in Legacy; `privacy_manifest_auditor` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistSecurityAuditTool.swift`, `AssistNetworkSecurityAuditorTool.swift`, `AssistPermissionsAuditTool.swift`, `AssistPrivacyManifestAuditorTool.swift`, `AssistAccessibilityAuditTool.swift`, `AssistAccessibilityAuditScannerTool.swift`, `AssistAccessLevelAuditTool.swift`, `AssistDependencyLicensesTool.swift`, `AssistFrameworkLinkerAuditorTool.swift`, `AssistMemoryLeakDetectorTool.swift`, `AssistMachOBinaryAnalyzerTool.swift`, `AssistCoreDataModelInspectorTool.swift`, `AssistSwiftDataSchemaAuditorTool.swift`, `AssistBundleResourceAuditorTool.swift`, `AssistBinarySizeReportTool.swift`, `AssistImageAssetSizeReportTool.swift`, `AssistLicenseHeaderCheckTool.swift`, `AssistSecretsScanTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Audits.swift`, `YcodeMachO` |
+| Wave 6 (Docs/review): all 23 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `code_review` and `safe_undo` honestly failing (LLM provider / snapshot store); `code_review` class verified live in `CodeReview.swift` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistApiDocsCoverageTool.swift`, `AssistApiEndpointAuditTool.swift`, `AssistApiSurfaceExtractTool.swift`, `AssistAutomatedRepairEngine.swift`, `AssistAutonomousReviewEngine.swift`, `AssistChangeImpactEstimateTool.swift`, `CodeReview.swift`, `AssistCodeSnippetTool.swift`, `AssistColorUsageAuditTool.swift`, `AssistColorSetBuilderTool.swift`, `AssistDocStringGeneratorTool.swift`, `AssistIconGeneratorTool.swift`, `AssistMarkdownLinkCheckTool.swift`, `AssistMarkdownTocGenerateTool.swift`, `AssistReadmeGenerateTool.swift`, `AssistReadmeLocateTool.swift`, `AssistRepoOverviewTool.swift`, `AssistUndoTool.swift`, `AssistValidateChangesTool.swift`, `AssistSessionExportTool.swift`, `AssistSessionProgressReportTool.swift`, `AssistStaleFilesReportTool.swift`, `AssistToolCapabilityLookupTool.swift`, read directly |
+| Wave 6: capability/risk/permission for all 79 tools extracted live from each Legacy tool file's `capability` / `riskLevel` properties (router static metadata agrees for the two tools it covers); permission follows the `AssistTool` default derivation (fileSystem iff mutating) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTool.swift:192-198` (permission derivation); `AssistToolRouter.swift` static `metadata(for:)` (`code_review`, `compiler_diagnostics_engine` entries), read directly |
+| Wave 6: registry aliases for this wave (23 entries) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |

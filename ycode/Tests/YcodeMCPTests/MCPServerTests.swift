@@ -151,7 +151,35 @@ import YcodeAssistant
                         "binary_plist_converter", "json_validate", "json_validator_tool", "yaml_parser_tool",
                         "yaml_validate", "code_mutation_engine", "dependency_resolution_engine",
                         "external_resource_gateway", "patch_application_engine", "fetch_documentation",
-                        "reverse_analyze"]
+                        "reverse_analyze",
+                        "test_run_single", "xctest_discovery", "test_log_parse",
+                        "test_flaky_detect", "test_coverage_report", "test_coverage_reporter",
+                        "test_data_factory", "test_snapshot_manage", "test_target_add",
+                        "ui_test_scaffold", "interface_simulator", "preflight_checks",
+                        "performance_benchmark", "compiler_diagnostics_engine", "crash_log_parse",
+                        "runtime_diagnostics_engine", "code_lint", "swift_format_lint",
+                        "dead_code_scan", "dead_code_eliminator", "duplicate_code_scan",
+                        "unused_imports_detector", "import_cleanup", "force_unwrap_scan",
+                        "todo_scan", "todo_fixme_scanner", "comment_density_report",
+                        "code_comment_extract", "complexity_analysis", "function_size_report",
+                        "code_metrics_analyzer", "string_literal_audit", "deprecation_usage_scan",
+                        "swift_ast_inspector", "swift_concurrency_analyzer", "concurrency_audit",
+                        "entry_points_discover", "swift_migration_advisor", "memory_leak_detector",
+                        "security_audit_scanner", "bundle_resource_auditor",
+                        "core_data_model_inspector", "swift_data_schema_auditor",
+                        "privacy_manifest_auditor", "mach_o_binary_analyzer",
+                        "framework_linker_auditor", "network_security_auditor",
+                        "accessibility_audit_scanner", "license_header_check",
+                        "access_level_audit", "binary_size_report", "secrets_scan",
+                        "permissions_audit", "accessibility_audit", "dependency_licenses",
+                        "image_asset_size_report", "api_docs_coverage", "api_endpoint_audit",
+                        "api_surface_extract", "automated_repair_engine",
+                        "autonomous_review_engine", "change_impact_estimate", "code_review",
+                        "code_snippet_manager", "color_usage_audit", "colorset_builder",
+                        "docstring_generator", "icon_generator_tool", "markdown_link_check",
+                        "markdown_toc_generate", "readme_generate", "readme_locate",
+                        "repo_overview", "safe_undo", "safe_validate_changes", "session_export",
+                        "session_progress_report", "stale_files_report", "tool_capability_lookup"]
         #expect(tools.map(\.name) == expected)
         for t in tools {
             let l = t.listing
@@ -195,7 +223,8 @@ import YcodeAssistant
                                                            "binary_plist_converter", "json_validate",
                                                            "json_validator_tool", "yaml_validate",
                                                            "code_mutation_engine", "dependency_resolution_engine",
-                                                           "external_resource_gateway", "patch_application_engine"])
+                                                           "external_resource_gateway", "patch_application_engine",
+                                                           "test_data_factory", "test_snapshot_manage", "test_target_add", "ui_test_scaffold", "import_cleanup", "privacy_manifest_auditor", "automated_repair_engine", "colorset_builder", "icon_generator_tool", "markdown_toc_generate", "readme_generate", "safe_undo", "session_export"])
     }
 }
 

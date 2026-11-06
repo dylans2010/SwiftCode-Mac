@@ -283,7 +283,7 @@ package.targets += [
 package.products += [.library(name: "YcodeMCP", targets: ["YcodeMCP"])]
 package.targets += [
     .target(name: "YcodeMCP", dependencies: ["YcodeIDECore", "YcodeIDEShell", "YcodeAssistant", "YcodeCompletion", "YcodeBuild", "YcodePreviews",
-                                             "YcodeProject", "YcodeSettings", "YcodeWorkspace", "YcodeSubprocess",
+                                             "YcodeProject", "YcodeSettings", "YcodeWorkspace", "YcodeSubprocess", "YcodeMachO",
                                              .product(name: "Crypto", package: "swift-crypto")]),
     .testTarget(name: "YcodeMCPTests", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeAssistant", "YcodeCompletion", "YcodeBuild", "ycode"]),
 ]

@@ -365,6 +365,33 @@ public final class MCPServer: @unchecked Sendable {
         "json_validator": "json_validator_tool",
         "yaml_parser": "yaml_parser_tool",
         "reverse": "reverse_analyze",
+        // Wave 6 Test-running aliases (Legacy registry).
+        "test_coverage": "test_coverage_reporter",
+        // Wave 6 Static-analysis aliases (Legacy registry).
+        "metrics": "code_metrics_analyzer",
+        "dead_code": "dead_code_eliminator",
+        "migration_advisor": "swift_migration_advisor",
+        "ast_inspector": "swift_ast_inspector",
+        "concurrency_analyzer": "swift_concurrency_analyzer",
+        "swift_format": "swift_format_lint",
+        "todo_scanner": "todo_fixme_scanner",
+        "unused_imports": "unused_imports_detector",
+        // Wave 6 Audit aliases (Legacy registry).
+        "security_audit": "security_audit_scanner",
+        "memory_leak": "memory_leak_detector",
+        "bundle_auditor": "bundle_resource_auditor",
+        "core_data_inspector": "core_data_model_inspector",
+        "swift_data_schema": "swift_data_schema_auditor",
+        "privacy_manifest": "privacy_manifest_auditor",
+        "macho_analyzer": "mach_o_binary_analyzer",
+        "framework_linker": "framework_linker_auditor",
+        "network_security": "network_security_auditor",
+        "a11y_scanner": "accessibility_audit_scanner",
+        // Wave 6 Docs/review aliases (Legacy registry).
+        "docstring": "docstring_generator",
+        "snippet": "code_snippet_manager",
+        "icon_generator": "icon_generator_tool",
+        "colorset": "colorset_builder",
     ]
 
     public static let modernVersion = "2026-07-28"
