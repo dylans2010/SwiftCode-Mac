@@ -1,7 +1,16 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/DeepLinkTesterDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
 // V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 // Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
-// NOTE: describes 'simulated application URL routing' in its own copy.
+//
+// CLEANUP (2026-11-06, A1): the ported file only pretended to dispatch —
+// it logged "Dispatched: <url>" without opening anything, and its own
+// copy described pretend application URL routing. Nothing was ever
+// opened. Replaced with real routing: NSWorkspace checks whether an
+// application is registered for the URL's scheme
+// (urlForApplication(toOpen:)) and then really opens the URL
+// (NSWorkspace.shared.open), logging the real outcome — which app opened
+// it, a refusal, or that no application handles the scheme. No
+// pretend-routing copy remains.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -20,10 +29,26 @@ final class DeepLinkTesterViewModel {
             return
         }
 
-        // Simulates deep link URL route dispatching inside active window
+        #if canImport(AppKit)
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        logs.insert("[\(timestamp)] Dispatched: \(url.absoluteString)", at: 0)
-        logger.info("Successfully dispatched deep link simulation: \(self.rawURL)")
+        guard let appURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+            logs.insert("[\(timestamp)] Failed: No application is registered to open scheme “\(url.scheme ?? "")”.", at: 0)
+            logger.info("Deep link not opened: no application registered for scheme \(url.scheme ?? "")")
+            return
+        }
+        // NSWorkspace.shared.open is the same synchronous open call used
+        // elsewhere in the codebase (AssistFinderTools, MuseCodeCLIHelper);
+        // its Bool return is the real result.
+        if NSWorkspace.shared.open(url) {
+            logs.insert("[\(timestamp)] Opened: \(url.absoluteString) (handler: \(appURL.lastPathComponent))", at: 0)
+            logger.info("Successfully opened deep link: \(self.rawURL)")
+        } else {
+            logs.insert("[\(timestamp)] Failed: The system refused to open \(url.absoluteString).", at: 0)
+            logger.info("Deep link open refused by the system: \(self.rawURL)")
+        }
+        #else
+        logs.insert("Failed: Opening URLs needs NSWorkspace (AppKit), which is unavailable on this platform.", at: 0)
+        #endif
     }
 }
 
@@ -33,7 +58,7 @@ struct DeepLinkTesterDevToolView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Test deep link schemes and simulated application URL routing integrations.")
+                Text("Test deep link schemes by opening the URL with the application the system has registered for it, and see the real result.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
