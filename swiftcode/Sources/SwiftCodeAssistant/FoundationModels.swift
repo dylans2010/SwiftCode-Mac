@@ -4,28 +4,52 @@ import os
 // Ported from Legacy `SwiftCode/Services/FoundationModels.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
 // Landed verbatim by a parallel agent; adapted by fix W-V2 (A6 slice: LLMService,
 // OpenRouterService and AgentModelAdapter all use FoundationModels.shared).
-// Adaptation (one): `import NaturalLanguage` is Apple-only and was unguarded, which
-// breaks the Linux build of SwiftCodeAssistant. It is now `#if canImport`-guarded and
-// its only use (NLLanguageRecognizer in the simulation fallback) degrades to "EN".
-// NOTE — simulation fallback kept verbatim: when the Apple FoundationModels framework
-// is unavailable (Linux / older macOS), generatePrivateResponse() fabricates a response
-// (title extraction / prompt-enhancement JSON / canned text) instead of throwing. That
-// is Legacy's documented cross-platform fallback, not a placeholder added here; the
-// coordinator should decide whether to keep it or throw on those platforms.
-
-#if canImport(NaturalLanguage)
-import NaturalLanguage
-#endif
-
-#if canImport(Translation)
-import Translation
-#endif
+//
+// DECISION (A4 cleanup pass, 2026-11-06) — simulation fallback DELETED, honest
+// unavailable instead. Legacy's `#else` branch fabricated model output when the
+// Apple FoundationModels framework was unavailable (Linux / older macOS): canned
+// titles, prompt-enhancement JSON, and "[On-Device …] Processed query …" replies
+// presented as if a model had answered. That is gone. The real path is the
+// `#if canImport(FoundationModels)` + `#available(macOS 26.0, iOS 26.0, *)` +
+// `SystemLanguageModel.default.availability` gate — the same live check
+// `FoundationModelsProvider` and `DeviceUtilityManager.getCapabilityLevel()`
+// use. Where the framework is absent, the OS is below macOS 26, or the system
+// model is unavailable (Apple Intelligence off, model still downloading,
+// device not eligible), `generatePrivateResponse` / `streamPrivateResponse`
+// throw `FoundationModelsError.unavailable` with the real reason. Callers
+// already handle that honestly: `LLMService`'s stage chain falls through to
+// real providers (OpenRouter/Google/OpenAI/Anthropic), `CodingToolsService`
+// falls back to `AgentModelAdapter`, `AssistConversationHistory` falls back
+// to the local title heuristic, and `AgentModelAdapter.handleFallbackQuery`
+// rethrows. Nothing here fabricates model output any more.
+// `generateConciseTitle` is KEPT: it is a deterministic local string
+// transform over real input text (a title heuristic), not model output.
+// `selectedModel` is display-only: the framework exposes one system model
+// and no API to select AFM 3 Core Advanced (see `FoundationModelsProvider`);
+// the session is always built from `SystemLanguageModel.default`.
+// `statusDescription` is now gated on the same live availability check
+// instead of unconditionally reporting "Ready (On-Device)".
 
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
 
 private let logger = Logger(subsystem: "com.swiftcode.FoundationModels", category: "FoundationModels")
+
+/// Thrown instead of fabricating a model reply when Apple Foundation
+/// Models cannot run here: framework absent (Linux / older SDK), OS
+/// below macOS 26, or the system model unavailable (Apple Intelligence
+/// off, model still downloading, device not eligible). Callers catch
+/// this and fall back to a real provider or surface the error.
+public enum FoundationModelsError: Error, LocalizedError {
+    case unavailable(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unavailable(let message): return message
+        }
+    }
+}
 
 /// Property wrapper to annotate structures or services that use text generation capabilities
 @propertyWrapper
@@ -82,14 +106,68 @@ public final class FoundationModels: Sendable {
         }
     }
 
+    /// Whether the real on-device model can run right now: the framework
+    /// must be present, the OS new enough, and the system model available
+    /// (Apple Intelligence on, model downloaded, device eligible) — the
+    /// same live check `FoundationModelsProvider` / `DeviceUtilityManager`
+    /// use. `false` on Linux / older macOS, where there is no model at all.
+    public var isAvailable: Bool {
+#if canImport(FoundationModels)
+        if #available(macOS 26.0, iOS 26.0, *) {
+            return SystemLanguageModel.default.isAvailable
+        }
+#endif
+        return false
+    }
+
     public var statusDescription: String {
         guard isEnabled else { return "Disabled" }
-        return "Ready (On-Device)"
+#if canImport(FoundationModels)
+        if #available(macOS 26.0, iOS 26.0, *) {
+            switch SystemLanguageModel.default.availability {
+            case .available:
+                return "Ready (On-Device)"
+            case .unavailable(let reason):
+                return Self.unavailableMessage(for: reason)
+            @unknown default:
+                return "Apple Foundation Models is unavailable on this device."
+            }
+        }
+        return "Unavailable — needs macOS 26 or later"
+#else
+        return "Unavailable — Apple Foundation Models is not available on this system"
+#endif
     }
+
+    /// Hint shown / thrown where the framework cannot be used at all.
+    static let unavailableHint = "Apple Foundation Models is not available on this device. It needs macOS 26 or later on an Apple Intelligence-capable Mac, with Apple Intelligence turned on."
+
+    /// Human-readable reason the system model cannot run, mirroring
+    /// `FoundationModelsProvider.unavailableMessage(for:)` (matched one
+    /// case at a time so an unfamiliar reason still yields an honest
+    /// message instead of a compile break on a future OS).
+#if canImport(FoundationModels)
+    @available(macOS 26.0, iOS 26.0, *)
+    private static func unavailableMessage(for reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
+        if case .appleIntelligenceNotEnabled = reason {
+            return "Apple Intelligence is turned off. Turn it on in System Settings to use Apple Foundation Models."
+        }
+        if case .modelNotReady = reason {
+            return "The Apple Foundation Models on-device model is still downloading. Try again later."
+        }
+        if case .deviceNotEligible = reason {
+            return "This device cannot run Apple Foundation Models. It needs an Apple Intelligence-capable Mac."
+        }
+        return "Apple Foundation Models is unavailable on this device."
+    }
+#endif
 
     private init() {}
 
-    /// Executes language processing utilizing native iOS & macOS FoundationModels APIs when available, and fallback logic otherwise.
+    /// Executes language processing with the native iOS & macOS
+    /// FoundationModels APIs. Throws `FoundationModelsError.unavailable`
+    /// (never a fabricated reply) when the framework or the system model
+    /// is unavailable on this device.
     public func generatePrivateResponse(prompt: String, systemPrompt: String? = nil) async throws -> String {
         let startTime = Date()
         logger.log("[generatePrivateResponse] Initializing Foundation Models request.")
@@ -100,70 +178,35 @@ public final class FoundationModels: Sendable {
         }
 
         #if canImport(FoundationModels)
-        logger.log("[generatePrivateResponse] Creating generation session (Native).")
-        let instructions: Instructions? = systemPrompt.map { Instructions($0) }
-        let session = LanguageModelSession(model: SystemLanguageModel(), instructions: instructions)
-
-        logger.log("[generatePrivateResponse] Starting native generation request.")
-        let response = try await session.respond(to: prompt)
-
-        let duration = Date().timeIntervalSince(startTime)
-        logger.log("[generatePrivateResponse] Native generation completed. Duration: \(duration)s.")
-        return response.content
-        #else
-        logger.log("[generatePrivateResponse] Creating generation session (Simulation).")
-        try await Task.sleep(nanoseconds: 200_000_000) // Fast realistic delay
-
-        logger.log("[generatePrivateResponse] Building simulated response contents.")
-
-        let finalResponse: String
-        if prompt.localizedCaseInsensitiveContains("title") {
-            var targetText = prompt
-            if let rangeStart = prompt.range(of: "User Request:\n", options: .caseInsensitive) {
-                targetText = String(prompt[rangeStart.upperBound...])
-            } else if let rangeStart = prompt.range(of: "for:\n", options: .caseInsensitive) {
-                targetText = String(prompt[rangeStart.upperBound...])
+        if #available(macOS 26.0, iOS 26.0, *) {
+            guard SystemLanguageModel.default.isAvailable else {
+                if case .unavailable(let reason) = SystemLanguageModel.default.availability {
+                    throw FoundationModelsError.unavailable(Self.unavailableMessage(for: reason))
+                }
+                throw FoundationModelsError.unavailable(Self.unavailableHint)
             }
-            finalResponse = FoundationModels.generateConciseTitle(from: targetText)
-        } else if prompt.contains("updatedPrompt") {
-            // Extract the user prompt to professionally enhance it
-            var userInputExtracted = ""
-            if let rangeStart = prompt.range(of: "User Input:\n\""),
-               let rangeEnd = prompt.range(of: "\"\n\nJSON Output:", range: rangeStart.upperBound..<prompt.endIndex) {
-                userInputExtracted = String(prompt[rangeStart.upperBound..<rangeEnd.lowerBound])
-            } else {
-                userInputExtracted = "Build a robust Swift application with clean architecture"
-            }
-            finalResponse = """
-            {
-              "updatedPrompt": "Design and implement a highly professional Swift/SwiftUI module for: \\"\(userInputExtracted)\\" incorporating strict architectural patterns, robust compile-safe styling overlays, extensive diagnostic trace systems, and clean modern state management under Swift 6 strict concurrency isolation."
-            }
-            """
+            logger.log("[generatePrivateResponse] Creating generation session (Native).")
+            let instructions: Instructions? = systemPrompt.map { Instructions($0) }
+            let session = LanguageModelSession(model: SystemLanguageModel.default, instructions: instructions)
+
+            logger.log("[generatePrivateResponse] Starting native generation request.")
+            let response = try await session.respond(to: prompt)
+
+            let duration = Date().timeIntervalSince(startTime)
+            logger.log("[generatePrivateResponse] Native generation completed. Duration: \(duration)s.")
+            return response.content
         } else {
-            let responsePrefix = "[On-Device \(selectedModel.rawValue)]\n"
-            // Language detection as supplementary utility
-            #if canImport(NaturalLanguage)
-            let recognizer = NLLanguageRecognizer()
-            recognizer.processString(prompt)
-            let dominantLanguage = recognizer.dominantLanguage?.rawValue.uppercased() ?? "EN"
-            #else
-            let dominantLanguage = "EN"
-            #endif
-
-            finalResponse = """
-            \(responsePrefix)Processed query with complete on-device local privacy guarantees.
-            Input Language: \(dominantLanguage)
-            Response: Understood and successfully completed generation for prompt: "\(prompt.prefix(60))...."
-            """
+            throw FoundationModelsError.unavailable("Apple Foundation Models needs macOS 26 or later.")
         }
-
-        let duration = Date().timeIntervalSince(startTime)
-        logger.log("[generatePrivateResponse] Simulation generation completed. Duration: \(duration)s.")
-        return finalResponse
+        #else
+        throw FoundationModelsError.unavailable(Self.unavailableHint)
         #endif
     }
 
-    /// Generates a clean, concise title under 25 characters from prompt text
+    /// Generates a clean, concise title under 25 characters from prompt text.
+    /// A deterministic local string transform over real input text — not
+    /// model output. `AssistConversationHistory` uses it as the title
+    /// heuristic when the on-device model is unavailable.
     public static func generateConciseTitle(from raw: String) -> String {
         var text = raw.replacingOccurrences(of: "```[a-zA-Z]*\n[\\s\\S]*?```", with: "", options: .regularExpression)
         text = text.replacingOccurrences(of: "@[A-Za-z0-9_]+", with: "", options: .regularExpression)
@@ -207,7 +250,11 @@ public final class FoundationModels: Sendable {
         return String(title.prefix(24))
     }
 
-    /// Executes streaming language processing using native or simulated response generation.
+    /// Executes streaming language processing using the native on-device
+    /// session. The response itself always comes from the real model:
+    /// `generatePrivateResponse` throws when it is unavailable, so no
+    /// token is ever emitted from fabricated text — the word-by-word
+    /// delivery below is only pacing of the real reply.
     public func streamPrivateResponse(prompt: String, onToken: @escaping @Sendable (String) async -> Void) async throws {
         let startTime = Date()
         logger.log("[streamPrivateResponse] Initializing Foundation Models streaming request.")
@@ -217,7 +264,7 @@ public final class FoundationModels: Sendable {
             throw NSError(domain: "FoundationModels", code: 400, userInfo: [NSLocalizedDescriptionKey: "Apple Foundation Models are disabled."])
         }
 
-        logger.log("[streamPrivateResponse] Triggering text generation for streaming simulation.")
+        logger.log("[streamPrivateResponse] Triggering text generation for streaming.")
         let fullResponse = try await generatePrivateResponse(prompt: prompt)
 
         logger.log("[streamPrivateResponse] Starting token streaming delivery.")
@@ -238,27 +285,3 @@ public final class FoundationModels: Sendable {
         logger.log("[streamPrivateResponse] Token streaming completed successfully. Total duration: \(duration)s.")
     }
 }
-
-#if !canImport(FoundationModels)
-// Fallback / simulation types to allow compilation on all environments
-public protocol LanguageModel {}
-
-public struct SystemLanguageModel: LanguageModel {
-    public init() {}
-}
-
-public struct Instructions {
-    public init(_ text: String = "") {}
-}
-
-public struct LanguageModelSession {
-    private let model: LanguageModel
-    public init(model: LanguageModel, tools: [Any] = [], instructions: Instructions? = nil) {
-        self.model = model
-    }
-
-    public func respond(to prompt: String) async throws -> String {
-        return "Simulated response"
-    }
-}
-#endif
