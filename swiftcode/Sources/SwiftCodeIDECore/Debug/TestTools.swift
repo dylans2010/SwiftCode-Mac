@@ -3,10 +3,21 @@
 //
 // Verbatim apart from this header. `Project` lives in this module
 // (`Model/Project.swift`); `directoryURL` is @MainActor and this
-// manager is @MainActor, so the access is unchanged. NOTE:
-// `runExtensionTests` reports Legacy's own simulated extension
-// results (no real extension-test runner exists); `runSwiftTests`
-// runs the real `swift test` process — see DISPOSITIONS.md.
+// manager is @MainActor, so the access is unchanged.
+//
+// CLEANUP (2026-11-06, triage §C18) — `runExtensionTests` no longer
+// reports Legacy's simulated extension results: it slept 0.5 s, then
+// reported three fabricated passing tests (InitializationTest 0.15s,
+// CapabilityExecutionTest 0.22s, AssetLoadingTest 0.08s) and appended
+// "Tests completed successfully!" although nothing ever ran. No real
+// extension-test runner exists in the codebase (no extension host test
+// entry, no extension-ID → package-directory mapping to run
+// `swift test` against — the `runSwiftTests` pattern in this file
+// needs a project directory, and `runExtensionTests` only receives an
+// extension ID). Until such a runner exists, the function reports
+// honestly that no runner is available, records no results, and never
+// claims success. `runSwiftTests` still runs the real `swift test`
+// process — see DISPOSITIONS.md.
 
 import Foundation
 
@@ -138,6 +149,14 @@ public final class TestToolsManager: ObservableObject {
         self.process = nil
     }
 
+    /// Runs an extension's tests. There is currently no extension-test
+    /// runner: no extension host test entry exists and there is no
+    /// mapping from an extension ID to a package directory that
+    /// `swift test` could run in (unlike `runSwiftTests`, which runs the
+    /// real `swift test` process in a project's directory). So this
+    /// reports honestly that no runner is available, records no
+    /// results, and never claims success — it must not be changed back
+    /// to reporting fabricated passing tests.
     public func runExtensionTests(extensionID: String) async {
         guard !isRunning else { return }
 
@@ -150,30 +169,10 @@ public final class TestToolsManager: ObservableObject {
         duration = 0.0
         startTime = Date()
 
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self, let start = self.startTime else { return }
-            self.duration = Date().timeIntervalSince(start)
-        }
-
-        // Simulate some test results for this extension in a safe structured way
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-
-        let sampleTests = [
-            TestResult(name: "\(extensionID)InitializationTest", status: .success, executionTime: 0.15, category: .unit),
-            TestResult(name: "\(extensionID)CapabilityExecutionTest", status: .success, executionTime: 0.22, category: .unit),
-            TestResult(name: "\(extensionID)AssetLoadingTest", status: .success, executionTime: 0.08, category: .unit)
-        ]
-
-        for test in sampleTests {
-            results.append(test)
-            passedCount += 1
-            consoleOutput.append("Test Case '-[ExtensionTests.\(test.name)]' passed (0.1s).\n")
-        }
-
-        timer?.invalidate()
-        timer = nil
-        duration = startTime.map { Date().timeIntervalSince($0) } ?? 0.45
-        consoleOutput.append("\nTests completed successfully!\n")
+        consoleOutput.append("No extension test runner is available for '\(extensionID)'. "
+            + "Extension tests cannot run until an extension host test entry "
+            + "or an extension-ID-to-package mapping exists to run `swift test` against.\n")
+        duration = startTime.map { Date().timeIntervalSince($0) } ?? 0.0
         isRunning = false
     }
 

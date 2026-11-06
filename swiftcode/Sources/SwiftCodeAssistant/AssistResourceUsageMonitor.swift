@@ -5,8 +5,11 @@
 // Adaptation: Legacy reads resident memory via Mach task_info (macOS-only).
 // That path is kept under `#if canImport(Darwin)`; on other platforms the
 // resident set is read from /proc/self/status (VmRSS), a real reading, not
-// a placeholder. `cpuTime` stays 0 exactly as in Legacy: Legacy never
-// tracked it (its own comment), so no value is invented here.
+// a placeholder.
+// CLEANUP (2026-11-06, triage §B5 note) — `cpuTime` is now `nil`, not 0:
+// Legacy never tracked CPU time, so reporting 0 presented "no CPU time
+// used" as a measurement. `nil` means untracked, and the resource
+// summary labels it "not tracked" instead of printing a number.
 import Foundation
 
 /// Monitors resource usage during autonomous execution
@@ -21,7 +24,9 @@ public final class AssistResourceUsageMonitor {
         let memoryUsed: UInt64
         let peakMemory: UInt64
         let memoryDelta: Int64
-        let cpuTime: TimeInterval
+        /// CPU time is NOT tracked (Legacy never tracked it either).
+        /// `nil` means untracked — never read this as "0 seconds used".
+        let cpuTime: TimeInterval?
         let elapsed: TimeInterval
     }
 
@@ -54,7 +59,7 @@ public final class AssistResourceUsageMonitor {
             memoryUsed: currentMemory,
             peakMemory: peakMemory,
             memoryDelta: delta,
-            cpuTime: 0, // Would require more complex tracking
+            cpuTime: nil, // Untracked: CPU time is not measured, so no value is reported.
             elapsed: elapsed
         )
     }
@@ -86,6 +91,7 @@ public final class AssistResourceUsageMonitor {
         - Current memory: \(metrics.memoryUsed / 1_000_000)MB
         - Peak memory: \(metrics.peakMemory / 1_000_000)MB
         - Memory delta: \(metrics.memoryDelta / 1_000_000)MB
+        - CPU time: not tracked (untracked, not 0s)
         - Elapsed time: \(Int(metrics.elapsed))s
         """, toolId: "ResourceMonitor")
     }

@@ -1,5 +1,18 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Services/StoreKitValidationService.swift` (Audit E §5 partial entry; H-E5).
 // Types ported here: ValidationIssue, StoreKitValidationService.
+//
+// CLEANUP (2026-11-06, triage §C21) — `checkIAPCapabilityEnabled()` and
+// `checkAppSandboxConfigured()` used to unconditionally return `true`
+// ("mock validation for sandboxed development environment consistency"),
+// so validation could never flag a missing capability. They now inspect
+// the active project's real `.entitlements` files: IAP is enabled when
+// any of them contains `com.apple.developer.in-app-payments`; the sandbox
+// is configured when any sets `com.apple.security.app-sandbox` to true.
+// No active project, or no `.entitlements` file found, reports `false`
+// (capability not present, not assumed). Only `.entitlements` files
+// inside the active project's directory tree are scanned; a
+// `CODE_SIGN_ENTITLEMENTS` path pointing outside the tree is not
+// followed.
 
 import Foundation
 
@@ -325,13 +338,58 @@ public final class StoreKitValidationService: Sendable {
         return issues
     }
 
-    // Helper simulators for local project inspections
+    // Capability checks — real inspection of the active project's
+    // `.entitlements` files (see header). IAP is enabled when any
+    // `.entitlements` file in the active project contains the
+    // `com.apple.developer.in-app-payments` key (the key Xcode writes
+    // when the capability is enabled); the sandbox is configured when
+    // any such file sets `com.apple.security.app-sandbox` to true.
     private func checkIAPCapabilityEnabled() -> Bool {
-        // Look up local configuration files or mock validation for sandboxed development environment consistency
-        return true
+        activeProjectEntitlementKeys().contains("com.apple.developer.in-app-payments")
     }
 
     private func checkAppSandboxConfigured() -> Bool {
-        return true
+        activeProjectEntitlementKeys().contains("com.apple.security.app-sandbox")
+    }
+
+    /// Entitlement keys set to a truthy value in the active project's
+    /// `.entitlements` files. Empty when there is no active project, no
+    /// `.entitlements` file is found, or this runs off the main thread
+    /// (the session store is `@MainActor`, and validation is invoked
+    /// from the StoreKit UI, which runs on the main thread).
+    private func activeProjectEntitlementKeys() -> Set<String> {
+        guard Thread.isMainThread else { return [] }
+        return MainActor.assumeIsolated {
+            guard let directory = ProjectSessionStore.shared.activeProject?.directoryURL else { return Set<String>() }
+            var keys = Set<String>()
+            let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+            while let fileURL = enumerator?.nextObject() as? URL {
+                guard fileURL.pathExtension == "entitlements",
+                      let data = try? Data(contentsOf: fileURL),
+                      let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else { continue }
+                for (key, value) in plist where Self.isTruthyEntitlementValue(value) {
+                    keys.insert(key)
+                }
+            }
+            return keys
+        }
+    }
+
+    /// An entitlement value that means "enabled": `true`, a non-zero
+    /// number, or a non-empty string/array/dictionary. (The IAP key, for
+    /// example, carries a merchant-ID array rather than a bool.)
+    private static func isTruthyEntitlementValue(_ value: Any) -> Bool {
+        switch value {
+        case let bool as Bool: return bool
+        case let number as NSNumber: return number.boolValue
+        case let string as String: return !string.isEmpty
+        case let array as [Any]: return !array.isEmpty
+        case let dict as [String: Any]: return !dict.isEmpty
+        default: return false
+        }
     }
 }

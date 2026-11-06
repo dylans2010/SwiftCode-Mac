@@ -1,7 +1,36 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/Operations/Logs/LoggingAndAnalyticsManagers.swift` (Audit E §5 partial entry; H-E5).
 // Types ported here: SCActivityItem, SCQueuedTask, SCAIInsightReport, WorkspaceAnalytics, AIEngineeringAssistant, ResourceMonitor, AutomationEngine, WorkspaceSessionManager, EngineeringReportManager, WorkspaceIntelligence, WorkspaceTimelineManager, LoggingCenter, AIEngineeringReports, TimelineManager, OperationQueueManager, NotificationCenterManager, PerformanceManager.
+//
+// CLEANUP (2026-11-06, triage §A1–A3) — fabricated telemetry deleted:
+// - A1 `ResourceMonitor`: host CPU/memory/disk/network were `Double.random`
+//   offsets plus invented VM/task-count multipliers. Now read live: Mach
+//   `host_statistics` (CPU load, VM page counts) + `task_info` (this
+//   process's resident memory), `FileManager` filesystem attributes (disk),
+//   `getifaddrs` byte counters (network, MB since this monitor started).
+//   `hostGPUUsage` is now `Double?` (`nil` = unavailable): macOS exposes
+//   no public host-GPU-utilization API — Metal has no utilization
+//   property, and per-command-buffer counter sampling measures only this
+//   app's own command buffers, not host GPU % — so nothing is invented.
+//   `DevToolsSystemMetrics` (swiftcode-ide target) could not be wired in:
+//   SwiftCodeIDEShell does not depend on that target, so the same Mach
+//   pattern is implemented here as file-private helpers.
+// - A2 `PerformanceManager`: initial cpuUsage 14.5 / ramUsageGB 2.4 /
+//   averageBuildDuration 4.2 and the 4 s `Double.random` loop are gone.
+//   CPU/RAM now come from the same live Mach readings; build durations
+//   are computed from `BuildHistoryManager`'s real build records
+//   (0.0 = no build recorded yet, never a made-up duration).
+// - A3 `TimelineManager` (and the identical block in
+//   `WorkspaceTimelineManager`): the fabricated "Workspace Command
+//   Center Initialized" event dated one hour ago is gone; an empty
+//   timeline stays empty. The VM/dependency rows in
+//   `WorkspaceTimelineManager.refresh` also no longer pretend to have
+//   happened 2 min / 1 h ago — they are dated when the refresh logs
+//   them, which is when the check actually ran.
 
 import Foundation
+#if os(macOS)
+import Darwin
+#endif
 import Observation
 
 public struct SCActivityItem: Identifiable, Codable, Sendable, Hashable {
@@ -257,22 +286,36 @@ public final class AIEngineeringAssistant {
 public final class ResourceMonitor {
     public static let shared = ResourceMonitor()
 
-    // Host telemetry
-    public var hostCPUUsage: Double = 12.0
-    public var hostMemoryUsedGB: Double = 4.2
-    public var hostMemoryTotalGB: Double = 16.0
-    public var hostDiskUsedGB: Double = 120.0
-    public var hostDiskTotalGB: Double = 512.0
-    public var hostNetworkSentMB: Double = 0.4
-    public var hostNetworkRecvMB: Double = 2.1
-    public var hostGPUUsage: Double = 4.0
+    // Host telemetry — all values are live readings, never invented.
+    // A value of 0 means "no reading yet / unavailable on this platform",
+    // never a measured zero. GPU has no live source (see below).
+    public var hostCPUUsage: Double = 0.0
+    public var hostMemoryUsedGB: Double = 0.0
+    public var hostMemoryTotalGB: Double = 0.0
+    public var hostDiskUsedGB: Double = 0.0
+    public var hostDiskTotalGB: Double = 0.0
+    /// MB sent since this monitor started (getifaddrs byte counters).
+    public var hostNetworkSentMB: Double = 0.0
+    /// MB received since this monitor started (getifaddrs byte counters).
+    public var hostNetworkRecvMB: Double = 0.0
+    /// Host GPU utilization — always `nil`: macOS exposes no public API
+    /// for it (Metal has no utilization property; counter sampling only
+    /// measures this app's own command buffers). Displayed as
+    /// unavailable, never as a fabricated percentage.
+    public var hostGPUUsage: Double? = nil
 
     // Subsystem activities
     public var activeCompilationsCount: Int = 0
     public var activeIndexingCount: Int = 0
     public var activeAIActivityCount: Int = 0
 
+    /// Cumulative interface byte counters at monitor start; network
+    /// values above are deltas from this baseline.
+    private var networkBaseline: (sent: UInt64, received: UInt64)?
+
     private init() {
+        // Total physical RAM is a fixed hardware fact, not a sample.
+        hostMemoryTotalGB = Double(ProcessInfo.processInfo.physicalMemory) / 1024 / 1024 / 1024
         startUpdateLoop()
     }
 
@@ -282,15 +325,34 @@ public final class ResourceMonitor {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
 
                 // Read from actual state
-                let runningVMsCount = VirtualizationStateStore.shared.virtualMachines.filter { $0.status == .running }.count
                 let activeTaskCount = OperationsCoordinator.shared.activeTaskCount
 
-                self.hostCPUUsage = Double.random(in: 5.0...25.0) + Double(runningVMsCount) * 4.0 + Double(activeTaskCount) * 15.0
-                self.hostMemoryUsedGB = 3.5 + Double(runningVMsCount) * 2.0 + Double(activeTaskCount) * 1.2
-                self.hostGPUUsage = Double.random(in: 2.0...8.0) + (activeTaskCount > 0 ? 10.0 : 0.0)
-
-                self.hostNetworkSentMB += Double.random(in: 0.02...0.2)
-                self.hostNetworkRecvMB += Double.random(in: 0.1...0.8)
+                // Live host readings; a failed read leaves the previous
+                // real value in place instead of inventing a replacement.
+                if let cpu = Self.hostCPULoadPercent() {
+                    self.hostCPUUsage = cpu
+                }
+                if let usedMemoryGB = Self.hostMemoryUsedGB() {
+                    self.hostMemoryUsedGB = usedMemoryGB
+                }
+                if let disk = Self.diskUsageGB() {
+                    self.hostDiskUsedGB = disk.used
+                    self.hostDiskTotalGB = disk.total
+                }
+                #if os(macOS)
+                if let totals = Self.networkByteTotals() {
+                    if let baseline = networkBaseline {
+                        // 32-bit interface counters can wrap; a wrapped
+                        // counter restarts from the current value.
+                        let sent = totals.sent >= baseline.sent ? totals.sent - baseline.sent : totals.sent
+                        let received = totals.received >= baseline.received ? totals.received - baseline.received : totals.received
+                        self.hostNetworkSentMB = Double(sent) / 1024 / 1024
+                        self.hostNetworkRecvMB = Double(received) / 1024 / 1024
+                    } else {
+                        networkBaseline = totals
+                    }
+                }
+                #endif
 
                 self.activeCompilationsCount = activeTaskCount
                 self.activeIndexingCount = activeTaskCount > 0 ? 1 : 0
@@ -298,6 +360,107 @@ public final class ResourceMonitor {
             }
         }
     }
+
+    // MARK: - Live host readings (Mach / FileManager / getifaddrs)
+    //
+    // Same Mach pattern as `DevToolsSystemMetrics` (swiftcode-ide target,
+    // which this module cannot depend on), implemented here instead.
+    // Every helper returns `nil` where the platform has no equivalent,
+    // so callers show "no reading" instead of inventing numbers.
+
+    /// Overall host CPU busy percentage (user + system + nice), 0–100.
+    static func hostCPULoadPercent() -> Double? {
+        #if os(macOS)
+        var info = host_cpu_load_info()
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        let user = Double(info.cpu_ticks.0)
+        let system = Double(info.cpu_ticks.1)
+        let idle = Double(info.cpu_ticks.2)
+        let nice = Double(info.cpu_ticks.3)
+        let total = user + system + idle + nice
+        guard total > 0 else { return nil }
+        return (user + system + nice) / total * 100
+        #else
+        return nil
+        #endif
+    }
+
+    /// Host memory in use (active + inactive + wired pages), in GB.
+    static func hostMemoryUsedGB() -> Double? {
+        #if os(macOS)
+        var vmInfo = vm_statistics()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &vmInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(mach_host_self(), HOST_VM_INFO, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        var pageSize: vm_size_t = 0
+        host_page_size(mach_host_self(), &pageSize)
+        guard pageSize > 0 else { return nil }
+        let usedPages = Double(vmInfo.active_count + vmInfo.inactive_count + vmInfo.wire_count)
+        return usedPages * Double(pageSize) / 1024 / 1024 / 1024
+        #else
+        return nil
+        #endif
+    }
+
+    /// This process's resident memory, in megabytes.
+    static func taskResidentMemoryMB() -> Double? {
+        #if os(macOS)
+        var taskInfo = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        let result = withUnsafeMutablePointer(to: &taskInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+        return Double(taskInfo.resident_size) / 1024 / 1024
+        #else
+        return nil
+        #endif
+    }
+
+    /// Disk usage of the volume holding the user's home directory.
+    static func diskUsageGB() -> (used: Double, total: Double)? {
+        guard let attrs = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
+              let total = (attrs[.systemSize] as? NSNumber)?.doubleValue,
+              let free = (attrs[.systemFreeSize] as? NSNumber)?.doubleValue,
+              total > 0 else { return nil }
+        let divisor = 1024.0 * 1024.0 * 1024.0
+        return (used: (total - free) / divisor, total: total / divisor)
+    }
+
+    #if os(macOS)
+    /// Cumulative bytes sent/received across all non-loopback interfaces
+    /// (getifaddrs `if_data` counters).
+    static func networkByteTotals() -> (sent: UInt64, received: UInt64)? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        defer { freeifaddrs(ifaddr) }
+        var sent: UInt64 = 0
+        var received: UInt64 = 0
+        var cursor: UnsafeMutablePointer<ifaddrs>? = first
+        while let current = cursor {
+            cursor = current.pointee.ifa_next
+            let flags = Int32(current.pointee.ifa_flags)
+            guard (flags & IFF_LOOPBACK) == 0 else { continue }
+            guard let raw = current.pointee.ifa_data else { continue }
+            let data = raw.load(as: if_data.self)
+            received += UInt64(data.ifi_ibytes)
+            sent += UInt64(data.ifi_obytes)
+        }
+        return (sent: sent, received: received)
+    }
+    #endif
 }
 
 @Observable
@@ -866,14 +1029,15 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // VMs
+        // VMs — the event is this refresh logging the VM's *current*
+        // state, so it is dated when the check ran, not backdated.
         for vm in VirtualizationStateStore.shared.virtualMachines {
             let statusStr = vm.status.rawValue
             events.append(SCActivityItem(
                 title: "VM State Logged",
                 detail: "\(vm.name) is currently \(statusStr.lowercased())",
                 category: vm.status == .running ? "VM Started" : "VM Stopped",
-                date: Date().addingTimeInterval(-120) // Realistic
+                date: Date()
             ))
         }
 
@@ -893,25 +1057,18 @@ public final class WorkspaceTimelineManager {
             ))
         }
 
-        // Dependencies
+        // Dependencies — dated when this refresh evaluated them.
         for d in DependencyManager.shared.dependencies {
             events.append(SCActivityItem(
                 title: "Dependency Evaluated",
                 detail: "\(d.name) (\(d.version)) verified under active workspace",
                 category: "Dependency Updated",
-                date: Date().addingTimeInterval(-3600)
+                date: Date()
             ))
         }
 
-        // Ensure we always have events
-        if events.isEmpty {
-            events.append(SCActivityItem(
-                title: "Workspace Command Center Initialized",
-                detail: "Operations timelines and telemetry have been activated.",
-                category: "Diagnostics Completed",
-                date: Date().addingTimeInterval(-3600)
-            ))
-        }
+        // An empty timeline stays empty: no fabricated "initialized"
+        // event is ever appended (cleanup 2026-11-06, triage §A3).
 
         events.sort { $0.date > $1.date }
     }
@@ -1160,15 +1317,8 @@ public final class TimelineManager {
             ))
         }
 
-        // Add dummy entry if empty
-        if activityItems.isEmpty {
-            activityItems.append(SCActivityItem(
-                title: "Workspace Command Center Initialized",
-                detail: "Operations timelines have been activated.",
-                category: "Project",
-                date: Date().addingTimeInterval(-3600)
-            ))
-        }
+        // An empty timeline stays empty: no fabricated "initialized"
+        // event is ever appended (cleanup 2026-11-06, triage §A3).
 
         activityItems.sort { $0.date > $1.date }
     }
@@ -1254,10 +1404,14 @@ public final class NotificationCenterManager {
 public final class PerformanceManager {
     public static let shared = PerformanceManager()
 
-    public var cpuUsage: Double = 14.5
-    public var ramUsageGB: Double = 2.4
+    /// Live host CPU load % (Mach `host_statistics`); 0 = no reading yet.
+    public var cpuUsage: Double = 0.0
+    /// This process's resident memory in GB (Mach `task_info`); 0 = no reading yet.
+    public var ramUsageGB: Double = 0.0
+    /// Duration of the most recent real build record; 0 = no build recorded yet.
     public var lastBuildDuration: TimeInterval = 0.0
-    public var averageBuildDuration: TimeInterval = 4.2
+    /// Mean duration of all real build records; 0 = no build recorded yet.
+    public var averageBuildDuration: TimeInterval = 0.0
 
     private init() {
         startTelemetryLoop()
@@ -1268,8 +1422,20 @@ public final class PerformanceManager {
             while true {
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 // Direct context mutation because startTelemetryLoop runs under @MainActor task context
-                self.cpuUsage = Double.random(in: 8.0...25.0)
-                self.ramUsageGB = Double.random(in: 2.1...3.8)
+                if let cpu = ResourceMonitor.hostCPULoadPercent() {
+                    self.cpuUsage = cpu
+                }
+                if let residentMB = ResourceMonitor.taskResidentMemoryMB() {
+                    self.ramUsageGB = residentMB / 1024.0
+                }
+                // Build durations come from real build records only.
+                let records = BuildHistoryManager.shared.buildRecords
+                if let latest = records.first {
+                    self.lastBuildDuration = latest.duration
+                }
+                self.averageBuildDuration = records.isEmpty
+                    ? 0.0
+                    : records.reduce(0.0) { $0 + $1.duration } / Double(records.count)
             }
         }
     }

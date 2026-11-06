@@ -16,7 +16,11 @@
 //     builds on Linux); the willTerminate observer was already `#if os(macOS)`.
 //   - `import os` / Logger kept as-is: SwiftCodeAssistant already uses
 //     `os.Logger` (SkillsRuntime.swift).
-// Legacy's `locateResources()` dummy-URL behaviour is kept faithfully as-is.
+// CLEANUP (2026-11-06, triage §B6) — Legacy's `locateResources()` is
+// DELETED: it returned Application Support paths for files that may not
+// exist ("dummy URLs") and had zero callers in production. Callers that
+// need the Codex resource paths should resolve them with an existence
+// check instead of resurrecting this shim.
 
 import Foundation
 #if canImport(AppKit)
@@ -116,15 +120,6 @@ public final class CodexBridgeManager: Sendable {
         if liveLogs.count > 1000 {
             liveLogs.removeFirst()
         }
-    }
-
-    /// Resolves the resources directory (for compatibility).
-    public func locateResources() throws -> (packageJson: URL, bridgeJs: URL) {
-        // Return dummy URLs to keep other modules compiling if they use it.
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
-        let codexDir = appSupport.appendingPathComponent("SwiftCode/Codex", isDirectory: true)
-        return (codexDir.appendingPathComponent("package.json"), codexDir.appendingPathComponent("bridge.js"))
     }
 
     /// Automatically discover the official Codex CLI on the machine.

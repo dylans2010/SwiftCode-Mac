@@ -5,6 +5,38 @@
 // literals) and added the real imports (SwiftCodeAssistant for LLMService/KeychainService,
 // SwiftCodeIDECore for Project/ProjectSessionStore). This unblocks
 // DependencyVisualizerView's `DependencyPlatformManager.shared` ref.
+//
+// CLEANUP (2026-11-06, triage §C20) — fabricated package data deleted:
+// (a) Seeded featured/trending catalogs (stale fixed stars/forks/versions,
+//     e.g. swift-collections 4800 stars, tools "5.9") are gone; both lists
+//     start empty and fill only from live GitHub search results.
+// (b) Seeded advisories are gone. The "UnsafeCoreKit / CVE-2026-99999"
+//     advisory was invented (no such CVE, no such package) and is deleted,
+//     never re-seeded. The "Alamofire / GHSA-9pxf-2ur3-3p2g" entry is
+//     deleted too: its advisory page and its API record both return 404
+//     (checked 2026-11-06), so it cannot be presented as verified.
+//     `knownAdvisories` starts empty until a live advisory source
+//     (GitHub Advisory Database / OSV API) populates it.
+// (c) `recentActivity` / `continueBrowsing` start empty and are recorded
+//     from real user actions only (install/remove, package detail views).
+// (d) On GitHub API failure the search no longer falls back to the seed
+//     catalog filtered by name ("offline-cached fallback matches"); it
+//     clears results, records `searchError`, and surfaces the failure.
+// (e) `buildDependencyGraph` no longer invents children by name match
+//     (composable -> CasePaths/…, alamofire -> Foundation); it delegates
+//     to `PackageDependencyGraph.build`, which never invents edges.
+//     Transitive edges need `Package.resolved` / `swift package
+//     show-dependencies --format json` — not a flat list.
+// (f) Live GitHub search results are no longer re-stamped with
+//     tools "5.10", platforms ["macOS 14+", "iOS 17+"], version "1.0.0"
+//     (and no "MIT" license is assumed when the API returns none):
+//     only values the API returns are kept; the rest stay unset.
+//
+// NOTE: `PackageMetadata`'s own init defaults (in the sibling
+// `PackageDiscoveryModel.swift`, out of this slice) still stamp
+// "5.10" / ["macOS 14+", "iOS 17+"] / "1.0.0" for callers that rely
+// on them — that residue needs a follow-up in that file. This file
+// passes explicit unset values instead of relying on the defaults.
 
 import Foundation
 import Observation
@@ -42,6 +74,10 @@ public final class DependencyPlatformManager {
 
     // Search & Explorer Cache
     public var searchResults: [PackageMetadata] = []
+    /// The last GitHub search failure, if any; `nil` after a success.
+    /// Search failures are surfaced here (and in `operationLogs`) instead
+    /// of being papered over with seeded data.
+    public var searchError: String? = nil
     public var trendingPackages: [PackageMetadata] = []
     public var featuredPackages: [PackageMetadata] = []
     public var cachedReadmes: [String: String] = [:] // Key: cloneUrl -> Readme text
@@ -153,137 +189,40 @@ public final class DependencyPlatformManager {
     }
 
     private func loadPresets() {
-        // Featured packages seed
-        self.featuredPackages = [
-            PackageMetadata(
-                name: "swift-collections",
-                fullName: "apple/swift-collections",
-                description: "Efficient double-ended queues, ordered sets, ordered dictionaries, and red-black trees.",
-                cloneUrl: "https://github.com/apple/swift-collections.git",
-                stars: 4800,
-                forks: 410,
-                openIssues: 32,
-                license: "Apache 2.0",
-                owner: "apple",
-                swiftToolsVersion: "5.9",
-                platforms: ["macOS 13+", "iOS 16+", "tvOS 16+", "watchOS 9+"],
-                lastReleasedVersion: "1.1.0",
-                isVerified: true,
-                topics: ["data-structures", "algorithms", "performance"]
-            ),
-            PackageMetadata(
-                name: "swift-algorithms",
-                fullName: "apple/swift-algorithms",
-                description: "A toolbox of sequence and collection algorithms for the Swift standard library.",
-                cloneUrl: "https://github.com/apple/swift-algorithms.git",
-                stars: 6200,
-                forks: 580,
-                openIssues: 18,
-                license: "Apache 2.0",
-                owner: "apple",
-                swiftToolsVersion: "5.8",
-                platforms: ["macOS 12+", "iOS 15+"],
-                lastReleasedVersion: "1.2.0",
-                isVerified: true,
-                topics: ["algorithms", "sorting", "permutations"]
-            )
-        ]
+        // No seeded catalogs: featured/trending lists populate only from
+        // live GitHub search results (see executeGitHubSearch). The stale
+        // fixed star/fork/version rows Legacy shipped (swift-collections
+        // 4800 stars, tools "5.9", etc.) are deleted, not re-seeded.
+        self.featuredPackages = []
+        self.trendingPackages = []
 
-        // Trending packages seed
-        self.trendingPackages = [
-            PackageMetadata(
-                name: "swift-composable-architecture",
-                fullName: "pointfreeco/swift-composable-architecture",
-                description: "A library for building applications in a consistent and understandable way, with composition, testing, and ergonomics in mind.",
-                cloneUrl: "https://github.com/pointfreeco/swift-composable-architecture.git",
-                stars: 10500,
-                forks: 1200,
-                openIssues: 45,
-                license: "MIT",
-                owner: "pointfreeco",
-                swiftToolsVersion: "5.9",
-                platforms: ["macOS 13+", "iOS 16+"],
-                lastReleasedVersion: "1.10.0",
-                isVerified: true,
-                topics: ["architecture", "redux", "state-management"]
-            ),
-            PackageMetadata(
-                name: "Alamofire",
-                fullName: "Alamofire/Alamofire",
-                description: "Elegant HTTP Networking in Swift",
-                cloneUrl: "https://github.com/Alamofire/Alamofire.git",
-                stars: 41000,
-                forks: 7500,
-                openIssues: 12,
-                license: "MIT",
-                owner: "Alamofire",
-                swiftToolsVersion: "5.10",
-                platforms: ["macOS 10.15+", "iOS 13+"],
-                lastReleasedVersion: "5.9.1",
-                isVerified: true,
-                topics: ["networking", "http", "rest"]
-            ),
-            PackageMetadata(
-                name: "SDWebImageSwiftUI",
-                fullName: "SDWebImage/SDWebImageSwiftUI",
-                description: "SwiftUI Image loading and animation framework powered by SDWebImage.",
-                cloneUrl: "https://github.com/SDWebImage/SDWebImageSwiftUI.git",
-                stars: 3200,
-                forks: 480,
-                openIssues: 15,
-                license: "MIT",
-                owner: "SDWebImage",
-                swiftToolsVersion: "5.7",
-                platforms: ["macOS 11+", "iOS 14+"],
-                lastReleasedVersion: "3.0.4",
-                isVerified: true,
-                topics: ["swiftui", "image-loading", "webp", "gif"]
-            )
-        ]
+        // No seeded advisories. Advisories come only from a live advisory
+        // source (GitHub Advisory Database / OSV API); nothing is invented
+        // here. Deleted: the fabricated "UnsafeCoreKit / CVE-2026-99999"
+        // entry (no such CVE, no such package) and the "Alamofire /
+        // GHSA-9pxf-2ur3-3p2g" entry, whose advisory page and API record
+        // both return 404, so it cannot be presented as verified either.
+        self.knownAdvisories = []
 
-        // Seed default Advisories
-        self.knownAdvisories = [
-            SecurityAdvisory(
-                packageName: "Alamofire",
-                title: "Improper Certificate Validation under Specific Proxy Configurations",
-                severity: "Moderate",
-                affectedVersions: "< 5.6.1",
-                fixedVersion: "5.6.1",
-                advisoryUrl: "https://github.com/Alamofire/Alamofire/security/advisories/GHSA-9pxf-2ur3-3p2g",
-                details: "Alamofire versions before 5.6.1 incorrectly evaluated server trust constraints when using proxy connections with manual route configurations."
-            ),
-            SecurityAdvisory(
-                packageName: "UnsafeCoreKit",
-                title: "Buffer overflow vulnerability in serialization pipeline",
-                severity: "Critical",
-                affectedVersions: "<= 1.0.4",
-                fixedVersion: "1.0.5",
-                advisoryUrl: "https://nvd.nist.gov/vuln/detail/CVE-2026-99999",
-                details: "A buffer overflow in string conversion routines can lead to potential remote code execution during processing of untrusted payloads."
-            )
-        ]
-
-        self.continueBrowsing = [
-            "https://github.com/apple/swift-collections.git",
-            "https://github.com/SDWebImage/SDWebImageSwiftUI.git"
-        ]
-
-        self.recentActivity = [
-            "Imported apple/swift-collections 1.1.0",
-            "Searched for 'Alamofire'",
-            "Scanned project security workspace",
-            "Added core-networking collection"
-        ]
+        // Browsing history and activity start empty and are recorded from
+        // real user actions only (PackageDetailsView appends to
+        // continueBrowsing; install/remove append to recentActivity).
+        self.continueBrowsing = []
+        self.recentActivity = []
     }
 
     // MARK: - Actions & Operations
 
-    /// Executes a simulated GitHub search or fetches cached result
+    /// Searches GitHub for Swift packages via the live Search API.
+    /// On failure the error is surfaced (`searchError`, operation log,
+    /// `operationStatus`) and results are cleared — no seeded or cached
+    /// data is ever substituted for failed search results.
     public func executeGitHubSearch(query: String, language: String, license: String, minStars: Int) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         logger.info("Starting GitHub package discovery for query: \(query)")
+        searchError = nil
         if !searchHistory.contains(trimmed) {
             searchHistory.insert(trimmed, at: 0)
             if searchHistory.count > 10 {
@@ -302,7 +241,15 @@ public final class DependencyPlatformManager {
         do {
             let encodedQuery = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
             let urlStr = "https://api.github.com/search/repositories?q=\(encodedQuery)+topic:swift-package+language:swift"
-            guard let url = URL(string: urlStr) else { return }
+            guard let url = URL(string: urlStr) else {
+                // Do not return with the manager stuck "running".
+                self.searchError = "Could not build the GitHub search URL."
+                operationLogs.append("Search failed: \(self.searchError ?? "")")
+                isOperationRunning = false
+                operationProgress = 1.0
+                operationStatus = "Search failed"
+                return
+            }
 
             var request = URLRequest(url: url)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -316,7 +263,10 @@ public final class DependencyPlatformManager {
             operationProgress = 0.5
             operationStatus = "Fetching results..."
 
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                throw NSError(domain: "DependencyPlatformManager", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "GitHub Search API returned HTTP \(http.statusCode)."])
+            }
 
             operationProgress = 0.8
             operationStatus = "Decoding repositories..."
@@ -327,6 +277,11 @@ public final class DependencyPlatformManager {
 
             let result = try JSONDecoder().decode(GHSearchResult.self, from: data)
 
+            // Only values the Search API actually returns are kept. The
+            // search payload carries no Swift tools version, platform
+            // list, latest release, or (sometimes) license, so those stay
+            // unset (""/[]/nil) instead of being re-stamped with "5.10",
+            // ["macOS 14+", "iOS 17+"], "1.0.0", or an assumed "MIT".
             let mapped = (result.items ?? []).map { item in
                 PackageMetadata(
                     name: item.name,
@@ -336,31 +291,33 @@ public final class DependencyPlatformManager {
                     stars: item.stargazersCount,
                     forks: item.forksCount,
                     openIssues: item.openIssuesCount,
-                    license: item.license?.name ?? item.license?.spdxId ?? "MIT",
+                    license: item.license?.spdxId ?? item.license?.name,
                     owner: String(item.fullName.split(separator: "/").first ?? "Unknown"),
-                    swiftToolsVersion: "5.10",
-                    platforms: ["macOS 14+", "iOS 17+"],
-                    lastReleasedVersion: "1.0.0",
+                    swiftToolsVersion: "",
+                    platforms: [],
+                    lastReleasedVersion: "",
                     topics: []
                 )
             }
 
             self.searchResults = mapped
+            self.searchError = nil
             operationLogs.append("Found \(mapped.count) matching package repositories.")
 
         } catch {
             logger.error("GitHub search failed: \(error.localizedDescription)")
             operationLogs.append("Search failed: \(error.localizedDescription)")
 
-            // Fallback gracefully to offline seed data rather than failing completely
-            let offlineMatch = featuredPackages + trendingPackages
-            self.searchResults = offlineMatch.filter { $0.name.lowercased().contains(trimmed.lowercased()) }
-            operationLogs.append("Returned \(self.searchResults.count) offline-cached fallback matches.")
+            // Surface the failure instead of substituting seed data:
+            // stale or invented results would present as search results.
+            self.searchResults = []
+            self.searchError = error.localizedDescription
+            operationLogs.append("No results: the search failed and no cached or seeded data is substituted.")
         }
 
         isOperationRunning = false
         operationProgress = 1.0
-        operationStatus = "Idle"
+        operationStatus = searchError == nil ? "Idle" : "Search failed"
     }
 
     /// Installs a package to the active project's Package.swift
@@ -739,50 +696,21 @@ Your request regarding **"\(prompt)"** has been analyzed.
     }
 
     // MARK: - Graph Generation
+    /// Builds the dependency graph from a flat dependency list. Edges
+    /// are NOT invented: only the direct dependencies become nodes, with
+    /// no children, because a flat list cannot prove transitive edges
+    /// (this delegates to `PackageDependencyGraph.build`, which never
+    /// invents edges). Transitive edges require `Package.resolved` or
+    /// `swift package show-dependencies --format json`; until a caller
+    /// supplies that data, nodes honestly have no children. The only
+    /// overlay is `hasConflict`, set from the live known-advisory list
+    /// (and from duplicate requirement values, per that builder).
     public func buildDependencyGraph(dependencies: [ParsedDependency]) -> [DependencyVisualNode] {
-        var nodes: [DependencyVisualNode] = []
-
-        // Root node represents the current project itself
-        var rootDeps: [String] = []
-
-        for dep in dependencies {
-            let name = dep.url.split(separator: "/").last?.replacingOccurrences(of: ".git", with: "") ?? dep.url
-            rootDeps.append(name)
-
-            // Nested simulated children for visual richness
-            var childDeps: [String] = []
-            if name.lowercased().contains("composable") {
-                childDeps = ["CasePaths", "CombineSchedulers", "ConcurrencyExtras", "IdentifiedCollections"]
-            } else if name.lowercased().contains("sdwebimage") {
-                childDeps = ["SDWebImage"]
-            } else if name.lowercased().contains("alamofire") {
-                childDeps = ["Foundation"]
-            }
-
-            nodes.append(DependencyVisualNode(
-                name: name,
-                version: dep.value,
-                dependencies: childDeps,
-                isCircular: false,
-                hasConflict: knownAdvisories.contains(where: { $0.packageName.lowercased() == name.lowercased() }),
-                isLocal: dep.isLocal
-            ))
-
-            // Map the child dependencies as leaf nodes if they are not already listed
-            for child in childDeps {
-                if !nodes.contains(where: { $0.name == child }) {
-                    nodes.append(DependencyVisualNode(
-                        name: child,
-                        version: "v1.0.0",
-                        dependencies: [],
-                        isCircular: false,
-                        hasConflict: false,
-                        isLocal: false
-                    ))
-                }
-            }
+        PackageDependencyGraph.build(dependencies: dependencies).map { node in
+            var node = node
+            node.hasConflict = node.hasConflict
+                || knownAdvisories.contains { $0.packageName.lowercased() == node.name.lowercased() }
+            return node
         }
-
-        return nodes
     }
 }

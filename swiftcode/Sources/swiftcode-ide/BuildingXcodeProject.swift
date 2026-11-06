@@ -318,6 +318,15 @@ public struct XcodeProjectDetailsSheet: View {
     @State private var buildConfigurationsList: [String] = ["Debug", "Release"]
     @State private var sourceDirectoryName = ""
     @State private var xcodegenVersion = "Checking..."
+    /// First line of `swift --version` output; "Swift not found" when the
+    /// toolchain is absent. (Cleanup 2026-11-06, triage §A4: this row used
+    /// to hardcode "Apple Swift 6.0".)
+    @State private var swiftCompilerVersion = "Checking..."
+    /// SDK platforms from `XcodeBuildManager.detectedSDKs` (real
+    /// `xcodebuild -showsdks` output); "Detecting…" until detection runs.
+    /// (Cleanup 2026-11-06, triage §A4: this row used to hardcode
+    /// "macOS, iOS, simulator".)
+    @State private var activeSDKPlatforms = "Detecting…"
     @State private var showingDiagnosticsPopover = false
 
     public init() {}
@@ -352,6 +361,7 @@ public struct XcodeProjectDetailsSheet: View {
                             .controlSize(.small)
                     } else {
                         Button {
+                            refreshSDKPlatforms()
                             showingDiagnosticsPopover = true
                         } label: {
                             Image(systemName: "sparkles")
@@ -364,8 +374,8 @@ public struct XcodeProjectDetailsSheet: View {
                                     .font(.headline)
                                 Divider()
                                 LabeledContent("XcodeGen Version", value: xcodegenVersion)
-                                LabeledContent("Swift Compiler Target", value: "Apple Swift 6.0")
-                                LabeledContent("Active SDK Platforms", value: "macOS, iOS, simulator")
+                                LabeledContent("Swift Compiler Target", value: swiftCompilerVersion)
+                                LabeledContent("Active SDK Platforms", value: activeSDKPlatforms)
                             }
                             .padding()
                             .frame(width: 250)
@@ -582,9 +592,11 @@ public struct XcodeProjectDetailsSheet: View {
         .onAppear {
             loadProjectSettings()
             checkXcodeGen()
+            checkToolchain()
             loadAdvancedMetrics()
             Task {
                 await XcodeBuildManager.shared.detectAvailableSDKs()
+                refreshSDKPlatforms()
             }
         }
     }
@@ -598,6 +610,61 @@ public struct XcodeProjectDetailsSheet: View {
                 xcodegenVersion = "Not found (using system binary)"
             }
         }
+    }
+
+    /// Resolves the live toolchain rows for the IDE Diagnostics popover:
+    /// `swift --version` for the compiler, `xcodebuild -showsdks`
+    /// detection for the SDK platforms.
+    private func checkToolchain() {
+        refreshSDKPlatforms()
+        Task.detached {
+            let resolved = Self.swiftVersionString()
+            await MainActor.run {
+                self.swiftCompilerVersion = resolved
+            }
+        }
+    }
+
+    /// First line of `swift --version` output, or "Swift not found"
+    /// when no toolchain is on PATH.
+    private static func swiftVersionString() -> String {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        task.arguments = ["swift", "--version"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        do {
+            try task.run()
+            task.waitUntilExit()
+            guard task.terminationStatus == 0,
+                  let data = try? pipe.fileHandleForReading.readToEnd(),
+                  let output = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !output.isEmpty else {
+                return "Swift not found"
+            }
+            return output.components(separatedBy: .newlines).first ?? output
+        } catch {
+            return "Swift not found"
+        }
+    }
+
+    /// SDK platforms from the real `xcodebuild -showsdks` detection
+    /// (`XcodeBuildManager.detectedSDKs`); "Detecting…" until detection
+    /// has produced a list.
+    private func refreshSDKPlatforms() {
+        let sdks = XcodeBuildManager.shared.detectedSDKs
+        guard !sdks.isEmpty else {
+            activeSDKPlatforms = "Detecting…"
+            return
+        }
+        var seen: [String] = []
+        for sdk in sdks {
+            let label = sdk.version.isEmpty ? sdk.displayName : "\(sdk.displayName) \(sdk.version)"
+            if !seen.contains(label) { seen.append(label) }
+        }
+        activeSDKPlatforms = seen.joined(separator: ", ")
     }
 
     private func loadAdvancedMetrics() {
