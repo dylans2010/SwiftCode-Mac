@@ -486,6 +486,7 @@ struct AgenticDataYAMLParser {
     init(text: String) throws {
         rawLines = text.components(separatedBy: .newlines)
         var parsed: [AgenticDataYAMLLine] = []
+        for (offset, rawLine) in rawLines.enumerated() {
             let number = offset + 1
             let leading = rawLine.prefix(while: { $0 == " " || $0 == "\t" })
             if leading.contains("\t") {
@@ -687,7 +688,7 @@ struct AgenticDataYAMLParser {
     /// the end of the line (so `http://x` and `key:value` are
     /// plain scalars, not mappings).
     static func isMappingLine(_ content: String) -> Bool {
-        splitMapping(content).key != nil
+        Self.splitMapping(content).key != nil
     }
 
     /// Splits `key: value` on the first top-level colon, or
@@ -874,7 +875,7 @@ struct AgenticDataYAMLParser {
             guard text.count >= 2, text.hasSuffix("\"") else {
                 throw MCPToolError("YAML line \(line): unterminated double-quoted string.")
             }
-            return .string(unescapeDoubleQuoted(String(text.dropFirst().dropLast())))
+            return .string(Self.unescapeDoubleQuoted(String(text.dropFirst().dropLast())))
         }
         if text.hasPrefix("'") {
             guard text.count >= 2, text.hasSuffix("'") else {
@@ -886,7 +887,7 @@ struct AgenticDataYAMLParser {
             guard text.hasSuffix("]") else {
                 throw MCPToolError("YAML line \(line): unterminated flow sequence.")
             }
-            let items = try splitFlow(String(text.dropFirst().dropLast())).map { try scalar($0, line: line) }
+            let items = try Self.splitFlow(String(text.dropFirst().dropLast())).map { try scalar($0, line: line) }
             return .array(items)
         }
         if text.hasPrefix("{") {
@@ -894,8 +895,8 @@ struct AgenticDataYAMLParser {
                 throw MCPToolError("YAML line \(line): unterminated flow mapping.")
             }
             var object: [String: AnyJSON] = [:]
-            for item in splitFlow(String(text.dropFirst().dropLast())) {
-                let (key, value) = splitMapping(item)
+            for item in Self.splitFlow(String(text.dropFirst().dropLast())) {
+                let (key, value) = Self.splitMapping(item)
                 guard let key, !key.isEmpty else {
                     throw MCPToolError("YAML line \(line): flow mapping entry '\(item)' has no key.")
                 }

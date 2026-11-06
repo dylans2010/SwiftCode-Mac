@@ -121,7 +121,7 @@ extension SwiftCodeMCPHost {
     }
 
     /// The batch plan file: `<workspace>/.assist_temp/workers/<batch-id>.json`.
-    nonisolated static func workersPlanURL(batchID: String, in s: WorkspaceSession) -> URL {
+    static func workersPlanURL(batchID: String, in s: WorkspaceSession) -> URL {
         Self.folder(of: s.model)
             .appendingPathComponent(".assist_temp").appendingPathComponent("workers")
             .appendingPathComponent("\(batchID).json")
@@ -185,7 +185,7 @@ extension SwiftCodeMCPHost {
         let plan = FailingToolsWorkerPlan(batchID: UUID().uuidString.lowercased(), assignments: assignments,
                                           order: order, createdAt: Date())
         let (url, missing) = try workersPersistPlan(plan, in: s)
-        let relative = Self.relative(url, to: Self.folder(of: s.model))
+        let relative = Self.relativePath(url.path, root: Self.folder(of: s.model).path)
         if let executor = Self.workersTestExecutor {
             let results = try await executor.execute(plan: plan)
             return .structured(["batchId": .string(plan.batchID), "workerCount": .int(assignments.count),

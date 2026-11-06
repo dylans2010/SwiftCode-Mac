@@ -279,9 +279,9 @@ extension SwiftCodeMCPHost {
         }
         defer { try? FileManager.default.removeItem(at: dir) }
         let starts = [URL(fileURLWithPath: FileManager.default.currentDirectoryPath)]
-        let result = await Task.detached {
+        let result = (await Task.detached {
             PreviewRenderRunner.render(file: file.path, name: targetView, output: out.path, starts: starts) { _ in }
-        }.value
+        }.value)
         switch result {
         case .success(let pngURL):
             guard let data = try? Data(contentsOf: pngURL) else {
@@ -499,7 +499,7 @@ extension SwiftCodeMCPHost {
         // Pass 1: Simulator & Destination Audit (audit-only in
         // SwiftCode — no XcodeBuildManager destination to realign, and
         // this tool does not boot a simulator on its own).
-        let appleSims = await Task.detached { Self.appleSimulators() }.value
+        let appleSims = (await Task.detached { await Self.appleSimulators() }.value)
         let bootedApple = appleSims.filter { $0.state == "Booted" }
         if appleSims.isEmpty {
             actionsTaken.append("Simulator audit: no Apple simulators found (simctl unavailable or none installed)")
@@ -894,7 +894,7 @@ public struct ArtboardRecord: Sendable, Codable {
 /// framework, the canvas zoom/pan — plus a format `version`.
 /// The scene's `selectedNodeIDs` are session state and are not
 /// persisted. Lenient decode: a missing field keeps its default.
-public struct ArtboardDocument: Sendable, Codable, Equatable {
+public struct ArtboardDocument: Sendable, Codable {
     public var version: Int
     public var artboards: [ArtboardRecord]
     public var activeArtboardID: UUID?

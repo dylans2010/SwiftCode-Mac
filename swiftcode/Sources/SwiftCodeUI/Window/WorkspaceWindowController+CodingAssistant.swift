@@ -2,6 +2,7 @@ import AppKit
 import SwiftCodeAssistant
 import SwiftCodeBuild
 import SwiftCodeIDECore
+import SwiftCodeMCP
 
 /// The window's coding assistant, made the first time it is shown or used.
 final class CodingAssistantHolder: NSObject, NSPopoverDelegate {

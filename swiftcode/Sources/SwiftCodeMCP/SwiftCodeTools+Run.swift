@@ -364,7 +364,7 @@ extension SwiftCodeMCPHost {
     func simulatorScreenshot(_ call: MCPToolCall) async throws -> MCPToolResult {
         let r = try remote(named: call.string("simulator"))
         let display = call.string("display") ?? "active"
-        let result = await Task.detached { r.screenshot(display: display) }.value
+        let result = (await Task.detached { r.screenshot(display: display) }.value)
         switch result {
         case .success(let png):
             return MCPToolResult(content: [.imageBlock(png), .textBlock("\(r.destination.name), \(display) display, \(png.count) bytes.")])

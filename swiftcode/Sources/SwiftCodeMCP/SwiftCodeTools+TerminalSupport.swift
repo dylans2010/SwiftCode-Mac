@@ -356,9 +356,9 @@ extension SwiftCodeMCPHost {
             var scriptText = "display notification \"\(escapedBody)\" with title \"\(escapedTitle)\""
             if !escapedSubtitle.isEmpty { scriptText += " subtitle \"\(escapedSubtitle)\"" }
             if sound.lowercased() != "none" { scriptText += " sound name \"Submarine\"" }
-            let run = await Task.detached {
+            let run = (await Task.detached {
                 Self.terminalRunFixed("/usr/bin/osascript", ["-e", scriptText], timeout: 15)
-            }.value
+            }.value)
             scriptDelivered = run?.exitCode == 0
         }
 

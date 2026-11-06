@@ -35,8 +35,8 @@ import SwiftCodeIDECore
         #expect(list.allSatisfy { $0.hasSuffix(".swift") })
 
         let read = try await host.server.callTool("file_read", ["path": "Sources/Greeter/Greeter.swift", "startLine": 11, "lineCount": 2])
-        #expect(read.structured?["text"] == "    public func greeting(for name: String) -> String {\n        \"\\(salutation), \\(name)!\"")
-        #expect(read.structured?["lineCount"] == 14 && read.resultText.hasPrefix("    11\t"))
+        #expect(read.structured?["text"]?.string == "    public func greeting(for name: String) -> String {\n        \"\\(salutation), \\(name)!\"")
+        #expect(read.structured?["lineCount"]?.int == 14 && read.resultText.hasPrefix("    11\t"))
         let outside = try await host.server.callTool("file_read", ["path": "../../etc/hosts"])
         #expect(outside.isToolError && outside.resultText.contains("outside the workspace"))
 
@@ -44,7 +44,7 @@ import SwiftCodeIDECore
         let matches = search.structured?["matches"]?.array ?? []
         #expect(matches.count >= 4 && matches.allSatisfy { $0["path"] == "Sources/Greeter/Greeter.swift" || $0["path"]?.string?.hasPrefix("Tests/") == true })
         let regex = try await host.server.callTool("search", ["query": "func test[A-Z]\\w+", "regex": true])
-        #expect(regex.structured?["matchCount"] == 2)
+        #expect(regex.structured?["matchCount"]?.int == 2)
 
         let symbols = try await host.server.callTool("symbol_search", ["query": "greeting"])
         let sym = try #require(symbols.structured?["symbols"]?.array?.first { $0["name"] == "greeting" })
@@ -53,14 +53,14 @@ import SwiftCodeIDECore
         let settings = try await host.server.callTool("build_settings")
         #expect(settings.isToolError && settings.resultText.contains("Package.swift"))
         let issues = try await host.server.callTool("issues")
-        #expect(issues.structured?["errors"] == 0)
+        #expect(issues.structured?["errors"]?.int == 0)
     }
 
     @Test func buildSettingsOfAProject() async throws {
         let host = SwiftCodeMCPHost()
         let project = swiftcodeFolder.appendingPathComponent("Samples/PackageSamples/PackageSamples.xcodeproj").path
         let open = try await host.server.callTool("workspace_open", ["path": .string(project)])
-        #expect(open.structured?["kind"] == "project")
+        #expect(open.structured?["kind"]?.string == "project")
         let targets = open.structured?["targets"]?.array?.compactMap { $0["name"]?.string } ?? []
         let target = try #require(targets.first)
         let r = try await host.server.callTool("build_settings", ["target": .string(target), "configuration": "Debug", "names": ["PRODUCT_NAME", "CONFIGURATION"]])
@@ -78,7 +78,7 @@ import SwiftCodeIDECore
         let host = try await opened(sample, policy: .allow)
         let progress = ProgressLog()
         let failed = try await host.server.callTool("build", [:], progress: progress.progress)
-        #expect(failed.structured?["status"] == "failed", "\(failed.resultText)")
+        #expect(failed.structured?["status"]?.string == "failed", "\(failed.resultText)")
         #expect(progress.count >= 2 && progress.messages.last == "Build Failed")
         let issue = try #require(failed.structured?["issues"]?.array?.first { $0["severity"] == "error" })
         #expect(issue["path"] == "Sources/Greeter/Greeter.swift" && issue["line"] == 12)
@@ -92,24 +92,24 @@ import SwiftCodeIDECore
         #expect(!fix.isToolError, "\(fix.resultText)")
         #expect(sample.read("Sources/Greeter/Greeter.swift").contains("\"\\(salutation), \\(name)!\""))
         let ok = try await host.server.callTool("build")
-        #expect(ok.structured?["status"] == "succeeded", "\(ok.resultText)")
-        #expect(try await host.server.callTool("issues").structured?["errors"] == 0)
+        #expect(ok.structured?["status"]?.string == "succeeded", "\(ok.resultText)")
+        #expect(try await host.server.callTool("issues").structured?["errors"]?.int == 0)
 
         let tests = try await host.server.callTool("test")
-        #expect(tests.structured?["status"] == "succeeded" && tests.structured?["passed"] == 2, "\(tests.resultText)")
+        #expect(tests.structured?["status"]?.string == "succeeded" && tests.structured?["passed"]?.int == 2, "\(tests.resultText)")
         let one = try await host.server.callTool("test", ["tests": ["GreeterTests/testSalutation"]])
-        #expect(one.structured?["passed"] == 1 && one.structured?["tests"]?[0]?["name"] == "testSalutation", "\(one.resultText)")
+        #expect(one.structured?["passed"]?.int == 1 && one.structured?["tests"]?[0]?["name"] == "testSalutation", "\(one.resultText)")
         let unknown = try await host.server.callTool("test", ["tests": ["Nope/testNothing"]])
         #expect(unknown.isToolError && unknown.resultText.contains("GreeterTests/testGreeting"))
 
         let run = try await host.server.callTool("run", ["arguments": ["SwiftCode"], "waitSeconds": 60])
         #expect(run.structured?["output"]?.array?.contains("Hello, SwiftCode!") == true, "\(run.resultText)")
-        #expect(run.structured?["state"] == "exited with status 0")
+        #expect(run.structured?["state"]?.string == "exited with status 0")
         let out = try await host.server.callTool("run_output")
         #expect(out.structured?["runId"] == run.structured?["runId"])
 
         let clean = try await host.server.callTool("clean")
-        #expect(clean.structured?["status"] == "succeeded", "\(clean.resultText)")
+        #expect(clean.structured?["status"]?.string == "succeeded", "\(clean.resultText)")
     }
 
     @Test func writesAreGatedAndReviewed() async throws {
@@ -130,7 +130,7 @@ import SwiftCodeIDECore
         #expect(change.relativePath == "Sources/Greeter/Greeter.swift" && change.original?.contains("\"Hello\"") == true && change.proposed.contains("\"Hi\""))
         reviews.accept = true
         let created = try await reviewed.server.callTool("file_write", ["path": "Sources/Greeter/New.swift", "content": "let x = 1\n"])
-        #expect(created.structured?["created"] == true && sample.read("Sources/Greeter/New.swift") == "let x = 1\n")
+        #expect(created.structured?["created"]?.bool == true && sample.read("Sources/Greeter/New.swift") == "let x = 1\n")
         #expect(reviews.changes.last?.original == nil)
         // Ambiguous and missing edits are explained, not applied.
         let ambiguous = try await reviewed.server.callTool("file_edit", ["path": "Sources/Greeter/Greeter.swift", "oldText": "salutation", "newText": "s"])
@@ -151,9 +151,9 @@ import SwiftCodeIDECore
         #expect(cat["languages"]?.array?.compactMap { $0["language"]?.string } == ["en", "de"])
         let missing = try await host.server.callTool("strings_list", ["language": "de", "missingOnly": true])
         #expect(missing.structured?["strings"]?.array?.compactMap { $0["key"]?.string } == ["world"])
-        #expect(missing.structured?["progress"] == 50)
+        #expect(missing.structured?["progress"]?.int == 50)
         let set = try await host.server.callTool("strings_set", ["key": "world", "language": "de", "value": "Welt"])
-        #expect(set.structured?["progress"] == 100, "\(set.resultText)")
+        #expect(set.structured?["progress"]?.int == 100, "\(set.resultText)")
         let after = try await host.server.callTool("strings_list", ["language": "de"])
         #expect(after.structured?["strings"]?.array?.first { $0["key"] == "world" }?["translation"] == "Welt")
         #expect(sample.read("Strings/Localizable.xcstrings").contains("\"Welt\""))
@@ -200,7 +200,7 @@ import SwiftCodeIDECore
         let host = SwiftCodeMCPHost()
         let unset = try await host.server.callTool("simulator_screenshot")
         #expect(unset.isToolError && unset.resultText.contains("no SwiftCode Simulator host"))
-        #expect(try await host.server.callTool("simulator_list").structured?["configured"] == false)
+        #expect(try await host.server.callTool("simulator_list").structured?["configured"]?.bool == false)
 
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-mcp-ssh-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

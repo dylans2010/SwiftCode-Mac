@@ -217,9 +217,9 @@ extension SwiftCodeMCPHost {
     /// `nil` when the process cannot start at all.
     func archiveRunFixed(_ executable: String, _ args: [String],
                          workingDirectory: URL? = nil) async -> TerminalFixedRun? {
-        await Task.detached {
+        (await Task.detached {
             Self.terminalRunFixed(executable, args, workingDirectory: workingDirectory, timeout: 120)
-        }.value
+        }.value)
     }
 
     /// Like `archiveRunFixed`, but captures stdout as raw `Data`
@@ -477,9 +477,9 @@ extension SwiftCodeMCPHost {
         let destRel = fileReadingRelativePath(of: destURL, in: s)
         try await approveFileWritingChange(tool: call.name, path: destURL, relativePath: destRel, original: nil,
                                            summary: "Gzip-compress \(fileReadingRelativePath(of: sourceURL, in: s)) to \(destRel)", call: call)
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.archiveRunCapturingData("/usr/bin/gzip", ["-c", "-k", "-f", sourceURL.path])
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to execute gzip: could not start /usr/bin/gzip")
         }
         if run.timedOut {
@@ -525,9 +525,9 @@ extension SwiftCodeMCPHost {
         let destRel = fileReadingRelativePath(of: destURL, in: s)
         try await approveFileWritingChange(tool: call.name, path: destURL, relativePath: destRel, original: nil,
                                            summary: "Gzip-decompress \(fileReadingRelativePath(of: sourceURL, in: s)) to \(destRel)", call: call)
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.archiveRunCapturingData("/usr/bin/gzip", ["-d", "-c", "-k", "-f", sourceURL.path])
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to execute gzip decompression: could not start /usr/bin/gzip")
         }
         if run.timedOut {
@@ -647,7 +647,7 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("Could not encode formatted JSON for \(rel) as UTF-8.")
         }
         if shouldWrite {
-            try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: text(of: url),
+            try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: self.text(of: url),
                                        proposed: formatted, summary: "Format JSON in \(rel)"), call: call, session: s)
             return .structured(["path": .string(rel), "valid": .bool(true), "written": .bool(true), "formatted": .string(formatted)],
                                summary: "Valid JSON in \(rel). Formatted JSON written back to the file.")
@@ -684,7 +684,7 @@ extension SwiftCodeMCPHost {
                     throw MCPToolError("Could not encode formatted JSON for \(raw) as UTF-8.")
                 }
                 let rel = fileReadingRelativePath(of: url, in: s)
-                try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: text(of: url),
+                try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: self.text(of: url),
                                            proposed: formatted, summary: "Reformat JSON in \(rel)"), call: call, session: s)
                 return .text("JSON is valid! Successfully reformatted and saved `\(raw)` with standard 2-space pretty-printing.")
             }
@@ -786,7 +786,7 @@ extension SwiftCodeMCPHost {
         }
         let formatted = Self.dataFormatYAML(text)
         if shouldWrite {
-            try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: text(of: url),
+            try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: self.text(of: url),
                                        proposed: formatted, summary: "Format YAML in \(rel)"), call: call, session: s)
             return .structured(["path": .string(rel), "valid": .bool(true), "heuristic": .bool(true),
                                 "written": .bool(true), "formatted": .string(formatted)],

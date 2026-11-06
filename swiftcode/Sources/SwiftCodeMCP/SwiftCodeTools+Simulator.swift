@@ -157,9 +157,9 @@ extension SwiftCodeMCPHost {
     /// off the main actor because it blocks. `nil` when the process
     /// cannot start at all.
     nonisolated static func runXcrun(_ args: [String], timeout: TimeInterval = 60) async -> TerminalFixedRun? {
-        await Task.detached {
+        (await Task.detached {
             Self.terminalRunFixed("/usr/bin/xcrun", args, environment: Self.terminalEnvironment(), timeout: timeout)
-        }.value
+        }.value)
     }
 
     /// Legacy's `simctl list devices -j`, parsed the way Legacy's

@@ -677,6 +677,12 @@ enum EnginesReverseObjdumpOperation: String, CaseIterable, Sendable {
 /// ported verbatim: scope rule + REA-disclaimer task screening.
 /// Validation failures return the full Legacy message (message +
 /// "\nRemediation: ..." when Legacy supplies one).
+/// A target-scope refusal carrying the user-facing message.
+struct ReverseValidationError: Error, CustomStringConvertible, Sendable {
+    let message: String
+    var description: String { message }
+}
+
 enum EnginesReverseValidator {
     private static let blockedPrefixes: [String] = [
         "/System", "/sbin", "/usr", "/bin", "/etc", "/var", "/Library", "/private", "/dev",
@@ -691,9 +697,9 @@ enum EnginesReverseValidator {
         "bot protection", "bypass captcha",
     ]
 
-    static func validateTarget(path: String?, workspaceRoot: URL) -> Result<String, String> {
-        func fail(_ message: String, remediation: String? = nil) -> Result<String, String> {
-            .failure(message + (remediation.map { "\nRemediation: \($0)" } ?? ""))
+    static func validateTarget(path: String?, workspaceRoot: URL) -> Result<String, ReverseValidationError> {
+        func fail(_ message: String, remediation: String? = nil) -> Result<String, ReverseValidationError> {
+            .failure(ReverseValidationError(message: message + (remediation.map { "\nRemediation: \($0)" } ?? "")))
         }
         guard let path, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return fail(

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftCodePlist
 import SwiftCodeProject
 
 /// The native XcodeGen-subset generator (gap closure, specs/ide/
@@ -80,7 +81,7 @@ public enum XcodeGenSpecError: Error, LocalizedError, Equatable, Sendable {
 /// files are outside the subset and fail in the parser. `bool`
 /// exists so an unquoted `true` in build settings becomes `YES`
 /// while a quoted `"true"` stays the string `"true"`.
-public enum XcodeGenYAMLValue: Equatable, Sendable {
+public enum XcodeGenYAMLValue: Sendable {
     case string(String)
     case bool(Bool)
     case map([(String, XcodeGenYAMLValue)])
@@ -387,7 +388,7 @@ public enum XcodeGenYAMLParser {
 /// Build settings: a base map plus one map per configuration name.
 /// Values are pbxproj strings (`true`/`false` already became
 /// `YES`/`NO` when parsed).
-public struct XcodeGenSettings: Equatable, Sendable {
+public struct XcodeGenSettings: Sendable {
     public var base: [(String, String)] = []
     public var configs: [String: [(String, String)]] = [:]
 
@@ -617,7 +618,7 @@ public struct XcodeGenTargetScheme: Equatable, Sendable {
 }
 
 /// One target of the spec.
-public struct XcodeGenTarget: Equatable, Sendable {
+public struct XcodeGenTarget: Sendable {
     public var name: String
     public var type: XcodeGenTargetType
     public var platform: XcodeGenPlatform = .iOS
@@ -638,7 +639,7 @@ public struct XcodeGenTarget: Equatable, Sendable {
 }
 
 /// One `schemes` entry.
-public struct XcodeGenScheme: Equatable, Sendable {
+public struct XcodeGenScheme: Sendable {
     public var name: String
     /// Build targets: name → the build-for flags XcodeGen writes.
     /// `all` means every flag on.
@@ -656,7 +657,7 @@ public struct XcodeGenScheme: Equatable, Sendable {
 /// dotted paths of keys the generator read and deliberately did
 /// not act on (organisation or metadata only — never anything
 /// that changes what builds).
-public struct XcodeGenSpec: Equatable, Sendable {
+public struct XcodeGenSpec: Sendable {
     public var name: String
     public var options = XcodeGenOptions()
     public var settings = XcodeGenSettings()
@@ -1670,7 +1671,7 @@ private final class XcodeGenProjectBuilder {
         var hasSwift = false
         for source in target.sources {
             let expanded = try expandSource(source, target: target)
-            for file in expanded {
+            for file in expanded.files {
                 if file.isFolderReference {
                     groupChildren.append(file.refID)
                     continue
@@ -1680,10 +1681,10 @@ private final class XcodeGenProjectBuilder {
                     resourceBuildFiles.append(buildFile(file.refID))
                     continue
                 }
-                if sourceExtensions.contains(file.extension) {
+                if Self.sourceExtensions.contains(file.extension) {
                     sourceBuildFiles.append(buildFile(file.refID))
                     if file.extension == "swift" { hasSwift = true }
-                } else if headerExtensions.contains(file.extension) {
+                } else if Self.headerExtensions.contains(file.extension) {
                     headerBuildFiles.append(buildFile(file.refID))
                 } else {
                     resourceBuildFiles.append(buildFile(file.refID))
@@ -1749,7 +1750,7 @@ private final class XcodeGenProjectBuilder {
     private func targetSettings(_ target: XcodeGenTarget, for configName: String, infoPlistFile: String?, hasSwift: Bool) -> [(String, PlistValue)] {
         var settings: [(String, PlistValue)] = []
         let deploymentTarget = target.deploymentTarget
-            ?? spec.options.deploymentTarget[target.platformName]
+            ?? spec.options.deploymentTarget[target.platform.platformName]
             ?? spec.options.deploymentTarget["*"]
             ?? target.platform.defaultDeploymentTarget
         settings += [
@@ -2281,7 +2282,7 @@ private final class XcodeGenProjectBuilder {
         // The runnable is the first built application target.
         let runnableName = scheme.buildTargets
             .map(\.name)
-            .first { spec.targets.first(where: { $0.name == $0 })?.type.isApplication ?? false }
+            .first { name in spec.targets.first(where: { $0.name == name })?.type.isApplication ?? false }
         let runnableXML: String
         let macroExpansion: String
         if let runnableName, let b = try? buildable(for: runnableName) {

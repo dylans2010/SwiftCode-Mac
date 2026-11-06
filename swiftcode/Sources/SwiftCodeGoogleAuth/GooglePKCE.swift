@@ -23,7 +23,7 @@ public enum GooglePKCE: Sendable {
     /// the generator cannot fail).
     public static func generateCodeVerifier() -> String {
         var buffer = [UInt8](repeating: 0, count: 64)
-        for index in buffer.indices { buffer[index] = UInt8.random(in: .min... .max) }
+        for index in buffer.indices { buffer[index] = UInt8.random(in: UInt8.min...UInt8.max) }
         return base64URLEncode(Data(buffer))
     }
 

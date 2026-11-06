@@ -227,7 +227,7 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
         let nameField = NSTextField(frame: NSRect(x: 0, y: 66, width: 280, height: 24))
         nameField.placeholderString = "Name (e.g. Ubuntu Dev)"
         let osPopup = NSPopUpButton(frame: NSRect(x: 0, y: 36, width: 280, height: 24))
-        osPopup.addItems(VMRecord.knownOSTypes)
+        osPopup.addItems(withTitles: VMRecord.knownOSTypes)
         let memoryField = NSTextField(frame: NSRect(x: 0, y: 6, width: 280, height: 24))
         memoryField.placeholderString = "Memory in MB (default 2048)"
         let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 96))
@@ -308,7 +308,7 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
         probeButton.isEnabled = false
         capabilityLabel.stringValue = "Probing the host hypervisor (allocating a test VM)..."
         Task.detached {
-            let result = VirtualMachineHostProbe.probe()
+            let result = VirtualMachineHostProbeRunner.probe()
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.probeButton.isEnabled = true
@@ -323,9 +323,9 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
 
     // MARK: - NSTableViewDataSource / Delegate
 
-    func numberOfRows(in tableView: NSTableView) -> Int { records.count }
+    public func numberOfRows(in tableView: NSTableView) -> Int { records.count }
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard records.indices.contains(row) else { return nil }
         let record = records[row]
         let cell = NSTableCellView()
@@ -343,7 +343,7 @@ public final class VirtualizationWindowController: NSWindowController, NSTableVi
         return cell
     }
 
-    func tableViewSelectionDidChange(_ notification: Notification) {
+    public func tableViewSelectionDidChange(_ notification: Notification) {
         let row = vmTable.selectedRow
         selectedRecord = row >= 0 && records.indices.contains(row) ? records[row] : nil
         updateDetail()

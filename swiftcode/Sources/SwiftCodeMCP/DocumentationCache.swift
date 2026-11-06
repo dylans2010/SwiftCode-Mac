@@ -1,4 +1,5 @@
 import Foundation
+import SwiftCodeIDECore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -383,7 +384,7 @@ public actor DocumentationCache {
             codeSample: codeSample,
             availability: page.availability.joined(separator: ", "),
             seeAlso: page.relatedLinks.map { $0.title },
-            docPath: "/" + (page.canonicalURL.path.isEmpty ? topic.docPath : String(page.canonicalURL.path.dropFirst("/")))
+            docPath: "/" + (page.canonicalURL.path.isEmpty ? topic.docPath : String(page.canonicalURL.path.dropFirst()))
         )
     }
 
@@ -511,10 +512,10 @@ public actor DocumentationCache {
             index?.topics.contains { $0.name == topic.name && $0.status == .cached } == true
         }.count
         let links = topics.map { topic in
-            "<li><a href=\"docc://developer.apple.com/\(topic.docPath)\">\(escape(topic.name))</a> — \(escape(topic.kind))</li>"
+            "<li><a href=\"docc://developer.apple.com/\(topic.docPath)\">\(Self.escape(topic.name))</a> — \(Self.escape(topic.kind))</li>"
         }.joined(separator: "\n")
         return pageShell(title: framework, body: """
-        <h1>\(escape(framework))</h1>
+        <h1>\(Self.escape(framework))</h1>
         <p>\(cachedHere) of \(topics.count) topics cached offline.</p>
         <ul>
         \(links)
@@ -528,10 +529,10 @@ public actor DocumentationCache {
         for framework in DocumentationCatalogue.frameworks {
             let names = DocumentationCatalogue.topics.filter { $0.framework == framework }
             let links = names.map { topic in
-                "<li><a href=\"docc://developer.apple.com/\(topic.docPath)\">\(escape(topic.name))</a></li>"
+                "<li><a href=\"docc://developer.apple.com/\(topic.docPath)\">\(Self.escape(topic.name))</a></li>"
             }.joined(separator: "\n")
             cards += """
-            <section><h2>\(escape(framework))</h2><ul>
+            <section><h2>\(Self.escape(framework))</h2><ul>
             \(links)
             </ul></section>
             """
@@ -544,21 +545,21 @@ public actor DocumentationCache {
     }
 
     private func topicHTML(symbol: DocSymbol, page: EnginesDocs.Page) -> String {
-        var body = "<h1>\(escape(symbol.name))</h1>"
-        body += "<p class=\"meta\">\(escape(symbol.kind)) · \(escape(symbol.framework)) · \(escape(symbol.availability))</p>"
+        var body = "<h1>\(Self.escape(symbol.name))</h1>"
+        body += "<p class=\"meta\">\(Self.escape(symbol.kind)) · \(Self.escape(symbol.framework)) · \(Self.escape(symbol.availability))</p>"
         if !symbol.summary.isEmpty {
-            body += "<p>\(escape(symbol.summary))</p>"
+            body += "<p>\(Self.escape(symbol.summary))</p>"
         }
         if !symbol.syntax.isEmpty {
-            body += "<h2>Declaration</h2><pre><code>\(escape(symbol.syntax))</code></pre>"
+            body += "<h2>Declaration</h2><pre><code>\(Self.escape(symbol.syntax))</code></pre>"
         }
         if !page.discussion.isEmpty {
-            body += "<h2>Discussion</h2><p>\(escape(page.discussion))</p>"
+            body += "<h2>Discussion</h2><p>\(Self.escape(page.discussion))</p>"
         }
         if !page.examples.isEmpty {
             body += "<h2>Examples</h2>"
             for example in page.examples {
-                body += "<pre><code>\(escape(example))</code></pre>"
+                body += "<pre><code>\(Self.escape(example))</code></pre>"
             }
         }
         if !page.relatedLinks.isEmpty {
@@ -566,25 +567,25 @@ public actor DocumentationCache {
                 let docc = link.url
                     .replacingOccurrences(of: "https://developer.apple.com/", with: "docc://developer.apple.com/")
                     .replacingOccurrences(of: "http://developer.apple.com/", with: "docc://developer.apple.com/")
-                return "<li><a href=\"\(escape(docc))\">\(escape(link.title))</a></li>"
+                return "<li><a href=\"\(Self.escape(docc))\">\(Self.escape(link.title))</a></li>"
             }.joined(separator: "\n")
             body += "<h2>See Also</h2><ul>\(links)</ul>"
         }
-        body += "<p class=\"meta\"><a href=\"https://developer.apple.com\(escape(symbol.docPath))\">Open on developer.apple.com</a></p>"
+        body += "<p class=\"meta\"><a href=\"https://developer.apple.com\(Self.escape(symbol.docPath))\">Open on developer.apple.com</a></p>"
         return pageShell(title: symbol.name, body: body)
     }
 
     private func notCachedHTML(name: String, framework: String) -> String {
         pageShell(title: name, body: """
-        <h1>\(escape(name))</h1>
-        <p>This topic (\(escape(framework))) is not cached offline yet. Use the browser's Download button to fetch the 57 offline topics, or search the live documentation instead.</p>
+        <h1>\(Self.escape(name))</h1>
+        <p>This topic (\(Self.escape(framework))) is not cached offline yet. Use the browser's Download button to fetch the 57 offline topics, or search the live documentation instead.</p>
         """)
     }
 
     private func notFoundHTML(path: String) -> String {
         pageShell(title: "Not found", body: """
         <h1>Page not found</h1>
-        <p>No cached documentation page matches <code>\(escape(path))</code>. The offline cache covers 57 Apple topics; use the sidebar or the live documentation search for anything else.</p>
+        <p>No cached documentation page matches <code>\(Self.escape(path))</code>. The offline cache covers 57 Apple topics; use the sidebar or the live documentation search for anything else.</p>
         """)
     }
 
@@ -592,7 +593,7 @@ public actor DocumentationCache {
         """
         <!doctype html><html><head><meta charset="utf-8">
         <meta name="color-scheme" content="light dark">
-        <title>\(escape(title))</title>
+        <title>\(Self.escape(title))</title>
         <style>
         body { font: -apple-system-body; font-family: -apple-system, sans-serif; margin: 32px auto; max-width: 760px; padding: 0 24px; color: CanvasText; background: Canvas; line-height: 1.55; }
         h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 18px; margin: 28px 0 8px; }

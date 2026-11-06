@@ -94,14 +94,14 @@ extension SwiftCodeMCPHost {
 
     /// Parses one JSON-RPC message. Returns `.response(result)`,
     /// `.error(message)`, or nil for notifications / other traffic.
-    nonisolated static func externalMCPParseMessage(_ line: String) -> Result<Any, String>? {
+    nonisolated static func externalMCPParseMessage(_ line: String) -> Result<Any, MCPToolError>? {
         guard let data = line.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         guard obj["id"] != nil else { return nil } // notification or response-without-id
         if let error = obj["error"] as? [String: Any] {
             let message = error["message"] as? String ?? "unknown MCP error"
             let code = error["code"] as? Int
-            return .failure(code.map { "\(message) (code \($0))" } ?? message)
+            return .failure(MCPToolError(code.map { "\(message) (code \($0))" } ?? message))
         }
         guard let result = obj["result"] else { return nil }
         return .success(result)
@@ -172,7 +172,7 @@ extension SwiftCodeMCPHost {
     nonisolated static func externalMCPStdioRun(command: String, args: [String], env: [String: String],
                                                 requests: [(id: Int, method: String, params: [String: Any]?)],
                                                 timeout: TimeInterval) async throws -> (Any, String) {
-        try await Task.detached {
+        do {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: command)
             process.arguments = args
@@ -183,34 +183,31 @@ extension SwiftCodeMCPHost {
             process.standardOutput = outPipe
             process.standardError = errPipe
             process.standardInput = inPipe
-            let lock = NSLock()
-            var lines: [String] = []
-            var stdoutBuffer = Data()
-            var stderrData = Data()
+            let capture = MCPStdioCapture()
             outPipe.fileHandleForReading.readabilityHandler = { handle in
                 let chunk = handle.availableData
                 guard !chunk.isEmpty else { return }
-                lock.lock(); defer { lock.unlock() }
-                stdoutBuffer.append(chunk)
-                while let newline = stdoutBuffer.firstIndex(of: 0x0A) {
-                    let lineData = stdoutBuffer[..<newline]
-                    stdoutBuffer.removeSubrange(...newline)
-                    if let line = String(data: lineData, encoding: .utf8) { lines.append(line) }
+                capture.lock.lock(); defer { capture.lock.unlock() }
+                capture.stdoutBuffer.append(chunk)
+                while let newline = capture.stdoutBuffer.firstIndex(of: 0x0A) {
+                    let lineData = capture.stdoutBuffer[..<newline]
+                    capture.stdoutBuffer.removeSubrange(...newline)
+                    if let line = String(data: lineData, encoding: .utf8) { capture.lines.append(line) }
                 }
             }
             errPipe.fileHandleForReading.readabilityHandler = { handle in
                 let chunk = handle.availableData
                 guard !chunk.isEmpty else { return }
-                lock.lock(); defer { lock.unlock() }
-                stderrData.append(chunk)
-                if stderrData.count > 16_384 { stderrData.removeFirst(stderrData.count - 16_384) }
+                capture.lock.lock(); defer { capture.lock.unlock() }
+                capture.stderrData.append(chunk)
+                if capture.stderrData.count > 16_384 { capture.stderrData.removeFirst(capture.stderrData.count - 16_384) }
             }
             do { try process.run() } catch {
                 throw MCPToolError("Could not start MCP server command '\(command)': \(error.localizedDescription)")
             }
-            func response(for id: Int) -> Result<Any, String>? {
-                lock.lock(); defer { lock.unlock() }
-                for line in lines {
+            func response(for id: Int) -> Result<Any, MCPToolError>? {
+                capture.lock.lock(); defer { capture.lock.unlock() }
+                for line in capture.lines {
                     guard let data = line.data(using: .utf8),
                           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                           (obj["id"] as? Int) == id || (obj["id"] as? NSNumber)?.intValue == id else { continue }
@@ -227,15 +224,15 @@ extension SwiftCodeMCPHost {
             // initialize
             let first = requests[0]
             send(first.id, first.method, first.params)
-            var initResult: Result<Any, String>?
+            var initResult: Result<Any, MCPToolError>?
             while initResult == nil && Date() < deadline && process.isRunning {
                 initResult = response(for: first.id)
                 if initResult == nil { try await Task.sleep(nanoseconds: 25_000_000) }
             }
             if let initResult {
-                if case .failure(let message) = initResult {
+                if case .failure(let error) = initResult {
                     process.terminate()
-                    throw MCPToolError("MCP server '\(command)' initialize failed: \(message)")
+                    throw MCPToolError("MCP server '\(command)' initialize failed: \(error.message)")
                 }
             } else {
                 process.terminate()
@@ -252,21 +249,21 @@ extension SwiftCodeMCPHost {
             }
             let call = requests[1]
             send(call.id, call.method, call.params)
-            var callResult: Result<Any, String>?
+            var callResult: Result<Any, MCPToolError>?
             while callResult == nil && Date() < deadline && process.isRunning {
                 callResult = response(for: call.id)
                 if callResult == nil { try await Task.sleep(nanoseconds: 25_000_000) }
             }
-            let stderr = String(decoding: stderrData, as: UTF8.self)
+            let stderr = String(decoding: capture.stderrData, as: UTF8.self)
             process.terminate()
             guard let callResult else {
                 throw MCPToolError("MCP server '\(command)' did not answer '\(call.method)' within \(Int(timeout))s\(stderr.isEmpty ? "" : "\nServer stderr: \(stderr.suffix(4_000))")")
             }
             switch callResult {
             case .success(let value): return (value, stderr)
-            case .failure(let message): throw MCPToolError("MCP server '\(command)' error: \(message)\(stderr.isEmpty ? "" : "\nServer stderr: \(stderr.suffix(4_000))")")
+            case .failure(let error): throw MCPToolError("MCP server '\(command)' error: \(error.message)\(stderr.isEmpty ? "" : "\nServer stderr: \(stderr.suffix(4_000))")")
             }
-        }.value
+        }
     }
 
     // MARK: - streamable HTTP transport
@@ -309,7 +306,7 @@ extension SwiftCodeMCPHost {
         let text = response.text
         if (response.contentType ?? "").contains("text/event-stream") || text.contains("\ndata:") || text.hasPrefix("data:") {
             // SSE: take the last data line that parses as a JSON-RPC response.
-            var last: Result<Any, String>?
+            var last: Result<Any, MCPToolError>?
             for line in text.components(separatedBy: .newlines) where line.hasPrefix("data:") {
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                 if payload.isEmpty || payload == "[DONE]" { continue }
@@ -318,7 +315,7 @@ extension SwiftCodeMCPHost {
             guard let last else { throw MCPToolError("MCP server \(url.host ?? url.absoluteString) sent an SSE stream with no JSON-RPC response") }
             switch last {
             case .success(let value): return value
-            case .failure(let message): throw MCPToolError("MCP server error: \(message)")
+            case .failure(let error): throw MCPToolError("MCP server error: \(error.message)")
             }
         }
         guard let parsed = Self.externalMCPParseMessage(text) else {
@@ -326,7 +323,7 @@ extension SwiftCodeMCPHost {
         }
         switch parsed {
         case .success(let value): return value
-        case .failure(let message): throw MCPToolError("MCP server error: \(message)")
+        case .failure(let error): throw MCPToolError("MCP server error: \(error.message)")
         }
     }
 
@@ -404,4 +401,14 @@ extension SwiftCodeMCPHost {
         return .structured(["server": .string(serverName), "tool": .string(toolName),
                             "durationMs": .int(durationMs), "isError": .bool(false)], summary: capped)
     }
+}
+
+
+/// The off-main stdio accumulator for an MCP server exchange, boxed so the
+/// `@Sendable` readability handlers can mutate it under its lock.
+private final class MCPStdioCapture: @unchecked Sendable {
+    let lock = NSLock()
+    var lines: [String] = []
+    var stdoutBuffer = Data()
+    var stderrData = Data()
 }

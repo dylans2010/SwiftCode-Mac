@@ -20,7 +20,7 @@ import SwiftCodeIDECore
         let host = SwiftCodeMCPHost()
         host.remoteSimulator = settings
         let list = try await host.server.callTool("simulator_list")
-        #expect(list.structured?["configured"] == true, "\(list.resultText)")
+        #expect(list.structured?["configured"]?.bool == true, "\(list.resultText)")
         let boot = try await host.server.callTool("simulator_boot")
         #expect(!boot.isToolError, "\(boot.resultText)")
         // The launcher may wait for a boot slot on a shared host first.

@@ -157,7 +157,7 @@ extension SwiftCodeMCPHost {
     }
 
     /// One bridge protocol frame, decoded from a stdout line.
-    struct ReverseBridgeFrame: Sendable {
+    struct ReverseBridgeFrame {
         var type: String
         var evidence: [String: Any]?
         var error: [String: Any]?
@@ -229,7 +229,7 @@ extension SwiftCodeMCPHost {
         guard let nodeURL = Self.reverseResolveNodeURL() else {
             throw MCPToolError("Node.js was not found.\nRemediation: Install Node.js 22, 24, or 26 (REA \(Self.reversePinnedREAVersion) engines) from nodejs.org or Homebrew, or set SWIFTCODE_NODE_PATH (or SWIFTCODE_NODE_PATH) to a Node binary.")
         }
-        let major = await Task.detached { Self.reverseNodeMajorVersion(for: nodeURL) }.value
+        let major = (await Task.detached { Self.reverseNodeMajorVersion(for: nodeURL) }.value)
         if let major, !Self.reverseSupportedNodeMajors.contains(major) {
             throw MCPToolError("Node.js v\(major) is not supported by REA \(Self.reversePinnedREAVersion).\nRemediation: Use Node.js 22, 24, or 26.")
         }
@@ -251,7 +251,7 @@ extension SwiftCodeMCPHost {
     /// timeout fired.
     nonisolated static func reverseSpawn(nodeURL: URL, bridgeURL: URL, reaDir: URL,
                                          requestData: Data, timeout: TimeInterval) async throws -> (Data, String, Int32, Bool) {
-        try await Task.detached {
+        try (await Task.detached {
             let process = Process()
             process.executableURL = nodeURL
             process.arguments = [bridgeURL.path, "--rea-dir", reaDir.path]
@@ -260,27 +260,24 @@ extension SwiftCodeMCPHost {
             process.standardOutput = outPipe
             process.standardError = errPipe
             process.standardInput = inPipe
-            let lock = NSLock()
-            var stdoutData = Data()
-            var stderrData = Data()
-            var stdoutOverflow = false
+            let capture = ReverseOutputCapture()
             outPipe.fileHandleForReading.readabilityHandler = { handle in
                 let chunk = handle.availableData
                 guard !chunk.isEmpty else { return }
-                lock.lock(); defer { lock.unlock() }
-                stdoutData.append(chunk)
-                if stdoutData.count > reverseMaxStdoutBytes {
-                    stdoutOverflow = true
-                    stdoutData.removeFirst(stdoutData.count - reverseMaxStdoutBytes)
+                capture.lock.lock(); defer { capture.lock.unlock() }
+                capture.stdoutData.append(chunk)
+                if capture.stdoutData.count > reverseMaxStdoutBytes {
+                    capture.stdoutOverflow = true
+                    capture.stdoutData.removeFirst(capture.stdoutData.count - reverseMaxStdoutBytes)
                 }
             }
             errPipe.fileHandleForReading.readabilityHandler = { handle in
                 let chunk = handle.availableData
                 guard !chunk.isEmpty else { return }
-                lock.lock(); defer { lock.unlock() }
-                stderrData.append(chunk)
-                if stderrData.count > reverseMaxStderrBytes {
-                    stderrData.removeFirst(stderrData.count - reverseMaxStderrBytes)
+                capture.lock.lock(); defer { capture.lock.unlock() }
+                capture.stderrData.append(chunk)
+                if capture.stderrData.count > reverseMaxStderrBytes {
+                    capture.stderrData.removeFirst(capture.stderrData.count - reverseMaxStderrBytes)
                 }
             }
             do { try process.run() } catch {
@@ -305,12 +302,12 @@ extension SwiftCodeMCPHost {
             try? await Task.sleep(nanoseconds: 100_000_000)
             outPipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
-            let (stdout, stderr) = lock.withLock { (stdoutData, String(decoding: stderrData, as: UTF8.self)) }
-            if stdoutOverflow {
+            let (stdout, stderr) = capture.lock.withLock { (capture.stdoutData, String(decoding: capture.stderrData, as: UTF8.self)) }
+            if capture.stdoutOverflow {
                 throw MCPToolError("Bridge output exceeded the 8 MiB limit.")
             }
             return (stdout, stderr, process.terminationStatus, timedOut)
-        }.value
+        }.value)
     }
 
     // MARK: - Evidence rendering
@@ -353,4 +350,15 @@ extension SwiftCodeMCPHost {
         }
         return lines.joined(separator: "\n")
     }
+}
+
+
+/// The off-main stdout/stderr accumulator for the Reverse bridge process,
+/// boxed so the `@Sendable` readability handlers can mutate it under its
+/// lock (Swift 6 region isolation).
+private final class ReverseOutputCapture: @unchecked Sendable {
+    let lock = NSLock()
+    var stdoutData = Data()
+    var stderrData = Data()
+    var stdoutOverflow = false
 }

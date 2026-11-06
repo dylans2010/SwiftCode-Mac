@@ -197,7 +197,7 @@ struct StoreKitEditorView: View {
                     LabeledField(label: "Display Price", text: product.displayPrice ?? "") { text in updateSelected { $0.displayPrice = text } }
                     Picker("Type", selection: Binding(
                         get: { product.type?.rawValue ?? "NonConsumable" },
-                        set: { updateSelected { $0.type = ProductKind(rawValue: $1) } }
+                        set: { newValue in updateSelected { $0.type = ProductKind(rawValue: newValue) } }
                     )) {
                         ForEach(["Consumable", "NonConsumable", "NonRenewingSubscription", "RecurringSubscription"], id: \.self) { kind in
                             Text(kind).tag(kind)
@@ -205,7 +205,7 @@ struct StoreKitEditorView: View {
                     }
                     Toggle("Family Shareable", isOn: Binding(
                         get: { product.familyShareable ?? false },
-                        set: { updateSelected { $0.familyShareable = $1 } }
+                        set: { newValue in updateSelected { $0.familyShareable = newValue } }
                     ))
                     if product.type == .recurringSubscription {
                         LabeledField(label: "Renewal Period", text: product.recurringSubscriptionPeriod ?? "") { text in updateSelected { $0.recurringSubscriptionPeriod = text } }
@@ -440,7 +440,8 @@ struct StoreKitEditorView: View {
     // MARK: - Simulator
 
     private func simulatorView(_ c: ShellColors) -> some View {
-        ScrollView {
+        @Bindable var simulation = model.simulation
+        return ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Purchase Simulator").font(.headline)
                 Text("In-memory only: no purchase leaves this editor.")
@@ -458,10 +459,10 @@ struct StoreKitEditorView: View {
                         Text(p.name).tag(p.id)
                     }
                 }
-                Toggle("Offline", isOn: $model.simulation.isOfflineMode)
-                Toggle("Ask to Buy", isOn: $model.simulation.isAskToBuyEnabled)
-                Toggle("Simulate Network Failure", isOn: $model.simulation.shouldSimulateNetworkFailure)
-                Toggle("Fail JWS Verification", isOn: $model.simulation.shouldFailVerification)
+                Toggle("Offline", isOn: $simulation.isOfflineMode)
+                Toggle("Ask to Buy", isOn: $simulation.isAskToBuyEnabled)
+                Toggle("Simulate Network Failure", isOn: $simulation.shouldSimulateNetworkFailure)
+                Toggle("Fail JWS Verification", isOn: $simulation.shouldFailVerification)
                 Divider()
                 ForEach(model.allProducts, id: \.location) { _, product in
                     HStack {
@@ -667,7 +668,7 @@ struct StoreKitEditorView: View {
             HStack {
                 Button("Reload from Model") { rawText = model.jsonText() }
                 Button("Apply JSON") {
-                    do { try model.setJSONText(rawText); model.problem = nil } catch {
+                    do { try model.setJSONText(rawText); model.clearProblem() } catch {
                         model.setProblem("\(error)")
                     }
                 }

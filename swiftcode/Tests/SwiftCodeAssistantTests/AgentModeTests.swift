@@ -31,7 +31,7 @@ final class StandInACPAgent: @unchecked Sendable {
                 guard let self = agent else { return .null }
                 switch method {
                 case "initialize":
-                    #expect(params?["protocolVersion"] == 1 && params?["clientCapabilities"]?["fs"]?["writeTextFile"] == true)
+                    #expect(params?["protocolVersion"]?.int == 1 && params?["clientCapabilities"]?["fs"]?["writeTextFile"] == true)
                     return ["protocolVersion": 1, "agentCapabilities": ["loadSession": false, "mcpCapabilities": ["http": true]],
                             "agentInfo": ["name": "stand-in", "version": "1"], "authMethods": []]
                 case "session/new":

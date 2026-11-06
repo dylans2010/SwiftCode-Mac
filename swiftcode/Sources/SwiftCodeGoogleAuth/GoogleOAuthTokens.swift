@@ -50,11 +50,11 @@ public struct GoogleOAuthTokens: Codable, Sendable, Equatable {
         self.idToken = try container.decodeIfPresent(String.self, forKey: .idToken)
         // `expires_in` arrives as an integer in practice, but
         // Legacy's parsers also accepted a double and a string.
-        if let int = try? container.decodeIfPresent(Int.self, forKey: .expiresIn), let int {
+        if let int = try? container.decodeIfPresent(Int.self, forKey: .expiresIn) {
             self.expiresIn = int
-        } else if let double = try? container.decodeIfPresent(Double.self, forKey: .expiresIn), let double {
+        } else if let double = try? container.decodeIfPresent(Double.self, forKey: .expiresIn) {
             self.expiresIn = Int(double)
-        } else if let string = try? container.decodeIfPresent(String.self, forKey: .expiresIn), let string {
+        } else if let string = try? container.decodeIfPresent(String.self, forKey: .expiresIn) {
             self.expiresIn = Int(string)
         } else {
             self.expiresIn = nil

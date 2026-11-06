@@ -231,7 +231,6 @@ public enum DocumentationCatalogue {
         DocCatalogueTopic(name: "UIView", kind: "class", framework: "UIKit", docPath: "documentation/uikit/uiview"),
         DocCatalogueTopic(name: "UIViewController", kind: "class", framework: "UIKit", docPath: "documentation/uikit/uiviewcontroller"),
         DocCatalogueTopic(name: "UIWindow", kind: "class", framework: "UIKit", docPath: "documentation/uikit/uiwindow"),
-count: 57
     ]
 
     /// The 12 frameworks, in the hub's display order.

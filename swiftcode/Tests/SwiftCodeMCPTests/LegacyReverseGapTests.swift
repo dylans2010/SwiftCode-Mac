@@ -105,9 +105,9 @@ import Testing
             forTask: "inspect how this authorized binary loads its config") == nil)
     }
 
-    private func expectFailure(_ result: Result<String, String>, _ message: String) {
+    private func expectFailure(_ result: Result<String, ReverseValidationError>, _ message: String) {
         if case .success = result {
-            Issue.record(message)
+            Issue.record(Comment(rawValue: message))
         }
     }
 }

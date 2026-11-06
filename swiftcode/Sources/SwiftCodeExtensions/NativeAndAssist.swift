@@ -65,16 +65,16 @@ public extension NativePlugin {
 public final class NativePluginRegistry {
     public static let shared = NativePluginRegistry()
 
-    private static let commandLock = NSLock()
-    private static var commandTable: [String: @Sendable ([JSONValue]) async throws -> JSONValue] = [:]
+    private nonisolated(unsafe) static let commandLock = NSLock()
+    private nonisolated(unsafe) static var commandTable: [String: @Sendable ([JSONValue]) async throws -> JSONValue] = [:]
 
-    public static func registerCommand(_ id: String,
+    public nonisolated static func registerCommand(_ id: String,
                                        handler: @escaping @Sendable ([JSONValue]) async throws -> JSONValue) {
         commandLock.lock(); defer { commandLock.unlock() }
         commandTable[id] = handler
     }
 
-    public static func handler(for id: String) -> (@Sendable ([JSONValue]) async throws -> JSONValue)? {
+    public nonisolated static func handler(for id: String) -> (@Sendable ([JSONValue]) async throws -> JSONValue)? {
         commandLock.lock(); defer { commandLock.unlock() }
         return commandTable[id]
     }

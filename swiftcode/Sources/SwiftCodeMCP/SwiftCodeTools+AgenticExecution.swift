@@ -240,9 +240,9 @@ extension SwiftCodeMCPHost {
     /// `execute()` did when the command failed.
     func agenticExecutionRunFixed(_ executable: String, _ args: [String], workingDirectory: URL,
                                   verb: String) async throws -> MCPToolResult {
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed(executable, args, workingDirectory: workingDirectory, timeout: 300)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to start \(verb): could not launch \(executable).")
         }
         if run.timedOut {
@@ -346,9 +346,9 @@ extension SwiftCodeMCPHost {
                                         summary: "Terminate process \(pid) (SIGTERM)",
                                         in: s, call: call)
         let root = Self.folder(of: s.model)
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed("/bin/kill", ["-TERM", String(pid)], workingDirectory: root, timeout: 30)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to stop process \(pid): could not launch /bin/kill.")
         }
         if run.timedOut {

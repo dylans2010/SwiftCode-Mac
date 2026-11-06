@@ -97,7 +97,7 @@ import SwiftCodeAssistant
         """)
         let r = try await host.server.callTool("build_log_analyze", ["path": .string("Logs/build.log")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["result"] == "succeeded" && r.structured?["errorCount"] == 2 && r.structured?["warningCount"] == 1)
+        #expect(r.structured?["result"]?.string == "succeeded" && r.structured?["errorCount"]?.int == 2 && r.structured?["warningCount"]?.int == 1)
         #expect(r.firstText.contains("Build log analysis for Logs/build.log:"))
         #expect(r.firstText.contains("- Result: succeeded"))
         #expect(r.firstText.contains("- Errors: 2"))
@@ -111,11 +111,11 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Logs/failed.log", "** BUILD FAILED **\n")
         let failed = try await host.server.callTool("build_log_analyze", ["path": .string("Logs/failed.log")])
         #expect(!failed.isToolError, "\(failed.resultText)")
-        #expect(failed.structured?["result"] == "failed")
+        #expect(failed.structured?["result"]?.string == "failed")
 
         try writeFixture(sample, "Logs/plain.log", "nothing to see here\n")
         let unknown = try await host.server.callTool("build_log_analyze", ["path": .string("Logs/plain.log")])
-        #expect(unknown.structured?["result"] == "unknown")
+        #expect(unknown.structured?["result"]?.string == "unknown")
 
         let missing = try await host.server.callTool("build_log_analyze", ["path": .string("Logs/nope.log")])
         #expect(missing.isToolError && missing.firstText.contains("Cannot read build log at: Logs/nope.log"))
@@ -134,7 +134,7 @@ import SwiftCodeAssistant
         // Greeter is a SwiftPM package.
         let r = try await host.server.callTool("build_system_detect")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["count"] == 1)
+        #expect(r.structured?["count"]?.int == 1)
         #expect(r.firstText.contains("- SwiftPM: Package.swift"))
         // A real .xcodeproj bundle and a Podfile are detected too —
         // Legacy's check looked for entries literally named
@@ -143,7 +143,7 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Podfile", "platform :ios\n")
         let again = try await host.server.callTool("build_system_detect")
         #expect(!again.isToolError, "\(again.resultText)")
-        #expect(again.structured?["count"] == 3)
+        #expect(again.structured?["count"]?.int == 3)
         #expect(again.firstText.contains("- .xcodeproj: Foo.xcodeproj"))
         #expect(again.firstText.contains("- CocoaPods: Podfile"))
     }
@@ -211,8 +211,8 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Greeter.xcodeproj/project.pbxproj", Self.pbxprojFixture)
         let r = try await host.server.callTool("build_configuration_list")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["ownerCount"] == 2)
-        #expect(r.structured?["configurations"] == "Debug,Release")
+        #expect(r.structured?["ownerCount"]?.int == 2)
+        #expect(r.structured?["configurations"]?.string == "Debug,Release")
         #expect(r.firstText.contains("- Greeter: Debug, Release"))
     }
 
@@ -225,7 +225,7 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Greeter.xcodeproj/project.pbxproj", Self.pbxprojFixture)
         let r = try await host.server.callTool("build_phase_scripts_list")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["count"] == 1)
+        #expect(r.structured?["count"]?.int == 1)
         #expect(r.firstText.contains("Run Script build phases (1):"))
         #expect(r.firstText.contains("- Run Script (phase: Run Script):"))
         #expect(r.firstText.contains("echo hello"))
@@ -262,7 +262,7 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("build_settings_diff", ["oldPath": .string("Configs/old.xcconfig"),
                                                                        "newPath": .string("Configs/new.xcconfig")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["added"] == 1 && r.structured?["removed"] == 1 && r.structured?["changed"] == 1)
+        #expect(r.structured?["added"]?.int == 1 && r.structured?["removed"]?.int == 1 && r.structured?["changed"]?.int == 1)
         #expect(r.firstText.contains("Build settings diff (Configs/old.xcconfig -> Configs/new.xcconfig):"))
         #expect(r.firstText.contains("- ADDED: NEW_KEY = added"))
         #expect(r.firstText.contains("- REMOVED: DEAD_KEY (was: gone)"))
@@ -270,7 +270,7 @@ import SwiftCodeAssistant
         let identical = try await host.server.callTool("build_settings_diff", ["oldPath": .string("Configs/old.xcconfig"),
                                                                                "newPath": .string("Configs/old.xcconfig")])
         #expect(!identical.isToolError, "\(identical.resultText)")
-        #expect(identical.structured?["added"] == 0 && identical.structured?["removed"] == 0 && identical.structured?["changed"] == 0)
+        #expect(identical.structured?["added"]?.int == 0 && identical.structured?["removed"]?.int == 0 && identical.structured?["changed"]?.int == 0)
         #expect(identical.firstText.contains("Build settings are identical."))
         let noParam = try await host.server.callTool("build_settings_diff", ["oldPath": .string("Configs/old.xcconfig")])
         #expect(noParam.isToolError)
@@ -297,13 +297,13 @@ import SwiftCodeAssistant
         #expect(exists(sample, "build/dummy.txt"))
         let cleaned = try await host.server.callTool("project_clean", ["scope": .string("build"), "confirm": .string("true")])
         #expect(!cleaned.isToolError, "\(cleaned.resultText)")
-        #expect(cleaned.structured?["removed"] == "build/" && cleaned.structured?["scope"] == "build")
+        #expect(cleaned.structured?["removed"]?.string == "build/" && cleaned.structured?["scope"]?.string == "build")
         #expect(cleaned.firstText.contains("Cleaned: build/."))
         #expect(!exists(sample, "build"))
         // A second clean reports that there was nothing to remove.
         let again = try await host.server.callTool("project_clean", ["scope": .string("build"), "confirm": .string("true")])
         #expect(!again.isToolError, "\(again.resultText)")
-        #expect(again.structured?["removed"] == "")
+        #expect(again.structured?["removed"]?.string == "")
         #expect(again.firstText.contains("Nothing to clean. build/ did not exist."))
         // A JSON boolean true counts as confirmation too.
         try writeFixture(sample, "build/dummy.txt", "x\n")
@@ -347,7 +347,7 @@ import SwiftCodeAssistant
         let host = try await opened(sample, policy: .allow)
         let r = try await host.server.callTool("project_clean", ["scope": .string("derivedData"), "confirm": .string("true")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["removed"] == "xcodebuild clean" && r.structured?["scope"] == "derivedData")
+        #expect(r.structured?["removed"]?.string == "xcodebuild clean" && r.structured?["scope"]?.string == "derivedData")
     }
 
     // MARK: - project_archive (argument validation; no xcodebuild here)
@@ -413,12 +413,12 @@ import SwiftCodeAssistant
         let host = try await opened(sample)
         let built = try await host.server.callTool("project_build")
         #expect(!built.isToolError, "\(built.resultText)")
-        #expect(built.structured?["status"] == "Passed" && built.structured?["error_count"] == 0)
-        #expect(built.structured?["marker"] == "BUILD SUCCEEDED")
+        #expect(built.structured?["status"]?.string == "Passed" && built.structured?["error_count"]?.int == 0)
+        #expect(built.structured?["marker"]?.string == "BUILD SUCCEEDED")
         #expect(built.firstText.contains("Build Succeeded"))
         let tested = try await host.server.callTool("project_test")
         #expect(!tested.isToolError, "\(tested.resultText)")
-        #expect(tested.structured?["status"] == "Passed")
+        #expect(tested.structured?["status"]?.string == "Passed")
         #expect(tested.firstText.contains("Tests Passed"))
     }
 
@@ -432,7 +432,7 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("derived_data_locate", ["nameFilter": .string("zzz-no-such-dd-zzz")])
         if FileManager.default.fileExists(atPath: dd.path) {
             #expect(!r.isToolError, "\(r.resultText)")
-            #expect(r.structured?["count"] == 0)
+            #expect(r.structured?["count"]?.int == 0)
             #expect(r.firstText.contains("No DerivedData directories matched."))
         } else {
             #expect(r.isToolError && r.firstText.contains("DerivedData directory not found at \(dd.path)."))

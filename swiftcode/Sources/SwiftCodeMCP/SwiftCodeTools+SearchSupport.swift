@@ -336,7 +336,7 @@ enum SearchSkillIndex {
             sourceDescription: sourceDescription,
             tags: tags,
             recommendedTools: recommendedTools,
-            searchableText: "\(name) \(description) \(tags.joined(separator: " ")) \(content.prefix(2000))"
+            searchableText: "\(name) \(description) \(tags.joined(separator: " ")) \(markdown.prefix(2000))"
         )
     }
 }

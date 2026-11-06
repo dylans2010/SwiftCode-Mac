@@ -16,6 +16,7 @@ import Testing
 // SwiftCode's own.
 
 @Suite("Misc gap tests — native XcodeGen generator")
+@MainActor
 struct MiscGapTests {
     private static let appSpec = """
         name: DemoApp

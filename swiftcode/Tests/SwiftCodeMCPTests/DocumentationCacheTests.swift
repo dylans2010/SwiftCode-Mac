@@ -1,4 +1,5 @@
 import Foundation
+import SwiftCodeIDECore
 import Testing
 @testable import SwiftCodeMCP
 
@@ -30,7 +31,7 @@ import Testing
 
     // MARK: - Stub transport (same shape as SearchToolsGapTests)
 
-    static func installSearchStub(_ handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)) {
+    func installSearchStub(_ handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)) {
         StubSearchProtocol.requests = []
         StubSearchProtocol.handler = handler
         let config = URLSessionConfiguration.ephemeral
@@ -38,14 +39,14 @@ import Testing
         SearchWebTestTransport.session = URLSession(configuration: config)
     }
 
-    static func resetSearchStub() {
+    func resetSearchStub() {
         StubSearchProtocol.handler = nil
         StubSearchProtocol.requests = []
         SearchWebTestTransport.session = nil
     }
 
     /// A stub answer for one host+path, 404 for anything else.
-    static func stubFor(_ routes: [String: (status: Int, body: String)]) -> @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data) {
+    func stubFor(_ routes: [String: (status: Int, body: String)]) -> @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data) {
         { request in
             let key = (request.url?.host ?? "") + (request.url?.path ?? "")
             if let route = routes[key] {
@@ -64,7 +65,7 @@ import Testing
     /// "See Also" section. The payload is synthetic test data — it
     /// exercises the parser and the conversion, and makes no claim
     /// about the live page's current wording.
-    static let vstackFixture = """
+    let vstackFixture = """
     {
       "kind": "symbol",
       "identifier": {"interfaceLanguage": "swift", "url": "doc://com.apple.SwiftUI/documentation/SwiftUI/VStack"},
@@ -100,17 +101,17 @@ import Testing
     """
 
     /// Valid JSON that is not DocC (no `metadata`, no `abstract`).
-    static let notDoccJSON = "{\"hello\": \"world\"}"
+    let notDoccJSON = "{\"hello\": \"world\"}"
 
     // MARK: - Helpers
 
-    static func makeTempCache() -> (DocumentationCache, URL) {
+    func makeTempCache() -> (DocumentationCache, URL) {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("DocumentationCacheTests-\(UUID().uuidString)", isDirectory: true)
         return (DocumentationCache(directory: dir), dir)
     }
 
-    static func vstackTopic() -> DocCatalogueTopic {
+    func vstackTopic() -> DocCatalogueTopic {
         DocumentationCatalogue.topics.first { $0.name == "VStack" }!
     }
 

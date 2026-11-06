@@ -267,13 +267,15 @@ final class SDKStudioEditorTests: XCTestCase {
     func testBuildRunnerValidation() async throws {
         let state = SDKCodeEditorState(projectRootURL: tmp)
         // No manifest, no package.json, no Swift files: warning, still valid.
-        XCTAssertTrue(await SDKCodeBuildRunner.shared.validateProject(at: tmp, into: state))
+        let valid = await SDKCodeBuildRunner.shared.validateProject(at: tmp, into: state)
+        XCTAssertTrue(valid)
         XCTAssertTrue(state.diagnostics.contains { $0.code == "NO_MANIFEST_OR_PROJECT" })
         // Invalid manifest: errors, returns false.
         try """
         {"manifestVersion": 2, "id": "", "name": "X", "version": "bad", "type": "extension"}
         """.write(to: tmp.appendingPathComponent("swiftcode.json"), atomically: true, encoding: .utf8)
-        XCTAssertFalse(await SDKCodeBuildRunner.shared.validateProject(at: tmp, into: state))
+        let invalidValid = await SDKCodeBuildRunner.shared.validateProject(at: tmp, into: state)
+        XCTAssertFalse(invalidValid)
         XCTAssertFalse(state.diagnostics.isEmpty)
         XCTAssertTrue(state.diagnostics.allSatisfy { $0.severity == .error || $0.severity == .warning })
     }
@@ -417,7 +419,7 @@ final class SDKStudioModelTests: XCTestCase {
         XCTAssertTrue(grants.allSatisfy { $0.isActive() })
         XCTAssertTrue(grants.contains { $0.capability == .workspaceRead })
         let first = grants[0]
-        let other: SDKCapabilityID = first.capability == .workspaceRead ? .network : .workspaceRead
+        let other: SDKCapabilityID = first.capability == .workspaceRead ? .networkRequest : .workspaceRead
         try await store.revoke(first)
         let remaining = try await store.grants(for: "com.example.ext")
         // Revoked grants stay as tombstones: the record keeps its
@@ -433,7 +435,8 @@ final class SDKStudioModelTests: XCTestCase {
         XCTAssertFalse(afterAll.isEmpty, "revokeAll stamps tombstones; it does not delete records")
         XCTAssertTrue(afterAll.allSatisfy { $0.revokedAt != nil })
         XCTAssertTrue(afterAll.allSatisfy { !$0.isActive() })
-        XCTAssertNil(await store.extensionName(for: "com.example.ext"))
+        let missingName = await store.extensionName(for: "com.example.ext")
+        XCTAssertNil(missingName)
     }
 
     func testGrantStoreAdapterTombstoneResolvesExtensionName() async throws {
@@ -452,7 +455,8 @@ final class SDKStudioModelTests: XCTestCase {
         let permissions = PermissionManager(grants: [extensionID: [.workspaceRead]])
         let records = SDKGrantStore(storeURL: tmp.appendingPathComponent("SDKGrants-tombstone.json"))
         let store = SDKPermissionManagerGrantStore(permissions: permissions, grantRecords: records)
-        XCTAssertEqual(await store.extensionName(for: extensionID), "Tombstone Test App")
+        let name = await store.extensionName(for: extensionID)
+        XCTAssertEqual(name, "Tombstone Test App")
         let grants = try await store.grants(for: extensionID)
         guard let readGrant = grants.first(where: { $0.capability == .workspaceRead && $0.isActive() }) else {
             return XCTFail("expected a live workspace.read grant")
@@ -464,7 +468,8 @@ final class SDKStudioModelTests: XCTestCase {
         XCTAssertNotNil(tombstone?.revokedAt)
         XCTAssertFalse(tombstone?.isActive() ?? true)
         XCTAssertEqual(tombstone?.packageDigest, digest)
-        XCTAssertEqual(await store.extensionName(for: extensionID), "Tombstone Test App")
+        let nameAfter = await store.extensionName(for: extensionID)
+        XCTAssertEqual(nameAfter, "Tombstone Test App")
         try await SDKExtensionRegistry.shared.removeInstallRecord(extensionID: extensionID, version: "1.0.0-test")
     }
 

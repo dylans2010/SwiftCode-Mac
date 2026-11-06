@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// A local process debug session (Legacy `DebugSessionViewModel`'s
-/// `DebugSession` / `DebugVariable`, Dylan's own code, ported under MIT).
+/// `LocalProcessDebugSession` / `LocalDebugVariable`, Dylan's own code, ported under MIT).
 /// This is the simple launch-and-observe runner: it starts an executable
 /// with `Foundation.Process`, streams its output, and records the PID,
 /// environment and a one-frame call stack. It is NOT the DAP/LLDB debug
@@ -10,7 +10,7 @@ import Observation
 /// call stack is `[String]` (function names) to avoid colliding with
 /// `SwiftCodeDebug.StackFrame`.
 
-public struct DebugVariable: Identifiable, Sendable {
+public struct LocalDebugVariable: Identifiable, Sendable {
     public let id = UUID()
     public let name: String
     public let value: String
@@ -23,7 +23,7 @@ public struct DebugVariable: Identifiable, Sendable {
     }
 }
 
-public struct DebugSession: Sendable {
+public struct LocalProcessDebugSession: Sendable {
     public enum State: Sendable {
         case running
         case terminated(Int32)
@@ -33,9 +33,9 @@ public struct DebugSession: Sendable {
     public let executableURL: URL
     public var state: State
     public var callStack: [String]
-    public var variables: [DebugVariable]
+    public var variables: [LocalDebugVariable]
 
-    public init(pid: Int32, executableURL: URL, state: State = .running, callStack: [String] = [], variables: [DebugVariable] = []) {
+    public init(pid: Int32, executableURL: URL, state: State = .running, callStack: [String] = [], variables: [LocalDebugVariable] = []) {
         self.pid = pid
         self.executableURL = executableURL
         self.state = state
@@ -52,7 +52,7 @@ public struct DebugSession: Sendable {
 @Observable
 @MainActor
 public final class DebugSessionViewModel {
-    public var activeSession: DebugSession?
+    public var activeSession: LocalProcessDebugSession?
     public var consoleOutput = ""
     public var launchError: String?
     private var process: Process?
@@ -82,16 +82,16 @@ public final class DebugSessionViewModel {
             return
         }
         self.process = process
-        var session = DebugSession(pid: process.processIdentifier, executableURL: executableURL)
+        var session = LocalProcessDebugSession(pid: process.processIdentifier, executableURL: executableURL)
         session.state = .running
         session.callStack = ["_start"]
-        var variables: [DebugVariable] = [
-            DebugVariable(name: "PID", value: "\(process.processIdentifier)", type: "Int32"),
-            DebugVariable(name: "Executable", value: executableURL.lastPathComponent, type: "String"),
-            DebugVariable(name: "Path", value: executableURL.path, type: "URL"),
+        var variables: [LocalDebugVariable] = [
+            LocalDebugVariable(name: "PID", value: "\(process.processIdentifier)", type: "Int32"),
+            LocalDebugVariable(name: "Executable", value: executableURL.lastPathComponent, type: "String"),
+            LocalDebugVariable(name: "Path", value: executableURL.path, type: "URL"),
         ]
         for (key, value) in (process.environment ?? [:]).prefix(10) {
-            variables.append(DebugVariable(name: key, value: value, type: "String"))
+            variables.append(LocalDebugVariable(name: key, value: value, type: "String"))
         }
         session.variables = variables
         activeSession = session

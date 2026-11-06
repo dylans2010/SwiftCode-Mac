@@ -82,7 +82,7 @@ extension SwiftCodeMCPHost {
                       Bundle.main.bundleURL, URL(fileURLWithPath: FileManager.default.currentDirectoryPath)]
         let progress = call.progress
         progress.report(0, message: "Building the preview renderer")
-        let result = await Task.detached { PreviewRenderRunner.render(file: url.path, name: name, output: out.path, starts: starts) { progress.report(1, message: $0) } }.value
+        let result = (await Task.detached { PreviewRenderRunner.render(file: url.path, name: name, output: out.path, starts: starts) { progress.report(1, message: $0) } }.value)
         switch result {
         case .success(let png):
             guard let data = try? Data(contentsOf: png) else { throw MCPToolError("the renderer wrote no image") }

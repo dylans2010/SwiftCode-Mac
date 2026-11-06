@@ -1,4 +1,5 @@
 import Foundation
+import SwiftCodePlist
 import SwiftCodeIDECore
 import SwiftCodeProject
 
@@ -935,7 +936,7 @@ extension SwiftCodeMCPHost {
         } else {
             orgPrefix = "com.swiftcode"
         }
-        let form = descriptor.makeForm(values: [
+        let form = descriptor.makeForm([
             TemplateOptionID.productName: appName,
             TemplateOptionID.organizationIdentifier: orgPrefix,
             TemplateOptionID.interface: "SwiftUI",
@@ -1058,9 +1059,9 @@ extension SwiftCodeMCPHost {
         for path in candidates where FileManager.default.fileExists(atPath: path) {
             return path
         }
-        let which = await Task.detached {
+        let which = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/which", ["xcodegen"], timeout: 30)
-        }.value
+        }.value)
         if let which, which.exitCode == 0 {
             let found = which.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             if !found.isEmpty, FileManager.default.fileExists(atPath: found) { return found }

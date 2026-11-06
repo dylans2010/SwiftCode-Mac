@@ -50,7 +50,7 @@ final class FakeServer: DAPTransport, @unchecked Sendable {
         let file = URL(fileURLWithPath: "/p/a.swift")
         client.didOpen(file, text: "let x = 1")
         client.didChange(file, text: "let x = 2", version: 2)
-        #expect(server.received[3]["params"]?["contentChanges"]?.array?.first?["text"] == "let x = 2")
+        #expect(server.received[3]["params"]?["contentChanges"]?.array?.first?["text"]?.string == "let x = 2")
 
         let items = try await client.completion(file, at: Position(line: 3, character: 2))
         #expect(items.map(\.label) == ["greet(times:)", "name"])

@@ -492,7 +492,7 @@ import Testing
         let o = HostSetupOutput.parse(text)
         #if os(macOS)
         #expect(o.checks.first?.id == "setup.os" && o.checks.first?.state == .missing)
-        #expect(o.passed == false && o.sve?["error"] == "not-linux")
+        #expect(o.passed == false && o.sve?["error"]?.string == "not-linux")
         #endif
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("data").path))
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("conf").path))

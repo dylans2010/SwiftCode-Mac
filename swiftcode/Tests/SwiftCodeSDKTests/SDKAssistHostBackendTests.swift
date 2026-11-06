@@ -89,8 +89,8 @@ final class SDKAssistHostBackendTests: XCTestCase {
         SDKAssistSession(
             extensionID: extensionID,
             systemPrompt: systemPrompt,
-            messages: messages,
             isClosed: isClosed,
+            messages: messages,
             allowedToolIDs: ["test.tool"]
         )
     }
@@ -180,7 +180,7 @@ final class SDKAssistHostBackendTests: XCTestCase {
         )
         let backend = SDKAssistHostBackend(resolver: FakeResolver(provider: provider, modelID: nil))
         var deltas: [String] = []
-        for try await delta in backend.stream(session: makeSession(), message: "hi") {
+        for try await delta in await backend.stream(session: makeSession(), message: "hi") {
             deltas.append(delta)
         }
         // Text deltas only, then the final empty string signalling
@@ -195,7 +195,7 @@ final class SDKAssistHostBackendTests: XCTestCase {
         // The backend stream itself throws on iteration when no
         // resolver is installed.
         do {
-            for try await delta in backend.stream(session: makeSession(), message: "hi") {
+            for try await delta in await backend.stream(session: makeSession(), message: "hi") {
                 events.append(.delta(delta))
             }
             XCTFail("Expected the stream to throw")
@@ -251,6 +251,8 @@ final class SDKAssistHostBackendTests: XCTestCase {
             XCTFail("Expected .invalidArgument for a closed session")
         } catch let error as SDKError {
             XCTAssertEqual(error.code, .invalidArgument)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
         XCTAssertTrue(provider.receivedRequests.isEmpty)
     }
@@ -278,6 +280,8 @@ final class SDKAssistHostBackendTests: XCTestCase {
         } catch let error as SDKError {
             XCTAssertEqual(error.code, .serviceUnavailable)
             XCTAssertTrue(error.suggestion?.contains("not attached") ?? false)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
         XCTAssertTrue(provider.receivedRequests.isEmpty)
     }

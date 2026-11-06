@@ -67,7 +67,7 @@ final class SDKCapabilityTests: XCTestCase {
         }
     }
 
-    func testBrokerRequiresScopeForPrivilegedCapabilityWithKey() async {
+    func testBrokerRequiresScopeForPrivilegedCapabilityWithKey() async throws {
         let permissions = PermissionManager(grants: ["com.example.ext": [.build]])
         // Key without `capabilities:request` denies a privileged cap.
         let plainKey = SDKAPIKey(keyPrefix: SDKAPIKeyCodec.testPrefix, label: "x", scopes: [.appsCreate])

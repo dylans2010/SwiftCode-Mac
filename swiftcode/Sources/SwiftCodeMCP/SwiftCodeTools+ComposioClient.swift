@@ -56,7 +56,7 @@ extension SwiftCodeMCPHost {
     /// Returns nil when no key is configured anywhere.
     nonisolated static func composioAPIKey() -> String? {
         let store = composioTestSecretStore ?? defaultSecretStore()
-        if let key = store.readString(account: composioSecretAccount), !key.isEmpty { return key }
+        if let key = store.readString(composioSecretAccount), !key.isEmpty { return key }
         if let env = ProcessInfo.processInfo.environment["COMPOSIO_API_KEY"], !env.isEmpty { return env }
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".composio").appendingPathComponent("user_data.json")

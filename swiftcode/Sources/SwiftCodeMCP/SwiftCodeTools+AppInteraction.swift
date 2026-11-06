@@ -236,7 +236,7 @@ extension SwiftCodeMCPHost {
     /// Accessibility in System Settings.
     func axRequireTrusted() throws {
         if AXIsProcessTrusted() { return }
-        _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt as String: true] as CFDictionary)
+        _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         throw MCPToolError("Accessibility access is not authorized. Grant it in macOS System Settings > Privacy & Security > Accessibility for SwiftCode, then retry.")
     }
 
@@ -615,9 +615,10 @@ extension SwiftCodeMCPHost {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         var menuBarRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, kAXMenuBarAttribute as CFString, &menuBarRef) == .success,
-              let menuBar = menuBarRef as? AXUIElement else {
+              let menuBarRaw = menuBarRef else {
             throw MCPToolError("Application '\(app.localizedName ?? "")' does not expose a standard accessible menu bar.")
         }
+        let menuBar = menuBarRaw as! AXUIElement
         let components = menuPath.components(separatedBy: ">").map { $0.trimmingCharacters(in: .whitespaces) }
         guard !components.isEmpty, !components[0].isEmpty else {
             throw MCPToolError("Menu path cannot be empty.")
@@ -1012,12 +1013,12 @@ extension SwiftCodeMCPHost {
         }()
         let timeout = min(max(call.arguments["timeout"]?.double ?? 5, 1), 60)
 
-        func base(_ extra: [String: AnyJSON] = [:]) -> [String: AnyJSON] {
+        func base(_ extra: [String: AnyJSON] = [:]) -> AnyJSON {
             var out: [String: AnyJSON] = ["action": .string(action), "app_identifier": .string(bundleID),
                                           "app_name": .string(appName), "pid": .int(Int(app.processIdentifier)),
                                           "session_id": .string(session.sessionID), "status": .string("success")]
             for (key, val) in extra { out[key] = val }
-            return out
+            return .object(out)
         }
 
         /// Approval for input-delivery actions (no Autopilot).
@@ -1071,9 +1072,10 @@ extension SwiftCodeMCPHost {
             let systemWide = AXUIElementCreateSystemWide()
             var focusedRef: CFTypeRef?
             guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
-                  let focused = focusedRef as? AXUIElement else {
+                  let focusedRaw = focusedRef else {
                 throw MCPToolError("No focused UI element could be read (the frontmost app may not expose one).")
             }
+            let focused = focusedRaw as! AXUIElement
             let role = axString(focused, kAXRoleAttribute) ?? "Unknown"
             let title = axString(focused, kAXTitleAttribute) ?? ""
             let label = axString(focused, kAXDescriptionAttribute) ?? ""

@@ -1129,7 +1129,7 @@ public actor SDKCodeBuildRunner {
         }
         active[taskID] = .managedBuild(handle)
 
-        for await event in handle.events {
+        for await event in await handle.events {
             await editorState.appendConsole(consoleEntry(for: event))
         }
         let result = await handle.wait()
@@ -1260,21 +1260,23 @@ public actor SDKCodeBuildRunner {
 
     private func lines(from handle: FileHandle) -> AsyncStream<String> {
         AsyncStream { continuation in
-            var buffer = Data()
+            // The readability handler is @Sendable, so the mutable
+            // accumulator is a Sendable box, not a captured `var`.
+            let buffer = StreamingLineBuffer()
             handle.readabilityHandler = { h in
                 let chunk = h.availableData
                 if chunk.isEmpty {
-                    if !buffer.isEmpty, let text = String(data: buffer, encoding: .utf8) {
+                    if !buffer.data.isEmpty, let text = String(data: buffer.data, encoding: .utf8) {
                         continuation.yield(text)
                     }
-                    handle.readabilityHandler = nil
+                    h.readabilityHandler = nil
                     continuation.finish()
                     return
                 }
-                buffer.append(chunk)
-                while let newline = buffer.firstIndex(of: 0x0A) {
-                    let lineData = buffer[..<newline]
-                    buffer.removeSubrange(..<buffer.index(after: newline))
+                buffer.data.append(chunk)
+                while let newline = buffer.data.firstIndex(of: 0x0A) {
+                    let lineData = buffer.data[..<newline]
+                    buffer.data.removeSubrange(..<buffer.data.index(after: newline))
                     if let line = String(data: lineData, encoding: .utf8) {
                         continuation.yield(line)
                     }
@@ -1486,4 +1488,11 @@ public enum SDKSnippetStore {
                 || snippet.code.lowercased().contains(trimmed)
         }
     }
+}
+
+/// A Sendable byte accumulator for the off-main `readabilityHandler` in
+/// `lines(from:)` (a captured `var` is rejected by Swift 6 region
+/// isolation). Access is serialized by the file handle's read queue.
+private final class StreamingLineBuffer: @unchecked Sendable {
+    var data = Data()
 }

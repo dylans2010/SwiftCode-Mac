@@ -30,7 +30,7 @@ import SwiftCodePlist
         // Reparse: the value is there for both configurations.
         let again = try PBXProj(parsing: edited)
         let configs = again.buildConfigurations(listID: again.targets[0].string("buildConfigurationList"))
-        #expect(configs.allSatisfy { $0["buildSettings"]?.dictionary?["MARKETING_VERSION"] == "2.0" })
+        #expect(configs.allSatisfy { $0["buildSettings"]?.dictionary?["MARKETING_VERSION"]?.string == "2.0" })
         // Removing an unrelated new key restores the original bytes.
         proj.setBuildSetting("SWIFTCODE_TEMP", "1", inListOf: target.id)
         proj.setBuildSetting("SWIFTCODE_TEMP", nil, inListOf: target.id)

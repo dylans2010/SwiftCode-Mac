@@ -353,7 +353,7 @@ public enum SwiftCodeSDKInstaller {
         let backend = SDKAssistHostBackend.shared
         await backend.install(resolver: SwiftCodeSDKAssistResolver())
         await backend.install(toolRunner: SwiftCodeSDKToolRunner())
-        await SDKAssistService.shared.backend = backend
+        await SDKAssistService.shared.setBackend(backend)
         await SDKBootstrap.bootstrapIfNeeded()
     }
 }

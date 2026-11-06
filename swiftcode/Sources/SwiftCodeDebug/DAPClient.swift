@@ -250,7 +250,7 @@ public struct DebugThread: Equatable, Sendable {
     }
 }
 
-public struct StackFrame: Equatable, Sendable {
+public struct StackFrame: Identifiable, Equatable, Sendable {
     public var id: Int
     public var name: String
     public var file: String?

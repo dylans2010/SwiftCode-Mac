@@ -2,6 +2,7 @@
 // Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
 
 import SwiftUI
+import SwiftCodeUI
 
 public struct JSONStringEscaperView: View {
     @State private var inputText = ""

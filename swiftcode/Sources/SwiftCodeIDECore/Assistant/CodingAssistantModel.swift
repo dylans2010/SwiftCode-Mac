@@ -443,7 +443,7 @@ public final class CodingAssistantModel {
             var attemptKind = kind
             var failovers = 0
             while true {
-                var window = availability[attemptKind]?.models.first { $0.id == attemptModel }?.contextWindow
+                var window = self?.availability[attemptKind]?.models.first { $0.id == attemptModel }?.contextWindow
                 if window == nil, let attemptModel { window = await attemptProvider.contextWindow(model: attemptModel) }
                 let budget = min(limit, window ?? limit)
                 let built = PromptBuilder.build(history: history, prompt: attemptPrompt, attachments: attachments, context: context,
@@ -650,7 +650,12 @@ public final class CodingAssistantModel {
               let executable = meta.executableURL() else { return }
         Task { [weak self] in
             guard let self else { return }
-            await self.metaSlashCommands.captureCommandsFromTerminal(executable: executable)
+            // `captureCommandsFromTerminal` is mutating async; mutate a
+            // local copy and write it back rather than calling it on the
+            // actor-isolated property.
+            var manager = self.metaSlashCommands
+            await manager.captureCommandsFromTerminal(executable: executable)
+            self.metaSlashCommands = manager
         }
     }
 

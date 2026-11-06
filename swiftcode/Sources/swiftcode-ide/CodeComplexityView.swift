@@ -143,7 +143,10 @@ enum CodeComplexityScanner {
                 includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants])
             else { return (results, count) }
-            for case let url as URL in enumerator {
+            // Materialize the enumeration before iterating: a
+            // DirectoryEnumerator cannot be iterated from an async context.
+            let urls = enumerator.compactMap { $0 as? URL }
+            for url in urls {
                 guard url.pathExtension == "swift" else { continue }
                 guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
                 count += 1

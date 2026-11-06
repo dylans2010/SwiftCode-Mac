@@ -3,7 +3,7 @@ import SwiftCodePlist
 import SwiftCodeProject
 
 /// SwiftCode's own file templates. See `specs/ide/templates.md`.
-public enum FileTemplate: String, CaseIterable, Sendable {
+public enum BuiltInFileTemplate: String, CaseIterable, Sendable {
     case swiftFile = "Swift File"
     case swiftClass = "Swift Class"
     case objcClass = "Objective-C Class"
@@ -48,7 +48,7 @@ public enum FileCreator {
     /// them to the group of that folder and compiled ones to the first
     /// target's Compile Sources. Returns the new files.
     @discardableResult
-    public static func create(_ template: FileTemplate, name: String, in directory: URL,
+    public static func create(_ template: BuiltInFileTemplate, name: String, in directory: URL,
                               project: inout PBXProj?, xcodeprojURL: URL?, targets: [String]? = nil) throws -> [URL] {
         let name = name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { throw NewFileError.emptyName }
@@ -112,7 +112,7 @@ public enum FileCreator {
                 for t in chosen {
                     if let phase = proj.buildPhases(ofTarget: t.id).first(where: { $0.isa == isa }) { proj.addBuildFile(fileReference: ref, to: phase.id) }
                 }
-            } else if let fallbackSources, FileTemplate.compiledExtensions.contains(ext) {
+            } else if let fallbackSources, BuiltInFileTemplate.compiledExtensions.contains(ext) {
                 proj.addBuildFile(fileReference: ref, to: fallbackSources.id)
             }
         }
@@ -278,7 +278,7 @@ public struct TemplateEntry: Equatable, Sendable {
     }
 
     /// SwiftCode's own template for the entry, when one exists.
-    public var fileTemplate: FileTemplate? {
+    public var fileTemplate: BuiltInFileTemplate? {
         switch title {
         case "Swift File": .swiftFile
         case "Cocoa Touch Class": .swiftClass

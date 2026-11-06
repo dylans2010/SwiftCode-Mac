@@ -286,8 +286,8 @@ public struct MetaAssistProvider: AssistantProvider {
             guard provider.hasCredentials() || provider.proxyBaseURL != nil else {
                 throw AssistantError.notSignedIn(hint: Self.notSignedInHint)
             }
-            let modelID = request.model?.trimmingCharacters(in: .whitespacesAndNewlines)
-                .flatMap { $0.isEmpty ? nil : $0 } ?? Self.defaultModelID
+            let trimmedModel = request.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let modelID = (trimmedModel?.isEmpty == false ? trimmedModel : nil) ?? Self.defaultModelID
             let workspaceRoot = request.workingDirectory?.path ?? provider.homeDirectory
             let prompt = request.messages.last?.content ?? request.flattenedPrompt
             let history = Array(request.messages.dropLast())
@@ -330,7 +330,7 @@ extension MetaAssistProvider: AgentAttachable {
 /// `availability()`, so a hung host cannot hang the provider
 /// survey. Whichever finishes first wins; the loser is
 /// cancelled.
-private func withTimeout<T>(seconds: TimeInterval, fallback: T, operation: @escaping @Sendable () async -> T) async -> T {
+private func withTimeout<T: Sendable>(seconds: TimeInterval, fallback: T, operation: @escaping @Sendable () async -> T) async -> T {
     await withTaskGroup(of: T.self) { group in
         group.addTask { await operation() }
         group.addTask {

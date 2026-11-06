@@ -41,7 +41,7 @@ struct PaywallStoreTests {
     @Test("The store picks up the bypass flag at init")
     func bypassFlagAtInit() throws {
         let defaults = try #require(UserDefaults(suiteName: "swiftcode-paywall-\(UUID().uuidString)"))
-        let bypass = PaywallBypass(defaults: defaults)
+        var bypass = PaywallBypass(defaults: defaults)
         bypass.isEnabled = true
         let store = PaywallStore(bypass: bypass, autoStart: false)
         #expect(store.isPro)
@@ -51,7 +51,7 @@ struct PaywallStoreTests {
     @Test("refreshBypassFlag picks up a flag change without a store round-trip")
     func refreshBypassFlag() throws {
         let defaults = try #require(UserDefaults(suiteName: "swiftcode-paywall-\(UUID().uuidString)"))
-        let bypass = PaywallBypass(defaults: defaults)
+        var bypass = PaywallBypass(defaults: defaults)
         let store = PaywallStore(bypass: bypass, autoStart: false)
         #expect(!store.isPro)
         bypass.isEnabled = true

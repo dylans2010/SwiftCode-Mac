@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftCodeAssistant
+import SwiftCodeIDECore
 
 // Composio settings, adapted from Legacy's
 // `SwiftCode/Views/Settings/ComposioSettingsView.swift` onto the

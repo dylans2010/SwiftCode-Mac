@@ -68,7 +68,7 @@ let ideScratch = URL(fileURLWithPath: #filePath).deletingLastPathComponent().del
         #expect(project["groupTree"]?["sourceTree"] == "<group>" && project["groupTree"]?["name"] == "Tool")
         let toolGroup = try #require(project["groupTree"]?["children"]?.arrayValue?.first)
         #expect(toolGroup["path"] == "Tool")
-        #expect(toolGroup["children"]?.arrayValue?.first?["fileType"] == "sourcecode.c.c")
+        #expect(toolGroup["children"]?.arrayValue?.first?["fileType"]?.string == "sourcecode.c.c")
         let target = try #require(objects[2]["contents"])
         #expect(target["productTypeIdentifier"] == "com.apple.product-type.tool")
         let files = try #require(target["buildPhases"]?.arrayValue?.first?["buildFiles"]?.arrayValue)

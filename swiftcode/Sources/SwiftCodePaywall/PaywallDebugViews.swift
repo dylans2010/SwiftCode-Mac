@@ -32,7 +32,7 @@ public struct PaywallDebugView: View {
 
     public var body: some View {
         Form {
-            Section("Pro Status Control") {
+            Section {
                 HStack {
                     Text("Current Status:")
                     Spacer()
@@ -59,6 +59,8 @@ public struct PaywallDebugView: View {
                     syncFromStore()
                 }
                 .foregroundStyle(.red)
+            } header: {
+                Text("Pro Status Control")
             } footer: {
                 Text("Grant and Revoke set a debug-only override. They create no purchase and are overwritten by the next real entitlement refresh.")
             }
@@ -125,7 +127,7 @@ public struct StoreKitDebugView: View {
                 }
             }
 
-            Section("Simulations") {
+            Section {
                 Button("Simulate Purchase Success") {
                     store.setDebugProAccess(true)
                     syncFromStore()
@@ -145,6 +147,8 @@ public struct StoreKitDebugView: View {
                     store.setDebugProAccess(true)
                     syncFromStore()
                 }
+            } header: {
+                Text("Simulations")
             } footer: {
                 Text("Simulations only flip the local debug override. They do not create StoreKit transactions, and the next real entitlement refresh overwrites them.")
             }

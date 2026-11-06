@@ -214,7 +214,7 @@ public final class AntigravityQuotaService {
 
     /// Dynamic Gauge Color: 100%-60% is Green, 59%-21% is Yellow, 20%-0% is Red.
     /// Returned as a hex string (Legacy returned a SwiftUI Color).
-    public static func gaugeColorHex(forPercentage percentage: Double) -> String {
+    public nonisolated static func gaugeColorHex(forPercentage percentage: Double) -> String {
         let rounded = Int(round(percentage))
         if rounded >= 60 {
             return "#34C759"

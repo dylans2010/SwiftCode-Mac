@@ -583,7 +583,7 @@ public final class IPABuildService: Sendable {
 
                 appendLog("[SYSTEM] IPA Build completed successfully: \(ipaPath)", isError: false)
                 recordLatestArchive(path: ipaPath)
-                AlertSoundPlayer.shared.play(.buildSuccess)
+                BuildAlertSoundHook.play(.buildSuccess)
                 return IPABuildResult(success: true, ipaPath: ipaPath, errorMessage: nil)
             } else {
                 buildState = .failed
@@ -591,7 +591,7 @@ public final class IPABuildService: Sendable {
                 progressDescription = "Packaging failed."
                 let errMsg = "Process exited with code \(status)."
                 appendLog("[ERROR] \(errMsg)", isError: true)
-                AlertSoundPlayer.shared.play(.buildFailure)
+                BuildAlertSoundHook.play(.buildFailure)
                 return IPABuildResult(success: false, ipaPath: nil, errorMessage: errMsg)
             }
         } catch {
@@ -601,7 +601,7 @@ public final class IPABuildService: Sendable {
             progressDescription = "Failed to launch pipeline."
             let errMsg = error.localizedDescription
             appendLog("[ERROR] Failed to run process: \(errMsg)", isError: true)
-            AlertSoundPlayer.shared.play(.buildFailure)
+            BuildAlertSoundHook.play(.buildFailure)
             return IPABuildResult(success: false, ipaPath: nil, errorMessage: errMsg)
         }
     }

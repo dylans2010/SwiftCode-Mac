@@ -8,7 +8,7 @@ import Observation
 // MARK: - Project Template
 
 public struct LegacyProjectTemplate: Identifiable, Sendable {
-    let id: String
+    public let id: String
     var name: String
     var description: String
     var icon: String
@@ -18,7 +18,7 @@ public struct LegacyProjectTemplate: Identifiable, Sendable {
 
     public struct LegacyTemplateFile: Sendable {
         var relativePath: String
-        var content: (String) -> String // takes project name, returns content
+        var content: @Sendable (String) -> String // takes project name, returns content
     }
 }
 

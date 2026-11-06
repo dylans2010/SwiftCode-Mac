@@ -16,10 +16,10 @@ import Testing
         var calls: [URL] = []
 
         func get(url: URL, headers: [String: String], timeout: TimeInterval) async throws -> (data: Data, status: Int) {
-            lock.lock()
-            calls.append(url)
-            let response = stubbed[url.host() ?? ""]
-            lock.unlock()
+            let response = lock.withLock {
+                calls.append(url)
+                return stubbed[url.host() ?? ""]
+            }
             guard let response else { throw URLError(.badURL) }
             return response
         }
@@ -160,7 +160,7 @@ import Testing
     // MARK: - Discovery runs
 
     @Test func discoverAllRunsEveryLegConcurrently() async {
-        let (service, transport) = service()
+        let (service, transport) = Self.service()
         transport.stubbed = [
             "generativelanguage.googleapis.com": ("""
             {"models": [{"name": "models/gemini-2.5-flash", "displayName": "Gemini 2.5 Flash", "supportedGenerationMethods": ["generateContent"], "inputTokenLimit": 1000000}]}
@@ -185,7 +185,7 @@ import Testing
     }
 
     @Test func failingLegContributesNothingAndRecordsError() async {
-        let (service, transport) = service()
+        let (service, transport) = Self.service()
         transport.stubbed = [
             "generativelanguage.googleapis.com": (Data(), 429),
             "api.anthropic.com": ("""
@@ -206,7 +206,7 @@ import Testing
     }
 
     @Test func noKeysYieldsOnlyTheCatalogFallback() async {
-        let (service, _) = service(store: MemorySecretStore())
+        let (service, _) = Self.service(store: MemorySecretStore())
         let models = await service.discoverAllModels()
         #expect(models.count == 9)
         #expect(models.allSatisfy { $0.isSynthetic })
@@ -228,7 +228,7 @@ import Testing
     }
 
     @Test func cacheIsReusedUntilForced() async {
-        let (service, transport) = service()
+        let (service, transport) = Self.service()
         transport.stubbed = [
             "generativelanguage.googleapis.com": ("""
             {"models": [{"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]}]}
@@ -257,7 +257,7 @@ import Testing
     // MARK: - Removal
 
     @Test func removeModelRefusesFoundationModels() async {
-        let (service, _) = service(store: MemorySecretStore())
+        let (service, _) = Self.service(store: MemorySecretStore())
         _ = await service.discoverAllModels()
         await service.removeModel("afm3-core")
         #expect(await service.removedModelIDs.isEmpty)
@@ -269,7 +269,7 @@ import Testing
     }
 
     @Test func agentCompatibleExcludesRemovedAndUnconfigured() async {
-        let (service, _) = service(store: MemorySecretStore())
+        let (service, _) = Self.service(store: MemorySecretStore())
         _ = await service.discoverAllModels()
         // Catalog fallback without OAuth: unconfigured, so none
         // are agent-compatible.

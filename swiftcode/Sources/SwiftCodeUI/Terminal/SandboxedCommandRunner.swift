@@ -190,25 +190,24 @@ public enum SandboxedCommandRunner {
                 let pipe = Pipe()
                 process.standardOutput = pipe
                 process.standardError = pipe
-                let output = NSMutableData()
-                var lineCount = 0
-                var truncated = false
+                let capture = SandboxedOutputCapture()
                 pipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     guard !data.isEmpty else { return }
                     // Cap the total output; stop reading past the cap
                     // (the timeout still kills a runaway process).
-                    if output.length < SandboxPolicy.maxOutputBytes {
-                        let take = min(data.count, SandboxPolicy.maxOutputBytes - output.length)
-                        output.append(data.subdata(in: 0..<take))
-                        if take < data.count { truncated = true }
+                    capture.lock.lock(); defer { capture.lock.unlock() }
+                    if capture.output.length < SandboxPolicy.maxOutputBytes {
+                        let take = min(data.count, SandboxPolicy.maxOutputBytes - capture.output.length)
+                        capture.output.append(data.subdata(in: 0..<take))
+                        if take < data.count { capture.truncated = true }
                     } else {
-                        truncated = true
+                        capture.truncated = true
                     }
                     if let onLine, let text = String(data: data, encoding: .utf8) {
                         for line in text.components(separatedBy: .newlines) where !line.isEmpty {
-                            lineCount += 1
-                            if lineCount <= SandboxPolicy.maxOutputLines { onLine(line) }
+                            capture.lineCount += 1
+                            if capture.lineCount <= SandboxPolicy.maxOutputLines { onLine(line) }
                         }
                     }
                 }
@@ -216,10 +215,13 @@ public enum SandboxedCommandRunner {
                     if process.isRunning { process.terminate() }
                 }
                 DispatchQueue.global().asyncAfter(deadline: .now() + policy.timeoutSeconds, execute: timeout)
+                let timeoutBox = WorkItemBox(timeout)
                 process.terminationHandler = { _ in
-                    timeout.cancel()
+                    timeoutBox.item.cancel()
                     pipe.fileHandleForReading.readabilityHandler = nil
-                    let text = String(data: output as Data, encoding: .utf8) ?? ""
+                    let (text, truncated) = capture.lock.withLock {
+                        (String(data: capture.output as Data, encoding: .utf8) ?? "", capture.truncated)
+                    }
                     let result = SandboxedCommandResult(output: text, exitCode: process.terminationStatus, truncated: truncated)
                     continuation.resume(returning: result)
                 }
@@ -240,4 +242,21 @@ public enum SandboxedCommandRunner {
     private final class ProcessBox: @unchecked Sendable {
         var process: Process?
     }
+}
+
+
+/// The off-main output accumulator for a sandboxed command, boxed so the
+/// `@Sendable` readability handler can mutate it under its lock.
+private final class SandboxedOutputCapture: @unchecked Sendable {
+    let lock = NSLock()
+    let output = NSMutableData()
+    var lineCount = 0
+    var truncated = false
+}
+
+/// `DispatchWorkItem` is not `Sendable`; box it so the termination handler
+/// can cancel it.
+private final class WorkItemBox: @unchecked Sendable {
+    let item: DispatchWorkItem
+    init(_ item: DispatchWorkItem) { self.item = item }
 }

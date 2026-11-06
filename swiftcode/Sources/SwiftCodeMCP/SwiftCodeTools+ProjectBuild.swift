@@ -397,9 +397,9 @@ extension SwiftCodeMCPHost {
         }
         var args: [String] = s.model.kind == .workspace ? ["-workspace", projectURL.path] : ["-project", projectURL.path]
         args += ["-scheme", scheme, "-configuration", configuration, "-archivePath", archiveURL.path, "archive"]
-        let run = await Task.detached {
+        let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/xcodebuild", args, workingDirectory: root, timeout: 900)
-        }.value
+        }.value)
         guard let run else {
             throw MCPToolError("Failed to run xcodebuild archive: could not start /usr/bin/xcodebuild.")
         }
@@ -723,9 +723,9 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         let root = Self.folder(of: s.model)
         func run(_ args: [String]) async -> String {
-            guard let run = await Task.detached {
+            guard let run = (await Task.detached {
                 Self.terminalRunFixed("/usr/bin/xcodebuild", args, workingDirectory: root, timeout: 60)
-            }.value else { return "" }
+            }.value) else { return "" }
             return run.stdout
         }
         let version = (await run(["-version"])).trimmingCharacters(in: .whitespacesAndNewlines)

@@ -119,7 +119,7 @@ import Testing
         #expect(dict.keys.sorted() == ["State:/Network/Global/IPv4", "State:/Network/Interface/en0/IPv4"])
         let v4 = try PropertyListSerialization.propertyList(from: dict["State:/Network/Global/IPv4"]!, options: [], format: nil)
             as? [String: String]
-        #expect(v4?["PrimaryInterface"] == "en0")
+        #expect(v4?["PrimaryInterface"]?.string == "en0")
         // configget of one key, and of a missing one.
         let key = plist("State:/Network/Global/Proxies")
         let one = try call(e, to: session, id: 20010, descriptors: [.ool(data: key)], body: Self.ndr + le(Int32(key.count)))

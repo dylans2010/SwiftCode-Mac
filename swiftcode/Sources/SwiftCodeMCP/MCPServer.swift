@@ -648,7 +648,7 @@ public final class MCPServer: @unchecked Sendable {
         var call = call
         call.arguments = MCPParameterAliases.normalized(
             call.arguments,
-            declaredProperties: Set(tool.inputSchema["properties"]?.object?.keys ?? []))
+            declaredProperties: Set(tool.inputSchema["properties"]?.object?.keys.map { $0 } ?? []))
         if let problem = tool.argumentProblem(call.arguments) { return .error("\(tool.name): \(problem)") }
         // Extension callers are grant-checked BEFORE the write policy
         // runs, so an ungranted tool is refused before any approval UI

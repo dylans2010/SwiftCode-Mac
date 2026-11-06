@@ -1218,7 +1218,10 @@ public final class SourceEditorController: NSViewController, NSTextViewDelegate,
     public func applyTextEdits(_ edits: [TextEdit]) {
         _ = view
         let index = textView.lineIndex
-        let sorted = edits.sorted { ($0.start.line, $0.start.character) > ($1.start.line, $1.start.character) }
+        let sorted = edits.sorted {
+            if $0.start.line != $1.start.line { return $0.start.line > $1.start.line }
+            return $0.start.character > $1.start.character
+        }
         textView.undoManager?.beginUndoGrouping()
         for e in sorted {
             let a = index.offset(of: e.start), b = index.offset(of: e.end)

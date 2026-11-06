@@ -417,14 +417,19 @@ final class SwiftCodeSDKTests: XCTestCase {
     // MARK: - CLI (no process exit: run returns codes)
 
     func testCLIHelpAndVersion() async {
-        XCTAssertEqual(await SwiftCodeSDKCLI.run(arguments: ["--help"]), 0)
-        XCTAssertEqual(await SwiftCodeSDKCLI.run(arguments: ["--version"]), 0)
-        XCTAssertEqual(await SwiftCodeSDKCLI.run(arguments: ["nope"]), 1)
-        XCTAssertEqual(await SwiftCodeSDKCLI.run(arguments: ["validate", "/nonexistent-\(UUID().uuidString)"]), 1)
+        let helpCode = await SwiftCodeSDKCLI.run(arguments: ["--help"])
+        XCTAssertEqual(helpCode, 0)
+        let versionCode = await SwiftCodeSDKCLI.run(arguments: ["--version"])
+        XCTAssertEqual(versionCode, 0)
+        let unknownCode = await SwiftCodeSDKCLI.run(arguments: ["nope"])
+        XCTAssertEqual(unknownCode, 1)
+        let missingCode = await SwiftCodeSDKCLI.run(arguments: ["validate", "/nonexistent-\(UUID().uuidString)"])
+        XCTAssertEqual(missingCode, 1)
     }
 
     func testCLIValidateFixture() async {
-        XCTAssertEqual(await SwiftCodeSDKCLI.run(arguments: ["validate", fixtureURL.path]), 0)
+        let code = await SwiftCodeSDKCLI.run(arguments: ["validate", fixtureURL.path])
+        XCTAssertEqual(code, 0)
     }
 
     func testToolMains() {

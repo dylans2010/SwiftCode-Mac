@@ -31,7 +31,7 @@ public protocol SDKAssistBackend: Sendable {
     func complete(session: SDKAssistSession, message: String) async throws -> String
     /// Streams a completion. Each element is a text delta; the final
     /// element is the empty string signalling completion.
-    func stream(session: SDKAssistSession, message: String) -> AsyncThrowingStream<String, Error>
+    func stream(session: SDKAssistSession, message: String) async -> AsyncThrowingStream<String, Error>
     /// Executes one approved tool call and returns its output.
     func executeTool(session: SDKAssistSession, call: SDKAssistToolCall) async throws -> SDKAssistToolResult
 }
@@ -50,6 +50,12 @@ public actor SDKAssistService {
     /// The attached backend, if any. `nil` (the default) means every
     /// completion attempt throws `.serviceUnavailable`.
     public var backend: (any SDKAssistBackend)?
+
+    /// Attaches (or clears) the host backend. A method so the host can
+    /// install it across the actor boundary.
+    public func setBackend(_ backend: (any SDKAssistBackend)?) {
+        self.backend = backend
+    }
 
     private struct StoredSession {
         var session: SDKAssistSession
@@ -196,7 +202,7 @@ public actor SDKAssistService {
                     }
                     continuation.yield(.started)
                     var fullText = ""
-                    for try await delta in backend.stream(session: session, message: message) {
+                    for try await delta in await backend.stream(session: session, message: message) {
                         fullText += delta
                         continuation.yield(.delta(delta))
                     }

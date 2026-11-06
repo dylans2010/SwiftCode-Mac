@@ -18,7 +18,7 @@ import SwiftCodeCloud
 @MainActor
 public final class PasswordResetWindowController: NSWindowController {
     /// Appwrite's minimum password length.
-    public static let minimumPasswordLength = 8
+    public nonisolated static let minimumPasswordLength = 8
 
     /// Completes the reset for `userId` / `secret` with the new
     /// password. Defaults to the live Appwrite client.
@@ -52,9 +52,11 @@ public final class PasswordResetWindowController: NSWindowController {
         NotificationCenter.default.addObserver(
             forName: .appwriteRecoveryLinkReceived, object: nil, queue: .main
         ) { note in
+            // Read the payload before crossing to the main actor: the
+            // Notification is not Sendable.
+            guard let userId = note.userInfo?["userId"] as? String,
+                  let secret = note.userInfo?["secret"] as? String else { return }
             MainActor.assumeIsolated {
-                guard let userId = note.userInfo?["userId"] as? String,
-                      let secret = note.userInfo?["secret"] as? String else { return }
                 show(userId: userId, secret: secret)
             }
         }

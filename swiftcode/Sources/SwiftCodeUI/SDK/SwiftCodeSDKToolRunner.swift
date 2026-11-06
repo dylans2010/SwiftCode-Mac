@@ -1,6 +1,7 @@
 import Foundation
 import SwiftCodeExtensions
 import SwiftCodeMCP
+import SwiftCodeAssistant
 import SwiftCodeSDK
 
 // MARK: - SwiftCodeSDKToolRunner (Wave 17, Slice B)
@@ -121,7 +122,7 @@ public enum SDKAssistToolMapping {
 /// when several are open.
 public enum SwiftCodeSDKToolServerRegistry {
     private static let lock = NSLock()
-    private static var _current: MCPServer?
+    nonisolated(unsafe) private static var _current: MCPServer?
 
     public static var current: MCPServer? {
         get { lock.withLock { _current } }

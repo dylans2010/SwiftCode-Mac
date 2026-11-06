@@ -24,7 +24,7 @@ import SwiftCodePreviews
 /// the MCP host to reload from the store, so the `artboard_*`
 /// tools see the window's edits.
 ///
-/// The controller's document operations are plain methods, so
+/// The controller's artboardDocument operations are plain methods, so
 /// tests drive them without showing the window.
 @MainActor
 public final class ArtboardWindowController: NSWindowController {
@@ -38,15 +38,15 @@ public final class ArtboardWindowController: NSWindowController {
     public let workspaceFolder: URL
     private let host: SwiftCodeMCPHost?
 
-    /// The workspace's document. Setting it saves.
-    public var document: ArtboardDocument {
+    /// The workspace's artboardDocument. Setting it saves.
+    public var artboardDocument: ArtboardDocument {
         didSet { saveDocument() }
     }
 
     /// The active artboard, if any.
     public var activeArtboard: ArtboardRecord? {
-        guard let id = document.activeArtboardID else { return nil }
-        return document.artboards.first { $0.id == id }
+        guard let id = artboardDocument.activeArtboardID else { return nil }
+        return artboardDocument.artboards.first { $0.id == id }
     }
 
     /// The selected component node's id, if any.
@@ -76,7 +76,7 @@ public final class ArtboardWindowController: NSWindowController {
     public init(workspaceFolder: URL, host: SwiftCodeMCPHost? = nil) {
         self.workspaceFolder = workspaceFolder
         self.host = host
-        self.document = ArtboardStore.load(forWorkspace: workspaceFolder) ?? ArtboardDocument()
+        self.artboardDocument = ArtboardStore.load(forWorkspace: workspaceFolder) ?? ArtboardDocument()
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: NSSize(width: 980, height: 620)),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -95,14 +95,14 @@ public final class ArtboardWindowController: NSWindowController {
 
     // MARK: - Document operations
 
-    /// Mutates the document through a copy and reassigns it, so
-    /// `document`'s didSet saves. (Mutating `document.artboards`
+    /// Mutates the artboardDocument through a copy and reassigns it, so
+    /// `artboardDocument`'s didSet saves. (Mutating `artboardDocument.artboards`
     /// in place would not trigger didSet — the save would silently
     /// not happen.)
     private func mutateDocument(_ update: (inout ArtboardDocument) -> Void) {
-        var copy = document
+        var copy = artboardDocument
         update(&copy)
-        document = copy
+        artboardDocument = copy
     }
 
     /// Adds an artboard (with Legacy's default root) and makes it
@@ -136,7 +136,7 @@ public final class ArtboardWindowController: NSWindowController {
 
     /// Makes an artboard active.
     public func selectArtboard(id: UUID) {
-        guard document.artboards.contains(where: { $0.id == id }) else { return }
+        guard artboardDocument.artboards.contains(where: { $0.id == id }) else { return }
         mutateDocument { doc in doc.activeArtboardID = id }
         selectedNodeID = activeArtboard?.rootNode.id
         reloadAll()
@@ -203,21 +203,21 @@ public final class ArtboardWindowController: NSWindowController {
         reloadAll()
     }
 
-    /// Reloads the document from the store (discarding unsaved
+    /// Reloads the artboardDocument from the store (discarding unsaved
     /// window edits).
     public func reload() {
-        document = ArtboardStore.load(forWorkspace: workspaceFolder) ?? ArtboardDocument()
+        artboardDocument = ArtboardStore.load(forWorkspace: workspaceFolder) ?? ArtboardDocument()
         selectedNodeID = activeArtboard?.rootNode.id
         reloadAll()
     }
 
-    /// Saves the document to the store and tells the MCP host to
+    /// Saves the artboardDocument to the store and tells the MCP host to
     /// reload from it. Returns false (with the status set) when
     /// the save fails.
     @discardableResult
     public func saveDocument() -> Bool {
         do {
-            try ArtboardStore.save(document, forWorkspace: workspaceFolder)
+            try ArtboardStore.save(artboardDocument, forWorkspace: workspaceFolder)
             host?.reloadArtboardsFromStore(workspaceFolder: workspaceFolder)
             return true
         } catch {
@@ -542,7 +542,7 @@ public final class ArtboardWindowController: NSWindowController {
     // MARK: - Actions
 
     @objc private func addArtboardClicked() {
-        addArtboard(name: "Artboard \(document.artboards.count + 1)")
+        addArtboard(name: "Artboard \(artboardDocument.artboards.count + 1)")
     }
 
     @objc private func deleteArtboardClicked() {
@@ -605,12 +605,12 @@ public final class ArtboardWindowController: NSWindowController {
 
 extension ArtboardWindowController: NSTableViewDataSource, NSTableViewDelegate {
     public func numberOfRows(in tableView: NSTableView) -> Int {
-        document.artboards.count
+        artboardDocument.artboards.count
     }
 
     public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard document.artboards.indices.contains(row) else { return nil }
-        let artboard = document.artboards[row]
+        guard artboardDocument.artboards.indices.contains(row) else { return nil }
+        let artboard = artboardDocument.artboards[row]
         let cell = NSTableCellView()
         let field = NSTextField(labelWithString: "\(artboard.name) — \(artboard.deviceFrame)")
         field.font = .systemFont(ofSize: 12)
@@ -627,8 +627,8 @@ extension ArtboardWindowController: NSTableViewDataSource, NSTableViewDelegate {
 
     public func tableViewSelectionDidChange(_ notification: Notification) {
         let row = artboardTable.selectedRow
-        guard document.artboards.indices.contains(row) else { return }
-        selectArtboard(id: document.artboards[row].id)
+        guard artboardDocument.artboards.indices.contains(row) else { return }
+        selectArtboard(id: artboardDocument.artboards[row].id)
     }
 }
 

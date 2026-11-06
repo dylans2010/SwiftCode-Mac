@@ -356,7 +356,7 @@ def main():
                            "forecastDaily": 3600, "weatherAlerts": 600, "availability": 3600,
                            "weatherChanges": 3600, "historicalComparisons": 21600},
             "weather": "weather.json", "attribution": "attribution.json",
-            "legalAttributionText": "Fixture data\nMade-up weather values written by the Ycode project for tests and demos.\nNot a forecast for any real place.",
+            "legalAttributionText": "Fixture data\nMade-up weather values written by the SwiftCode project for tests and demos.\nNot a forecast for any real place.",
             "products": {
                 "historicalComparisons": "historical-comparisons.json",
                 "dailyTemperatureStatistics": "daily-temperature-statistics.json",

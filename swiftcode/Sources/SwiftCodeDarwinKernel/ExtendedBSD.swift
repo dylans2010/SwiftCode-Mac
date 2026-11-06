@@ -173,7 +173,7 @@ extension DarwinKernel {
             if let d = try? h.read(upToCount: count), d.count == count { return Array(d) }
         }
         var rng = SystemRandomNumberGenerator()
-        return (0..<count).map { _ in UInt8.random(in: .min ... .max, using: &rng) }
+        return (0..<count).map { _ in UInt8.random(in: UInt8.min...UInt8.max, using: &rng) }
     }
 
     // MARK: Dispatch

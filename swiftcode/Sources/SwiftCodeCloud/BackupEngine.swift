@@ -299,7 +299,7 @@ public final class BackupEngine {
     /// Creates a ZIP of the contents of `directory` at `archive`,
     /// via `/usr/bin/zip`. An empty directory becomes a valid
     /// empty ZIP (end-of-central-directory record only).
-    static func systemCreateArchive(directory: URL, archive: URL) throws {
+    nonisolated static func systemCreateArchive(directory: URL, archive: URL) throws {
         let fileManager = FileManager.default
         let entries = (try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? []
         guard !entries.isEmpty else {
@@ -316,7 +316,7 @@ public final class BackupEngine {
     /// destination afterwards, top level only — the count Legacy
     /// reported was the number of archive entries).
     @discardableResult
-    static func systemExtractArchive(archive: URL, destination: URL) throws -> Int {
+    nonisolated static func systemExtractArchive(archive: URL, destination: URL) throws -> Int {
         try runTool("/usr/bin/unzip", ["-q", "-o", archive.path, "-d", destination.path], currentDirectory: nil)
         return (try? FileManager.default.contentsOfDirectory(atPath: destination.path))?.count ?? 0
     }
@@ -324,7 +324,7 @@ public final class BackupEngine {
     /// Runs a command-line tool, throwing `.missingTool` when the
     /// tool is absent and `.archiveFailed` with the tool's stderr
     /// when it exits non-zero.
-    private static func runTool(_ path: String, _ arguments: [String], currentDirectory: URL?) throws {
+    private nonisolated static func runTool(_ path: String, _ arguments: [String], currentDirectory: URL?) throws {
         guard FileManager.default.isExecutableFile(atPath: path) else {
             throw BackupError.missingTool(path)
         }

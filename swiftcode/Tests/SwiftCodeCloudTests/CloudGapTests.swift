@@ -65,12 +65,12 @@ struct CloudGapTests {
     func beginOAuthResumesOnCallback() async throws {
         let auth = CloudAuthManager(client: AppwriteAccountClient(session: stubSession()), store: MemorySecretStore())
         StubURLProtocol.handler = authHappyPath
-        var opened: URL?
+        let opened = URLBox()
         let task = Task {
-            try await auth.beginOAuth(provider: .google, openURL: { url in opened = url; return true })
+            try await auth.beginOAuth(provider: .google, openURL: { url in opened.value = url; return true })
         }
         try await Task.sleep(nanoseconds: 50_000_000)
-        #expect(opened?.scheme == "https")
+        #expect(opened.value?.scheme == "https")
         let delivered = auth.handleOAuthCallback(URL(string: "appwrite-callback-6a670d0b0022e5f964b4://")!)
         #expect(delivered == nil) // resumed the pending wait; nothing left to return
         let user = try await task.value
@@ -133,6 +133,8 @@ struct CloudGapTests {
             Issue.record("Expected testConnection to throw")
         } catch let error as DatabaseError {
             #expect(error.errorDescription?.contains("HTTP Status Code 401") == true)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -146,6 +148,8 @@ struct CloudGapTests {
             Issue.record("Expected testConnection to throw")
         } catch let error as DatabaseError {
             #expect(error.errorDescription?.contains("Invalid Supabase Project URL") == true)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -194,6 +198,8 @@ struct CloudGapTests {
             if case .queryExecutionFailed = error { } else {
                 Issue.record("Expected queryExecutionFailed, got \(error)")
             }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -206,6 +212,8 @@ struct CloudGapTests {
         } catch let error as DatabaseError {
             #expect(error.errorDescription?.contains("no SQL execution endpoint") == true)
             #expect(error.errorDescription?.contains("SELECT 1") == true)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -301,18 +309,24 @@ struct CloudGapTests {
             Issue.record("Expected performBackup to throw")
         } catch let error as BackupError {
             #expect(error == .unauthenticated)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
         do {
             _ = try await engine.restore(manifest: manifest)
             Issue.record("Expected restore to throw")
         } catch let error as BackupError {
             #expect(error == .unauthenticated)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
         do {
             try await engine.delete(manifest: manifest)
             Issue.record("Expected delete to throw")
         } catch let error as BackupError {
             #expect(error == .unauthenticated)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -340,13 +354,13 @@ struct CloudGapTests {
         let stateDir = appSupport.appendingPathComponent("SwiftCode", isDirectory: true)
         try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
         try Data("state".utf8).write(to: stateDir.appendingPathComponent("state.json"))
-        var archivedStaging: URL?
+        let archivedStaging = URLBox()
         let engine = makeEngine(auth: auth, appSupport: appSupport, createArchive: { staging, archive in
-            archivedStaging = staging
+            archivedStaging.value = staging
             try Data("stub-zip-bytes".utf8).write(to: archive)
         })
         try await engine.performBackup()
-        #expect(archivedStaging != nil)
+        #expect(archivedStaging.value != nil)
         #expect(engine.isCreatingBackup == false)
         #expect(engine.backupProgress == 1.0)
         #expect(engine.statusMessage == "Backup snapshot created successfully.")
@@ -486,51 +500,55 @@ final class RecordingStorageProvider: StorageProvider, @unchecked Sendable {
     private var _deleted: [String] = []
 
     func setFiles(_ files: [String: Data]) async {
-        lock.lock(); defer { lock.unlock() }
-        _files = files
+        lock.withLock { _files = files }
     }
 
     func uploads() async -> [(bucket: String, path: String, data: Data, contentType: String)] {
-        lock.lock(); defer { lock.unlock() }
-        return _uploads
+        lock.withLock { _uploads }
     }
 
     func downloads() async -> [String] {
-        lock.lock(); defer { lock.unlock() }
-        return _downloads
+        lock.withLock { _downloads }
     }
 
     func deleted() async -> [String] {
-        lock.lock(); defer { lock.unlock() }
-        return _deleted
+        lock.withLock { _deleted }
     }
 
     func upload(bucket: String, path: String, data: Data, contentType: String) async throws -> String {
-        lock.lock(); defer { lock.unlock() }
-        _uploads.append((bucket, path, data, contentType))
-        _files[path] = data
+        lock.withLock {
+            _uploads.append((bucket, path, data, contentType))
+            _files[path] = data
+        }
         return path
     }
 
     func download(bucket: String, path: String) async throws -> Data {
-        lock.lock()
-        _downloads.append(path)
-        let data = _files[path]
-        lock.unlock()
+        let data = lock.withLock {
+            _downloads.append(path)
+            return _files[path]
+        }
         guard let data else { throw CloudError.storageError("No such file: \(path)") }
         return data
     }
 
     func delete(bucket: String, path: String) async throws {
-        lock.lock(); defer { lock.unlock() }
-        _deleted.append(path)
-        _files.removeValue(forKey: path)
+        lock.withLock {
+            _deleted.append(path)
+            _files.removeValue(forKey: path)
+        }
     }
 
     func listObjects(bucket: String, prefix: String?) async throws -> [String] {
-        lock.lock(); defer { lock.unlock() }
-        let ids = _files.keys.sorted()
+        let ids = lock.withLock { _files.keys.sorted() }
         guard let prefix, !prefix.isEmpty else { return ids }
         return ids.filter { $0.hasPrefix(prefix) }
     }
+}
+
+
+/// A `@unchecked Sendable` holder for a URL captured by a `@Sendable`
+/// callback in tests.
+final class URLBox: @unchecked Sendable {
+    var value: URL?
 }

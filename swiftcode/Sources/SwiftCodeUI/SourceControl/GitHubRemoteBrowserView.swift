@@ -880,19 +880,19 @@ private struct GitHubNewIssueSheet: View {
     var model: GitHubRemoteBrowserModel
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
-    @State private var body = ""
+    @State private var bodyText = ""
 
     var body: some View {
         Form {
             TextField("Title", text: $title)
-            TextEditor(text: $body)
+            TextEditor(text: $bodyText)
                 .frame(minHeight: 120)
             HStack {
                 Button("Cancel") { dismiss() }
                 Spacer()
                 Button("Create Issue") {
                     Task {
-                        if await model.createIssue(title: title, body: body) {
+                        if await model.createIssue(title: title, body: bodyText) {
                             dismiss()
                         }
                     }
@@ -909,7 +909,7 @@ private struct GitHubNewPullRequestSheet: View {
     var model: GitHubRemoteBrowserModel
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
-    @State private var body = ""
+    @State private var bodyText = ""
     @State private var head = ""
     @State private var base = "main"
 
@@ -918,14 +918,14 @@ private struct GitHubNewPullRequestSheet: View {
             TextField("Title", text: $title)
             TextField("Head branch", text: $head)
             TextField("Base branch", text: $base)
-            TextEditor(text: $body)
+            TextEditor(text: $bodyText)
                 .frame(minHeight: 100)
             HStack {
                 Button("Cancel") { dismiss() }
                 Spacer()
                 Button("Create Pull Request") {
                     Task {
-                        if await model.createPullRequest(title: title, body: body, head: head, base: base) {
+                        if await model.createPullRequest(title: title, body: bodyText, head: head, base: base) {
                             dismiss()
                         }
                     }

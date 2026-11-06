@@ -55,7 +55,7 @@ import SwiftCodeAssistant
                                    connection: c)
             Issue.record("accepted 1900-01-01")
         } catch let e as JSONRPCError {
-            #expect(e.code == -32022 && e.data?["requested"] == "1900-01-01")
+            #expect(e.code == -32022 && e.data?["requested"]?.string == "1900-01-01")
             #expect(e.data?["supported"]?.array?.contains(.string("2025-11-25")) == true)
         }
         // Missing client capabilities: invalid params.
@@ -68,7 +68,7 @@ import SwiftCodeAssistant
     @Test func toolCallsValidateArgumentsAndReportToolErrors() async throws {
         let s = Self.server()
         let ok = try await s.callTool("echo", ["text": "ab", "times": 2])
-        #expect(ok.structured?["text"] == "abab" && !ok.isToolError && ok.resultText.contains("abab"))
+        #expect(ok.structured?["text"]?.string == "abab" && !ok.isToolError && ok.resultText.contains("abab"))
         let missing = try await s.callTool("echo", [:])
         #expect(missing.isToolError && missing.resultText.contains("missing the required argument \"text\""))
         let wrongType = try await s.callTool("echo", ["text": 3])

@@ -99,7 +99,7 @@ public struct PackageCollection: Identifiable, Codable, Hashable {
     }
 }
 
-public struct PackageMetadata: Identifiable, Codable, Hashable {
+public struct PackageMetadata: Identifiable, Codable, Hashable, Sendable {
     public var id: String { cloneUrl }
     public var name: String
     public var fullName: String

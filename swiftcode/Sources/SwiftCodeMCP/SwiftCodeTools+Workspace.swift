@@ -209,7 +209,7 @@ extension SwiftCodeMCPHost {
                                               ignoreCase: call.bool("ignoreCase") ?? true)
         let limit = call.int("limit") ?? 200
         let root = s.model.root
-        let results = await Task.detached { WorkspaceSearch.search(query, in: root, options: options, limit: limit + 1) }.value
+        let results = (await Task.detached { WorkspaceSearch.search(query, in: root, options: options, limit: limit + 1) }.value)
         var matches: [AnyJSON] = []
         var lines: [String] = []
         for f in results {
@@ -261,7 +261,7 @@ extension SwiftCodeMCPHost {
         let query = try call.require("query")
         let limit = call.int("limit") ?? 50
         let files = workspaceFiles(s).filter { $0.hasSuffix(".swift") }
-        let found = await Task.detached { SymbolDocs.search(query, files: files, limit: limit) }.value
+        let found = (await Task.detached { SymbolDocs.search(query, files: files, limit: limit) }.value)
         let json: [AnyJSON] = found.map { d in
             ["name": .string(d.name), "kind": .string(d.kind), "path": .string(relative(d.path, in: s)), "line": .int(d.line),
              "declaration": .string(d.declaration), "documentation": .string(d.documentation)]

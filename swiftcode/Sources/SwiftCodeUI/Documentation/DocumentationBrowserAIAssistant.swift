@@ -1,4 +1,6 @@
 import SwiftUI
+import SwiftCodeIDECore
+import SwiftCodeAssistant
 
 // MARK: - Local AI Co-Pilot tab (Wave 19 slice A)
 //

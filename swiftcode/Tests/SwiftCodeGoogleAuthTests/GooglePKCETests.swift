@@ -139,6 +139,6 @@ struct GoogleLoopbackTests {
     @Test("The preferred loopback ports start with 65000, then 8085 through 8099")
     func preferredLoopbackPorts() {
         #expect(GoogleOAuthConfiguration.preferredLoopbackPorts.first == 65000)
-        #expect(GoogleOAuthConfiguration.preferredLoopbackPorts.dropFirst() == Array(8085...8099))
+        #expect(GoogleOAuthConfiguration.preferredLoopbackPorts.dropFirst().map(Int.init) == Array(8085...8099))
     }
 }

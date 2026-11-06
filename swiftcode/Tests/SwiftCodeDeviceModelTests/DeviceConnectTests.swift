@@ -105,13 +105,21 @@ import Testing
     }
 
     @Test func processRunnerStreamsLinesLive() async throws {
-        var lines: [String] = []
+        let box = LineBox()
         let success = try await DeviceConnectProcessRunner.shared.runStreamingAsync(
             executableURL: URL(fileURLWithPath: "/bin/echo"),
             arguments: ["streamed"],
-            onStdout: { line in lines.append(line) },
+            onStdout: { line in box.append(line) },
             onStderr: { _ in })
         #expect(success)
-        #expect(lines.contains("streamed"))
+        #expect(box.lines.contains("streamed"))
     }
+}
+
+/// A lock-protected accumulator for the `@Sendable` stdout callback.
+private final class LineBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+    var lines: [String] { lock.withLock { storage } }
+    func append(_ line: String) { lock.withLock { storage.append(line) } }
 }

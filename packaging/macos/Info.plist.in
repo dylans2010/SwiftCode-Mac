@@ -27,7 +27,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>@MINIMUM_SYSTEM@</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (c) 2026 MarcoDotIO and the Ycode contributors. MIT License.</string>
+	<string>Copyright (c) 2026 MarcoDotIO and the SwiftCode contributors. MIT License.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSHighResolutionCapable</key>

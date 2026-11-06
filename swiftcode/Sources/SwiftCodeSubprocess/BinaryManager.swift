@@ -196,6 +196,5 @@ public actor BinaryManager {
             stderr: String(data: stderrData, encoding: .utf8) ?? "",
             exitCode: process.terminationStatus
         )
-        #endif
     }
 }

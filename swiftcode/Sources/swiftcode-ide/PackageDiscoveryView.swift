@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftCodeIDEShell
 
 /// Package discovery — Legacy's `PackageExplorerView`, `PackageDetailsView`,
 /// `PackageInstallationView`, `PackageCollectionsView`,

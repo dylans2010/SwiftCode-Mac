@@ -31,7 +31,7 @@ import SwiftCodeAssistant
                                                  "manage_memory", "conversation_context_manager"])
         let list = try await host.server.handle(method: "tools/list", params: nil, connection: MCPServer.Connection())
         let tools = list["tools"]?.array ?? []
-        func listing(_ name: String) throws -> AnyJSON { try #require(tools.first { $0["name"] == name }) }
+        func listing(_ name: String) throws -> AnyJSON { try #require(tools.first { $0["name"]?.string == name }) }
         func required(_ name: String) throws -> [String] {
             try listing(name)["inputSchema"]?["required"]?.array?.compactMap(\.string) ?? []
         }
@@ -72,14 +72,14 @@ import SwiftCodeAssistant
         #expect(missing.isToolError && missing.resultText.contains("Key not found in memory: nope"))
 
         let stored = try await host.server.callTool("mem_store", ["key": .string("ArchitectureStyle"), "value": .string("MVVM")])
-        #expect(!stored.isToolError && stored.structured?["key"] == "ArchitectureStyle")
+        #expect(!stored.isToolError && stored.structured?["key"]?.string == "ArchitectureStyle")
         #expect(stored.resultText.contains("Stored in memory: ArchitectureStyle"))
 
         // Overwrite: the latest value wins, like Legacy's graph.
         let overwritten = try await host.server.callTool("mem_store", ["key": .string("ArchitectureStyle"), "value": .string("TCA")])
         #expect(!overwritten.isToolError)
         let retrieved = try await host.server.callTool("mem_retrieve", ["key": .string("ArchitectureStyle")])
-        #expect(retrieved.structured?["value"] == "TCA" && retrieved.resultText.contains("Retrieved from memory: ArchitectureStyle"))
+        #expect(retrieved.structured?["value"]?.string == "TCA" && retrieved.resultText.contains("Retrieved from memory: ArchitectureStyle"))
 
         // Missing parameters fail with Legacy's messages.
         let noKey = try await host.server.callTool("mem_store", ["value": .string("x")])
@@ -88,7 +88,7 @@ import SwiftCodeAssistant
         #expect(noValue.isToolError)
 
         let cleared = try await host.server.callTool("mem_clear")
-        #expect(!cleared.isToolError && cleared.structured?["cleared"] == true && cleared.structured?["entriesCleared"]?.int == 1)
+        #expect(!cleared.isToolError && cleared.structured?["cleared"]?.bool == true && cleared.structured?["entriesCleared"]?.int == 1)
         #expect(cleared.resultText.contains("Memory cleared."))
         let gone = try await host.server.callTool("mem_retrieve", ["key": .string("ArchitectureStyle")])
         #expect(gone.isToolError && gone.resultText.contains("Key not found in memory: ArchitectureStyle"))
@@ -107,7 +107,7 @@ import SwiftCodeAssistant
         #expect(leaked.isToolError && leaked.resultText.contains("Key not found in memory: only_here"))
         // The first workspace still has it.
         let kept = try await hostA.server.callTool("mem_retrieve", ["key": .string("only_here")])
-        #expect(kept.structured?["value"] == "yes")
+        #expect(kept.structured?["value"]?.string == "yes")
     }
 
     @Test func contextSnapshotStoresMarkerInGraph() async throws {
@@ -119,7 +119,7 @@ import SwiftCodeAssistant
         let key = try #require(snap.structured?["snapshot_key"]?.string)
         #expect(key.hasPrefix("context_snapshot:"))
         // SwiftCode has no snapshot store, so latest_snapshot is "none".
-        #expect(snap.structured?["latest_snapshot"] == "none")
+        #expect(snap.structured?["latest_snapshot"]?.string == "none")
         // The marker is a real graph entry, retrievable as stored.
         let back = try await host.server.callTool("mem_retrieve", ["key": .string(key)])
         let payload = try #require(back.structured?["value"]?.string)
@@ -132,27 +132,27 @@ import SwiftCodeAssistant
         let host = try await opened(sample, policy: .allow)
         // A missing key reads as "" (Legacy's `db[key] ?? ""`).
         let empty = try await host.server.callTool("context_persistence_store", ["key": .string("focus")])
-        #expect(!empty.isToolError && empty.structured?["value"] == "" && empty.resultText.contains("Retrieved context for key focus"))
+        #expect(!empty.isToolError && empty.structured?["value"]?.string == "" && empty.resultText.contains("Retrieved context for key focus"))
 
         let set = try await host.server.callTool("context_persistence_store",
                                                  ["key": .string("focus"), "action": .string("set"), "value": .string("editor")])
-        #expect(!set.isToolError && set.structured?["value"] == "editor")
+        #expect(!set.isToolError && set.structured?["value"]?.string == "editor")
         #expect(set.resultText.contains("Stored context for key focus"))
         #expect(sample.read(".assist_context_store.json").contains("\"focus\""))
 
         let got = try await host.server.callTool("context_persistence_store", ["key": .string("focus"), "action": .string("get")])
-        #expect(got.structured?["value"] == "editor")
+        #expect(got.structured?["value"]?.string == "editor")
 
         // An unknown action falls through to a get, like Legacy's
         // default case.
         let unknown = try await host.server.callTool("context_persistence_store", ["key": .string("focus"), "action": .string("bogus")])
-        #expect(!unknown.isToolError && unknown.structured?["value"] == "editor")
+        #expect(!unknown.isToolError && unknown.structured?["value"]?.string == "editor")
 
         let deleted = try await host.server.callTool("context_persistence_store", ["key": .string("focus"), "action": .string("delete")])
         #expect(!deleted.isToolError && deleted.resultText.contains("Deleted key focus"))
         #expect(!sample.read(".assist_context_store.json").contains("focus"))
         let gone = try await host.server.callTool("context_persistence_store", ["key": .string("focus")])
-        #expect(gone.structured?["value"] == "")
+        #expect(gone.structured?["value"]?.string == "")
 
         // Legacy's failure messages.
         let noKey = try await host.server.callTool("context_persistence_store", ["action": .string("get")])
@@ -170,7 +170,7 @@ import SwiftCodeAssistant
                                                  ["key": .string("tricky"), "action": .string("set"), "value": .string(tricky)])
         #expect(!set.isToolError, "\(set.resultText)")
         let got = try await host.server.callTool("context_persistence_store", ["key": .string("tricky")])
-        #expect(got.structured?["value"] == tricky)
+        #expect(got.structured?["value"]?.string == tricky)
     }
 
     @Test func durableMemorySaveViewManageRoundTrip() async throws {
@@ -178,14 +178,14 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
         let empty = try await host.server.callTool("view_memory")
-        #expect(!empty.isToolError && empty.structured?["count"] == 0
+        #expect(!empty.isToolError && empty.structured?["count"]?.int == 0
                 && empty.resultText.contains("No memories are currently stored in UserMemory.md."))
 
         let saved = try await host.server.callTool("save_to_memory",
                                                    ["key": .string("ArchitectureStyle"), "value": .string("MVVM + Observation"),
                                                     "category": .string("Preferences")])
         #expect(!saved.isToolError, "\(saved.resultText)")
-        #expect(saved.structured?["category"] == "Preferences")
+        #expect(saved.structured?["category"]?.string == "Preferences")
         #expect(saved.resultText.contains("Saved to memory [Preferences]: **ArchitectureStyle** = MVVM + Observation"))
         #expect(saved.resultText.contains("Persisted to .assist_temp/memory/UserMemory.md"))
         let file = sample.read(".assist_temp/memory/UserMemory.md")
@@ -196,21 +196,21 @@ import SwiftCodeAssistant
         // case-insensitive on edit (Legacy's saveMemory upsert).
         let second = try await host.server.callTool("save_to_memory",
                                                     ["key": .string("ConcurrencyRule"), "value": .string("Swift 6 strict")])
-        #expect(second.structured?["category"] == "General")
+        #expect(second.structured?["category"]?.string == "General")
         let edited = try await host.server.callTool("manage_memory",
                                                     ["action": .string("edit"), "key": .string("architecturestyle"),
                                                      "value": .string("TCA"), "category": .string("Architecture")])
         #expect(!edited.isToolError && edited.resultText.contains("Memory 'architecturestyle' successfully updated in UserMemory.md."))
 
         let all = try await host.server.callTool("view_memory")
-        #expect(all.structured?["count"] == 2 && all.resultText.contains("### Active User Memories (2 items):"))
+        #expect(all.structured?["count"]?.int == 2 && all.resultText.contains("### Active User Memories (2 items):"))
         #expect(all.resultText.contains("- [Architecture] **ArchitectureStyle**: TCA"))
         let byCategory = try await host.server.callTool("view_memory", ["category": .string("general")])
-        #expect(byCategory.structured?["count"] == 1)
+        #expect(byCategory.structured?["count"]?.int == 1)
         let byQuery = try await host.server.callTool("view_memory", ["query": .string("swift 6")])
-        #expect(byQuery.structured?["count"] == 1)
+        #expect(byQuery.structured?["count"]?.int == 1)
         let noMatch = try await host.server.callTool("view_memory", ["query": .string("zzz-no-such-memory")])
-        #expect(noMatch.structured?["count"] == 0 && noMatch.resultText.contains("No memory items matched the filter. Full UserMemory.md:"))
+        #expect(noMatch.structured?["count"]?.int == 0 && noMatch.resultText.contains("No memory items matched the filter. Full UserMemory.md:"))
 
         // Delete is case-insensitive; deleting twice fails the second time.
         let deleted = try await host.server.callTool("manage_memory", ["action": .string("delete"), "key": .string("CONCURRENCYRULE")])
@@ -232,7 +232,7 @@ import SwiftCodeAssistant
         // After a clear the file holds only the header, so Legacy's
         // view falls back to printing the whole (header-only) file.
         let afterClear = try await host.server.callTool("view_memory")
-        #expect(afterClear.structured?["count"] == 0
+        #expect(afterClear.structured?["count"]?.int == 0
                 && afterClear.resultText.contains("No memory items matched the filter. Full UserMemory.md:"))
     }
 
@@ -246,7 +246,7 @@ import SwiftCodeAssistant
         #expect(!saved.isToolError)
         let hostB = try await opened(second, policy: .allow)
         let viewed = try await hostB.server.callTool("view_memory")
-        #expect(viewed.structured?["count"] == 0)
+        #expect(viewed.structured?["count"]?.int == 0)
         #expect(!FileManager.default.fileExists(atPath: second.path(".assist_temp/memory/UserMemory.md")))
     }
 
@@ -288,13 +288,16 @@ import SwiftCodeAssistant
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample) // default policy: .readOnly
-        for (name, args) in [("mem_store", ["key": .string("k"), "value": .string("v")]),
-                             ("mem_clear", [:]),
-                             ("mem_context_snapshot", [:]),
-                             ("context_persistence_store", ["key": .string("k"), "action": .string("set"), "value": .string("v")]),
-                             ("save_to_memory", ["key": .string("k"), "value": .string("v")]),
-                             ("manage_memory", ["action": .string("clear")]),
-                             ("conversation_context_manager", ["action": .string("update_summary"), "notes": .string("n")])] {
+        let cases: [(String, [String: AnyJSON])] = [
+            ("mem_store", ["key": .string("k"), "value": .string("v")]),
+            ("mem_clear", [:]),
+            ("mem_context_snapshot", [:]),
+            ("context_persistence_store", ["key": .string("k"), "action": .string("set"), "value": .string("v")]),
+            ("save_to_memory", ["key": .string("k"), "value": .string("v")]),
+            ("manage_memory", ["action": .string("clear")]),
+            ("conversation_context_manager", ["action": .string("update_summary"), "notes": .string("n")]),
+        ]
+        for (name, args) in cases {
             let r = try await host.server.callTool(name, args)
             #expect(r.isToolError && r.resultText.contains("read-only"), "\(name): \(r.resultText)")
         }

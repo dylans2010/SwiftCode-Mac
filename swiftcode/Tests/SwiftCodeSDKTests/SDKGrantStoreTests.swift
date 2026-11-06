@@ -114,7 +114,8 @@ final class SDKGrantStoreTests: XCTestCase {
         // successes.
         try await store.revoke(extensionID: testExtensionID, capability: .workspaceRead)
         try await store.revoke(extensionID: testExtensionID, capability: .buildExecute)
-        XCTAssertEqual(await store.grants(for: testExtensionID).count, 1)
+        let grantCount = await store.grants(for: testExtensionID).count
+        XCTAssertEqual(grantCount, 1)
     }
 
     func testRevokeAllStampsEveryRecord() async throws {
@@ -146,8 +147,9 @@ final class SDKGrantStoreTests: XCTestCase {
         // A flat grant is not project-scoped: the empty scope never
         // authorizes, so the tombstone can never be mistaken for a grant.
         XCTAssertEqual(all[0].scope.projectRootPath, "")
-        XCTAssertNil(await store.activeGrant(
-            extensionID: testExtensionID, capability: .workspaceRead, projectRootPath: "/tmp/TestProject"))
+        let active = await store.activeGrant(
+            extensionID: testExtensionID, capability: .workspaceRead, projectRootPath: "/tmp/TestProject")
+        XCTAssertNil(active)
     }
 
     // MARK: - Expiry pruning
@@ -194,7 +196,8 @@ final class SDKGrantStoreTests: XCTestCase {
             XCTAssertEqual(sdkError.code, .apiKeyScopeInsufficient)
         }
         // Fail closed: NOTHING was persisted.
-        XCTAssertTrue(await store.grants(for: testExtensionID).isEmpty)
+        let isEmpty = await store.grants(for: testExtensionID).isEmpty
+        XCTAssertTrue(isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: storeURL().path))
     }
 
@@ -210,7 +213,8 @@ final class SDKGrantStoreTests: XCTestCase {
             [record(capability: .workspaceWrite)],
             authorizedByAPIKey: key
         )
-        XCTAssertEqual(await store.grants(for: testExtensionID).count, 1)
+        let grantCount = await store.grants(for: testExtensionID).count
+        XCTAssertEqual(grantCount, 1)
     }
 
     func testNonPrivilegedGrantNeedsNoScope() async throws {
@@ -226,7 +230,8 @@ final class SDKGrantStoreTests: XCTestCase {
             [record(capability: .workspaceRead)],
             authorizedByAPIKey: key
         )
-        XCTAssertEqual(await store.grants(for: testExtensionID).count, 1)
+        let grantCount = await store.grants(for: testExtensionID).count
+        XCTAssertEqual(grantCount, 1)
     }
 
     // MARK: - Corrupt file handling
@@ -235,7 +240,8 @@ final class SDKGrantStoreTests: XCTestCase {
         let url = storeURL()
         try "this is not JSON".write(to: url, atomically: true, encoding: .utf8)
         let store = SDKGrantStore(storeURL: url)
-        XCTAssertTrue(await store.grants(for: testExtensionID).isEmpty)
+        let isEmpty = await store.grants(for: testExtensionID).isEmpty
+        XCTAssertTrue(isEmpty)
 
         // The corrupt file was moved aside (never silently deleted), and
         // the store is usable afterwards.
@@ -243,6 +249,7 @@ final class SDKGrantStoreTests: XCTestCase {
             at: tempDir, includingPropertiesForKeys: nil)
         XCTAssertTrue(siblings.contains { $0.lastPathComponent.hasPrefix("SDKGrants.json.corrupt-") })
         try await store.recordGrants([record()])
-        XCTAssertEqual(await store.grants(for: testExtensionID).count, 1)
+        let grantCount = await store.grants(for: testExtensionID).count
+        XCTAssertEqual(grantCount, 1)
     }
 }

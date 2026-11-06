@@ -94,7 +94,7 @@ import Testing
         #expect(!gpt.config.model.contains("gemini"))
     }
 
-    @Test func failoverNeverSilentlyFallsBackToGemini() async {
+    @Test func failoverNeverSilentlyFallsBackToGemini() async throws {
         struct E: LocalizedError { let message: String; var errorDescription: String? { message } }
         let candidates = [
             AssistCandidateModel(id: "anthropic/claude-sonnet-4-5", displayName: "Claude Sonnet",
@@ -102,7 +102,7 @@ import Testing
             AssistCandidateModel(id: "anthropic/claude-haiku-4-5", displayName: "Claude Haiku",
                                  provider: .openRouter, priority: 5, source: .provider),
             AssistCandidateModel(id: "google/gemini-2.5-pro", displayName: "Gemini Pro",
-                                 provider: .openRouter, priority: 10, contextWindow: 1_000_000,
+                                 provider: .openRouter, contextWindow: 1_000_000, priority: 10,
                                  source: .provider),
         ]
         let router = AssistModelRouter()

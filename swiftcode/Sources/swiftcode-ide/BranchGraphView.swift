@@ -112,7 +112,7 @@ struct BranchGraphView: View {
                 graphLines = output.components(separatedBy: .newlines)
             case .failure(let error):
                 graphLines = []
-                errorMessage = error
+                errorMessage = error.message
             }
             isLoading = false
         }
@@ -122,8 +122,14 @@ struct BranchGraphView: View {
 /// Runs git and returns its stdout, or a human-readable failure.
 /// `git` is resolved from the PATH so a developer's installed git is
 /// used rather than a hardcoded location that may not exist.
+/// A git invocation failure, carrying the user-facing message.
+struct BranchGraphError: Error, CustomStringConvertible, Sendable {
+    let message: String
+    var description: String { message }
+}
+
 enum BranchGraphRunner {
-    static func run(git arguments: [String], in directory: URL) async -> Result<String, String> {
+    static func run(git arguments: [String], in directory: URL) async -> Result<String, BranchGraphError> {
         await Task.detached(priority: .userInitiated) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -136,16 +142,16 @@ enum BranchGraphRunner {
             do {
                 try process.run()
             } catch {
-                return .failure("Could not run git: \(error.localizedDescription)")
+                return .failure(BranchGraphError(message: "Could not run git: \(error.localizedDescription)"))
             }
             process.waitUntilExit()
             let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             guard process.terminationStatus == 0 else {
                 let detail = String(decoding: errorPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                return .failure(detail.isEmpty
+                return .failure(BranchGraphError(message: detail.isEmpty
                     ? "git exited with status \(process.terminationStatus)"
-                    : detail)
+                    : detail))
             }
             return .success(output)
         }.value

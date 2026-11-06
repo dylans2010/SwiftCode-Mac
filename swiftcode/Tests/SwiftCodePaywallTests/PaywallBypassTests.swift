@@ -15,7 +15,7 @@ struct PaywallBypassTests {
     @Test("The bypass flag defaults to off")
     func bypassDefaultsOff() throws {
         let defaults = try #require(UserDefaults(suiteName: "swiftcode-paywall-\(UUID().uuidString)"))
-        let bypass = PaywallBypass(defaults: defaults)
+        var bypass = PaywallBypass(defaults: defaults)
         #expect(!bypass.isEnabled)
     }
 
@@ -23,7 +23,7 @@ struct PaywallBypassTests {
     func bypassRoundTrips() throws {
         let suite = "swiftcode-paywall-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
-        let bypass = PaywallBypass(defaults: defaults)
+        var bypass = PaywallBypass(defaults: defaults)
         bypass.isEnabled = true
         #expect(bypass.isEnabled)
         #expect(PaywallBypass(defaults: defaults).isEnabled)

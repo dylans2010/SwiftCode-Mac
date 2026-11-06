@@ -13,9 +13,14 @@ public struct GitHubRelease: Sendable, Equatable, Decodable, Identifiable {
     public var createdAt: Date?
     public var publishedAt: Date?
     public var htmlUrl: String?
+    /// Assets embedded in the release payload (Legacy's
+    /// `GitHubService.GitHubRelease.assets`). Empty when the payload
+    /// omits them; the Releases view reads them from
+    /// `GitHubReleaseClient.listReleaseAssets` when it needs the full list.
+    public var assets: [GitHubReleaseAsset]
 
     private enum CodingKeys: String, CodingKey {
-        case id, tagName, name, body, draft, prerelease, author, createdAt, publishedAt, htmlUrl
+        case id, tagName, name, body, draft, prerelease, author, createdAt, publishedAt, htmlUrl, assets
     }
 
     private enum AuthorKeys: String, CodingKey {
@@ -33,6 +38,7 @@ public struct GitHubRelease: Sendable, Equatable, Decodable, Identifiable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         publishedAt = try container.decodeIfPresent(Date.self, forKey: .publishedAt)
         htmlUrl = try container.decodeIfPresent(String.self, forKey: .htmlUrl)
+        assets = (try? container.decodeIfPresent([GitHubReleaseAsset].self, forKey: .assets)) ?? []
         if let author = try? container.nestedContainer(keyedBy: AuthorKeys.self, forKey: .author) {
             authorLogin = try author.decodeIfPresent(String.self, forKey: .login)
         } else {
@@ -51,6 +57,21 @@ public struct GitHubReleaseAsset: Sendable, Equatable, Decodable, Identifiable {
     public var downloadCount: Int
     public var browserDownloadUrl: String?
     public var contentType: String?
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        size = try container.decodeIfPresent(Int.self, forKey: .size) ?? 0
+        downloadCount = try container.decodeIfPresent(Int.self, forKey: .downloadCount) ?? 0
+        browserDownloadUrl = try container.decodeIfPresent(String.self, forKey: .browserDownloadUrl)
+        contentType = try container.decodeIfPresent(String.self, forKey: .contentType)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, label, size, downloadCount, browserDownloadUrl, contentType
+    }
 }
 
 /// The api.github.com releases client. There is no releases surface

@@ -116,7 +116,7 @@ import SwiftCodeAssistant
         // The bare Greeter sample has no .xcassets catalog.
         let none = try await host.server.callTool("asset_catalog_list")
         #expect(!none.isToolError, "\(none.resultText)")
-        #expect(none.structured?["catalogCount"] == 0 && none.structured?["totalSets"] == 0)
+        #expect(none.structured?["catalogCount"]?.int == 0 && none.structured?["totalSets"]?.int == 0)
         #expect(none.firstText.contains("No .xcassets catalogs found."))
         try writeFixture(sample, "Assets.xcassets/Contents.json", "{\"info\" : {\"author\" : \"xcode\", \"version\" : 1}}")
         try writeFixture(sample, "Assets.xcassets/AppIcon.appiconset/Contents.json", "{}")
@@ -128,14 +128,14 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Nested/Extra.xcassets/Icon.imageset/Contents.json", "{}")
         let all = try await host.server.callTool("asset_catalog_list")
         #expect(!all.isToolError, "\(all.resultText)")
-        #expect(all.structured?["catalogCount"] == 2 && all.structured?["totalSets"] == 6)
+        #expect(all.structured?["catalogCount"]?.int == 2 && all.structured?["totalSets"]?.int == 6)
         #expect(all.firstText.contains("Found 2 catalog(s) with 6 set(s) total."))
         #expect(all.firstText.contains("Assets.xcassets: 5 set(s)"))
         #expect(all.firstText.contains("  - Logo.imageset"))
         #expect(all.firstText.contains("Nested/Extra.xcassets: 1 set(s)"))
         let one = try await host.server.callTool("asset_catalog_list", ["path": .string("Assets.xcassets")])
         #expect(!one.isToolError, "\(one.resultText)")
-        #expect(one.structured?["catalogCount"] == 1 && one.structured?["totalSets"] == 5)
+        #expect(one.structured?["catalogCount"]?.int == 1 && one.structured?["totalSets"]?.int == 5)
         let missing = try await host.server.callTool("asset_catalog_list", ["path": .string("Nope")])
         #expect(missing.isToolError && missing.firstText.contains("Path 'Nope' does not exist or is not a directory."))
         let outside = try await host.server.callTool("asset_catalog_list", ["path": .string("../outside")])
@@ -207,8 +207,8 @@ import SwiftCodeAssistant
                                                ["catalog": .string("Assets.xcassets"), "imageName": .string("Logo"),
                                                 "sourcePath": .string("logo.png")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["catalog"] == "Assets.xcassets" && r.structured?["imageName"] == "Logo")
-        #expect(r.structured?["imageSet"] == "Assets.xcassets/Logo.imageset" && r.structured?["fileName"] == "logo.png")
+        #expect(r.structured?["catalog"]?.string == "Assets.xcassets" && r.structured?["imageName"]?.string == "Logo")
+        #expect(r.structured?["imageSet"]?.string == "Assets.xcassets/Logo.imageset" && r.structured?["fileName"]?.string == "logo.png")
         #expect(r.firstText.contains("Added image 'Logo' to 'Assets.xcassets' as Assets.xcassets/Logo.imageset with file logo.png."))
         #expect(sample.read("Assets.xcassets/Logo.imageset/Contents.json").contains("\"filename\" : \"logo.png\""))
         #expect(sample.read("Assets.xcassets/Logo.imageset/logo.png") == "PNGDATA")
@@ -238,7 +238,7 @@ import SwiftCodeAssistant
                                                    ["catalog": .string("Assets.xcassets"), "imageName": .string("Icon"),
                                                     "sourcePath": .string("icon")])
         #expect(!noExt.isToolError, "\(noExt.resultText)")
-        #expect(noExt.structured?["fileName"] == "image.png")
+        #expect(noExt.structured?["fileName"]?.string == "image.png")
         #expect(sample.read("Assets.xcassets/Icon.imageset/image.png") == "ICONDATA")
         let noArgs = try await host.server.callTool("asset_image_add", ["catalog": .string("Assets.xcassets")])
         #expect(noArgs.isToolError)
@@ -259,8 +259,8 @@ import SwiftCodeAssistant
                          "import Foundation\npublic enum UseStrings {\n    public static let hello = NSLocalizedString(\"hello\", comment: \"\")\n}\n")
         let r = try await host.server.callTool("localization_audit")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["localeCount"] == 2 && r.structured?["totalKeys"] == 2)
-        #expect(r.structured?["unusedCount"] == 1 && r.structured?["unused"] == "goodbye")
+        #expect(r.structured?["localeCount"]?.int == 2 && r.structured?["totalKeys"]?.int == 2)
+        #expect(r.structured?["unusedCount"]?.int == 1 && r.structured?["unused"]?.string == "goodbye")
         #expect(r.firstText.contains("Locales: en, es"))
         #expect(r.firstText.contains("Total distinct keys: 2"))
         #expect(r.firstText.contains("en: complete (2 keys)"))
@@ -280,8 +280,8 @@ import SwiftCodeAssistant
         // "world" in main.swift), so nothing is unused.
         let r = try await host.server.callTool("localization_audit")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["localeCount"] == 1 && r.structured?["totalKeys"] == 2)
-        #expect(r.structured?["unusedCount"] == 0)
+        #expect(r.structured?["localeCount"]?.int == 1 && r.structured?["totalKeys"]?.int == 2)
+        #expect(r.structured?["unusedCount"]?.int == 0)
         #expect(r.firstText.contains("Locales: de"))
         #expect(r.firstText.contains("de: complete (2 keys)"))
         #expect(r.firstText.contains("Unused keys: none found (all keys referenced in Swift files)."))
@@ -294,7 +294,7 @@ import SwiftCodeAssistant
         let host = try await opened(sample)
         let r = try await host.server.callTool("localization_audit")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["localeCount"] == 0 && r.structured?["totalKeys"] == 0)
+        #expect(r.structured?["localeCount"]?.int == 0 && r.structured?["totalKeys"]?.int == 0)
         #expect(r.firstText.contains("No Localizable.strings or Localizable.xcstrings files found."))
     }
 
@@ -309,7 +309,7 @@ import SwiftCodeAssistant
         let langs = try await host.server.callTool("localization_manager",
                                                    ["action": .string("list_languages"), "filePath": .string("en.lproj/Localizable.strings")])
         #expect(!langs.isToolError, "\(langs.resultText)")
-        #expect(langs.structured?["languages"] == "en, es" && langs.structured?["count"] == 2)
+        #expect(langs.structured?["languages"]?.string == "en, es" && langs.structured?["count"]?.int == 2)
         #expect(langs.firstText.contains("Languages (2): en, es"))
         let read = try await host.server.callTool("localization_manager",
                                                   ["action": .string("read_key"), "filePath": .string("en.lproj/Localizable.strings"),
@@ -367,7 +367,7 @@ import SwiftCodeAssistant
                                                      ["action": .string("read_key"), "filePath": .string("de.lproj/Localizable.xcstrings"),
                                                       "key": .string("Hello")])
         #expect(!foundDe.isToolError, "\(foundDe.resultText)")
-        #expect(foundDe.structured?["value"] == "Hallo" && foundDe.structured?["locale"] == "de")
+        #expect(foundDe.structured?["value"]?.string == "Hallo" && foundDe.structured?["locale"]?.string == "de")
         #expect(foundDe.firstText.contains("Key 'Hello' (de) = \"Hallo\" in Localizable.xcstrings."))
         let added = try await host.server.callTool("localization_manager",
                                                    ["action": .string("add_translation"), "filePath": .string("de.lproj/Localizable.xcstrings"),
@@ -382,7 +382,7 @@ import SwiftCodeAssistant
         let langs = try await host.server.callTool("localization_manager",
                                                    ["action": .string("list_languages"), "filePath": .string("Strings/Localizable.xcstrings")])
         #expect(!langs.isToolError, "\(langs.resultText)")
-        #expect(langs.structured?["languages"] == "de, en" && langs.structured?["count"] == 2)
+        #expect(langs.structured?["languages"]?.string == "de, en" && langs.structured?["count"]?.int == 2)
         // .stringsdict: read works, add_translation is honestly refused.
         try writeFixture(sample, "Dict.stringsdict", """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -433,7 +433,7 @@ import SwiftCodeAssistant
         // Discovery: en.lproj/Localizable.strings is the first candidate.
         let get = try await host.server.callTool("strings_localization", ["key": .string("greeting")])
         #expect(!get.isToolError, "\(get.resultText)")
-        #expect(get.structured?["value"] == "Hello" && get.structured?["file"] == "Localizable.strings")
+        #expect(get.structured?["value"]?.string == "Hello" && get.structured?["file"]?.string == "Localizable.strings")
         #expect(get.firstText.contains("Key 'greeting' = \"Hello\" in Localizable.strings."))
         let set = try await host.server.callTool("strings_localization",
                                                  ["action": .string("set"), "key": .string("farewell"), "value": .string("Goodbye")])
@@ -473,7 +473,7 @@ import SwiftCodeAssistant
         let get = try await host.server.callTool("strings_localization",
                                                  ["key": .string("Hello"), "locale": .string("de")])
         #expect(!get.isToolError, "\(get.resultText)")
-        #expect(get.structured?["value"] == "Hallo" && get.structured?["locale"] == "de")
+        #expect(get.structured?["value"]?.string == "Hallo" && get.structured?["locale"]?.string == "de")
         let set = try await host.server.callTool("strings_localization",
                                                  ["action": .string("set"), "key": .string("world"),
                                                   "locale": .string("de"), "value": .string("Welt")])
@@ -481,7 +481,7 @@ import SwiftCodeAssistant
         #expect(set.firstText.contains("Set key 'world' (de) in Localizable.xcstrings."))
         let again = try await host.server.callTool("strings_localization",
                                                    ["key": .string("world"), "locale": .string("de")])
-        #expect(!again.isToolError && again.structured?["value"] == "Welt")
+        #expect(!again.isToolError && again.structured?["value"]?.string == "Welt")
         let deleted = try await host.server.callTool("strings_localization",
                                                      ["action": .string("delete"), "key": .string("world"), "locale": .string("de")])
         #expect(!deleted.isToolError, "\(deleted.resultText)")
@@ -534,9 +534,9 @@ import SwiftCodeAssistant
                          "// comment\n\"ok\" = \"OK\";\n\"empty\" = \"\";\n\"ok\" = \"Again\";\nthis is not an entry\n\"unterminated\" = \"Oops\"\n")
         let r = try await host.server.callTool("strings_file_validate", ["path": .string("Check.strings")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["valid"] == 3 && r.structured?["duplicates"] == 1)
-        #expect(r.structured?["malformed"] == 2 && r.structured?["emptyValues"] == 1)
-        #expect(r.structured?["passed"] == false)
+        #expect(r.structured?["valid"]?.int == 3 && r.structured?["duplicates"]?.int == 1)
+        #expect(r.structured?["malformed"]?.int == 2 && r.structured?["emptyValues"]?.int == 1)
+        #expect(r.structured?["passed"]?.bool == false)
         #expect(r.firstText.contains("Strings validation for Check.strings:"))
         #expect(r.firstText.contains("- Valid entries: 3"))
         #expect(r.firstText.contains("  DUPLICATE: ok"))
@@ -545,8 +545,8 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("  EMPTY VALUE: empty"))
         try writeFixture(sample, "Good.strings", "\"a\" = \"A\";\n\"b\" = \"B\";\n")
         let good = try await host.server.callTool("strings_file_validate", ["path": .string("Good.strings")])
-        #expect(!good.isToolError && good.structured?["passed"] == true)
-        #expect(good.structured?["valid"] == 2 && good.structured?["malformed"] == 0)
+        #expect(!good.isToolError && good.structured?["passed"]?.bool == true)
+        #expect(good.structured?["valid"]?.int == 2 && good.structured?["malformed"]?.int == 0)
         let missing = try await host.server.callTool("strings_file_validate", ["path": .string("Nope.strings")])
         #expect(missing.isToolError && missing.firstText.contains("Cannot read file at: Nope.strings"))
         try writeFixture(sample, "Empty.strings", "")
@@ -575,8 +575,8 @@ import SwiftCodeAssistant
                          """)
         let status = try await host.server.callTool("localize_app", ["action": .string("status")])
         #expect(!status.isToolError, "\(status.resultText)")
-        #expect(status.structured?["count"] == 2 && status.structured?["languages"] == "de")
-        #expect(status.structured?["sourceLanguage"] == "en" && status.structured?["layoutDirection"] == "ltr")
+        #expect(status.structured?["count"]?.int == 2 && status.structured?["languages"]?.string == "de")
+        #expect(status.structured?["sourceLanguage"]?.string == "en" && status.structured?["layoutDirection"]?.string == "ltr")
         #expect(status.firstText.contains("Localization status:"))
         #expect(status.firstText.contains("- Discovered keys in Swift: 2"))
         #expect(status.firstText.contains("- String Catalog: present (2 keys, languages: de)"))
@@ -585,9 +585,9 @@ import SwiftCodeAssistant
                                                        ["languages": .array([.string("es"), .string("fr")]),
                                                         "translations": .object(["welcome_message": .object(["es": .string("Bienvenido")])])])
         #expect(!localized.isToolError, "\(localized.resultText)")
-        #expect(localized.structured?["count"] == 2 && localized.structured?["languages"] == "es, fr")
-        #expect(localized.structured?["layoutDirection"] == "ltr" && localized.structured?["sourceLanguage"] == "en")
-        #expect(localized.structured?["keysAdded"] == 6)
+        #expect(localized.structured?["count"]?.int == 2 && localized.structured?["languages"]?.string == "es, fr")
+        #expect(localized.structured?["layoutDirection"]?.string == "ltr" && localized.structured?["sourceLanguage"]?.string == "en")
+        #expect(localized.structured?["keysAdded"]?.int == 6)
         #expect(localized.firstText.contains("Localized app into 2 language(s): es, fr."))
         #expect(localized.firstText.contains("- Discovered 2 localizable key(s) in 5 Swift file(s). (1 key(s) use a non-Localizable table and were skipped.)"))
         #expect(localized.firstText.contains("- String Catalog: Strings/Localizable.xcstrings — 4 key(s), 6 new localization(s) added, 0 updated with supplied translations."))
@@ -600,7 +600,7 @@ import SwiftCodeAssistant
         // A second localize into an RTL language reports rtl.
         let rtl = try await host.server.callTool("localize_app", ["languages": .array([.string("ar")])])
         #expect(!rtl.isToolError, "\(rtl.resultText)")
-        #expect(rtl.structured?["layoutDirection"] == "rtl")
+        #expect(rtl.structured?["layoutDirection"]?.string == "rtl")
         #expect(rtl.firstText.contains("- Layout direction: rtl (RTL languages: ar)."))
         let tooMany = try await host.server.callTool("localize_app",
                                                      ["languages": .array([.string("es"), .string("fr"), .string("de"), .string("it")])])
@@ -642,7 +642,7 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("localize_app",
                                                ["action": .string("set_development_region"), "development_region": .string("de")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["path"] == "Info.plist" && r.structured?["sourceLanguage"] == "de")
+        #expect(r.structured?["path"]?.string == "Info.plist" && r.structured?["sourceLanguage"]?.string == "de")
         #expect(r.firstText.contains("Set CFBundleDevelopmentRegion to 'de' (was: 'en')."))
         #expect(r.firstText.contains("Also set the String Catalog source language to de."))
         let plist = sample.read("Info.plist")

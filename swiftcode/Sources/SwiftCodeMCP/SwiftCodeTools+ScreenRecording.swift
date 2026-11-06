@@ -140,7 +140,7 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
     let outputURL: URL
     let width: Int
     let height: Int
-    private let stream: SCStream
+    private var stream: SCStream!
     private let writer: AVAssetWriter
     private let writerInput: AVAssetWriterInput
     private let queue = DispatchQueue(label: "swiftcode.screen-recording")
@@ -161,7 +161,6 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
         config.showsCursor = true
         config.captureResolution = .best
         config.capturesAudio = includeAudio
-        self.stream = SCStream(filter: filter, configuration: config, delegate: nil)
         let fileType: AVFileType = format == "mp4" ? .mp4 : .mov
         self.writer = try AVAssetWriter(url: outputURL, fileType: fileType)
         self.writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -171,7 +170,7 @@ final class ScreenRecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, 
         ])
         writerInput.expectsMediaDataInRealTime = true
         super.init()
-        stream.delegate = self
+        self.stream = SCStream(filter: filter, configuration: config, delegate: self)
         guard writer.canAdd(writerInput) else {
             throw MCPToolError("Could not add a video input to the recording writer.")
         }

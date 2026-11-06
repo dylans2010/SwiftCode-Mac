@@ -3,6 +3,7 @@
 
 #if canImport(AppKit)
 import SwiftUI
+import SwiftCodeUI
 import AppKit
 
 public struct Base64ImageDecoderView: View {

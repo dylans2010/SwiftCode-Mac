@@ -128,12 +128,12 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Package.swift", Self.fixtureManifest)
         let r = try await host.server.callTool("package_manifest_read")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["packageName"] == "Greeter")
-        #expect(r.structured?["platforms"] == "macOS")
-        #expect(r.structured?["products"] == "greet")
-        #expect(r.structured?["targets"] == "Greeter,greet,GreeterTests")
-        #expect(r.structured?["dependencies"] == "https://github.com/apple/swift-argument-parser")
-        #expect(r.structured?["productCount"] == 1 && r.structured?["targetCount"] == 3 && r.structured?["dependencyCount"] == 1)
+        #expect(r.structured?["packageName"]?.string == "Greeter")
+        #expect(r.structured?["platforms"]?.string == "macOS")
+        #expect(r.structured?["products"]?.string == "greet")
+        #expect(r.structured?["targets"]?.string == "Greeter,greet,GreeterTests")
+        #expect(r.structured?["dependencies"]?.string == "https://github.com/apple/swift-argument-parser")
+        #expect(r.structured?["productCount"]?.int == 1 && r.structured?["targetCount"]?.int == 3 && r.structured?["dependencyCount"]?.int == 1)
         #expect(r.firstText.contains("Package: Greeter"))
         #expect(r.firstText.contains("Targets (3): Greeter, greet, GreeterTests"))
         let missing = try await host.server.callTool("package_manifest_read", ["path": .string("Nope.swift")])
@@ -150,9 +150,9 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("package_manifest_validate")
         if canBuildPackages {
             #expect(!r.isToolError, "\(r.resultText)")
-            #expect(r.structured?["packageName"] == "Greeter")
-            #expect(r.structured?["targetCount"] == 3)
-            #expect(r.structured?["exitCode"] == 0)
+            #expect(r.structured?["packageName"]?.string == "Greeter")
+            #expect(r.structured?["targetCount"]?.int == 3)
+            #expect(r.structured?["exitCode"]?.int == 0)
             #expect(r.firstText.contains("Package manifest is valid: Greeter with 3 target(s)."))
         } else {
             #expect(r.isToolError && r.firstText.contains("Swift not found at /usr/bin/swift."))
@@ -203,14 +203,14 @@ import SwiftCodeAssistant
                                                ["url": .string("https://github.com/apple/swift-log"),
                                                 "requirement": .string("1.5.0")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["url"] == "https://github.com/apple/swift-log")
-        #expect(r.structured?["requirement"] == "from: \"1.5.0\"")
-        #expect(r.structured?["alreadyPresent"] == false)
+        #expect(r.structured?["url"]?.string == "https://github.com/apple/swift-log")
+        #expect(r.structured?["requirement"]?.string == "from: \"1.5.0\"")
+        #expect(r.structured?["alreadyPresent"]?.bool == false)
         #expect(read(sample, "Package.swift").contains("https://github.com/apple/swift-log"))
         let again = try await host.server.callTool("package_dependency_add",
                                                    ["url": .string("https://github.com/apple/swift-log")])
         #expect(!again.isToolError, "\(again.resultText)")
-        #expect(again.structured?["alreadyPresent"] == true)
+        #expect(again.structured?["alreadyPresent"]?.bool == true)
         #expect(again.firstText.contains("Dependency already present in Package.swift: https://github.com/apple/swift-log"))
         let badURL = try await host.server.callTool("package_dependency_add",
                                                     ["url": .string("https://example.com/a b")])
@@ -236,7 +236,7 @@ import SwiftCodeAssistant
                                                     "product": .string("Logging"),
                                                     "target": .string("greet")])
         #expect(!fresh.isToolError, "\(fresh.resultText)")
-        #expect(fresh.structured?["targetWiring"] == "wired product 'Logging' into target 'greet'")
+        #expect(fresh.structured?["targetWiring"]?.string == "wired product 'Logging' into target 'greet'")
         #expect(read(sample, "Package.swift").contains("\"Logging\""))
         let missingTarget = try await host.server.callTool("package_dependency_add",
                                                            ["url": .string("https://github.com/apple/swift-nio"),
@@ -281,17 +281,17 @@ import SwiftCodeAssistant
         try writeFixture(sample, "Package.swift", Self.fixtureManifest)
         let unpinned = try await host.server.callTool("package_dependency_audit")
         #expect(!unpinned.isToolError, "\(unpinned.resultText)")
-        #expect(unpinned.structured?["declaredCount"] == 1)
-        #expect(unpinned.structured?["hasResolved"] == false)
-        #expect(unpinned.structured?["unpinnedCount"] == 1)
+        #expect(unpinned.structured?["declaredCount"]?.int == 1)
+        #expect(unpinned.structured?["hasResolved"]?.bool == false)
+        #expect(unpinned.structured?["unpinnedCount"]?.int == 1)
         #expect(unpinned.firstText.contains("Missing Package.resolved: dependencies are not pinned to exact revisions."))
         try writeFixture(sample, "Package.resolved", Self.fixtureResolved)
         let pinned = try await host.server.callTool("package_dependency_audit")
         #expect(!pinned.isToolError, "\(pinned.resultText)")
-        #expect(pinned.structured?["declaredCount"] == 1)
-        #expect(pinned.structured?["pinnedCount"] == 1)
-        #expect(pinned.structured?["hasResolved"] == true)
-        #expect(pinned.structured?["unpinnedCount"] == 1)
+        #expect(pinned.structured?["declaredCount"]?.int == 1)
+        #expect(pinned.structured?["pinnedCount"]?.int == 1)
+        #expect(pinned.structured?["hasResolved"]?.bool == true)
+        #expect(pinned.structured?["unpinnedCount"]?.int == 1)
         #expect(pinned.firstText.contains("swift-argument-parser (requirement: from, resolved: 1.0.0"))
     }
 
@@ -405,7 +405,7 @@ import SwiftCodeAssistant
         let host = try await opened(sample, policy: .allow)
         let r = try await host.server.callTool("docs_generate", ["title": .string("Greeter API")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["output_relative"] == "DOCS_GENERATED.md")
+        #expect(r.structured?["output_relative"]?.string == "DOCS_GENERATED.md")
         #expect((r.structured?["file_count"]?.int ?? 0) > 0)
         #expect((r.structured?["declaration_count"]?.int ?? 0) > 0)
         let generated = read(sample, "DOCS_GENERATED.md")
@@ -437,7 +437,7 @@ import SwiftCodeAssistant
         try writeFixture(sample, "README.md", "No heading here.\n")
         let r = try await host.server.callTool("docs_index_build")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["count"] == 2)
+        #expect(r.structured?["count"]?.int == 2)
         #expect(r.firstText.contains("Markdown index (2 files):"))
         #expect(r.firstText.contains("| Docs/Guide.md | User Guide |"))
         #expect(r.firstText.contains("| README.md | (no title) |"))
@@ -457,7 +457,7 @@ import SwiftCodeAssistant
         // snapshot history this is the honest empty case; on a
         // machine where Legacy snapshots exist the log carries them.
         if !FileManager.default.fileExists(atPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AssistSnapshots").path) {
-            #expect(r.structured?["log"] == "No snapshot history found.")
+            #expect(r.structured?["log"]?.string == "No snapshot history found.")
         }
     }
 }

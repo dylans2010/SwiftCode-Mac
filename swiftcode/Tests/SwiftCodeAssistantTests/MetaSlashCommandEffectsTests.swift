@@ -82,7 +82,7 @@ import Testing
         // The Wave 15 router must see this as a timeout (and,
         // with "Automatically Switch Models" off, never silently
         // substitute another model for it).
-        let error = MuseCodeCLIError.turnTimeout(seconds: 300)
+        let error = MuseCodeCLIError.turnTimeout(300)
         #expect(error.localizedDescription.contains("timed out"))
         #expect(AssistModelRouter.classify(error: error) == .timeout)
     }
@@ -142,7 +142,7 @@ import Testing
                 turnTimeoutSeconds: 1, onEvent: { _ in })
             Issue.record("expected the hanging turn to time out")
         } catch let error as MuseCodeCLIError {
-            #expect(error == .turnTimeout(seconds: 1))
+            #expect(error == .turnTimeout(1))
             #expect(error.localizedDescription.contains("timed out after 1 seconds"))
         }
         // The budget was ~1s, not the hang: the turn never hangs.

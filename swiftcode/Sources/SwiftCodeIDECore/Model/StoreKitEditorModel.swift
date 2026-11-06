@@ -414,9 +414,12 @@ public final class StoreKitEditorModel {
     /// The next free numeric internal identifier (one past the largest
     /// internal ID used by any product or offer).
     public func nextInternalID() -> String {
-        let used = allProducts.flatMap { (_, p) in
-            [p.internalID] + (p.introductoryOffer.map { [$0.internalID] } ?? [])
-                + (p.adHocOffers ?? []).map(\.internalID) + (p.codeOffers ?? []).map(\.internalID)
+        let used = allProducts.flatMap { (_, p) -> [String?] in
+            var ids: [String?] = [p.internalID]
+            if let intro = p.introductoryOffer { ids.append(intro.internalID) }
+            ids.append(contentsOf: (p.adHocOffers ?? []).map(\.internalID))
+            ids.append(contentsOf: (p.codeOffers ?? []).map(\.internalID))
+            return ids
         }.compactMap { $0 }.compactMap(Int.init)
         return String((used.max() ?? 0) + 1)
     }

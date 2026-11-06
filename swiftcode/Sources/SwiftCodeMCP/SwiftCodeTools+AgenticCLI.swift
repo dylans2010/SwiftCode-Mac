@@ -287,10 +287,10 @@ extension SwiftCodeMCPHost {
                                             in: s, call: call)
         }
         let start = Date()
-        let result = await Task.detached {
+        let result = (await Task.detached {
             Self.terminalRunFixed(executable, args, workingDirectory: workingDirectory,
                                   environment: Self.terminalEnvironment(), timeout: 300)
-        }.value
+        }.value)
         guard let result else {
             throw MCPToolError("Process execution failed: could not launch \(executable)")
         }

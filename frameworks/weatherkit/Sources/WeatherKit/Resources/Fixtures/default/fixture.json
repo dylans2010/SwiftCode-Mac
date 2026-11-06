@@ -12,7 +12,7 @@
   "weatherAlerts": 600,
   "weatherChanges": 3600
  },
- "legalAttributionText": "Fixture data\nMade-up weather values written by the Ycode project for tests and demos.\nNot a forecast for any real place.",
+ "legalAttributionText": "Fixture data\nMade-up weather values written by the SwiftCode project for tests and demos.\nNot a forecast for any real place.",
  "name": "default",
  "products": {
   "dailyPrecipitationStatistics": "daily-precipitation-statistics.json",

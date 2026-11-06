@@ -292,11 +292,11 @@ extension SwiftCodeMCPHost {
         guard FileManager.default.fileExists(atPath: "/usr/bin/xcodebuild") else {
             throw MCPToolError("Failed to run xcodebuild: /usr/bin/xcodebuild was not found.")
         }
-        let result = await Task.detached {
+        let result = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/xcodebuild",
                                   located.xcodebuildArgs + ["-resolvePackageDependencies"],
                                   workingDirectory: root, timeout: 300)
-        }.value
+        }.value)
         guard let result else {
             throw MCPToolError("Failed to run xcodebuild: could not launch /usr/bin/xcodebuild.")
         }
@@ -582,8 +582,8 @@ extension SwiftCodeMCPHost {
                                                       workspaceRoot: Self.folder(of: s.model)) {
         case .success(let validated):
             targetPath = validated
-        case .failure(let message):
-            throw MCPToolError(message)
+        case .failure(let error):
+            throw MCPToolError(error.message)
         }
         // 4. objdump sub-operation: fixed enum only.
         if operation == .inspectWithObjdump {

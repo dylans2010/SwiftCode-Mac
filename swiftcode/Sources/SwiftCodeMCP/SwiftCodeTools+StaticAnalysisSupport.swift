@@ -1,4 +1,6 @@
 import Foundation
+import SwiftCodeAssistant
+import SwiftCodeIDECore
 
 /// Shared helpers for the ported Legacy static-analysis tool family
 /// (Wave 6, slice B).
@@ -40,7 +42,7 @@ extension SwiftCodeMCPHost {
     /// Legacy's strict per-tool scan resolver: `nil` when the path
     /// escapes the workspace (any `..`, or an absolute path outside
     /// the root), the workspace root when the path is absent or blank.
-    nonisolated static func staticAnalysisResolveScanPath(_ raw: String?, in s: WorkspaceSession) -> URL? {
+    @MainActor static func staticAnalysisResolveScanPath(_ raw: String?, in s: WorkspaceSession) -> URL? {
         let root = Self.folder(of: s.model).standardizedFileURL
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return root }
         guard !raw.contains("..") else { return nil }

@@ -47,18 +47,20 @@ struct GitHubGapTests {
 
     @Test("getFileSHA returns nil for a missing file (404), not an error")
     func getFileSHAMissing() async throws {
-        let client = stubClient { _ in error(404, "Not Found") }
+        let client = stubClient { _ in error(404, message: "Not Found") }
         #expect(try await client.getFileSHA(owner: "octocat", repo: "Hello-World", path: "MISSING.md") == nil)
     }
 
     @Test("getFileSHA throws on a non-404 failure instead of hiding it as missing")
     func getFileSHAAuthFailure() async {
-        let client = stubClient { _ in error(401, "Bad credentials") }
+        let client = stubClient { _ in error(401, message: "Bad credentials") }
         do {
             _ = try await client.getFileSHA(owner: "octocat", repo: "Hello-World", path: "README.md")
             Issue.record("Expected getFileSHA to throw")
         } catch let error as GitHubError {
             #expect(error == .unauthorized)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -94,7 +96,7 @@ struct GitHubGapTests {
 
     @Test("pushFile surfaces a 422 validation error")
     func pushFileUnprocessable() async {
-        let client = stubClient { _ in error(422, "Validation Failed") }
+        let client = stubClient { _ in error(422, message: "Validation Failed") }
         do {
             _ = try await client.pushFile(
                 owner: "octocat", repo: "Hello-World", path: "README.md",
@@ -102,6 +104,8 @@ struct GitHubGapTests {
             Issue.record("Expected pushFile to throw")
         } catch let error as GitHubError {
             #expect(error == .unprocessable(message: "Validation Failed"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -225,6 +229,8 @@ struct GitHubGapTests {
             Issue.record("Expected createRepository to throw")
         } catch let error as GitHubError {
             #expect(error == .missingToken)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
         #expect(StubURLProtocol.requests.isEmpty)
     }

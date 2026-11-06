@@ -204,7 +204,7 @@ import SwiftCodeAssistant
         #else
         let r = try await host.server.callTool("code_signing_diagnose", ["path": .string("Sources/Greeter/Greeter.swift")])
         #expect(r.isToolError && r.firstText.contains("NOT SIGNED"))
-        #expect(r.structured?["signed"] == false)
+        #expect(r.structured?["signed"]?.bool == false)
         #endif
     }
 
@@ -219,14 +219,14 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("entitlements_diff",
                                                ["oldPath": .string("Old.entitlements"), "newPath": .string("New.entitlements")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["added"] == 1 && r.structured?["removed"] == 1 && r.structured?["changed"] == 1)
+        #expect(r.structured?["added"]?.int == 1 && r.structured?["removed"]?.int == 1 && r.structured?["changed"]?.int == 1)
         #expect(r.firstText.contains("- ADDED: com.example.added"))
         #expect(r.firstText.contains("- REMOVED: com.example.removed"))
         #expect(r.firstText.contains("- CHANGED: com.example.changed: 'before' -> 'after'"))
         let same = try await host.server.callTool("entitlements_diff",
                                                   ["oldPath": .string("Old.entitlements"), "newPath": .string("Old.entitlements")])
         #expect(!same.isToolError && same.firstText.contains("Entitlements are identical."))
-        #expect(same.structured?["added"] == 0 && same.structured?["removed"] == 0 && same.structured?["changed"] == 0)
+        #expect(same.structured?["added"]?.int == 0 && same.structured?["removed"]?.int == 0 && same.structured?["changed"]?.int == 0)
         let missing = try await host.server.callTool("entitlements_diff",
                                                      ["oldPath": .string("Old.entitlements"), "newPath": .string("Nope.entitlements")])
         #expect(missing.isToolError && missing.firstText.contains("Cannot parse entitlements plist at: Nope.entitlements"))
@@ -306,16 +306,16 @@ import SwiftCodeAssistant
         let host = try await opened(sample)
         let empty = try await host.server.callTool("info_plist_audit")
         #expect(!empty.isToolError, "\(empty.resultText)")
-        #expect(empty.structured?["fileCount"] == 0 && empty.structured?["issueCount"] == 0)
+        #expect(empty.structured?["fileCount"]?.int == 0 && empty.structured?["issueCount"]?.int == 0)
         #expect(empty.firstText.contains("No Info.plist files found in the workspace."))
         try writeFixture(sample, "App/Info.plist", Self.goodInfoPlist)
         try writeFixture(sample, "Other/Info.plist", Self.badInfoPlist)
         let r = try await host.server.callTool("info_plist_audit")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["fileCount"] == 2)
+        #expect(r.structured?["fileCount"]?.int == 2)
         // Bad file: missing CFBundleName + bad version = 2 issues;
         // the shared bundle id in two files = 1 more issue.
-        #expect(r.structured?["issueCount"] == 3)
+        #expect(r.structured?["issueCount"]?.int == 3)
         #expect(r.firstText.contains("- App/Info.plist: OK"))
         #expect(r.firstText.contains("- Other/Info.plist: missing CFBundleName; CFBundleShortVersionString '1.0-beta' is not x.y[.z]"))
         #expect(r.firstText.contains("DUPLICATE bundle id 'com.example.Greeter' in: App/Info.plist, Other/Info.plist"))
@@ -451,11 +451,11 @@ import SwiftCodeAssistant
         try writeFixture(sample, "App.entitlements", Self.oldEntitlements)
         let r = try await host.server.callTool("project_entitlements")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["files"] == "App.entitlements" && r.structured?["count"] == 4)
-        #expect(r.structured?["keys"] == "com.apple.security.app-sandbox,com.apple.security.network.client,com.example.changed,com.example.removed")
+        #expect(r.structured?["files"]?.string == "App.entitlements" && r.structured?["count"]?.int == 4)
+        #expect(r.structured?["keys"]?.string == "com.apple.security.app-sandbox,com.apple.security.network.client,com.example.changed,com.example.removed")
         #expect(r.firstText.contains("App.entitlements: com.apple.security.app-sandbox = true; com.apple.security.network.client = true;"))
         let explicit = try await host.server.callTool("project_entitlements", ["path": .string("App.entitlements")])
-        #expect(!explicit.isToolError && explicit.structured?["count"] == 4)
+        #expect(!explicit.isToolError && explicit.structured?["count"]?.int == 4)
         let missing = try await host.server.callTool("project_entitlements", ["path": .string("Nope.entitlements")])
         #expect(missing.isToolError && missing.firstText.contains("Entitlements file not found at 'Nope.entitlements'."))
         let outside = try await host.server.callTool("project_entitlements", ["path": .string("../App.entitlements")])
@@ -473,11 +473,11 @@ import SwiftCodeAssistant
         try writeFixture(sample, "App/Info.plist", Self.goodInfoPlist)
         let get = try await host.server.callTool("project_info_plist", ["action": .string("get"), "key": .string("CFBundleName")])
         #expect(!get.isToolError, "\(get.resultText)")
-        #expect(get.structured?["key"] == "CFBundleName" && get.structured?["value"] == "Greeter")
-        #expect(get.structured?["file"] == "Info.plist")
+        #expect(get.structured?["key"]?.string == "CFBundleName" && get.structured?["value"]?.string == "Greeter")
+        #expect(get.structured?["file"]?.string == "Info.plist")
         #expect(get.firstText.contains("Info.plist CFBundleName = Greeter"))
         let all = try await host.server.callTool("project_info_plist", ["action": .string("get")])
-        #expect(!all.isToolError && all.structured?["count"] == 4)
+        #expect(!all.isToolError && all.structured?["count"]?.int == 4)
         #expect(all.firstText.contains("Info.plist has 4 key(s):"))
         // "2" is stored as an Int (Legacy's Bool/Int/Double/String
         // reading) and the write is verified by re-reading.
@@ -539,28 +539,28 @@ import SwiftCodeAssistant
         #expect(!open.isToolError, "\(open.resultText)")
         let debug = try await host.server.callTool("project_signing")
         #expect(!debug.isToolError, "\(debug.resultText)")
-        #expect(debug.structured?["configuration"] == "Debug")
-        #expect(debug.structured?["codeSignStyle"] == "Automatic")
-        #expect(debug.structured?["developmentTeam"] == "ABCDE12345")
-        #expect(debug.structured?["bundleId"] == "org.swiftcode.SigningApp")
-        #expect(debug.structured?["codeSignIdentity"] == "Apple Development")
-        #expect(debug.structured?["provisioningProfileSpecifier"] == "SigningApp Dev")
-        #expect(debug.structured?["provisioningProfileCount"] == 0)
+        #expect(debug.structured?["configuration"]?.string == "Debug")
+        #expect(debug.structured?["codeSignStyle"]?.string == "Automatic")
+        #expect(debug.structured?["developmentTeam"]?.string == "ABCDE12345")
+        #expect(debug.structured?["bundleId"]?.string == "org.swiftcode.SigningApp")
+        #expect(debug.structured?["codeSignIdentity"]?.string == "Apple Development")
+        #expect(debug.structured?["provisioningProfileSpecifier"]?.string == "SigningApp Dev")
+        #expect(debug.structured?["provisioningProfileCount"]?.int == 0)
         #expect(debug.firstText.contains("CODE_SIGN_STYLE = Automatic"))
         #expect(debug.firstText.contains("Provisioning profiles installed: 0"))
         let release = try await host.server.callTool("project_signing", ["configuration": .string("Release")])
         #expect(!release.isToolError, "\(release.resultText)")
-        #expect(release.structured?["codeSignStyle"] == "Manual")
-        #expect(release.structured?["codeSignIdentity"] == "Apple Distribution")
+        #expect(release.structured?["codeSignStyle"]?.string == "Manual")
+        #expect(release.structured?["codeSignIdentity"]?.string == "Apple Distribution")
         // An unknown configuration falls back to the project's
         // default (Release), the builder's own rule.
         let bogus = try await host.server.callTool("project_signing", ["configuration": .string("Bogus")])
         #expect(!bogus.isToolError, "\(bogus.resultText)")
-        #expect(bogus.structured?["codeSignStyle"] == "Manual")
+        #expect(bogus.structured?["codeSignStyle"]?.string == "Manual")
         // A scheme naming the target selects it, and is echoed.
         let byScheme = try await host.server.callTool("project_signing", ["scheme": .string("SigningApp")])
-        #expect(!byScheme.isToolError && byScheme.structured?["scheme"] == "SigningApp")
-        #expect(byScheme.structured?["codeSignStyle"] == "Automatic")
+        #expect(!byScheme.isToolError && byScheme.structured?["scheme"]?.string == "SigningApp")
+        #expect(byScheme.structured?["codeSignStyle"]?.string == "Automatic")
     }
 
     // MARK: - provisioning_check

@@ -166,7 +166,7 @@ import Testing
         #expect(body["model"] as? String == "example/test-model-alpha")
         #expect(body["stream"] as? Bool == true)
         #expect((body["messages"] as? [[String: String]])?.map { $0["role"]! } == ["system", "user"])
-        #expect((body["messages"] as? [[String: String]])?.first?["content"] == "sys")
+        #expect((body["messages"] as? [[String: String]])?.first?["content"]?.string == "sys")
     }
 
     @Test func sendMapsErrorsAndReportsTruncation() async throws {

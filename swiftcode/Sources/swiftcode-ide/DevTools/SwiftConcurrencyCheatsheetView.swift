@@ -2,6 +2,7 @@
 // Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
 
 import SwiftUI
+import SwiftCodeUI
 
 struct ConcurrencyItem: Identifiable {
     let id = UUID()

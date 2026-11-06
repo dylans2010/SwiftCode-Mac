@@ -179,7 +179,7 @@ public struct VirtualMachineHostProbe: Sendable, Equatable {
     }
 }
 
-public enum VirtualMachineHostProbe {
+public enum VirtualMachineHostProbeRunner {
     /// Probes the host by really doing it: checks
     /// `Hypervisor.isAvailable`, then creates a bare KVM VM with
     /// 256 MB of RAM and one vCPU, then closes it. On a Linux host
@@ -191,6 +191,7 @@ public enum VirtualMachineHostProbe {
             return VirtualMachineHostProbe(hypervisorAvailable: false,
                                            error: "KVM is not available on this host (macOS has no KVM). Virtual machines cannot be allocated here.")
         }
+        #if os(Linux) && arch(arm64)
         do {
             let vm = try VirtualMachine(ramSize: 256 << 20)
             let vcpu = try vm.makeVCPU()
@@ -200,6 +201,19 @@ public enum VirtualMachineHostProbe {
         } catch {
             return VirtualMachineHostProbe(hypervisorAvailable: true, error: "KVM is present but a VM could not be allocated: \(error)")
         }
+        #else
+        return VirtualMachineHostProbe(hypervisorAvailable: false,
+                                       error: "KVM is not available on this host (macOS has no KVM). Virtual machines cannot be allocated here.")
+        #endif
+    }
+}
+
+/// Allocation is only possible on an arm64 Linux host with KVM; elsewhere
+/// the console reports it honestly.
+public enum VirtualMachineAllocationError: Error, LocalizedError {
+    case unavailable
+    public var errorDescription: String? {
+        "Virtual machine allocation needs an arm64 Linux host with KVM; this host has none."
     }
 }
 
@@ -209,8 +223,10 @@ public enum VirtualMachineHostProbe {
 /// allocation, not a boot.
 public final class AllocatedVirtualMachine: @unchecked Sendable {
     public let record: VMRecord
+    #if os(Linux) && arch(arm64)
     private var vm: VirtualMachine?
     private var vcpus: [VCPU] = []
+    #endif
     public private(set) var isAllocated = false
 
     public init(record: VMRecord) {
@@ -221,6 +237,7 @@ public final class AllocatedVirtualMachine: @unchecked Sendable {
     /// real `KVMError` when allocation fails.
     public func allocate() throws {
         guard !isAllocated else { return }
+        #if os(Linux) && arch(arm64)
         let vm = try VirtualMachine(ramSize: max(256, record.memoryMB) << 20)
         var created: [VCPU] = []
         for _ in 0..<max(1, record.cpuCores) {
@@ -229,14 +246,23 @@ public final class AllocatedVirtualMachine: @unchecked Sendable {
         self.vm = vm
         self.vcpus = created
         self.isAllocated = true
+        #else
+        throw VirtualMachineAllocationError.unavailable
+        #endif
     }
 
     public func release() {
+        #if os(Linux) && arch(arm64)
         vm?.close()
         vm = nil
         vcpus = []
+        #endif
         isAllocated = false
     }
 
-    deinit { vm?.close() }
+    deinit {
+        #if os(Linux) && arch(arm64)
+        vm?.close()
+        #endif
+    }
 }

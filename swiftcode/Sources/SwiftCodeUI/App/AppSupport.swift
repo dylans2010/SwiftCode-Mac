@@ -485,6 +485,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
     public func applicationDidFinishLaunching(_ n: Notification) {
         // SWIFTCODE_LAYOUT_PROBE: measure the chrome, write the report, quit.
         if LayoutProbe.startIfRequested() { return }
+        // Route the build layer's outcome hook to the alert-sound player.
+        AlertSoundPlayer.installBuildSoundHook()
         // Install the SDK host seams (view host, Assist backend
         // attachment; Wave 16 Slice C). Idempotent; no-ops on repeat.
         Task { await SwiftCodeSDKInstaller.installIfNeeded() }

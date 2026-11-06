@@ -1,4 +1,5 @@
 import Foundation
+import SwiftCodeIDECore
 import SwiftUI
 import SwiftCodeAssistant
 import SwiftCodeGitHub

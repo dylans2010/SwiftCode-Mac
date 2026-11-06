@@ -44,7 +44,7 @@ public final class ExtensionManager {
     private var searchOffset: Int = 0
     private var didLoad = false
 
-    public init() {
+    public convenience init() {
         self.init(storage: ExtensionStorage())
     }
 

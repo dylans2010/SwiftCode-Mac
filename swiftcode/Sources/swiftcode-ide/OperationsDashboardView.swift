@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftCodeIDEShell
 
 /// Workspace Operations hub — Legacy's `OperationsDashboardView` +
 /// `OperationsSidebarView` + the 16 panel views, rebuilt in SwiftCode style.

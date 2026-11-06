@@ -191,9 +191,11 @@ public struct DeviceConnectProcessRunner: Sendable {
             let data = handle.availableData
             if !data.isEmpty { stderrLines.append(data) }
         }
-        let flush: () -> Void = {
-            stdoutPipe.fileHandleForReading.readabilityHandler = nil
-            stderrPipe.fileHandleForReading.readabilityHandler = nil
+        // `flush` is handed to a @Sendable termination handler, so the
+        // non-Sendable pipe file handles are carried in a Sendable box.
+        let handles = StreamHandles(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
+        let flush: @Sendable () -> Void = {
+            handles.detach()
             stdoutLines.flush()
             stderrLines.flush()
         }
@@ -229,6 +231,23 @@ public struct DeviceConnectProcessRunner: Sendable {
             process.currentDirectoryURL = workingDirectory
         }
         return process
+    }
+}
+
+/// The two pipe read handles for a streaming run, boxed so the flush
+/// closure can be `@Sendable` (Foundation's `FileHandle` is not).
+private final class StreamHandles: @unchecked Sendable {
+    private let stdout: FileHandle
+    private let stderr: FileHandle
+
+    init(stdout: FileHandle, stderr: FileHandle) {
+        self.stdout = stdout
+        self.stderr = stderr
+    }
+
+    func detach() {
+        stdout.readabilityHandler = nil
+        stderr.readabilityHandler = nil
     }
 }
 

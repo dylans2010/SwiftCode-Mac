@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftCodeAssistant
+import SwiftCodeIDECore
 
 // Alternative Gemini keys, adapted from Legacy's
 // `SwiftCode/Views/Settings/AlternativeKeysView.swift` onto SwiftCode's

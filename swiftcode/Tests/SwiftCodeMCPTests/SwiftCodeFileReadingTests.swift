@@ -83,13 +83,13 @@ import SwiftCodeIDECore
         #expect(empty.isToolError && empty.resultText.contains("missing the required argument \"path\""))
         let read = try await host.server.callTool("dir_read", ["path": "."])
         #expect(!read.isToolError, "\(read.resultText)")
-        #expect(read.structured?["contents"] == "Package.swift\nPreviews/\nSources/\nStrings/\nTests/")
-        #expect(read.structured?["count"] == 5)
+        #expect(read.structured?["contents"]?.string == "Package.swift\nPreviews/\nSources/\nStrings/\nTests/")
+        #expect(read.structured?["count"]?.int == 5)
         #expect(read.structured?["path"] == sample.url.standardizedFileURL.path)
         #expect(read.resultText.hasPrefix("Successfully read directory: . (5 entries)"))
 
         let sub = try await host.server.callTool("dir_read", ["path": "Sources/Greeter"])
-        #expect(sub.structured?["contents"] == "Greeter.swift" && sub.structured?["count"] == 1)
+        #expect(sub.structured?["contents"]?.string == "Greeter.swift" && sub.structured?["count"]?.int == 1)
 
         let missing = try await host.server.callTool("dir_read", ["path": "Nope"])
         #expect(missing.isToolError && missing.resultText.contains("Failed to read directory at Nope"))
@@ -118,7 +118,7 @@ import SwiftCodeIDECore
         let cd = try await host.server.callTool("dir_cd", ["path": "Sources"])
         #expect(!cd.isToolError, "\(cd.resultText)")
         #expect(cd.structured?["path"] == root + "/Sources" && cd.structured?["previousPath"] == root)
-        #expect(cd.structured?["contents"] == "Greeter\ngreet" && cd.structured?["count"] == 2)
+        #expect(cd.structured?["contents"]?.string == "Greeter\ngreet" && cd.structured?["count"]?.int == 2)
         #expect(cd.resultText.hasPrefix("Working directory changed to \(root)/Sources"))
 
         let pwd = try await host.server.callTool("dir_pwd")
@@ -126,7 +126,7 @@ import SwiftCodeIDECore
 
         // Plain relative paths now resolve against the new directory.
         let read = try await host.server.callTool("dir_read", ["path": "."])
-        #expect(read.structured?["contents"] == "Greeter/\ngreet/")
+        #expect(read.structured?["contents"]?.string == "Greeter/\ngreet/")
 
         // "." is a no-op; ".." moves to the parent.
         let noop = try await host.server.callTool("dir_cd", ["path": "."])
@@ -167,7 +167,7 @@ import SwiftCodeIDECore
         let host = try await opened(sample)
         let report = try await host.server.callTool("dir_size_report")
         #expect(!report.isToolError, "\(report.resultText)")
-        #expect(report.structured?["entryCount"] == 5)
+        #expect(report.structured?["entryCount"]?.int == 5)
         #expect(report.structured?["totalBytes"] == totalBytes(under: sample.url))
         #expect(report.resultText.hasPrefix("Directory sizes under .:"))
         #expect(report.resultText.contains("- Package.swift — 537 bytes (0.00 MB)"))
@@ -179,10 +179,10 @@ import SwiftCodeIDECore
 
         let limited = try await host.server.callTool("dir_size_report", ["limit": 1])
         let rows = limited.resultText.components(separatedBy: "\n").filter { $0.hasPrefix("- ") }
-        #expect(rows.count == 1 && limited.structured?["entryCount"] == 5 && limited.structured?["totalBytes"] == 2047)
+        #expect(rows.count == 1 && limited.structured?["entryCount"]?.int == 5 && limited.structured?["totalBytes"]?.int == 2047)
 
         let sub = try await host.server.callTool("dir_size_report", ["path": "Sources"])
-        #expect(sub.structured?["entryCount"] == 2 && sub.structured?["totalBytes"] == 489)
+        #expect(sub.structured?["entryCount"]?.int == 2 && sub.structured?["totalBytes"]?.int == 489)
         #expect(sub.resultText.hasPrefix("Directory sizes under Sources:"))
 
         let notDir = try await host.server.callTool("dir_size_report", ["path": "Package.swift"])
@@ -197,10 +197,10 @@ import SwiftCodeIDECore
         let host = try await opened(sample)
         let meta = try await host.server.callTool("file_metadata", ["path": "Sources/Greeter/Greeter.swift"])
         #expect(!meta.isToolError, "\(meta.resultText)")
-        #expect(meta.structured?["path"] == "Sources/Greeter/Greeter.swift")
-        #expect(meta.structured?["fileName"] == "Greeter.swift" && meta.structured?["extension"] == "swift")
-        #expect(meta.structured?["isDirectory"] == false && meta.structured?["fileType"] == "regular")
-        #expect(meta.structured?["size"] == 374)
+        #expect(meta.structured?["path"]?.string == "Sources/Greeter/Greeter.swift")
+        #expect(meta.structured?["fileName"]?.string == "Greeter.swift" && meta.structured?["extension"]?.string == "swift")
+        #expect(meta.structured?["isDirectory"]?.bool == false && meta.structured?["fileType"]?.string == "regular")
+        #expect(meta.structured?["size"]?.int == 374)
         #expect(meta.structured?["permissions"] == meta.structured?["permissionsOctal"])
         let permissions = meta.structured?["permissions"]?.string ?? ""
         #expect(!permissions.isEmpty && permissions.allSatisfy { "01234567".contains($0) })
@@ -210,8 +210,8 @@ import SwiftCodeIDECore
         #expect(meta.resultText.contains("- Size: 374 bytes"))
 
         let dir = try await host.server.callTool("file_metadata", ["path": "Sources"])
-        #expect(dir.structured?["isDirectory"] == true && dir.structured?["fileType"] == "directory")
-        #expect(dir.structured?["path"] == "Sources" && dir.structured?["extension"] == "")
+        #expect(dir.structured?["isDirectory"]?.bool == true && dir.structured?["fileType"]?.string == "directory")
+        #expect(dir.structured?["path"]?.string == "Sources" && dir.structured?["extension"]?.string == "")
 
         let missing = try await host.server.callTool("file_metadata", ["path": "Nope"])
         #expect(missing.isToolError && missing.resultText.contains("No file or directory at path: Nope"))
@@ -225,21 +225,21 @@ import SwiftCodeIDECore
         let host = try await opened(sample)
         let head = try await host.server.callTool("file_head_preview", ["path": "Sources/Greeter/Greeter.swift"])
         #expect(!head.isToolError, "\(head.resultText)")
-        #expect(head.structured?["path"] == "Sources/Greeter/Greeter.swift")
-        #expect(head.structured?["encoding"] == "utf-8")
+        #expect(head.structured?["path"]?.string == "Sources/Greeter/Greeter.swift")
+        #expect(head.structured?["encoding"]?.string == "utf-8")
         // No phantom trailing line is stripped, so the 14-line file
         // counts 15 lines here (unlike file_read's 14).
-        #expect(head.structured?["totalLines"] == 15 && head.structured?["shownLines"] == 15)
-        #expect(head.structured?["truncated"] == false)
+        #expect(head.structured?["totalLines"]?.int == 15 && head.structured?["shownLines"]?.int == 15)
+        #expect(head.structured?["truncated"]?.bool == false)
         #expect(head.resultText.hasPrefix("Preview of Sources/Greeter/Greeter.swift [utf-8, 15 total lines]:\n1: /// Makes greetings."))
 
         let three = try await host.server.callTool("file_head_preview", ["path": "Sources/Greeter/Greeter.swift", "lines": 3])
-        #expect(three.structured?["shownLines"] == 3 && three.structured?["truncated"] == true)
+        #expect(three.structured?["shownLines"]?.int == 3 && three.structured?["truncated"]?.bool == true)
         #expect(three.resultText.contains("… [truncated: showing 3 of 15 lines]"))
 
         // `lines` clamps to 100; the file still shows only its 15 lines.
         let clamped = try await host.server.callTool("file_head_preview", ["path": "Sources/Greeter/Greeter.swift", "lines": 200])
-        #expect(clamped.structured?["shownLines"] == 15 && clamped.structured?["truncated"] == false)
+        #expect(clamped.structured?["shownLines"]?.int == 15 && clamped.structured?["truncated"]?.bool == false)
 
         let missing = try await host.server.callTool("file_head_preview", ["path": "Nope"])
         #expect(missing.isToolError && missing.resultText.contains("Cannot read file: Nope"))
@@ -253,21 +253,21 @@ import SwiftCodeIDECore
         let host = try await opened(sample)
         let file = try await host.server.callTool("count_file_lines", ["path": "Sources/Greeter/Greeter.swift"])
         #expect(!file.isToolError, "\(file.resultText)")
-        #expect(file.structured?["path"] == "Sources/Greeter/Greeter.swift")
-        #expect(file.structured?["fileCount"] == 1 && file.structured?["totalLines"] == 15)
-        #expect(file.structured?["codeLines"] == 9 && file.structured?["commentLines"] == 3 && file.structured?["blankLines"] == 3)
-        #expect(file.structured?["totalBytes"] == 374)
+        #expect(file.structured?["path"]?.string == "Sources/Greeter/Greeter.swift")
+        #expect(file.structured?["fileCount"]?.int == 1 && file.structured?["totalLines"]?.int == 15)
+        #expect(file.structured?["codeLines"]?.int == 9 && file.structured?["commentLines"]?.int == 3 && file.structured?["blankLines"]?.int == 3)
+        #expect(file.structured?["totalBytes"]?.int == 374)
         #expect(file.resultText.hasPrefix("Code Metrics for Sources/Greeter/Greeter.swift (1 file(s)):"))
 
         let dir = try await host.server.callTool("count_file_lines", ["path": "Sources", "extension": "swift"])
-        #expect(dir.structured?["fileCount"] == 2 && dir.structured?["totalLines"] == 20)
-        #expect(dir.structured?["codeLines"] == 12 && dir.structured?["commentLines"] == 3 && dir.structured?["blankLines"] == 5)
-        #expect(dir.structured?["totalBytes"] == 489)
+        #expect(dir.structured?["fileCount"]?.int == 2 && dir.structured?["totalLines"]?.int == 20)
+        #expect(dir.structured?["codeLines"]?.int == 12 && dir.structured?["commentLines"]?.int == 3 && dir.structured?["blankLines"]?.int == 5)
+        #expect(dir.structured?["totalBytes"]?.int == 489)
 
         // The `targetPath` alias works, and a single file ignores the
         // extension filter.
         let alias = try await host.server.callTool("count_file_lines", ["targetPath": "Sources/Greeter/Greeter.swift", "extension": "md"])
-        #expect(alias.structured?["fileCount"] == 1 && alias.structured?["totalLines"] == 15)
+        #expect(alias.structured?["fileCount"]?.int == 1 && alias.structured?["totalLines"]?.int == 15)
 
         let missing = try await host.server.callTool("count_file_lines", ["path": "Nope"])
         #expect(missing.isToolError && missing.resultText.contains("Path not found: Nope"))
@@ -287,13 +287,13 @@ import SwiftCodeIDECore
         // counts, but still counts the file.
         let counted = try await host.server.callTool("count_file_lines", ["path": "Sources/Binary.dat"])
         #expect(!counted.isToolError, "\(counted.resultText)")
-        #expect(counted.structured?["fileCount"] == 1 && counted.structured?["totalLines"] == 0)
-        #expect(counted.structured?["totalBytes"] == 0)
+        #expect(counted.structured?["fileCount"]?.int == 1 && counted.structured?["totalLines"]?.int == 0)
+        #expect(counted.structured?["totalBytes"]?.int == 0)
         // file_head_preview falls through to ISO Latin-1 instead of
         // failing on the binary content.
         let head = try await host.server.callTool("file_head_preview", ["path": "Sources/Binary.dat"])
         #expect(!head.isToolError, "\(head.resultText)")
-        #expect(head.structured?["encoding"] == "iso-latin-1" && head.structured?["totalLines"] == 1)
+        #expect(head.structured?["encoding"]?.string == "iso-latin-1" && head.structured?["totalLines"]?.int == 1)
     }
 
     @Test func treeViewDepthClampAndSymlinkLeaf() async throws {
@@ -305,7 +305,7 @@ import SwiftCodeIDECore
         let text = tree.structured?["tree"]?.string ?? ""
         #expect(text.hasPrefix("📂 Greeter\n"))
         #expect(text.contains("📄 Greeter.swift") && text.contains("📂 Sources"))
-        #expect(tree.structured?["entries"] == 13 && tree.structured?["truncated"] == false)
+        #expect(tree.structured?["entries"]?.int == 13 && tree.structured?["truncated"]?.bool == false)
         #expect(tree.structured?["path"] == sample.url.standardizedFileURL.path)
 
         // maxDepth 1 still lists files directly inside a depth-1
@@ -314,13 +314,13 @@ import SwiftCodeIDECore
         let shallowText = shallow.structured?["tree"]?.string ?? ""
         #expect(shallowText.contains("📄 GreetingView.swift"))
         #expect(!shallowText.contains("Greeter.swift") && !shallowText.contains("main.swift"))
-        #expect(shallow.structured?["entries"] == 10)
+        #expect(shallow.structured?["entries"]?.int == 10)
 
         // maxDepth clamps to 10: 99 renders exactly like 10.
         let wide = try await host.server.callTool("tree_view", ["maxDepth": 99])
         let ten = try await host.server.callTool("tree_view", ["maxDepth": 10])
         #expect(wide.structured?["tree"] == ten.structured?["tree"])
-        #expect(wide.structured?["entries"] == 13)
+        #expect(wide.structured?["entries"]?.int == 13)
 
         let zero = try await host.server.callTool("tree_view", ["maxDepth": 0])
         #expect(zero.isToolError && zero.resultText.contains("Invalid maxDepth: must be an integer >= 1 (got '0')."))
@@ -330,7 +330,7 @@ import SwiftCodeIDECore
         #expect(fractional.isToolError && fractional.resultText.contains("must be of type integer"))
         // A whole double is an integer as far as the schema is concerned.
         let whole = try await host.server.callTool("tree_view", ["maxDepth": .double(2.0)])
-        #expect(!whole.isToolError && whole.structured?["entries"] == 13)
+        #expect(!whole.isToolError && whole.structured?["entries"]?.int == 13)
 
         let missing = try await host.server.callTool("tree_view", ["path": "Nope"])
         // A missing root still succeeds, with Legacy's warning line.
@@ -352,7 +352,7 @@ import SwiftCodeIDECore
         // The directory symlink is never followed: Greeter.swift is
         // listed exactly once, under its real directory.
         #expect(text.components(separatedBy: "📄 Greeter.swift").count - 1 == 1)
-        #expect(tree.structured?["entries"] == 15 && tree.structured?["truncated"] == false)
+        #expect(tree.structured?["entries"]?.int == 15 && tree.structured?["truncated"]?.bool == false)
     }
 
     @Test func missingRequiredArgumentsAreRejected() async throws {

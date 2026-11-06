@@ -64,7 +64,7 @@ public struct SDKBuildOutputEvent: Codable, Sendable {
 // A single structured compiler/build diagnostic parsed from build output.
 // Optional location fields: some diagnostics have no file/line context.
 
-public struct SDKBuildDiagnostic: Codable, Sendable {
+public struct SDKBuildDiagnostic: Codable, Sendable, Equatable {
     /// Repository-relative file path when the diagnostic has a location.
     public let file: String?
     /// 1-based line number when the diagnostic has a location.

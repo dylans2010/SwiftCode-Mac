@@ -21,10 +21,10 @@ import Testing
             id: id,
             provider: provider,
             modelIdentifier: id,
+            supportsSubagents: supportsSubagents,
             priority: priority,
             isConfigured: isConfigured,
-            hasCredentials: hasCredentials,
-            supportsSubagents: supportsSubagents
+            hasCredentials: hasCredentials
         )
     }
 

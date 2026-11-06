@@ -49,8 +49,8 @@ public actor SDKDeveloperLogger {
         do {
             let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
             try append(data)
-        } catch {
-            SDKLog.error("SDKDeveloperLogger: failed to log \(error.code.rawValue): \(error.localizedDescription)",
+        } catch let writeError {
+            SDKLog.error("SDKDeveloperLogger: failed to log \(error.code.rawValue): \(writeError.localizedDescription)",
                          subsystem: "com.swiftcode.sdk", category: "sdk-developer")
         }
     }

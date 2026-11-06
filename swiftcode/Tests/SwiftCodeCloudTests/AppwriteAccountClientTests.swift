@@ -100,7 +100,7 @@ struct AppwriteAccountClientTests {
         #expect(request?.httpMethod == "PATCH")
         #expect(request?.url?.path == "/v1/account/prefs")
         let prefs = jsonBody(of: request!)["prefs"] as? [String: String]
-        #expect(prefs?["swiftcode_id"] == "sc_id=0123456789ABCDEF0123456789ABCDEF")
+        #expect(prefs?["swiftcode_id"]?.string == "sc_id=0123456789ABCDEF0123456789ABCDEF")
     }
 
     @Test("updateEmail patches the email with the password")

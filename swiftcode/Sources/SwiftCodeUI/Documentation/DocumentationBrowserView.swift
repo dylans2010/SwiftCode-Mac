@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import SwiftCodeIDECore
+import SwiftCodeMCP
 
 // MARK: - Documentation Browser (Wave 19 slice A)
 //
@@ -279,7 +281,7 @@ enum DocumentationBrowserCategory: String, CaseIterable {
 // MARK: - Sidebar
 
 private struct DocumentationBrowserSidebarView: View {
-    var model: DocumentationBrowserModel
+    @Bindable var model: DocumentationBrowserModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -437,7 +439,7 @@ private struct DocumentationBrowserSidebarView: View {
 // MARK: - Detail
 
 private struct DocumentationBrowserDetailView: View {
-    var model: DocumentationBrowserModel
+    @Bindable var model: DocumentationBrowserModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -544,7 +546,7 @@ private struct DocumentationBrowserDetailView: View {
 // MARK: - Hub home
 
 private struct DocumentationBrowserHubView: View {
-    var model: DocumentationBrowserModel
+    @Bindable var model: DocumentationBrowserModel
 
     var body: some View {
         ScrollView {
@@ -611,7 +613,7 @@ private struct DocumentationBrowserHubView: View {
 
 private struct DocumentationSymbolDetailView: View {
     var symbol: DocSymbol
-    var model: DocumentationBrowserModel
+    @Bindable var model: DocumentationBrowserModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

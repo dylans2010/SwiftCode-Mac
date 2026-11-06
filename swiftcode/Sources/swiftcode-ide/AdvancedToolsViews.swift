@@ -509,7 +509,7 @@ struct ProjectDependencyGraphView: View {
             return
         }
         isGenerating = true
-        Task.detached {
+        Task {
             let rows = collectDependencies(from: rootURL)
             let dot = makeDOT(rows)
             var message: String

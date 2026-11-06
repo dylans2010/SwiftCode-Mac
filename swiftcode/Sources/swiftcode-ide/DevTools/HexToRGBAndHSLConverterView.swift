@@ -2,6 +2,7 @@
 // Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
 
 import SwiftUI
+import SwiftCodeUI
 
 public struct HexToRGBAndHSLConverterView: View {
     @State private var hexInput = "#FF9F0A"

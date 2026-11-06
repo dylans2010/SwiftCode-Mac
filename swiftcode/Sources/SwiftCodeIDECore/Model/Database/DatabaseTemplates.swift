@@ -124,7 +124,7 @@ public final class DatabaseTemplateManager {
                         DatabaseTemplateColumn(name: "created_at", type: "TIMESTAMP", isNullable: false, defaultValue: "CURRENT_TIMESTAMP"),
                     ]),
                     DatabaseTemplateTable(name: "profiles", columns: [
-                        DatabaseTemplateColumn(name: "user_id", type: "UUID", isPrimaryKey: true, isForeignKey: true, isNullable: false),
+                        DatabaseTemplateColumn(name: "user_id", type: "UUID", isPrimaryKey: true, isNullable: false, isForeignKey: true),
                         DatabaseTemplateColumn(name: "display_name", type: "VARCHAR(255)"),
                         DatabaseTemplateColumn(name: "avatar_url", type: "TEXT"),
                     ], relationships: [

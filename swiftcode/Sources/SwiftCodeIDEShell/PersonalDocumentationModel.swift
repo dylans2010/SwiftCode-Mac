@@ -547,7 +547,10 @@ public final class PersonalDocStore {
 
     public func fetchDocuments(for kind: PersonalDocModuleKind? = nil) -> [PersonalDocDocument] {
         let list = documents.filter { !$0.archived && (kind == nil || $0.moduleKind == kind) }
-        return list.sorted { ($0.pinned, $0.updatedAt) > ($1.pinned, $1.updatedAt) }
+        return list.sorted {
+            if $0.pinned != $1.pinned { return $0.pinned }
+            return $0.updatedAt > $1.updatedAt
+        }
     }
 
     public func fetchDocument(id: UUID) -> PersonalDocDocument? { documents.first { $0.id == id } }

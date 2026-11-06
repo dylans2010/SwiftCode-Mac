@@ -86,7 +86,7 @@ public enum SDKErrorCode: String, Sendable, Codable, CaseIterable {
 // suggestion, a correlation ID shared with the developer log, and optional
 // structured diagnostics (internal only — never rendered to end users verbatim).
 
-public struct SDKError: Error, Sendable, Codable {
+public struct SDKError: Error, Sendable, Codable, Equatable {
     public let code: SDKErrorCode
     public let message: String
     public let suggestion: String?

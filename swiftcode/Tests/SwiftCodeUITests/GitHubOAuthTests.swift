@@ -20,7 +20,8 @@ import Testing
         #expect(parsed["CLIENT_SECRET"] == "secret value")
         #expect(parsed["SINGLE"] == "quoted")
         // Legacy's parser drops `KEY=` lines (split omits the empty value).
-        #expect(parsed["EMPTY"] == nil)        #expect(parsed["SPACED"] == "padded")
+        #expect(parsed["EMPTY"] == nil)
+        #expect(parsed["SPACED"] == "padded")
         #expect(parsed["# a comment"] == nil)
     }
 

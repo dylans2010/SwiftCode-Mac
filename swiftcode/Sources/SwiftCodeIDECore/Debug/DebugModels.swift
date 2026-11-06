@@ -2,19 +2,10 @@
 // direct port authorised under MIT). See bulk/core-dispositions.tsv.
 import Foundation
 
-public struct StackFrame: Identifiable, Sendable {
-    public let id: Int
-    public let function: String
-    public let location: String
-    public var isActive: Bool
-
-    public init(id: Int, function: String, location: String, isActive: Bool = false) {
-        self.id = id
-        self.function = function
-        self.location = location
-        self.isActive = isActive
-    }
-}
+// `StackFrame` is declared once, in SwiftCodeDebug (the DAP client's
+// model: name/file/line/column/instructionPointer). IDECore's debug UI
+// imports SwiftCodeDebug and uses that shape; the bulk port's duplicate
+// `function`/`location` struct shadowed it and broke every `.file` access.
 
 public struct DebugVariable: Identifiable, Sendable {
     public let id: UUID

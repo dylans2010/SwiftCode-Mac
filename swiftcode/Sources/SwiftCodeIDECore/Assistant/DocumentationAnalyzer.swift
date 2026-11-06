@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftCodeAssistant
 
 /// The four sections an AI documentation analysis returns.
 public struct AIInsightResults: Sendable, Equatable {

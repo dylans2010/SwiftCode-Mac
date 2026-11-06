@@ -70,7 +70,7 @@ public struct ProjectNotebook: Identifiable, Codable, Hashable, Sendable {
 }
 
 public struct ProjectNote: Identifiable, Codable, Hashable, Sendable {
-    public let id: UUID
+    public var id: UUID
     public var title: String
     public var content: String
     public var notebookId: UUID

@@ -339,21 +339,21 @@ struct GitHubClientTests {
     }
 
     @Test func status401MapsToUnauthorized() async throws {
-        let client = stubClient { _ in error(401, "Bad credentials") }
+        let client = stubClient { _ in error(401, message: "Bad credentials") }
         await #expect(throws: GitHubError.unauthorized) {
             try await client.getAuthenticatedUser()
         }
     }
 
     @Test func status404MapsToNotFound() async throws {
-        let client = stubClient { _ in error(404, "Not Found") }
+        let client = stubClient { _ in error(404, message: "Not Found") }
         await #expect(throws: GitHubError.notFound) {
             try await client.getRepository(owner: "octocat", repo: "Nope")
         }
     }
 
     @Test func status422MapsToUnprocessableWithMessage() async throws {
-        let client = stubClient { _ in error(422, "Validation Failed") }
+        let client = stubClient { _ in error(422, message: "Validation Failed") }
         await #expect(throws: GitHubError.unprocessable(message: "Validation Failed")) {
             try await client.createIssue(owner: "octocat", repo: "Hello-World", title: "", body: nil)
         }
@@ -361,7 +361,7 @@ struct GitHubClientTests {
 
     @Test func status403WithExhaustedLimitMapsToRateLimited() async throws {
         let headers = ["X-RateLimit-Limit": "60", "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1780000000"]
-        let client = stubClient { _ in error(403, "API rate limit exceeded", headers: headers) }
+        let client = stubClient { _ in error(403, message: "API rate limit exceeded", headers: headers) }
         await #expect(throws: GitHubError.forbidden(message: "API rate limit exceeded", rateLimited: true, resetAt: Date(timeIntervalSince1970: 1780000000))) {
             try await client.getRepository(owner: "octocat", repo: "Hello-World")
         }
@@ -371,14 +371,14 @@ struct GitHubClientTests {
     }
 
     @Test func status403WithoutExhaustionMapsToForbidden() async throws {
-        let client = stubClient { _ in error(403, "Resource not accessible by integration") }
+        let client = stubClient { _ in error(403, message: "Resource not accessible by integration") }
         await #expect(throws: GitHubError.forbidden(message: "Resource not accessible by integration", rateLimited: false, resetAt: nil)) {
             try await client.getRepository(owner: "octocat", repo: "Hello-World")
         }
     }
 
     @Test func otherStatusesMapToHTTPWithMessage() async throws {
-        let client = stubClient { _ in error(500, "Server Error") }
+        let client = stubClient { _ in error(500, message: "Server Error") }
         await #expect(throws: GitHubError.http(status: 500, message: "Server Error")) {
             try await client.getRepository(owner: "octocat", repo: "Hello-World")
         }
@@ -412,7 +412,7 @@ struct GitHubClientTests {
 
     @Test func retryAfterHeaderIsRecorded() async throws {
         let headers = ["X-RateLimit-Limit": "60", "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1780000000", "Retry-After": "120"]
-        let client = stubClient { _ in error(403, "API rate limit exceeded", headers: headers) }
+        let client = stubClient { _ in error(403, message: "API rate limit exceeded", headers: headers) }
         await #expect(throws: GitHubError.forbidden(message: "API rate limit exceeded", rateLimited: true, resetAt: Date(timeIntervalSince1970: 1780000000))) {
             try await client.getRepository(owner: "octocat", repo: "Hello-World")
         }

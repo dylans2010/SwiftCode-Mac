@@ -123,14 +123,23 @@ final class LifecycleTests: XCTestCase {
 
     func testActivateGuards() async throws {
         // Not installed.
-        await XCTAssertThrowsErrorAsync({ try await manager.activate(extensionId: "acme.nope") }) { error in
+        do {
+            _ = try await manager.activate(extensionId: "acme.nope")
+            XCTFail("activate must throw for an unknown extension")
+        } catch {
             XCTAssertTrue(error is SwiftCodeExtensionError)
         }
         try persist([installRecord(id: "acme.sample", enabled: false)])
-        await XCTAssertThrowsErrorAsync({ try await manager.activate(extensionId: "acme.sample") })
+        do {
+            _ = try await manager.activate(extensionId: "acme.sample")
+            XCTFail("activate must throw for a disabled extension")
+        } catch {}
         // Incompatible.
         try persist([installRecord(id: "acme.sample", engineRequirement: ">=9.0.0")])
-        await XCTAssertThrowsErrorAsync({ try await manager.activate(extensionId: "acme.sample") })
+        do {
+            _ = try await manager.activate(extensionId: "acme.sample")
+            XCTFail("activate must throw for an incompatible engine requirement")
+        } catch {}
     }
 
     func testRegisterSamplePlugin() {

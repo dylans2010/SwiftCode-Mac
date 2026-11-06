@@ -184,10 +184,10 @@ import SwiftCodeIDECore
         let ok = try await host.server.callTool("parse_yaml", ["yaml": .string(yaml)])
         #expect(!ok.isToolError, "\(ok.resultText)")
         let parsed = ok.structured?["parsed"]
-        #expect(parsed?["name"] == "Greeter")
-        #expect(parsed?["count"] == 3)
-        #expect(parsed?["enabled"] == true)
-        #expect(parsed?["ratio"] == 1.5)
+        #expect(parsed?["name"]?.string == "Greeter")
+        #expect(parsed?["count"]?.int == 3)
+        #expect(parsed?["enabled"]?.bool == true)
+        #expect(parsed?["ratio"]?.int == 1.5)
         #expect(parsed?["nothing"]?.isNull == true)
         #expect(parsed?["tags"]?[1] == "b")
         #expect(parsed?["items"]?[0] == "one")
@@ -212,7 +212,7 @@ import SwiftCodeIDECore
         let ok = try await host.server.callTool("parse_xml", ["xml": .string(xml)])
         #expect(!ok.isToolError, "\(ok.resultText)")
         let root = ok.structured?["root"]
-        #expect(root?["tag"] == "root")
+        #expect(root?["tag"]?.string == "root")
         #expect(root?["attributes"]?["version"] == "1")
         #expect(root?["children"]?[0]?["tag"] == "child")
         #expect(root?["children"]?[0]?["attributes"]?["name"] == "a")
@@ -266,13 +266,13 @@ import SwiftCodeIDECore
         let ok = try await host.server.callTool("sql_query", ["query": .string("SELECT id, name FROM users ORDER BY id"),
                                                               "databasePath": .string(db)])
         #expect(!ok.isToolError, "\(ok.resultText)")
-        #expect(ok.structured?["rowCount"] == 2)
+        #expect(ok.structured?["rowCount"]?.int == 2)
         #expect(ok.structured?["rows"]?[0]?["id"] == 1)
         #expect(ok.structured?["rows"]?[0]?["name"] == "ann")
         #expect(ok.structured?["rows"]?[1]?["name"] == "bob")
         let empty = try await host.server.callTool("sql_query", ["query": .string("SELECT * FROM users WHERE id > 99"),
                                                                  "databasePath": .string(db)])
-        #expect(!empty.isToolError && empty.structured?["rowCount"] == 0)
+        #expect(!empty.isToolError && empty.structured?["rowCount"]?.int == 0)
         let insert = try await host.server.callTool("sql_query", ["query": .string("INSERT INTO users VALUES(3, 'cy')"),
                                                                   "databasePath": .string(db)])
         #expect(insert.isToolError && insert.firstText.contains("read-only statements only"))
@@ -292,7 +292,7 @@ import SwiftCodeIDECore
         let db = try makeDatabaseFixture(sample)
         let r = try await host.server.callTool("database_schema_inspector", ["databasePath": .string(db)])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["tableCount"] == 2)
+        #expect(r.structured?["tableCount"]?.int == 2)
         #expect(r.structured?["views"]?.array?.compactMap(\.string) == ["user_names"])
         #expect(r.structured?["indexes"]?.array?.compactMap(\.string) == ["idx_users_name"])
         let tables = r.structured?["tables"]?.array ?? []
@@ -323,8 +323,8 @@ import SwiftCodeIDECore
         let ok = try await host.server.callTool("database_migration", ["databasePath": .string("data/mig.db"),
                                                                        "migrationPath": .string("data/migration.sql")])
         #expect(!ok.isToolError, "\(ok.resultText)")
-        #expect(ok.structured?["database"] == "data/mig.db")
-        #expect(ok.structured?["migration"] == "data/migration.sql")
+        #expect(ok.structured?["database"]?.string == "data/mig.db")
+        #expect(ok.structured?["migration"]?.string == "data/migration.sql")
         #expect(ok.firstText.contains("Migration applied"))
         let check = try await host.server.callTool("sql_query", ["query": .string("SELECT label FROM migrated"),
                                                                  "databasePath": .string("data/mig.db")])
@@ -500,7 +500,7 @@ import SwiftCodeIDECore
         """)
         let r = try await host.server.callTool("crash_analyzer", ["logPath": .string("Logs/crash.crash")])
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["hasException"] == true && r.structured?["frameCount"] == 3)
+        #expect(r.structured?["hasException"]?.bool == true && r.structured?["frameCount"]?.int == 3)
         #expect(r.firstText.contains("Exception Type: EXC_BAD_ACCESS (SIGSEGV)"))
         #expect(r.firstText.contains("Top blamed frames:"))
         try writeFixture(sample, "Logs/crash.ips", "{\"exception\": {\"type\": \"EXC_CRASH\"}, \"termination\": {\"reason\": \"Namespace X\"}}")

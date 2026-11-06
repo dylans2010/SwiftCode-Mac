@@ -472,17 +472,8 @@ public struct OpenCodeProvider: AssistantProvider {
     }
 }
 
-/// A model selected through the OpenCode provider: `providerID/modelID`,
-/// stored as `opencode:<providerID>/<modelID>` (Legacy's canonical
-/// stored form). The prefix is deliberate: bare `provider/model`
-/// identifiers already route to OpenRouter elsewhere, so an unprefixed
-/// OpenCode model would be silently sent to the wrong provider.
-struct OpenCodeModelID: Equatable, Sendable {
-    var providerID: String
-    var modelID: String
-    var storedID: String { "opencode:\(providerID)/\(modelID)" }
-    var displayName: String { "\(providerID)/\(modelID)" }
-}
+// `OpenCodeModelID` is declared once, in AssistModelRouting.swift (the
+// stored-identifier model shared with the routing layer).
 
 /// Thread-safe model-list cache shared by copies of the provider struct.
 final class OpenCodeModelCache: @unchecked Sendable {

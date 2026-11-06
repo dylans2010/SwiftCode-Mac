@@ -228,7 +228,7 @@ package.targets += [
                                              // probes KVM through SwiftCodeHypervisor.
                                              "SwiftCodeHypervisor",
                                              // The StoreKit editor controller (specs/ide/storekit-paywall.md).
-                                             .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"), .product(name: "Markdown", package: "swift-markdown")], resources: [.copy("Resources/Sounds")]),
+                                             .product(name: "StoreKitConfiguration", package: "storekit"), .product(name: "Markdown", package: "swift-markdown")], resources: [.copy("Resources/Sounds")]),
     .executableTarget(name: "SwiftCodeApp", dependencies: ["SwiftCodeRelease", "SwiftCodeUI"]),
     .testTarget(name: "SwiftCodeUITests", dependencies: ["SwiftCodeMCP", "SwiftCodeUI", "SwiftCodeIDECore", "SwiftCodeCompletion", "SwiftCodePreviews", "SwiftCodeDisplayStream", "SwiftCodeSimFeatures", "SwiftCodeDeviceModel", "SwiftCodeDeviceUI", "SwiftCodeBuild", "SwiftCodeDebug", "SwiftCodeLanguage", "SwiftCodeXcodebuild", "SwiftCodeSubprocess", "SwiftCodeAssistant", "SwiftCodeExtensions", "SwiftCodeProfiler", "SwiftCodeBuildServer", "SwiftCodeIDEShell", "SwiftCodeCloud", "SwiftCodeGoogleAuth", "SwiftCodeSDK"]),
 ]
@@ -325,20 +325,20 @@ package.targets += [
                                                  // The .storekit editor model (specs/ide/storekit-paywall.md):
                                                  // reads/writes real .storekit files through the
                                                  // framework model instead of a second parser.
-                                                 .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"),
+                                                 .product(name: "StoreKitConfiguration", package: "storekit"),
                                                  // Gap-closure: the AppTestStore-backed StoreKit
                                                  // simulation (StoreKitSimulationSession) and the
                                                  // SQLite/database models read the HealthStore.
-                                                 .product(name: "StoreKitEngine", package: "swiftcode-storekit"),
+                                                 .product(name: "StoreKitEngine", package: "storekit"),
                                                  "SwiftCodeHealthStore",
                                                  // SHA-256 and the asset service's ES256 chain (runtime downloads, route B).
-                                                 .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/Licenses")]),
+                                                 .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/Licenses"), .copy("Resources/File Templates")]),
     .testTarget(name: "SwiftCodeIDECoreTests", dependencies: ["SwiftCodeIDECore", "SwiftCodeSyntax", "SwiftCodeProject", "SwiftCodeWorkspace", "SwiftCodeSettings", "SwiftCodePlist",
                                                           "SwiftCodeBuild", "SwiftCodeDebug", "SwiftCodeLanguage", "SwiftCodeXcodebuild", "SwiftCodeSubprocess",
                                                           "SwiftCodeAssistant", "SwiftCodeProfiler", "SwiftCodePreviews", "SwiftCodeDeviceModel", "SwiftCodeSimFeatures",
                                                           "SwiftCodeSigning",
-                                                          .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"),
-                                                          .product(name: "StoreKitEngine", package: "swiftcode-storekit"),
+                                                          .product(name: "StoreKitConfiguration", package: "storekit"),
+                                                          .product(name: "StoreKitEngine", package: "storekit"),
                                                           "SwiftCodeHealthStore"],
                 exclude: ["Fixtures"]),
 ]
@@ -410,7 +410,7 @@ package.targets += [
 package.products += [.library(name: "SwiftCodeMCP", targets: ["SwiftCodeMCP"])]
 package.targets += [
     .target(name: "SwiftCodeMCP", dependencies: ["SwiftCodeIDECore", "SwiftCodeIDEShell", "SwiftCodeAssistant", "SwiftCodeCompletion", "SwiftCodeBuild", "SwiftCodePreviews",
-                                             "SwiftCodeProject", "SwiftCodeSettings", "SwiftCodeWorkspace", "SwiftCodeSubprocess", "SwiftCodeMachO", "SwiftCodeGitHub",
+                                             "SwiftCodeProject", "SwiftCodePlist", "SwiftCodeSettings", "SwiftCodeWorkspace", "SwiftCodeSubprocess", "SwiftCodeMachO", "SwiftCodeGitHub",
                                              "SwiftCodeExtensions",
                                              // Gap-closure: the AST inspector and the token-aware
                                              // rename engine parse with swift-syntax directly
@@ -437,7 +437,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
                                                           "SwiftCodePreviews", "SwiftCodeExtensions", "SwiftCodeSDK", "SwiftCodeSDKStudio", "SwiftCodePaywall",
                                                           // Bulk wave (Views-D): backups + PR views.
                                                           "SwiftCodeCloud", "SwiftCodeGitHub",
-                                                          .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"),
+                                                          .product(name: "StoreKitConfiguration", package: "storekit"),
                                                           .product(name: "SwiftUI", package: "swiftcode-swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftcode-swiftui"),
                                                           .product(name: "OVDBus", package: "swiftcode-swiftui"),
@@ -453,7 +453,7 @@ package.targets += [
                                                       "SwiftCodePreviews", "SwiftCodeExtensions", "SwiftCodeSDK", "SwiftCodeSDKStudio", "SwiftCodePaywall",
                                                       // Bulk wave (Views-D): backups + PR views.
                                                       "SwiftCodeCloud", "SwiftCodeGitHub",
-                                                      .product(name: "StoreKitConfiguration", package: "swiftcode-storekit"),
+                                                      .product(name: "StoreKitConfiguration", package: "storekit"),
                                                       // Wave 19 slice C: ModernGroupBoxStyle lives in
                                                       // SwiftCodeUI and 15 DevTools views call it.
                                                       "SwiftCodeUI"]),

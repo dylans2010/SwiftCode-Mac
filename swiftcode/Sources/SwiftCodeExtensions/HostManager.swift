@@ -112,14 +112,9 @@ final class HostSession: @unchecked Sendable {
             writeQuietly(data, to: stdinHandle)
             Task {
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                self.lock.lock()
-                if let continuation = self.pending.removeValue(forKey: request.id) {
-                    self.lock.unlock()
-                    continuation.resume(throwing: SwiftCodeExtensionError.timeout(
-                        "Extension host request '\(request.method)' timed out after \(Int(timeout))s."))
-                } else {
-                    self.lock.unlock()
-                }
+                let expired = self.lock.withLock { self.pending.removeValue(forKey: request.id) }
+                expired?.resume(throwing: SwiftCodeExtensionError.timeout(
+                    "Extension host request '\(request.method)' timed out after \(Int(timeout))s."))
             }
         }
     }

@@ -317,7 +317,7 @@ public enum OperationsHealth {
         return total
     }
 
-    public static func factors(workspaceURL: URL?, buildHistory: OperationsBuildHistory, registryCount: Int) -> [Factor] {
+     @MainActor public static func factors(workspaceURL: URL?, buildHistory: OperationsBuildHistory, registryCount: Int) -> [Factor] {
         var factors: [Factor] = []
         if let url = workspaceURL, let free = freeDiskSpace(at: url) {
             factors.append(Factor(name: "Disk space", detail: "\(free / 1_073_741_824) GB free", healthy: free > 5_368_709_120))

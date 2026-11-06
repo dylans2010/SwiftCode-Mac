@@ -221,9 +221,9 @@ extension SwiftCodeMCPHost {
         default:
             throw MCPToolError("Unsupported action '\(action)'. Valid: resolve, update, status, dump_manifest, describe")
         }
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/swift", arguments, workingDirectory: targetDir, timeout: 300)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to execute swift package: could not start /usr/bin/swift.")
         }
         if run.timedOut {
@@ -298,9 +298,9 @@ extension SwiftCodeMCPHost {
         guard Self.isInside(workingDir.standardizedFileURL, root) || workingDir.standardizedFileURL.path == root.standardizedFileURL.path else {
             throw MCPToolError("Manifest directory is outside the workspace.")
         }
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/swift", ["package", "dump-package"], workingDirectory: workingDir, timeout: 300)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to start swift package dump-package: could not start /usr/bin/swift.")
         }
         if run.timedOut {
@@ -438,13 +438,13 @@ extension SwiftCodeMCPHost {
             lines.append("Flags:")
             for flag in flags { lines.append("- \(flag)") }
         }
-        let showDeps = await Task.detached {
+        let showDeps = (await Task.detached {
             guard FileManager.default.fileExists(atPath: "/usr/bin/swift") else { return "" }
             guard let run = Self.terminalRunFixed("/usr/bin/swift", ["package", "show-dependencies"],
                                                   workingDirectory: root, timeout: 120),
                   !run.timedOut, run.exitCode == 0 else { return "" }
             return String(run.stdout.suffix(2000))
-        }.value
+        }.value)
         if !showDeps.isEmpty {
             lines.append("swift package show-dependencies:")
             lines.append(showDeps)
@@ -476,9 +476,9 @@ extension SwiftCodeMCPHost {
                 args.append(trimmed)
             }
         }
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/swift", args, workingDirectory: root, timeout: 300)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to start swift package update: could not start /usr/bin/swift.")
         }
         if run.timedOut {
@@ -629,9 +629,9 @@ extension SwiftCodeMCPHost {
         }
         let arguments = ["docbuild", "-scheme", scheme, "-destination", destination,
                          "-derivedDataPath", derivedDataURL.path]
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/xcodebuild", arguments, workingDirectory: root, timeout: 600)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to start xcodebuild docbuild: could not start /usr/bin/xcodebuild.")
         }
         if run.timedOut {

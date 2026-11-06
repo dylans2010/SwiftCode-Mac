@@ -419,54 +419,8 @@ public struct HermesProvider: AssistantProvider {
 
 // MARK: - Model identity
 
-/// A model selected through the Hermes provider.
-///
-/// Stored as `hermes:<spec>` where `<spec>` is Hermes' own model
-/// syntax: either `provider:model` or a bare model name Hermes
-/// resolves against its configured default provider.
-public struct HermesModelID: Equatable, Sendable {
-    /// The Hermes model spec after the `hermes:` prefix.
-    public let spec: String
-
-    public var storedID: String { "hermes:\(spec)" }
-
-    /// The Hermes provider override, when the spec carries one
-    /// (`provider:model`). Nil for a bare model name: Hermes then
-    /// uses its configured default provider and SwiftCode must not
-    /// invent one.
-    public var provider: String? {
-        guard let colon = spec.firstIndex(of: ":") else { return nil }
-        let value = String(spec[..<colon])
-        return value.isEmpty ? nil : value
-    }
-
-    /// The model name Hermes receives via `--model`: the part after
-    /// the provider prefix, or the whole spec for a bare model name.
-    public var model: String {
-        guard let colon = spec.firstIndex(of: ":") else { return spec }
-        return String(spec[spec.index(after: colon)...])
-    }
-
-    public init(spec: String) {
-        self.spec = spec
-    }
-
-    /// Parses a stored `hermes:` model identifier. Returns nil for any
-    /// other provider's identifier, for an empty spec, and for a spec
-    /// whose model part is empty (`hermes:openrouter:`).
-    public static func parse(_ storedID: String) -> HermesModelID? {
-        guard storedID.hasPrefix("hermes:") else { return nil }
-        let spec = String(storedID.dropFirst("hermes:".count))
-        guard !spec.isEmpty else { return nil }
-        let parsed = HermesModelID(spec: spec)
-        guard !parsed.model.isEmpty else { return nil }
-        return parsed
-    }
-
-    public static func isHermesModelID(_ storedID: String) -> Bool {
-        parse(storedID) != nil
-    }
-}
+// `HermesModelID` is declared once, in AssistModelRouting.swift (the
+// stored-identifier model shared with the routing layer).
 
 // MARK: - Configuration
 

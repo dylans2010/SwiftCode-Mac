@@ -86,15 +86,15 @@ import SwiftCodeIDECore
 
         let diff = try await call(host, "file_compare_diff", ["pathA": "a.txt", "pathB": "b.txt"])
         #expect(!diff.isToolError, "\(diff.resultText)")
-        #expect(diff.structured?["identical"] == false)
-        #expect(diff.structured?["addedLines"] == 2 && diff.structured?["removedLines"] == 1)
+        #expect(diff.structured?["identical"]?.bool == false)
+        #expect(diff.structured?["addedLines"]?.int == 2 && diff.structured?["removedLines"]?.int == 1)
         let text = diff.structured?["diff"]?.string ?? ""
         #expect(text.contains("--- a/a.txt") && text.contains("+++ b/b.txt") && text.contains("@@ -1,3 +1,4 @@"))
         #expect(text.contains("  one") && text.contains("- two") && text.contains("+ TWO") && text.contains("+ four"))
         #expect(diff.resultText.contains("Unified diff for `a.txt` vs `b.txt` (+2, -1 lines)"))
 
         let same = try await call(host, "file_compare_diff", ["pathA": "c.txt", "pathB": "c.txt"])
-        #expect(same.structured?["identical"] == true && same.structured?["lineCount"] == 2)
+        #expect(same.structured?["identical"]?.bool == true && same.structured?["lineCount"]?.int == 2)
         #expect(same.resultText.contains("are identical (2 lines)"))
 
         let missing = try await call(host, "file_compare_diff", ["pathA": "a.txt", "pathB": "NoSuch.txt"])
@@ -117,18 +117,18 @@ import SwiftCodeIDECore
 
         let def = try await call(host, "file_checksum_verifier", ["path": "abc.txt"])
         #expect(!def.isToolError, "\(def.resultText)")
-        #expect(def.structured?["algorithm"] == "sha256" && def.structured?["hash"] == Self.abcSHA256 && def.structured?["size"] == 3)
+        #expect(def.structured?["algorithm"]?.string == "sha256" && def.structured?["hash"] == Self.abcSHA256 && def.structured?["size"]?.int == 3)
         #expect(def.resultText.contains("Algorithm: SHA256") && def.resultText.contains(Self.abcSHA256))
         let sha1 = try await call(host, "file_checksum_verifier", ["path": "abc.txt", "algorithm": "sha1"])
         #expect(sha1.structured?["hash"] == Self.abcSHA1)
         let md5 = try await call(host, "file_checksum_verifier", ["path": "abc.txt", "algorithm": "MD5"])
-        #expect(md5.structured?["algorithm"] == "md5" && md5.structured?["hash"] == Self.abcMD5)
+        #expect(md5.structured?["algorithm"]?.string == "md5" && md5.structured?["hash"] == Self.abcMD5)
         // Legacy falls through to SHA-256 for an unknown algorithm name.
         let unknown = try await call(host, "file_checksum_verifier", ["path": "abc.txt", "algorithm": "sha512"])
-        #expect(!unknown.isToolError && unknown.structured?["algorithm"] == "sha256" && unknown.structured?["hash"] == Self.abcSHA256)
+        #expect(!unknown.isToolError && unknown.structured?["algorithm"]?.string == "sha256" && unknown.structured?["hash"] == Self.abcSHA256)
         // Binary files hash fine; a directory does not.
         let bin = try await call(host, "file_checksum_verifier", ["path": "bin.dat"])
-        #expect(!bin.isToolError && bin.structured?["size"] == 5)
+        #expect(!bin.isToolError && bin.structured?["size"]?.int == 5)
         let dir = try await call(host, "file_checksum_verifier", ["path": "Sources"])
         #expect(dir.isToolError && dir.resultText.contains("Unable to read data from file at: Sources"))
         let missing = try await call(host, "file_checksum_verifier", ["path": "NoSuch.txt"])
@@ -145,15 +145,15 @@ import SwiftCodeIDECore
 
         let match = try await call(host, "file_hash_verify", ["path": "abc.txt", "expectedHash": Self.abcSHA256])
         #expect(!match.isToolError, "\(match.resultText)")
-        #expect(match.structured?["match"] == true && match.structured?["computedHash"] == Self.abcSHA256)
+        #expect(match.structured?["match"]?.bool == true && match.structured?["computedHash"] == Self.abcSHA256)
         #expect(match.resultText.contains("Hash match: true."))
         // A mismatch is a successful comparison with match false, not an error.
         let zeros = String(repeating: "0", count: 64)
         let mismatch = try await call(host, "file_hash_verify", ["path": "abc.txt", "expectedHash": zeros])
-        #expect(!mismatch.isToolError && mismatch.structured?["match"] == false)
+        #expect(!mismatch.isToolError && mismatch.structured?["match"]?.bool == false)
         #expect(mismatch.resultText.contains("Hash match: false.") && mismatch.resultText.contains("expected \(zeros)"))
         let md5 = try await call(host, "file_hash_verify", ["path": "abc.txt", "expectedHash": Self.abcMD5, "algorithm": "md5"])
-        #expect(md5.structured?["match"] == true)
+        #expect(md5.structured?["match"]?.bool == true)
 
         let badAlgorithm = try await call(host, "file_hash_verify", ["path": "abc.txt", "expectedHash": Self.abcSHA256, "algorithm": "sha512"])
         #expect(badAlgorithm.isToolError && badAlgorithm.resultText.contains("Invalid algorithm 'sha512'"))
@@ -177,14 +177,14 @@ import SwiftCodeIDECore
         let all = try await call(host, "file_type_breakdown")
         #expect(!all.isToolError, "\(all.resultText)")
         // Greeter: 5 Swift files (Package.swift included) + 1 .xcstrings.
-        #expect(all.structured?["typeCount"] == 2)
+        #expect(all.structured?["typeCount"]?.int == 2)
         let swift = all.structured?["types"]?.array?.first { $0["extension"] == ".swift" }
-        #expect(swift?["files"] == 5 && (swift?["bytes"]?.int ?? 0) > 0)
+        #expect(swift?["files"]?.int == 5 && (swift?["bytes"]?.int ?? 0) > 0)
         #expect(all.resultText.contains("| Extension | Files | Bytes |") && all.resultText.contains("| .swift | 5 |"))
 
         let sources = try await call(host, "file_type_breakdown", ["path": "Sources"])
-        #expect(sources.structured?["typeCount"] == 1)
-        #expect(sources.structured?["types"]?.array?.first?["files"] == 2)
+        #expect(sources.structured?["typeCount"]?.int == 1)
+        #expect(sources.structured?["types"]?.array?.first?["files"]?.int == 2)
 
         let missing = try await call(host, "file_type_breakdown", ["path": "NoSuchDir"])
         #expect(missing.isToolError && missing.resultText.contains("Cannot enumerate directory: NoSuchDir"))
@@ -203,14 +203,14 @@ import SwiftCodeIDECore
 
         let dupes = try await call(host, "find_duplicate_files", ["path": "dup"])
         #expect(!dupes.isToolError, "\(dupes.resultText)")
-        #expect(dupes.structured?["groupCount"] == 1)
+        #expect(dupes.structured?["groupCount"]?.int == 1)
         let groups = dupes.structured?["groups"]?.array?.compactMap { $0.array?.compactMap(\.string) }
         #expect(groups == [["dup/a.txt", "dup/b.txt"]])
         #expect(dupes.resultText.contains("Duplicate file groups (1):"))
 
         // Files below minSize are ignored.
         let none = try await call(host, "find_duplicate_files", ["path": "dup", "minSize": 100])
-        #expect(none.structured?["groupCount"] == 0)
+        #expect(none.structured?["groupCount"]?.int == 0)
         #expect(none.resultText.contains("No duplicate files found under dup."))
         let missing = try await call(host, "find_duplicate_files", ["path": "NoSuchDir"])
         #expect(missing.isToolError && missing.resultText.contains("Cannot enumerate directory: NoSuchDir"))
@@ -227,14 +227,14 @@ import SwiftCodeIDECore
 
         let found = try await call(host, "empty_dirs_find")
         #expect(!found.isToolError, "\(found.resultText)")
-        #expect(found.structured?["count"] == 2)
+        #expect(found.structured?["count"]?.int == 2)
         #expect(found.structured?["directories"]?.array?.compactMap(\.string) == ["empty1", "nested/empty2"])
         #expect(found.resultText.contains("Empty directories (2):"))
 
         let nested = try await call(host, "empty_dirs_find", ["path": "nested"])
-        #expect(nested.structured?["count"] == 1)
+        #expect(nested.structured?["count"]?.int == 1)
         let full = try await call(host, "empty_dirs_find", ["path": "full"])
-        #expect(full.structured?["count"] == 0 && full.resultText.contains("No empty directories under full."))
+        #expect(full.structured?["count"]?.int == 0 && full.resultText.contains("No empty directories under full."))
     }
 
     @Test func executableScan() async throws {
@@ -250,13 +250,13 @@ import SwiftCodeIDECore
 
         let execs = try await call(host, "executable_files_scan", ["path": "bin"])
         #expect(!execs.isToolError, "\(execs.resultText)")
-        #expect(execs.structured?["count"] == 2)
+        #expect(execs.structured?["count"]?.int == 2)
         #expect(execs.structured?["files"]?.array?.compactMap(\.string) == ["bin/run.sh", "bin/tool"])
 
         let limited = try await call(host, "executable_files_scan", ["path": "bin", "limit": 1])
-        #expect(limited.structured?["count"] == 1)
+        #expect(limited.structured?["count"]?.int == 1)
         let none = try await call(host, "executable_files_scan", ["path": "Sources"])
-        #expect(none.structured?["count"] == 0 && none.resultText.contains("No executable files under Sources."))
+        #expect(none.structured?["count"]?.int == 0 && none.resultText.contains("No executable files under Sources."))
     }
 
     @Test func symlinkAudit() async throws {
@@ -272,9 +272,9 @@ import SwiftCodeIDECore
 
         let audit = try await call(host, "symlink_audit", ["path": "links"])
         #expect(!audit.isToolError, "\(audit.resultText)")
-        #expect(audit.structured?["count"] == 4)
-        #expect(audit.structured?["brokenCount"] == 1)
-        #expect(audit.structured?["escapingCount"] == 1)
+        #expect(audit.structured?["count"]?.int == 4)
+        #expect(audit.structured?["brokenCount"]?.int == 1)
+        #expect(audit.structured?["escapingCount"]?.int == 1)
         let links = audit.structured?["links"]?.array ?? []
         // The directory link is a leaf: nothing under Sources is listed.
         #expect(links.count == 4)
@@ -289,7 +289,7 @@ import SwiftCodeIDECore
         #expect(audit.resultText.contains("[BROKEN]") && audit.resultText.contains("[ESCAPES WORKSPACE]"))
 
         let none = try await call(host, "symlink_audit", ["path": "Sources"])
-        #expect(none.structured?["count"] == 0 && none.resultText.contains("No symbolic links under Sources."))
+        #expect(none.structured?["count"]?.int == 0 && none.resultText.contains("No symbolic links under Sources."))
         let outside = try await call(host, "symlink_audit", ["path": ".."])
         #expect(outside.isToolError && outside.resultText.contains("outside the workspace"))
     }

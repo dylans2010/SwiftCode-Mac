@@ -468,10 +468,10 @@ extension SwiftCodeMCPHost {
                                         in: s, call: call)
 
         let start = Date()
-        let result = await Task.detached {
+        let result = (await Task.detached {
             Self.terminalRunFixed(executable, Array(argv.dropFirst()), workingDirectory: workingDirURL,
                                   environment: Self.terminalEnvironment(), timeout: 300)
-        }.value
+        }.value)
         guard let result else {
             throw MCPToolError("Process execution failed: could not launch \(executable)")
         }
@@ -514,10 +514,10 @@ extension SwiftCodeMCPHost {
         let output: String
         do {
             switch taskId {
-            case "project_indexing": output = try terminalTaskProjectIndexing(root: root)
-            case "dependency_analysis": output = terminalTaskDependencyAnalysis(root: root)
-            case "lint_project": output = terminalTaskLintProject(root: root)
-            case "project_test": output = terminalTaskProjectTest(root: root)
+            case "project_indexing": output = try Self.terminalTaskProjectIndexing(root: root)
+            case "dependency_analysis": output = Self.terminalTaskDependencyAnalysis(root: root)
+            case "lint_project": output = Self.terminalTaskLintProject(root: root)
+            case "project_test": output = Self.terminalTaskProjectTest(root: root)
             default: throw NSError(domain: "AssistExecution", code: 404,
                                    userInfo: [NSLocalizedDescriptionKey: "Task '\(taskId)' not found in registry."])
             }
@@ -1167,9 +1167,9 @@ extension SwiftCodeMCPHost {
     func processMonitor(_ call: MCPToolCall) async throws -> MCPToolResult {
         _ = try session(for: call)
         let filter = call.string("filter")
-        let result = await Task.detached {
+        let result = (await Task.detached {
             Self.terminalRunFixed("/bin/ps", ["-eo", "pid,%cpu,%mem,comm"], timeout: 15)
-        }.value
+        }.value)
         guard let result else {
             throw MCPToolError("Failed to query processes: failed to launch /bin/ps")
         }
@@ -1331,10 +1331,10 @@ extension SwiftCodeMCPHost {
     /// the detached task below may only capture `Sendable` values
     /// (`WorkspaceSession` is `@MainActor`).
     func terminalUseSystemRun(_ path: String, _ args: [String], timeout: TimeInterval, workingDirectory: URL) async -> TerminalFixedRun? {
-        await Task.detached {
+        (await Task.detached {
             Self.terminalRunFixed(path, args, workingDirectory: workingDirectory,
                                   environment: Self.terminalEnvironment(), timeout: timeout)
-        }.value
+        }.value)
     }
 
     func useSystem(_ call: MCPToolCall) async throws -> MCPToolResult {
@@ -1379,9 +1379,9 @@ extension SwiftCodeMCPHost {
     func terminalSystemInfo() async throws -> MCPToolResult {
         let info = ProcessInfo.processInfo
         let v = info.operatingSystemVersion
-        let uname = await Task.detached {
+        let uname = (await Task.detached {
             Self.terminalRunFixed(HostTool.path("uname"), ["-m", "-r"], timeout: 15)
-        }.value
+        }.value)
         var machine = "unknown"
         var release = "unknown"
         if let uname, uname.exitCode == 0 {

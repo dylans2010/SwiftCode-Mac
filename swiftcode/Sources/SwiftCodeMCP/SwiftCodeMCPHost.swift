@@ -153,7 +153,7 @@ public final class SwiftCodeMCPHost {
         return url
     }
 
-    static func isInside(_ url: URL, _ root: URL) -> Bool {
+    nonisolated static func isInside(_ url: URL, _ root: URL) -> Bool {
         let r = realPath(root), p = realPath(url)
         return p == r || p.hasPrefix(r.hasSuffix("/") ? r : r + "/")
     }

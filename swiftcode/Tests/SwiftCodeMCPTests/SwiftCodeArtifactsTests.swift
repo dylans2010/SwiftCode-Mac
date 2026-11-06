@@ -68,40 +68,40 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
         let empty = try await host.server.callTool("list_artifacts")
-        #expect(!empty.isToolError && empty.structured?["count"] == 0 && empty.resultText.contains("No artifacts yet"))
+        #expect(!empty.isToolError && empty.structured?["count"]?.int == 0 && empty.resultText.contains("No artifacts yet"))
 
         let content = "# Round Trip\n\nBody.\n"
         let created = try await host.server.callTool("create_artifact", ["name": .string("round_trip"), "content": .string(content),
                                                                          "description": .string("A round trip.")])
         #expect(!created.isToolError, "\(created.resultText)")
-        #expect(created.structured?["filename"] == "round_trip.md" && created.structured?["title"] == "Round Trip"
-                && created.structured?["relativePath"] == ".assist_temp/artifacts/round_trip.md"
-                && created.structured?["mode"] == "create" && created.structured?["kind"] == "artifact"
+        #expect(created.structured?["filename"]?.string == "round_trip.md" && created.structured?["title"]?.string == "Round Trip"
+                && created.structured?["relativePath"]?.string == ".assist_temp/artifacts/round_trip.md"
+                && created.structured?["mode"]?.string == "create" && created.structured?["kind"]?.string == "artifact"
                 && created.structured?["contentLength"]?.int == content.count)
         #expect(sample.read(".assist_temp/artifacts/round_trip.md") == "# Round Trip\n\nBody.\n")
         #expect(sample.read(".assist_temp/artifacts/.artifacts_index.json").contains("round_trip.md"))
 
         let listed = try await host.server.callTool("list_artifacts")
-        #expect(listed.structured?["count"] == 1 && artifactNames(listed) == ["round_trip.md"])
+        #expect(listed.structured?["count"]?.int == 1 && artifactNames(listed) == ["round_trip.md"])
         #expect(listed.structured?["artifacts"]?[0]?["title"] == "Round Trip"
                 && listed.structured?["artifacts"]?[0]?["description"] == "A round trip.")
         #expect(listed.resultText.contains("[Artifact]"))
 
         let read = try await host.server.callTool("read_artifact", ["name": .string("round_trip")])
-        #expect(read.structured?["filename"] == "round_trip.md" && read.structured?["kind"] == "artifact"
-                && read.structured?["truncated"] == false && read.structured?["content"] == "# Round Trip\n\nBody.\n")
+        #expect(read.structured?["filename"]?.string == "round_trip.md" && read.structured?["kind"]?.string == "artifact"
+                && read.structured?["truncated"]?.bool == false && read.structured?["content"]?.string == "# Round Trip\n\nBody.\n")
 
         let updated = try await host.server.callTool("create_artifact", ["name": .string("round_trip"), "content": .string("# V2\n"),
                                                                          "mode": .string("update")])
-        #expect(updated.structured?["mode"] == "update" && sample.read(".assist_temp/artifacts/round_trip.md") == "# V2\n")
+        #expect(updated.structured?["mode"]?.string == "update" && sample.read(".assist_temp/artifacts/round_trip.md") == "# V2\n")
 
         let appended = try await host.server.callTool("create_artifact", ["name": .string("round_trip"), "content": .string("More."),
                                                                           "mode": .string("append")])
-        #expect(appended.structured?["mode"] == "append")
+        #expect(appended.structured?["mode"]?.string == "append")
         #expect(sample.read(".assist_temp/artifacts/round_trip.md") == "# V2\n\nMore.\n")
 
         let deleted = try await host.server.callTool("delete_artifact", ["name": .string("round_trip"), "confirm": .bool(true)])
-        #expect(deleted.structured?["filename"] == "round_trip.md")
+        #expect(deleted.structured?["filename"]?.string == "round_trip.md")
         #expect(!FileManager.default.fileExists(atPath: sample.path(".assist_temp/artifacts/round_trip.md")))
         #expect(!sample.read(".assist_temp/artifacts/.artifacts_index.json").contains("round_trip.md"))
         #expect(artifactNames(try await host.server.callTool("list_artifacts")).isEmpty)
@@ -112,17 +112,17 @@ import SwiftCodeAssistant
         defer { sample.remove() }
         let host = try await opened(sample, policy: .allow)
         let inferred = try await host.server.callTool("create_artifact", ["name": .string("migration_plan"), "content": .string("Plan.\n")])
-        #expect(inferred.structured?["kind"] == "execution_plan", "\(inferred.resultText)")
+        #expect(inferred.structured?["kind"]?.string == "execution_plan", "\(inferred.resultText)")
         let explicit = try await host.server.callTool("create_artifact", ["name": .string("plain_note"), "content": .string("Note.\n"),
                                                                            "kind": .string("execution_plan")])
-        #expect(explicit.structured?["kind"] == "execution_plan")
+        #expect(explicit.structured?["kind"]?.string == "execution_plan")
         // An explicit kind wins over filename inference.
         let wins = try await host.server.callTool("create_artifact", ["name": .string("other_plan"), "content": .string("Note.\n"),
                                                                       "kind": .string("artifact")])
-        #expect(wins.structured?["kind"] == "artifact")
+        #expect(wins.structured?["kind"]?.string == "artifact")
         // A bare "plan" substring does not make an execution plan.
         let bare = try await host.server.callTool("create_artifact", ["name": .string("airplane_notes"), "content": .string("Note.\n")])
-        #expect(bare.structured?["kind"] == "artifact")
+        #expect(bare.structured?["kind"]?.string == "artifact")
     }
 
     @Test func createExistingFailsUpdateMissingFailsAppendCreates() async throws {
@@ -204,7 +204,7 @@ import SwiftCodeAssistant
         #expect(!FileManager.default.fileExists(atPath: sample.path(".assist_temp/artifacts/x.md")))
         #expect(!FileManager.default.fileExists(atPath: sample.path(".assist_temp/backups")))
         let listed = try await host.server.callTool("list_artifacts")
-        #expect(!listed.isToolError && listed.structured?["count"] == 0)
+        #expect(!listed.isToolError && listed.structured?["count"]?.int == 0)
     }
 
     @Test func reviewRejectsAndAcceptsWrites() async throws {
@@ -238,7 +238,7 @@ import SwiftCodeAssistant
         let sourceSize = (try? FileManager.default.attributesOfItem(atPath: sample.path("Package.swift")))?[.size] as? Int
         let backedUp = try await host.server.callTool("file_backup", ["path": .string("Package.swift")])
         #expect(!backedUp.isToolError, "\(backedUp.resultText)")
-        #expect(backedUp.structured?["source"] == "Package.swift" && backedUp.structured?["bytes"]?.int == sourceSize)
+        #expect(backedUp.structured?["source"]?.string == "Package.swift" && backedUp.structured?["bytes"]?.int == sourceSize)
         let rel = try #require(backedUp.structured?["backup"]?.string)
         #expect(rel.hasPrefix(".assist_temp/backups/Package.swift.") && rel.hasSuffix(".bak"))
         #expect(!rel.contains(":"))
@@ -258,7 +258,7 @@ import SwiftCodeAssistant
         let created = try await host.server.callTool("create_artifact", ["name": .string("big"), "content": .string(big)])
         #expect(!created.isToolError)
         let read = try await host.server.callTool("read_artifact", ["name": .string("big")])
-        #expect(read.structured?["truncated"] == true)
+        #expect(read.structured?["truncated"]?.bool == true)
         let content = try #require(read.structured?["content"]?.string)
         #expect(content.hasPrefix(String(repeating: "x", count: 60_000)) && content.contains("truncated"))
     }

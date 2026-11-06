@@ -58,7 +58,8 @@ final class CapabilityTests: XCTestCase {
             XCTFail("Prompt handler must not be called for an already-granted capability.")
             return false
         }
-        XCTAssertTrue(await permissions.request(extensionId: "acme.sample", capability: .terminal, reason: "x"))
+        let granted = await permissions.request(extensionId: "acme.sample", capability: .terminal, reason: "x")
+        XCTAssertTrue(granted)
     }
 
     func testSDKCapabilityRiskAndGrantability() {

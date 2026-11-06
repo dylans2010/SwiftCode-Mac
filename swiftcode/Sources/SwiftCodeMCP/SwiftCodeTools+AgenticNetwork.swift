@@ -569,9 +569,9 @@ extension SwiftCodeMCPHost {
         try await terminalApproveChange(tool: call.name,
                                         summary: "Run swift package \(subcommand) in \(projectPath)",
                                         in: s, call: call)
-        guard let run = await Task.detached {
+        guard let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/swift", ["package", subcommand], workingDirectory: dir, timeout: 300)
-        }.value else {
+        }.value) else {
             throw MCPToolError("Failed to execute swift package \(subcommand): could not start /usr/bin/swift.")
         }
         if run.timedOut {

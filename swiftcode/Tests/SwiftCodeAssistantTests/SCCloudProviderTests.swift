@@ -125,7 +125,7 @@ import Testing
         #expect(body["stream"] as? Bool == false)
         let messages = try #require(body["messages"] as? [[String: String]])
         #expect(messages.map { $0["role"]! } == ["system", "user"])
-        #expect(messages.first?["content"] == "Be brief.")
+        #expect(messages.first?["content"]?.string == "Be brief.")
     }
 
     @Test func legacyInternalIDIsUnwrappedOnSend() async throws {

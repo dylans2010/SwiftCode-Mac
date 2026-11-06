@@ -67,7 +67,12 @@ public enum Organizer {
                 urls.append(inner)
             }
         }
-        return urls.compactMap(entry(at:)).sorted { ($0.created ?? .distantPast, $0.url.path) > ($1.created ?? .distantPast, $1.url.path) }
+        return urls.compactMap(entry(at:)).sorted {
+            let a = $0.created ?? .distantPast
+            let b = $1.created ?? .distantPast
+            if a != b { return a > b }
+            return $0.url.path > $1.url.path
+        }
     }
 
     /// Archives grouped by application, groups by name.

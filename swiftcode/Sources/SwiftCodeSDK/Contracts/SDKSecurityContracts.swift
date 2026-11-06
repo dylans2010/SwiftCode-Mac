@@ -192,7 +192,7 @@ public struct SDKSecurityHasValue: Codable, Sendable {
 /// One entry of a `security.listValueIDs` result. Carries NO secret
 /// material — safe to hand to the extension. `label` is always present
 /// (empty when none was stored); `createdAt` is ISO-8601.
-public struct SDKSecurityStoredValue: Codable, Sendable {
+public struct SDKSecurityStoredValue: Codable, Sendable, Equatable {
     public let valueID: String
     public let label: String
     public let createdAt: String

@@ -13,7 +13,7 @@ public enum ProductIdentity {
     /// The About window's line.
     public static var fullVersionText: String { "Version \(marketingVersion) (\(version))" }
 
-    public static let copyright = "Copyright © 2026 MarcoDotIO and the Ycode contributors"
+    public static let copyright = "Copyright © 2026 MarcoDotIO and the SwiftCode contributors"
     public static let license = "MIT License"
     /// Independent of the platform vendor: a factual statement, on every About.
     public static let notAffiliated = "SwiftCode is an independent project. It is not affiliated with or endorsed by Apple Inc."

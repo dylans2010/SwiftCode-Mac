@@ -268,7 +268,7 @@ extension SwiftCodeMCPHost {
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
             return results
         }
-        for case let url as URL in enumerator where matches(url) { results.append(url) }
+        for case let url as URL in enumerator where matching(url) { results.append(url) }
         return results.sorted { $0.path < $1.path }
     }
 
@@ -805,7 +805,7 @@ extension SwiftCodeMCPHost {
             "provisioningProfiles": .string(profiles.joined(separator: ",")),
         ]
         if let scheme, !scheme.isEmpty { data["scheme"] = .string(scheme) }
-        return .structured(data, summary: summary)
+        return .structured(.object(data), summary: summary)
     }
 
     // MARK: - provisioning_check

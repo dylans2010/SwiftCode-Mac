@@ -542,7 +542,7 @@ public final class WorkspaceWindowController: NSWindowController, NSToolbarDeleg
     /// project, refreshes the navigator and opens the first new file
     /// (undoable; `createNavigatorFiles`).
     @discardableResult
-    public func createFile(_ template: FileTemplate, name: String) throws -> [URL] {
+    public func createFile(_ template: BuiltInFileTemplate, name: String) throws -> [URL] {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { throw NewFileError.emptyName }
         return try createNavigatorFiles(template.files(named: n), in: newFileDirectory, targets: nil)

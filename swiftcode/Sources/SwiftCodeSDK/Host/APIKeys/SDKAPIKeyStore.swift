@@ -16,6 +16,13 @@ import Crypto
 // file store on Linux). SwiftCodeAssistant's `SecretStore` was considered
 // and rejected — it has no enumeration, which `list()` requires.
 
+/// One-shot flag carried into `verify`'s nested async recorder so the
+/// mutable "already recorded" state is a Sendable reference instead of
+/// a captured `var` (Swift 6 region isolation).
+private final class FailureFlag: @unchecked Sendable {
+    var recorded = false
+}
+
 public actor SDKAPIKeyStore {
     public static let shared = SDKAPIKeyStore(store: SDKSecretStoreFactory.defaultStore())
 
@@ -81,7 +88,7 @@ public actor SDKAPIKeyStore {
         scopes: Set<SDKAPIKeyScope>,
         isLive: Bool,
         expiresAt: Date? = nil
-    ) throws -> (key: SDKAPIKey, secret: String) {
+    ) async throws -> (key: SDKAPIKey, secret: String) {
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1...128).contains(trimmedLabel.count) else {
             throw SDKError(code: .invalidArgument, message: "The key label must be 1–128 characters.")
@@ -146,10 +153,10 @@ public actor SDKAPIKeyStore {
             )
         }
         // Each failed attempt records exactly one rate-limit failure.
-        var failureRecorded = false
+        let failureRecorded = FailureFlag()
         func noteFailure(_ detail: String) async {
-            guard !failureRecorded else { return }
-            failureRecorded = true
+            guard !failureRecorded.recorded else { return }
+            failureRecorded.recorded = true
             recordFailure(bucketKey)
             await SDKAuditLog.shared.record(.apiKeyAuthFailure, detail: detail)
         }

@@ -318,9 +318,9 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
 
     // MARK: - NSTableViewDataSource / Delegate
 
-    func numberOfRows(in tableView: NSTableView) -> Int { runs.count }
+    public func numberOfRows(in tableView: NSTableView) -> Int { runs.count }
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard runs.indices.contains(row) else { return nil }
         let run = runs[row]
         let value: String
@@ -347,7 +347,7 @@ public final class CIWindowController: NSWindowController, NSTableViewDataSource
         return cell
     }
 
-    func tableViewSelectionDidChange(_ notification: Notification) {
+    public func tableViewSelectionDidChange(_ notification: Notification) {
         let row = runsTable.selectedRow
         guard row >= 0, runs.indices.contains(row) else { return }
         selectRun(runs[row])

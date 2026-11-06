@@ -31,7 +31,7 @@ import SwiftCodePlist
         let projectConfigs = back.buildConfigurations(listID: back.project?.string("buildConfigurationList")).compactMap { $0.string("name") }
         let configs = back.buildConfigurations(listID: t.string("buildConfigurationList"))
         #expect(configs.compactMap { $0.string("name") } == projectConfigs)
-        #expect(configs.allSatisfy { $0["buildSettings"]?.dictionary?["GENERATE_INFOPLIST_FILE"] == "YES" })
+        #expect(configs.allSatisfy { $0["buildSettings"]?.dictionary?["GENERATE_INFOPLIST_FILE"]?.string == "YES" })
         #expect(back.buildPhases(ofTarget: id).map(\.isa) == ["PBXSourcesBuildPhase", "PBXFrameworksBuildPhase", "PBXResourcesBuildPhase"])
         // Product in the products group.
         let product = try #require(t.string("productReference").flatMap { back[$0] })

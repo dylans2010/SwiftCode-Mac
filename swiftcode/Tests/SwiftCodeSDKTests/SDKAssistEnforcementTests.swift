@@ -123,27 +123,30 @@ final class SDKAssistEnforcementTests: XCTestCase {
 
     func testGrantAndRevokeEntitlementRoundTrip() async throws {
         let (key, secret) = try await testKey()
-        XCTAssertFalse(try await SDKAPIKeyStore.shared.verify(secret: secret).entitlements.contains(.developerAIAssist))
+        let initial = try await SDKAPIKeyStore.shared.verify(secret: secret)
+        XCTAssertFalse(initial.entitlements.contains(.developerAIAssist))
 
         // Granting twice is idempotent — no error, no duplicate.
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
-        XCTAssertTrue(try await SDKAPIKeyStore.shared.verify(secret: secret).entitlements.contains(.developerAIAssist))
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
+        let granted = try await SDKAPIKeyStore.shared.verify(secret: secret)
+        XCTAssertTrue(granted.entitlements.contains(.developerAIAssist))
 
         // Revoking returns the number of sessions it closed (none live).
-        let closed = try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, from: key)
+        let closed = try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, fromKeyID: key.id)
         XCTAssertEqual(closed, 0)
-        XCTAssertFalse(try await SDKAPIKeyStore.shared.verify(secret: secret).entitlements.contains(.developerAIAssist))
+        let revoked = try await SDKAPIKeyStore.shared.verify(secret: secret)
+        XCTAssertFalse(revoked.entitlements.contains(.developerAIAssist))
 
         // Revoking twice is idempotent — no error.
-        _ = try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, from: key)
+        _ = try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, fromKeyID: key.id)
     }
 
     func testGrantEntitlementRefusesRevokedKey() async throws {
         let (key, _) = try await testKey()
         await SDKAPIKeyStore.shared.revoke(id: key.id)
         do {
-            _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
+            _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
             XCTFail("grantEntitlement must fail for a revoked key")
         } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .apiKeyRevoked)
@@ -154,8 +157,10 @@ final class SDKAssistEnforcementTests: XCTestCase {
         let (key, _) = try await testKey()
         // Sync in SwiftCode — no await on the method itself, but the actor
         // hop still needs one.
-        XCTAssertThrowsError(try await SDKAPIKeyStore.shared.requireEntitlement(.developerAIAssist, on: key)) { error in
-            guard let sdkError = error as? SDKError else { return XCTFail("expected SDKError, got \(error)") }
+        do {
+            _ = try await SDKAPIKeyStore.shared.requireEntitlement(.developerAIAssist, on: key)
+            XCTFail("requireEntitlement must throw for a missing entitlement")
+        } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .assistDenied)
             XCTAssertEqual(sdkError.message, denialMessage)
         }
@@ -177,7 +182,7 @@ final class SDKAssistEnforcementTests: XCTestCase {
 
     func testCreateSessionSucceedsWithEntitledKey() async throws {
         let (key, _) = try await testKey()
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
         let session = try await SDKAssistService.shared.createSession(
             key: key, extensionID: testExtensionID, options: SDKAssistSessionOptions())
         createdSessionIDs.append(session.id)
@@ -198,17 +203,21 @@ final class SDKAssistEnforcementTests: XCTestCase {
         let (key, _) = try await testKey()
 
         // createSession
-        XCTAssertThrowsError(try await SDKAssistService.shared.createSession(
-            key: key, extensionID: testExtensionID, options: SDKAssistSessionOptions())) { error in
-            guard let sdkError = error as? SDKError else { return XCTFail("expected SDKError, got \(error)") }
+        do {
+            _ = try await SDKAssistService.shared.createSession(
+                key: key, extensionID: testExtensionID, options: SDKAssistSessionOptions())
+            XCTFail("createSession must deny an unentitled caller")
+        } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .assistDenied)
             XCTAssertEqual(sdkError.message, denialMessage)
         }
 
         // send
-        XCTAssertThrowsError(try await SDKAssistService.shared.send(
-            sessionID: UUID(), key: key, extensionID: testExtensionID, message: "hi")) { error in
-            guard let sdkError = error as? SDKError else { return XCTFail("expected SDKError, got \(error)") }
+        do {
+            _ = try await SDKAssistService.shared.send(
+                sessionID: UUID(), key: key, extensionID: testExtensionID, message: "hi")
+            XCTFail("send must deny an unentitled caller")
+        } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .assistDenied)
             XCTAssertEqual(sdkError.message, denialMessage)
         }
@@ -227,10 +236,12 @@ final class SDKAssistEnforcementTests: XCTestCase {
         XCTAssertEqual(denial.message, denialMessage)
 
         // executeTool
-        XCTAssertThrowsError(try await SDKAssistService.shared.executeTool(
-            sessionID: UUID(), key: key, extensionID: testExtensionID,
-            call: SDKAssistToolCall(toolName: "fs.readFile", arguments: [:]))) { error in
-            guard let sdkError = error as? SDKError else { return XCTFail("expected SDKError, got \(error)") }
+        do {
+            _ = try await SDKAssistService.shared.executeTool(
+                sessionID: UUID(), key: key, extensionID: testExtensionID,
+                call: SDKAssistToolCall(toolName: "fs.readFile", arguments: [:]))
+            XCTFail("executeTool must deny an unentitled caller")
+        } catch let sdkError as SDKError {
             XCTAssertEqual(sdkError.code, .assistDenied)
             XCTAssertEqual(sdkError.message, denialMessage)
         }
@@ -294,12 +305,12 @@ final class SDKAssistEnforcementTests: XCTestCase {
 
     func testCloudModelDeniedWithoutAllowsCloudEntitlement() async throws {
         let (key, _) = try await testKey()
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
         // The cloud gate is the broker authorizing `useSwiftCodeModel` —
         // without the allows-cloud entitlement it denies, with the
         // cloud-specific message.
         do {
-            try await SDKCapabilityBroker.shared.authorize(
+            try await SDKCapabilityBroker.authorize(
                 .useSwiftCodeModel, for: caller(for: testExtensionID, key: key))
             XCTFail("cloud model use must deny without the allows-cloud entitlement")
         } catch let sdkError as SDKError {
@@ -310,10 +321,10 @@ final class SDKAssistEnforcementTests: XCTestCase {
 
     func testCloudModelAllowedWithEntitlement() async throws {
         let (key, _) = try await testKey()
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAllowsCloud, to: key)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAllowsCloud, toKeyID: key.id)
         // Both entitlements present: the broker authorizes cloud use.
-        try await SDKCapabilityBroker.shared.authorize(
+        try await SDKCapabilityBroker.authorize(
             .useSwiftCodeModel, for: caller(for: testExtensionID, key: key))
     }
 
@@ -324,8 +335,8 @@ final class SDKAssistEnforcementTests: XCTestCase {
         // back to a local model, and granting `developerAIAllowsCloud`
         // is the only way it opens.
         let (key, _) = try await testKey()
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAllowsCloud, to: key)
-        try await SDKCapabilityBroker.shared.authorize(
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAllowsCloud, toKeyID: key.id)
+        try await SDKCapabilityBroker.authorize(
             .useSwiftCodeModel, for: caller(for: testExtensionID, key: key))
     }
 
@@ -333,14 +344,14 @@ final class SDKAssistEnforcementTests: XCTestCase {
 
     func testRevokeEntitlementClosesInFlightSessionsAndDeniesNextCall() async throws {
         let (key, _) = try await testKey()
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
         let session = try await SDKAssistService.shared.createSession(
             key: key, extensionID: testExtensionID, options: SDKAssistSessionOptions())
         createdSessionIDs.append(session.id)
         XCTAssertFalse(session.isClosed)
 
         // Revoking closes the live session and reports the count.
-        let closed = try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, from: key)
+        let closed = try await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, fromKeyID: key.id)
         XCTAssertEqual(closed, 1)
         let sessions = await SDKAssistService.shared.listSessions(forExtensionID: testExtensionID)
         XCTAssertTrue(sessions.first(where: { $0.id == session.id })?.isClosed == true)
@@ -358,7 +369,7 @@ final class SDKAssistEnforcementTests: XCTestCase {
 
     func testRevokeKeyDeniesSubsequentVerification() async throws {
         let (key, secret) = try await testKey()
-        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, to: key)
+        _ = try await SDKAPIKeyStore.shared.grantEntitlement(.developerAIAssist, toKeyID: key.id)
         await SDKAPIKeyStore.shared.revoke(id: key.id)
         do {
             _ = try await SDKAPIKeyStore.shared.verify(secret: secret)

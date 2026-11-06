@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftCodeIDEShell
 
 /// Project dashboard — Legacy's `FoldersView`, `FolderCardView`,
 /// `FolderCreateView`, `HomeProjectCardView` and `GitHubRemoteSetupView`,

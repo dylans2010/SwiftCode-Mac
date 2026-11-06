@@ -1,4 +1,6 @@
 import Foundation
+import SwiftCodeAssistant
+import SwiftCodeGitHub
 import AuthenticationServices
 import CryptoKit
 #if canImport(AppKit)
@@ -161,7 +163,7 @@ public final class GitHubOAuth: NSObject {
 
     /// Whether `url` matches the configured redirect URI (scheme, host,
     /// path). Internal so tests can cover the matching without a sign-in.
-    static func isOAuthCallback(_ url: URL, config: GitHubOAuthConfig) -> Bool {
+    nonisolated static func isOAuthCallback(_ url: URL, config: GitHubOAuthConfig) -> Bool {
         guard let expectedURL = URL(string: config.redirectURI) else { return false }
         return url.scheme == expectedURL.scheme
             && url.host == expectedURL.host

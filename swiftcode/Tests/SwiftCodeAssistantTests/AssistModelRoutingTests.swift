@@ -15,7 +15,7 @@ import Testing
     static func candidates() -> [AssistCandidateModel] {
         [
             AssistCandidateModel(id: "anthropic/claude-sonnet-4-5", displayName: "Claude Sonnet", provider: .openRouter, priority: 5, source: .provider),
-            AssistCandidateModel(id: "gpt-4o", displayName: "GPT-4o", provider: .openAI, priority: 10, contextWindow: 128_000, source: .provider),
+            AssistCandidateModel(id: "gpt-4o", displayName: "GPT-4o", provider: .openAI, contextWindow: 128_000, priority: 10, source: .provider),
             AssistCandidateModel(id: "my-fine-tune", displayName: "My fine-tune", provider: .openRouter, priority: 1, source: .custom),
             AssistCandidateModel(id: "unconfigured/model", displayName: "Unconfigured", provider: .openRouter, isConfigured: false, source: .provider),
             AssistCandidateModel(id: "chat-only/model", displayName: "Chat only", provider: .openRouter, supportsToolCalling: false, supportsAgenticUse: false, source: .provider),
@@ -26,7 +26,7 @@ import Testing
         [
             AssistCandidateModel(id: "anthropic/claude-sonnet-4-5", displayName: "Claude Sonnet", provider: .openRouter, priority: 5, source: .provider),
             AssistCandidateModel(id: "anthropic/claude-haiku-4-5", displayName: "Claude Haiku", provider: .openRouter, priority: 5, source: .provider),
-            AssistCandidateModel(id: "google/gemini-2.5-pro", displayName: "Gemini Pro", provider: .openRouter, priority: 10, contextWindow: 1_000_000, source: .provider),
+            AssistCandidateModel(id: "google/gemini-2.5-pro", displayName: "Gemini Pro", provider: .openRouter, contextWindow: 1_000_000, priority: 10, source: .provider),
         ]
     }
 
@@ -331,7 +331,7 @@ import Testing
         #expect(await router.isModelQuarantined(modelIdentifier: failed.id))
     }
 
-    @Test func handleTurnFailureFailsOverWithHandoff() async {
+    @Test func handleTurnFailureFailsOverWithHandoff() async throws {
         struct E: LocalizedError { let message: String; var errorDescription: String? { message } }
         let router = AssistModelRouter()
         let models = Self.openRouterCandidates()

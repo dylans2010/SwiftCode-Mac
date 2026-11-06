@@ -1,4 +1,6 @@
 import AppKit
+import SwiftUI
+import SwiftCodeMCP
 import WebKit
 
 // MARK: - Documentation web pane (Wave 19 slice A)
@@ -38,9 +40,7 @@ final class DocumentationURLSchemeHandler: NSObject, WKURLSchemeHandler {
                 urlSchemeTask.didFailWithError(URLError(.cannotDecodeContentData))
                 return
             }
-            self.lock.lock()
-            let stopped = self.stoppedTasks.contains(ObjectIdentifier(urlSchemeTask))
-            self.lock.unlock()
+            let stopped = self.lock.withLock { self.stoppedTasks.contains(ObjectIdentifier(urlSchemeTask)) }
             guard !stopped else { return }
             let response = URLResponse(url: url, mimeType: "text/html",
                                        expectedContentLength: data.count, textEncodingName: "utf-8")

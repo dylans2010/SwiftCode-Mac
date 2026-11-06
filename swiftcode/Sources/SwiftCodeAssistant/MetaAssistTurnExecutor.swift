@@ -546,7 +546,7 @@ public actor MetaAssistTurnExecutor {
         proxyBaseURL: String? = nil,
         attachment: AgentAttachment? = nil,
         knownToolIDs: Set<String> = [],
-        turnTimeoutSeconds: TimeInterval = Self.defaultTurnTimeout,
+        turnTimeoutSeconds: TimeInterval = MetaAssistTurnExecutor.defaultTurnTimeout,
         onEvent: @escaping @Sendable (ChatEvent) -> Void
     ) async throws {
         guard let executable else { throw MuseCodeCLIError.executableNotFound }
@@ -606,7 +606,7 @@ public actor MetaAssistTurnExecutor {
                         guard !Task.isCancelled else { return }
                         if state.claimResume() {
                             await bridge.stopHost()
-                            continuation.resume(throwing: MuseCodeCLIError.turnTimeout(seconds: turnTimeoutSeconds))
+                            continuation.resume(throwing: MuseCodeCLIError.turnTimeout(turnTimeoutSeconds))
                         }
                     }
                 }

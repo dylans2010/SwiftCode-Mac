@@ -931,14 +931,14 @@ public actor AssistModelRouter {
         if useCloudModel {
             ranked.removeAll { SCCloudProvider.isCloudModelID($0.id) }
             if cloudModels.isEmpty {
-                ranked.append(syntheticCloudModel(
+                ranked.append(Self.syntheticCloudModel(
                     forCloudModelID: SCCloudProvider.internalIDPrefix,
                     remainingToday: cloudRemainingToday,
                     isConfigured: cloudConfigured
                 ))
             } else {
                 for info in cloudModels {
-                    ranked.append(syntheticCloudModel(
+                    ranked.append(Self.syntheticCloudModel(
                         forCloudModelID: info.id,
                         remainingToday: cloudRemainingToday,
                         isConfigured: cloudConfigured,

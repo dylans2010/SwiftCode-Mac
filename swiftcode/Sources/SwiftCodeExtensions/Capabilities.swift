@@ -33,6 +33,20 @@ public enum ExtensionCapability: String, Codable, Sendable, CaseIterable {
         }
     }
 
+    /// Risk level shown in the approval sheet. The v2 twelve have their
+    /// own mapping; `SDKCapabilityID.riskLevel` covers the SDK vocabulary.
+    public var riskLevel: String {
+        switch self {
+        case .workspaceRead, .sourceControl: return "low"
+        case .workspaceWrite, .build, .projectConfig, .assistTools, .webview: return "medium"
+        case .outsideWorkspace, .network, .terminal, .process, .secrets: return "high"
+        }
+    }
+
+    /// Every v2 capability can be granted; deny-by-default is the
+    /// SDK's `assist.invoke` rule (§5.5), not a v2 concept.
+    public var isGrantable: Bool { true }
+
     /// Maps an SDK capability id to the v2 runtime capabilities that
     /// enforce it (spec §5.3, a SwiftCode decision — Legacy never maps them).
     public static func v2Capabilities(for sdkCapability: SDKCapabilityID) -> [ExtensionCapability] {

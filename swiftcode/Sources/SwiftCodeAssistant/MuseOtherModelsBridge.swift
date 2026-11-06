@@ -504,7 +504,7 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
     /// any free loopback port (`LoopbackServer` port 0). Only when
     /// both fail does this throw — never a silent fallback to a
     /// direct model run.
-    public func start(active: MuseOtherModelResolution, port: UInt16 = Self.defaultPort, streamChat: @escaping StreamChat) throws -> URL {
+    public func start(active: MuseOtherModelResolution, port: UInt16 = MuseLocalProxyServer.defaultPort, streamChat: @escaping StreamChat) throws -> URL {
         if let existing = lock.withLock({ server }), lock.withLock({ _active }) == active {
             return URL(string: existing.baseURL)!
         }

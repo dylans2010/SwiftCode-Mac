@@ -766,9 +766,9 @@ extension SwiftCodeMCPHost {
         var lastOutput = ""
         for _ in 0..<iterations {
             let start = Date()
-            let run = await Task.detached {
+            let run = (await Task.detached {
                 Self.terminalRunFixed(executable, allArguments, workingDirectory: root, timeout: 300)
-            }.value
+            }.value)
             guard let run else {
                 throw MCPToolError("Benchmark run failed: could not start '\(executable)'.")
             }
@@ -818,9 +818,9 @@ extension SwiftCodeMCPHost {
             return .text("No active .xccovreport or coverage archive found in DerivedData. Ensure 'Code Coverage' is enabled in your Xcode Scheme test settings.")
         }
         let reportPath = targetReport.path
-        let run = await Task.detached {
+        let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/xcrun", ["xccov", "view", "--report", reportPath], timeout: 60)
-        }.value
+        }.value)
         guard let run else {
             throw MCPToolError("Failed to execute xccov: /usr/bin/xcrun is not available on this machine.")
         }

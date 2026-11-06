@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftCodeIDEShell
 
 /// Personal Documentation — the SwiftUI window for Legacy's
 /// `NSPersonalDocumentationView` + its module views (dashboard, record list,
@@ -38,7 +39,7 @@ public struct PersonalDocumentationView: View {
                 Button { showingNewDocument = true } label: { Label("New Document", systemImage: "plus") }
             }
             ToolbarItem(placement: .primaryAction) {
-                Button { Task { await runAnalysis() } label: { Label("Analyze", systemImage: "sparkles") } }
+                Button { Task { await runAnalysis() } } label: { Label("Analyze", systemImage: "sparkles") }
                     .disabled(analysisRunning)
             }
         }

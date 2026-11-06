@@ -17,7 +17,7 @@ private func fixture(_ name: String) throws -> (text: String, proj: PBXProj) {
         #expect(proj.targets.map { $0.string("name") } == ["Hello"])
         let configs = proj.buildConfigurations(listID: proj.targets[0].string("buildConfigurationList"))
         #expect(configs.map { $0.string("name") } == ["Debug", "Release"])
-        #expect(configs[0]["buildSettings"]?.dictionary?["PRODUCT_BUNDLE_IDENTIFIER"] == "org.example.Hello-World")
+        #expect(configs[0]["buildSettings"]?.dictionary?["PRODUCT_BUNDLE_IDENTIFIER"]?.string == "org.example.Hello-World")
     }
 
     @Test func writesFixtureByteForByte() throws {

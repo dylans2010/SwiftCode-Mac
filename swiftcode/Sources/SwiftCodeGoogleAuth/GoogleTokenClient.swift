@@ -39,7 +39,7 @@ public struct GoogleTokenClient: Sendable {
         clientID: String,
         clientSecret: String?
     ) async throws -> GoogleOAuthTokens {
-        let body = formBody([
+        let body = Self.formBody([
             ("client_id", clientID),
             ("code", code),
             ("code_verifier", verifier),
@@ -61,7 +61,7 @@ public struct GoogleTokenClient: Sendable {
         clientID: String,
         clientSecret: String?
     ) async throws -> GoogleOAuthTokens {
-        let body = formBody([
+        let body = Self.formBody([
             ("client_id", clientID),
             ("refresh_token", refreshToken),
             ("grant_type", "refresh_token"),

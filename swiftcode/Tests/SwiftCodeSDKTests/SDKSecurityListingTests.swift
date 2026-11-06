@@ -85,11 +85,11 @@ final class SDKSecurityListingTests: XCTestCase {
         _ = try KeychainSDK.addValue(
             securityID: namespacedID, valueID: "temp",
             value: Data("x".utf8), label: nil)
-        XCTAssertNotNil(try await SDKSecurityService.shared.listAllApps()
-            .first(where: { $0.securityID == namespacedID }))
+        let beforeDelete = try await SDKSecurityService.shared.listAllApps()
+        XCTAssertNotNil(beforeDelete.first(where: { $0.securityID == namespacedID }))
 
         _ = try KeychainSDK.deleteAllValues(securityID: namespacedID)
-        XCTAssertNil(try await SDKSecurityService.shared.listAllApps()
-            .first(where: { $0.securityID == namespacedID }))
+        let afterDelete = try await SDKSecurityService.shared.listAllApps()
+        XCTAssertNil(afterDelete.first(where: { $0.securityID == namespacedID }))
     }
 }

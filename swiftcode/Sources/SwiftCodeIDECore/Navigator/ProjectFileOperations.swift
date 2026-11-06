@@ -346,7 +346,7 @@ public struct ProjectFileOperations: Sendable {
                                                     at: index.map { $0 + n })
                     if let targets {
                         ops.proj.addToTargets(ref, fileName: u.lastPathComponent, targets: targets)
-                    } else if let fallback, FileTemplate.compiledExtensions.contains(u.pathExtension.lowercased()) {
+                    } else if let fallback, BuiltInFileTemplate.compiledExtensions.contains(u.pathExtension.lowercased()) {
                         ops.proj.addToTargets(ref, fileName: u.lastPathComponent, targets: [fallback.id])
                     }
                     out.append(.object(ref))

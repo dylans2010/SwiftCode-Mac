@@ -43,7 +43,7 @@ public final class CloudManager {
     /// The `UserDefaults` key for the sync-enabled flag, shared with
     /// `CloudSyncEngine` and Legacy's `CloudManagementView`
     /// (`@AppStorage("com.swiftcode.cloud.syncEnabled")`).
-    public static let syncEnabledKey = "com.swiftcode.cloud.syncEnabled"
+    public nonisolated static let syncEnabledKey = "com.swiftcode.cloud.syncEnabled"
 
     /// Initializes Cloud Services and performs an initial check of
     /// user state.

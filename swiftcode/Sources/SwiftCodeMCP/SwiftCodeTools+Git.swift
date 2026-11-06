@@ -700,7 +700,7 @@ extension SwiftCodeMCPHost {
         let result = try Self.runGit(args, in: root)
         let output = result.combined
         guard result.status == 0 else {
-            let conflicted = gitCherryPickConflictedFiles(in: root)
+            let conflicted = Self.gitCherryPickConflictedFiles(in: root)
             if !conflicted.isEmpty {
                 throw MCPToolError("Cherry-pick of \(commit) stopped due to conflicts in: \(conflicted.joined(separator: ", ")). Resolve the conflicts and commit, or run git cherry-pick --abort. Git output: \(output)")
             }

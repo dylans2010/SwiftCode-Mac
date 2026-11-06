@@ -61,7 +61,9 @@ public struct GitHubUser: Sendable, Equatable, Decodable {
 
 /// A repository (`GET /repos/{owner}/{repo}`). `ownerLogin` is the nested
 /// `owner.login`; `isPrivate` is the JSON `private` key.
-public struct GitHubRepository: Sendable, Equatable, Decodable {
+public struct GitHubRepository: Sendable, Equatable, Decodable, Identifiable {
+    /// Stable identity: the `owner/name` full name.
+    public var id: String { fullName }
     public var name: String
     public var fullName: String
     public var ownerLogin: String
@@ -208,7 +210,7 @@ public struct GitHubPullRequestFile: Sendable, Equatable, Decodable {
 }
 
 /// A pull-request review (`/pulls/{number}/reviews`).
-public struct GitHubReview: Sendable, Equatable, Decodable {
+public struct GitHubReview: Sendable, Equatable, Decodable, Identifiable {
     public var id: Int
     public var userLogin: String
     public var state: String
@@ -457,27 +459,10 @@ public struct GitHubArtifact: Sendable, Equatable, Decodable {
     public var expired: Bool
 }
 
-/// A release (`/repos/{owner}/{repo}/releases`). Ported from
-/// Legacy's `GitHubService.GitHubRelease` (whose `assets` are
-/// `GitHubAsset`, renamed here to avoid clashing with the asset
-/// catalog's types).
-public struct GitHubRelease: Sendable, Equatable, Decodable {
-    public var id: Int
-    public var tagName: String
-    public var name: String?
-    public var htmlUrl: String
-    public var createdAt: Date
-    public var assets: [GitHubReleaseAsset]
-}
-
-/// One downloadable asset of a release. Ported from Legacy's
-/// `GitHubService.GitHubAsset`.
-public struct GitHubReleaseAsset: Sendable, Equatable, Decodable {
-    public var id: Int
-    public var name: String
-    public var browserDownloadUrl: String
-    public var size: Int
-}
+// `GitHubRelease` / `GitHubReleaseAsset` are declared once, in
+// GitHubReleases.swift (the Releases client's model). Legacy's
+// `GitHubService.GitHubRelease` embedded `assets`; that field is carried on
+// the single declaration there so both waves share one type.
 
 /// One code-search hit. `repositoryFullName` is the nested
 /// `repository.full_name`.

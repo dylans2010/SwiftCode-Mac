@@ -65,7 +65,7 @@ import SwiftCodeAssistant
 /// refresh, ADC file discovery, Antigravity parsing, error
 /// classification — work everywhere.
 @MainActor
-public final class GoogleAccountAuthService {
+public final class GoogleAccountAuthService: NSObject {
     public static let shared = GoogleAccountAuthService()
 
     // MARK: - Observable state
@@ -144,6 +144,7 @@ public final class GoogleAccountAuthService {
         self.userDefaults = userDefaults
         self.antigravityFetcher = antigravityFetcher ?? GoogleAmbientCredentials.fetchAntigravityCredentialsFromKeychain
         self.gcloudTokenProvider = gcloudTokenProvider ?? GoogleAmbientCredentials.gcloudAccessToken
+        super.init()
         if restoreSession {
             restoreSessionFromKeychain()
         }

@@ -2,6 +2,7 @@
 // Rebuilt in SwiftCode style: default accent, no Legacy liquid-glass/orange styling.
 
 import SwiftUI
+import SwiftCodeUI
 
 public struct ColorContrastAnalyzerView: View {
     @State private var textHex = "#000000"

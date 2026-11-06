@@ -129,7 +129,7 @@ import SwiftCodeAssistant
         let r = try await host.server.callTool("artboard_list")
         #expect(!r.isToolError)
         #expect(r.firstText == "No artboards currently configured in workspace.")
-        #expect(r.structured?["artboard_count"] == 0)
+        #expect(r.structured?["artboard_count"]?.int == 0)
         #expect(r.structured?["artboards"]?.array == [])
     }
 
@@ -147,8 +147,8 @@ import SwiftCodeAssistant
         #expect(!created.isToolError, "\(created.resultText)")
         #expect(created.firstText.contains("Successfully created artboard 'SettingsView'"))
         #expect(created.firstText.contains("with frame 'iPhone 16 Pro'"))
-        #expect(created.structured?["name"] == "SettingsView")
-        #expect(created.structured?["deviceFrame"] == "iPhone 16 Pro")
+        #expect(created.structured?["name"]?.string == "SettingsView")
+        #expect(created.structured?["deviceFrame"]?.string == "iPhone 16 Pro")
         let id = try #require(created.structured?["id"]?.string)
         #expect(UUID(uuidString: id) != nil)
 
@@ -158,7 +158,7 @@ import SwiftCodeAssistant
         #expect(list.firstText.contains("[ACTIVE]"))
         #expect(list.firstText.contains("Device Frame: iPhone 16 Pro"))
         #expect(list.firstText.contains("Mode: component tree (Root: vStack, Children: 0)"))
-        #expect(list.structured?["artboard_count"] == 1)
+        #expect(list.structured?["artboard_count"]?.int == 1)
         #expect(list.structured?["active_artboard_id"] == .string(id))
 
         let got = try await host.server.callTool("artboard_get", ["identifier": .string("SettingsView")])
@@ -172,7 +172,7 @@ import SwiftCodeAssistant
         #expect(got.firstText.contains("  Safe Areas: Visible"))
         #expect(got.firstText.contains("Component Hierarchy:"))
         #expect(got.firstText.contains("- [vStack] SettingsView Root"))
-        #expect(got.structured?["hasCustomSource"] == false)
+        #expect(got.structured?["hasCustomSource"]?.bool == false)
     }
 
     @Test func artboardCreateWithSourceAndOptions() async throws {
@@ -189,7 +189,7 @@ import SwiftCodeAssistant
         #expect(got.firstText.contains("  Orientation: Landscape"))
         #expect(got.firstText.contains("Custom SwiftUI Source Code:"))
         #expect(got.firstText.contains("struct ProfileCanvas: View"))
-        #expect(got.structured?["hasCustomSource"] == true)
+        #expect(got.structured?["hasCustomSource"]?.bool == true)
     }
 
     @Test func artboardGetAndDeleteUnknown() async throws {
@@ -216,7 +216,7 @@ import SwiftCodeAssistant
         #expect(updated.firstText.contains("deviceFrame: 'iPhone 16 Pro Max'"))
         #expect(updated.firstText.contains("appearance: 'Light'"))
         #expect(updated.firstText.contains("isPortrait: false"))
-        #expect(updated.structured?["name"] == "New")
+        #expect(updated.structured?["name"]?.string == "New")
         let got = try await host.server.callTool("artboard_get", ["identifier": .string("New")])
         #expect(got.firstText.contains("  Device Frame: iPhone 16 Pro Max"))
         #expect(got.firstText.contains("  Appearance: Light"))
@@ -234,7 +234,7 @@ import SwiftCodeAssistant
         #expect(!deleted.isToolError, "\(deleted.resultText)")
         #expect(deleted.firstText.contains("Artboard 'Second' (ID: \(secondID)) deleted successfully."))
         let list = try await host.server.callTool("artboard_list")
-        #expect(list.structured?["artboard_count"] == 1)
+        #expect(list.structured?["artboard_count"]?.int == 1)
         #expect(list.firstText.contains("\"First\""))
         #expect(list.firstText.contains("[ACTIVE]"))
     }
@@ -267,7 +267,7 @@ import SwiftCodeAssistant
         #expect(r.isToolError)
         #expect(r.firstText.contains("Artboard preview compilation failed."))
         #expect(r.firstText.contains("declares no preview"))
-        #expect(r.structured?["status"] == "failed")
+        #expect(r.structured?["status"]?.string == "failed")
         let got = try await host.server.callTool("artboard_get")
         #expect(got.firstText.contains("  Compile Error:"))
     }
@@ -287,7 +287,7 @@ import SwiftCodeAssistant
         #expect(r.firstText.contains("Injected missing 'import SwiftUI' header into artboard 'Bare'"))
         #expect(r.firstText.contains("Appended missing #Preview macro for 'Bare'"))
         #expect(r.firstText.contains("Recompiled artboard 'Bare' live preview session"))
-        #expect(r.structured?["repaired"] == true)
+        #expect(r.structured?["repaired"]?.bool == true)
         let got = try await host.server.callTool("artboard_get")
         #expect(got.firstText.contains("import SwiftUI"))
         #expect(got.firstText.contains("#Preview {"))
@@ -325,7 +325,7 @@ import SwiftCodeAssistant
         let host = SwiftCodeMCPHost()
         let r = try await host.server.callTool("simulator_list")
         #expect(!r.isToolError, "\(r.resultText)")
-        #expect(r.structured?["configured"] == false)
+        #expect(r.structured?["configured"]?.bool == false)
         #expect(r.structured?["simulators"]?.array == [])
         #expect(r.structured?["appleSimulators"] != nil)
         #expect(r.firstText.contains("No SwiftCode Simulator host is set up."))

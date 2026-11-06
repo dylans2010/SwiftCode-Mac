@@ -1,4 +1,5 @@
 import Foundation
+import SwiftCodeAssistant
 import Testing
 @testable import SwiftCodeMCP
 
@@ -12,6 +13,7 @@ import Testing
 /// real credentials. macOS-only behaviour (ScreenCaptureKit,
 /// Accessibility) is tested only for its validation errors here;
 /// live runs stay pending on Dylan's Mac.
+@MainActor
 struct FailingToolsGapTests {
     func openHost(_ sample: TempSample, policy: MCPWritePolicy = .allow) async throws -> SwiftCodeMCPHost {
         let host = SwiftCodeMCPHost()
@@ -43,7 +45,7 @@ struct FailingToolsGapTests {
         for line in text.components(separatedBy: .newlines) {
             let name = line.split(separator: "=", maxSplits: 1).first.map(String.init) ?? ""
             if SwiftCodeMCPHost.failingToolsIsSensitiveEnvName(name) {
-                #expect(line.hasSuffix("=<redacted>"), line)
+                #expect(line.hasSuffix("=<redacted>"), Comment(rawValue: line))
             }
         }
         #expect(SwiftCodeMCPHost.failingToolsIsSensitiveEnvName("COMPOSIO_API_KEY"))
@@ -186,7 +188,7 @@ struct FailingToolsGapTests {
         #expect(ok != nil)
         if case .success(let value) = ok { #expect((value as? [String: Any])?["tools"] != nil) } else { Issue.record("expected success") }
         let err = SwiftCodeMCPHost.externalMCPParseMessage(#"{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"nope"}}"#)
-        if case .failure(let message) = err { #expect(message.contains("nope")) } else { Issue.record("expected failure") }
+        if case .failure(let message) = err { #expect(message.message.contains("nope")) } else { Issue.record("expected failure") }
         #expect(SwiftCodeMCPHost.externalMCPParseMessage(#"{"jsonrpc":"2.0","method":"notifications/x"}"#) == nil)
     }
 

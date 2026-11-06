@@ -84,7 +84,7 @@ func closedPort() throws -> String {
         #expect((body["options"] as? [String: Any])?["num_ctx"] as? Int == 8192)
         let msgs = body["messages"] as? [[String: String]]
         #expect(msgs?.map { $0["role"]! } == ["system", "user"])
-        #expect(msgs?.first?["content"] == "Be brief.")
+        #expect(msgs?.first?["content"]?.string == "Be brief.")
     }
 
     @Test func missingModelAndStreamErrors() async throws {
@@ -157,7 +157,7 @@ func closedPort() throws -> String {
         #expect(r.events.last == .finished(TokenUsage(inputTokens: 5, outputTokens: 2)))
         let chat = try #require(rec.requests.first { $0.path == "/v1/chat/completions" })
         #expect(chat.header("authorization") == "Bearer local-key")
-        #expect((JSON.object(chat.body)?["messages"] as? [[String: String]])?.first?["role"] == "system")
+        #expect((JSON.object(chat.body)?["messages"] as? [[String: String]])?.first?["role"]?.string == "system")
     }
 
     @Test func errorsAndNotRunning() async throws {

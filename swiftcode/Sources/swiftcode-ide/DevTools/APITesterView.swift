@@ -482,7 +482,7 @@ extension APITesterView {
             HStack(spacing: 8) {
                 Image(systemName: "bolt.horizontal.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(.accentColor)
+                    .foregroundStyle(Color.accentColor)
                 Text("API Collections")
                     .font(.headline)
                     .fontWeight(.bold)
@@ -639,7 +639,7 @@ extension APITesterView {
                         .frame(width: 30, height: 30)
                     Image(systemName: "globe")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -1039,7 +1039,7 @@ extension APITesterView {
                 } else if store.isLoading {
                     Text("EXECUTING REQUEST...")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.accentColor)
+                        .foregroundStyle(Color.accentColor)
                 } else {
                     Text("NO ACTIVE RESPONSE")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))

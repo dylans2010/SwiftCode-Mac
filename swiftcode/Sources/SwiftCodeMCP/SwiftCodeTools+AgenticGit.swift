@@ -350,9 +350,9 @@ extension SwiftCodeMCPHost {
     /// `MemorySecretStore` so no real keychain or config file is
     /// touched; production never sets it. (Same shape as
     /// `agenticDataTestSecretStore`.)
-    static var agenticGitTestSecretStore: SecretStore?
+    nonisolated(unsafe) static var agenticGitTestSecretStore: SecretStore?
 
-    static func agenticGitSecretStore() -> SecretStore {
+    nonisolated static func agenticGitSecretStore() -> SecretStore {
         agenticGitTestSecretStore ?? defaultSecretStore()
     }
 

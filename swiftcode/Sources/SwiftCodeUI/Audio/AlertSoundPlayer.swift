@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import OSLog
+import SwiftCodeXcodebuild
 
 /// MainActor facade providing reactive observable state, user mute/volume awareness, and singleton playback dispatch
 @Observable
@@ -46,6 +47,17 @@ public final class AlertSoundPlayer {
         let storedVolume = UserDefaults.standard.float(forKey: volumeKey)
         // Default to 80% volume if not previously configured
         self.volume = storedVolume > 0 ? storedVolume : 0.8
+    }
+
+    /// Connects the build layer's outcome hook to this player. Called
+    /// once at launch; before this the hook is a no-op, so headless
+    /// builds play nothing.
+    public static func installBuildSoundHook() {
+        BuildAlertSoundHook.play = { sound in
+            Task { @MainActor in
+                AlertSoundPlayer.shared.play(sound == .buildSuccess ? .buildSuccess : .buildFailure)
+            }
+        }
     }
 
     // MARK: - Public Playback API

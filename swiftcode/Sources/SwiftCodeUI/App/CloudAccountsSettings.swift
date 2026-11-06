@@ -376,15 +376,15 @@ public final class CloudChangeEmailSheetController: NSViewController {
 
     public init(authManager: CloudAuthManager) {
         self.authManager = authManager
+        let save = ClosureButton(title: "Save Email", target: nil, action: nil)
+        save.bezelStyle = .rounded
+        self.saveButton = save
         super.init(nibName: nil, bundle: nil)
+        save.onChange = { [weak self] _ in Task { await self?.save() } }
         newEmailField.placeholderString = "New Email Address"
         passwordField.placeholderString = "Current Password"
         errorLabel.textColor = .systemRed
         errorLabel.isHidden = true
-        let save = ClosureButton(title: "Save Email", target: nil, action: nil)
-        save.bezelStyle = .rounded
-        save.onChange = { [weak self] _ in Task { await self?.save() } }
-        saveButton = save
     }
 
     @available(*, unavailable)
@@ -452,15 +452,15 @@ public final class CloudChangePasswordSheetController: NSViewController {
 
     public init(authManager: CloudAuthManager) {
         self.authManager = authManager
+        let save = ClosureButton(title: "Change Password", target: nil, action: nil)
+        save.bezelStyle = .rounded
+        self.saveButton = save
         super.init(nibName: nil, bundle: nil)
+        save.onChange = { [weak self] _ in Task { await self?.save() } }
         oldPasswordField.placeholderString = "Current Password"
         newPasswordField.placeholderString = "New Password"
         errorLabel.textColor = .systemRed
         errorLabel.isHidden = true
-        let save = ClosureButton(title: "Change Password", target: nil, action: nil)
-        save.bezelStyle = .rounded
-        save.onChange = { [weak self] _ in Task { await self?.save() } }
-        saveButton = save
     }
 
     @available(*, unavailable)
