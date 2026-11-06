@@ -6,49 +6,29 @@ import Foundation
 ///
 /// Legacy's `ProjectSessionStore` is a whole session store that does
 /// not exist in the destination (sessions are `WorkspaceSession`s);
-/// these are the portable pieces of it: the trust store, the diff
-/// banner state, and the new-file template. `openScprojPackage`
-/// keeps Legacy's in-place semantics — the package's project opens
-/// as-is and is never copied or re-identified (unlike
-/// `SCProjectCoordinator.importProject`, which mints a copy under a
-/// projects root).
+/// these are the portable pieces of it: the diff banner state and
+/// the new-file template. (The trust store is NOT duplicated here:
+/// `SwiftCodeIDEShell.ScprojTrustStore` is the single definition —
+/// a second copy in this module would make every unqualified
+/// `ScprojTrustStore` reference ambiguous in files importing both
+/// modules, e.g. `SwiftCodeIDEApp`. Same UserDefaults key, same API.)
+/// `openScprojPackage` keeps Legacy's in-place semantics — the
+/// package's project opens as-is and is never copied or re-identified
+/// (unlike `SCProjectCoordinator.importProject`, which mints a copy
+/// under a projects root).
 ///
-/// Wiring: `ScprojTrustStore` is used by the `.scproj` open flow
-/// (trust alert → `markTrusted` → `openScprojPackage`); the diff
-/// banner state belongs on the editor's session object, which calls
-/// `recordAssistFileMutation` after an assist file edit and
-/// `dismissDiffBanner` from the banner's dismiss action.
-public enum ScprojTrustStore {
-    private static let key = "com.swiftcode.scproj.trustedPaths"
-
-    /// Whether this package path was already trusted from the alert.
-    public static func isTrusted(_ url: URL) -> Bool {
-        let paths = UserDefaults.standard.stringArray(forKey: key) ?? []
-        return paths.contains(url.standardizedFileURL.path)
-    }
-
-    /// Grants trust for this package path (only ever called from the
-    /// trust alert).
-    public static func markTrusted(_ url: URL) {
-        var paths = UserDefaults.standard.stringArray(forKey: key) ?? []
-        let path = url.standardizedFileURL.path
-        guard !paths.contains(path) else { return }
-        paths.append(path)
-        UserDefaults.standard.set(paths, forKey: key)
-    }
-
-    /// Forgets trust for this package path (called when the package
-    /// is deleted through the same alert).
-    public static func forget(_ url: URL) {
-        var paths = UserDefaults.standard.stringArray(forKey: key) ?? []
-        paths.removeAll { $0 == url.standardizedFileURL.path }
-        UserDefaults.standard.set(paths, forKey: key)
-    }
-}
+/// Wiring: the `.scproj` open flow uses
+/// `SwiftCodeIDEShell.ScprojTrustStore` (trust alert → `markTrusted`
+/// → `openScprojPackage`); the diff banner state belongs on the
+/// editor's session object, which calls `recordAssistFileMutation`
+/// after an assist file edit and `dismissDiffBanner` from the
+/// banner's dismiss action.
 
 /// One assist file mutation, for the diff banner (Legacy
-/// `ProjectSessionStore.AssistFileDiff`).
-public struct AssistFileDiff: Identifiable, Sendable {
+/// `ProjectSessionStore.AssistFileDiff`, renamed here because
+/// `SwiftCodeAssistant` already has a different `AssistFileDiff`
+/// snapshot type — same name, different shape).
+public struct AssistSessionFileDiff: Identifiable, Sendable {
     public let id: UUID
     public let filePath: String
     public let beforeContent: String
@@ -86,7 +66,7 @@ public struct AssistFileDiff: Identifiable, Sendable {
 public final class AssistDiffBannerState: ObservableObject {
     public static let shared = AssistDiffBannerState()
 
-    @Published public var activeFileDiff: AssistFileDiff?
+    @Published public var activeFileDiff: AssistSessionFileDiff?
     @Published public var showDiffBanner = false
 
     public init() {}
@@ -98,7 +78,7 @@ public final class AssistDiffBannerState: ObservableObject {
         addedLines: Int,
         deletedLines: Int
     ) {
-        activeFileDiff = AssistFileDiff(
+        activeFileDiff = AssistSessionFileDiff(
             filePath: path,
             beforeContent: beforeContent,
             afterContent: afterContent,

@@ -4,11 +4,12 @@ import Foundation
 /// `ProjectSessionStore.ScprojTrustStore`, ported verbatim). A package is
 /// trusted once the user answers "Trust and Open" to the trust alert in
 /// `SwiftCodeIDEApp`; trusted paths open without prompting again, and
-/// forgetting a grant makes the next open prompt again. The store lives
-/// here (not nested under `ProjectSessionStore`) so the trust flow in
-/// `ShellRootView` can use it before that port lands; the services
-/// migration owns `ProjectSessionStore` and should re-home or alias this
-/// type when it lands rather than keeping two trust stores.
+/// forgetting a grant makes the next open prompt again. This is the
+/// single definition of the trust store: the duplicate copy that landed
+/// in `SwiftCodeIDECore/Model/ProjectTrustAndDiff.swift` was removed, so
+/// unqualified references in files importing both modules (e.g.
+/// `SwiftCodeIDEApp`) are unambiguous. Same UserDefaults key and API as
+/// Legacy's version.
 public enum ScprojTrustStore {
     private static let key = "com.swiftcode.scproj.trustedPaths"
 
