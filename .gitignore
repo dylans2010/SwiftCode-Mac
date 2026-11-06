@@ -47,5 +47,3 @@ research/tools/capture/axdrive/.build/
 tools/capture/__pycache__/
 research/tools/capture/__pycache__/
 
-# SwiftCode-Legacy is a local reference module, not tracked in this repo
-SwiftCode-Legacy/

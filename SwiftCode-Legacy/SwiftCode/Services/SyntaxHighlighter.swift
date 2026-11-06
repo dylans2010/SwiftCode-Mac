@@ -1,0 +1,349 @@
+#if canImport(AppKit)
+import AppKit
+typealias ColorType = NSColor
+#elseif canImport(UIKit)
+import UIKit
+typealias ColorType = UIColor
+#endif
+
+final class SyntaxHighlighter: Sendable {
+    static let shared = SyntaxHighlighter()
+    private init() {
+        self.swiftPatterns = Self.buildSwiftPatterns()
+        self.shellPatterns = Self.buildShellPatterns()
+        self.jsonPatterns = Self.buildJSONPatterns()
+        self.plistPatterns = Self.buildPlistPatterns()
+        self.markdownPatterns = Self.buildMarkdownPatterns()
+    }
+
+    // MARK: - Theme
+
+    struct Theme {
+        let background: ColorType
+        let defaultText: ColorType
+        let keyword: ColorType
+        let string: ColorType
+        let comment: ColorType
+        let number: ColorType
+        let type: ColorType
+        let function: ColorType
+        let attribute: ColorType
+        let propertyWrapper: ColorType
+        let swiftUIView: ColorType
+        let modifier: ColorType
+        let importModule: ColorType
+        let controlFlow: ColorType
+        let accessControl: ColorType
+        let variableDecl: ColorType
+        let preprocessor: ColorType
+        let operatorColor: ColorType
+        let interpolation: ColorType
+        let placeholder: ColorType
+
+        static let dark = Theme(
+            background: ColorType(red: 0.11, green: 0.11, blue: 0.12, alpha: 1),
+            defaultText: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            keyword: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            string: ColorType(red: 0.99, green: 0.41, blue: 0.36, alpha: 1),
+            comment: ColorType(red: 0.42, green: 0.68, blue: 0.42, alpha: 1),
+            number: ColorType(red: 0.82, green: 0.68, blue: 1.0, alpha: 1),
+            type: ColorType(red: 0.35, green: 0.82, blue: 0.98, alpha: 1),
+            function: ColorType(red: 0.67, green: 0.85, blue: 0.33, alpha: 1),
+            attribute: ColorType(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
+            propertyWrapper: ColorType(red: 0.80, green: 0.58, blue: 1.0, alpha: 1),
+            swiftUIView: ColorType(red: 0.30, green: 0.78, blue: 0.95, alpha: 1),
+            modifier: ColorType(red: 0.55, green: 0.80, blue: 0.95, alpha: 1),
+            importModule: ColorType(red: 0.90, green: 0.55, blue: 0.95, alpha: 1),
+            controlFlow: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            accessControl: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            variableDecl: ColorType(red: 0.99, green: 0.37, blue: 0.53, alpha: 1),
+            preprocessor: ColorType(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
+            operatorColor: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            interpolation: ColorType(red: 0.67, green: 0.85, blue: 0.33, alpha: 1),
+            placeholder: ColorType(red: 0.55, green: 0.55, blue: 0.60, alpha: 1)
+        )
+
+        static let xcodeDark = Theme(
+            background: ColorType(red: 0.11, green: 0.11, blue: 0.12, alpha: 1),
+            defaultText: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            keyword: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            string: ColorType(red: 0.99, green: 0.38, blue: 0.32, alpha: 1),
+            comment: ColorType(red: 0.42, green: 0.68, blue: 0.42, alpha: 1),
+            number: ColorType(red: 0.82, green: 0.68, blue: 1.0, alpha: 1),
+            type: ColorType(red: 0.36, green: 0.85, blue: 0.98, alpha: 1),
+            function: ColorType(red: 0.40, green: 0.83, blue: 0.37, alpha: 1),
+            attribute: ColorType(red: 0.99, green: 0.58, blue: 0.23, alpha: 1),
+            propertyWrapper: ColorType(red: 0.75, green: 0.49, blue: 0.98, alpha: 1),
+            swiftUIView: ColorType(red: 0.36, green: 0.85, blue: 0.98, alpha: 1),
+            modifier: ColorType(red: 0.55, green: 0.80, blue: 0.95, alpha: 1),
+            importModule: ColorType(red: 0.75, green: 0.49, blue: 0.98, alpha: 1),
+            controlFlow: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            accessControl: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            variableDecl: ColorType(red: 0.99, green: 0.23, blue: 0.51, alpha: 1),
+            preprocessor: ColorType(red: 0.68, green: 0.51, blue: 0.32, alpha: 1),
+            operatorColor: ColorType(red: 0.85, green: 0.85, blue: 0.87, alpha: 1),
+            interpolation: ColorType(red: 0.40, green: 0.83, blue: 0.37, alpha: 1),
+            placeholder: ColorType(red: 0.55, green: 0.55, blue: 0.60, alpha: 1)
+        )
+    }
+
+    // MARK: - Pattern Storage
+
+    private struct PatternEntry: Sendable {
+        let regex: NSRegularExpression
+        let captureGroup: Int
+        let color: @Sendable (Theme) -> ColorType
+    }
+
+    private let swiftPatterns: [PatternEntry]
+    private let shellPatterns: [PatternEntry]
+    private let jsonPatterns: [PatternEntry]
+    private let plistPatterns: [PatternEntry]
+    private let markdownPatterns: [PatternEntry]
+
+    // MARK: - Highlight (entry point)
+
+    @MainActor
+    func highlight(_ source: String, fileExtension: String = "swift", theme: Theme = .dark) -> NSAttributedString {
+        let patterns = patternsForExtension(fileExtension)
+        return apply(patterns: patterns, to: source, theme: theme)
+    }
+
+    // MARK: - Apply Patterns
+
+    @MainActor
+    private func apply(patterns: [PatternEntry], to source: String, theme: Theme) -> NSAttributedString {
+        let font = TextLayoutEngine.editorFont()
+        let paragraphStyle = TextLayoutEngine.paragraphStyle()
+        let result = NSMutableAttributedString(string: source)
+        let range = NSRange(source.startIndex..., in: source)
+
+        result.addAttributes([
+            .font: font,
+            .foregroundColor: theme.defaultText,
+            .paragraphStyle: paragraphStyle
+        ], range: range)
+
+        for entry in patterns {
+            let matches = entry.regex.matches(in: source, range: range)
+            for match in matches {
+                let idx = match.numberOfRanges > entry.captureGroup ? entry.captureGroup : 0
+                let matchRange = match.range(at: idx)
+                guard matchRange.location != NSNotFound else { continue }
+                result.addAttribute(.foregroundColor, value: entry.color(theme), range: matchRange)
+            }
+        }
+        return result
+    }
+
+    // MARK: - Language Selection
+
+    private func patternsForExtension(_ ext: String) -> [PatternEntry] {
+        switch ext.lowercased() {
+        case "sh", "bash", "zsh": return shellPatterns
+        case "json": return jsonPatterns
+        case "plist": return plistPatterns
+        case "md", "markdown": return markdownPatterns
+        default: return swiftPatterns
+        }
+    }
+
+    // MARK: Swift
+
+    private static func buildSwiftPatterns() -> [PatternEntry] {
+        var p: [PatternEntry] = []
+
+        add(#"(\/\/[^\n]*)"#, color: { $0.comment }, to: &p)
+        add(#"(\/\*[\s\S]*?\*\/)"#, color: { $0.comment }, to: &p)
+
+        add(#"("""[\s\S]*?""")"#, color: { $0.string }, to: &p)
+        add(#"("(?:[^"\\]|\\.)*")"#, color: { $0.string }, to: &p)
+
+        add(#"(\\(\())"#, color: { $0.interpolation }, to: &p)
+
+        add(#"\b(import)\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: { $0.variableDecl }, captureGroup: 1, to: &p)
+        add(#"\bimport\s+([A-Za-z_][A-Za-z0-9_]*)"#, color: { $0.importModule }, captureGroup: 1, to: &p)
+
+        add(#"(#if|#else|#elseif|#endif|#available|#unavailable|#selector|#keyPath|#file|#line|#function|#column|#dsohandle|#warning|#error|#sourceLocation|#Preview)\b"#, color: { $0.preprocessor }, to: &p)
+
+        let swiftUIViews = [
+            "Text", "Image", "Button", "Toggle", "Slider", "Stepper",
+            "TextField", "TextEditor", "SecureField", "Label",
+            "VStack", "HStack", "ZStack", "LazyVStack", "LazyHStack",
+            "LazyVGrid", "LazyHGrid", "Grid", "GridRow",
+            "List", "ForEach", "ScrollView", "Form", "Section",
+            "NavigationStack", "NavigationLink", "NavigationSplitView",
+            "TabView", "TabItem", "Sheet", "Popover",
+            "Spacer", "Divider", "EmptyView", "AnyView",
+            "Color", "Gradient", "LinearGradient", "RadialGradient", "AngularGradient",
+            "Path", "Shape", "Circle", "Rectangle", "RoundedRectangle", "Capsule", "Ellipse",
+            "GeometryReader", "Canvas", "TimelineView",
+            "Alert", "ConfirmationDialog", "Menu", "ContextMenu",
+            "ProgressView", "Gauge", "DatePicker", "ColorPicker",
+            "Picker", "DisclosureGroup", "OutlineGroup",
+            "Map", "MapAnnotation",
+            "AsyncImage", "ShareLink", "PhotosPicker",
+            "ContentView", "ToolbarItem", "ToolbarItemGroup",
+            "GroupBox", "ControlGroup", "LabeledContent",
+            "ViewThatFits", "AnyLayout",
+            "ContentUnavailableView", "TipView"
+        ]
+        add("\\b(\(swiftUIViews.joined(separator: "|")))\\b", color: { $0.swiftUIView }, to: &p)
+
+        let modifiers = [
+            "padding", "frame", "background", "foregroundColor", "foregroundStyle",
+            "font", "fontWeight", "fontDesign", "opacity", "cornerRadius",
+            "clipShape", "clipped", "mask", "overlay", "border",
+            "shadow", "blur", "brightness", "contrast", "saturation",
+            "scaleEffect", "rotationEffect", "rotation3DEffect",
+            "offset", "position", "alignmentGuide",
+            "onTapGesture", "onLongPressGesture", "gesture",
+            "onAppear", "onDisappear", "onChange", "onReceive", "task",
+            "sheet", "fullScreenCover", "popover", "alert", "confirmationDialog",
+            "navigationTitle", "navigationBarTitleDisplayMode",
+            "toolbar", "toolbarBackground", "toolbarColorScheme",
+            "listStyle", "listRowBackground", "listRowSeparator",
+            "buttonStyle", "toggleStyle", "pickerStyle", "textFieldStyle",
+            "environment", "environmentObject",
+            "preferredColorScheme", "tint", "accentColor",
+            "disabled", "hidden", "redacted",
+            "transition", "animation", "withAnimation",
+            "matchedGeometryEffect", "contentTransition",
+            "presentationDetents", "presentationDragIndicator",
+            "scrollContentBackground", "scrollIndicators",
+            "searchable", "refreshable", "swipeActions",
+            "contextMenu", "menuStyle",
+            "ignoresSafeArea", "safeAreaInset",
+            "containerRelativeFrame", "contentShape",
+            "accessibilityLabel", "accessibilityHint", "accessibilityValue",
+            "tag", "id", "equatable",
+            "lineLimit", "multilineTextAlignment", "truncationMode",
+            "imageScale", "symbolRenderingMode", "renderingMode",
+            "resizable", "scaledToFit", "scaledToFill", "aspectRatio",
+            "bold", "italic", "underline", "strikethrough",
+            "textCase", "kerning", "tracking",
+            "keyboardShortcut", "focusable", "focused",
+            "help", "badge",
+            "interactiveDismissDisabled", "navigationDestination",
+            "navigationBarBackButtonHidden",
+            "sensoryFeedback", "typesettingLanguage",
+            "defaultScrollAnchor", "scrollPosition",
+            "containerBackground", "backgroundStyle",
+            "inspector", "fileImporter", "fileExporter",
+            "photosPickerStyle", "labelStyle",
+            "tableStyle", "formStyle", "groupBoxStyle",
+            "autocorrectionDisabled", "textInputAutocapitalization",
+            "layoutPriority", "fixedSize", "geometryGroup"
+        ]
+        add("\\.(\(modifiers.joined(separator: "|")))\\b", color: { $0.modifier }, captureGroup: 1, to: &p)
+
+        add(#"(@[a-zA-Z_][a-zA-Z0-9_]*)"#, color: { $0.propertyWrapper }, to: &p)
+
+        let accessKw = ["public", "private", "internal", "fileprivate", "open"]
+        add("\\b(\(accessKw.joined(separator: "|")))\\b", color: { $0.accessControl }, to: &p)
+
+        let controlKw = ["if", "else", "for", "while", "repeat", "switch", "case",
+                         "default", "break", "continue", "fallthrough", "return",
+                         "guard", "where", "do", "catch", "throw", "defer"]
+        add("\\b(\(controlKw.joined(separator: "|")))\\b", color: { $0.controlFlow }, to: &p)
+
+        let declKw = ["struct", "class", "enum", "protocol", "extension",
+                      "func", "init", "deinit", "subscript", "typealias",
+                      "actor", "macro", "associatedtype"]
+        add("\\b(\(declKw.joined(separator: "|")))\\b", color: { $0.keyword }, to: &p)
+
+        let varKw = ["var", "let"]
+        add("\\b(\(varKw.joined(separator: "|")))\\b", color: { $0.variableDecl }, to: &p)
+
+        let otherKw = ["in", "is", "as", "try", "throws", "rethrows",
+                       "async", "await", "get", "set", "willSet", "didSet",
+                       "static", "final", "override", "required", "convenience",
+                       "mutating", "nonmutating", "lazy", "weak", "unowned",
+                       "true", "false", "nil", "self", "super",
+                       "some", "any", "inout", "consuming", "borrowing",
+                       "nonisolated", "isolated", "Sendable",
+                       "preconcurrency", "dynamic", "optional",
+                       "indirect", "prefix", "postfix", "infix",
+                       "precedencegroup", "operator"]
+        add("\\b(\(otherKw.joined(separator: "|")))\\b", color: { $0.keyword }, to: &p)
+
+        add(#"\b([A-Z][a-zA-Z0-9_]*)\b"#, color: { $0.type }, to: &p)
+        add(#"\bfunc\s+([a-zA-Z_][a-zA-Z0-9_]*)"#, color: { $0.function }, captureGroup: 1, to: &p)
+        add(#"\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\("#, color: { $0.function }, captureGroup: 1, to: &p)
+        add(#"\b(\d+\.?\d*(?:e[+-]?\d+)?)\b"#, color: { $0.number }, to: &p)
+        add(#"\b(0x[0-9a-fA-F]+)\b"#, color: { $0.number }, to: &p)
+        add(#"\b(0b[01]+)\b"#, color: { $0.number }, to: &p)
+        add(#"\b(0o[0-7]+)\b"#, color: { $0.number }, to: &p)
+
+        add(#"(\?\?|\.\.\.|\.\.<)"#, color: { $0.operatorColor }, to: &p)
+
+        return p
+    }
+
+    // MARK: Shell
+
+    private static func buildShellPatterns() -> [PatternEntry] {
+        var p: [PatternEntry] = []
+        add(#"(#[^\n]*)"#, color: { $0.comment }, to: &p)
+        add(#"("(?:[^"\\]|\\.)*")"#, color: { $0.string }, to: &p)
+        add(#"('(?:[^'\\]|\\.)*')"#, color: { $0.string }, to: &p)
+        let kw = ["if","then","else","elif","fi","for","while","do",
+                  "done","case","esac","in","function","return","exit",
+                  "local","export","source","true","false","echo","read"]
+        add("\\b(\(kw.joined(separator: "|")))\\b", color: { $0.keyword }, to: &p)
+        let cmds = ["mkdir","cp","rm","cd","ls","cat","grep","sed","awk",
+                    "chmod","chown","curl","wget","git","brew","swift","xcodebuild"]
+        add("\\b(\(cmds.joined(separator: "|")))\\b", color: { $0.function }, to: &p)
+        add(#"(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)"#, color: { $0.attribute }, to: &p)
+        add(#"\b(\d+)\b"#, color: { $0.number }, to: &p)
+        return p
+    }
+
+    // MARK: JSON
+
+    private static func buildJSONPatterns() -> [PatternEntry] {
+        var p: [PatternEntry] = []
+        add(#"("(?:[^"\\]|\\.)*")\s*:"#, color: { $0.type }, captureGroup: 1, to: &p)
+        add(#":\s*("(?:[^"\\]|\\.)*")"#, color: { $0.string }, captureGroup: 1, to: &p)
+        add(#"\b(true|false|null)\b"#, color: { $0.keyword }, to: &p)
+        add(#"(-?\d+\.?\d*(?:[eE][+-]?\d+)?)"#, color: { $0.number }, to: &p)
+        return p
+    }
+
+    // MARK: Plist
+
+    private static func buildPlistPatterns() -> [PatternEntry] {
+        var p: [PatternEntry] = []
+        add(#"(<!--[\s\S]*?-->)"#, color: { $0.comment }, to: &p)
+        add(#"(<[^>]+>)"#, color: { $0.keyword }, to: &p)
+        add(#">([^<]+)<"#, color: { $0.string }, captureGroup: 1, to: &p)
+        return p
+    }
+
+    // MARK: Markdown
+
+    private static func buildMarkdownPatterns() -> [PatternEntry] {
+        var p: [PatternEntry] = []
+        add(#"(^#{1,6}\s+[^\n]+)"#, color: { $0.keyword }, to: &p, options: [.anchorsMatchLines])
+        add(#"(\*\*[^\*]+\*\*|__[^_]+__)"#, color: { $0.type }, to: &p)
+        add(#"(\*[^\*\n]+\*|_[^_\n]+_)"#, color: { $0.function }, to: &p)
+        add(#"(`[^`\n]+`)"#, color: { $0.string }, to: &p)
+        add(#"(```[\s\S]*?```)"#, color: { $0.string }, to: &p)
+        add(#"(\[[^\]]+\]\([^\)]+\))"#, color: { $0.attribute }, to: &p)
+        add(#"(^>\s+[^\n]*)"#, color: { $0.comment }, to: &p, options: [.anchorsMatchLines])
+        return p
+    }
+
+    // MARK: - Helper
+
+    private static func add(
+        _ pattern: String,
+        color: @escaping @Sendable (Theme) -> ColorType,
+        captureGroup: Int = 0,
+        to list: inout [PatternEntry],
+        options: NSRegularExpression.Options = [.dotMatchesLineSeparators]
+    ) {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return }
+        list.append(PatternEntry(regex: regex, captureGroup: captureGroup, color: color))
+    }
+}

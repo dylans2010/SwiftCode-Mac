@@ -1,0 +1,16 @@
+import SwiftUI
+
+struct BuildConsoleView: View {
+    @State var viewModel: BuildViewModel
+
+    var body: some View {
+        ScrollView {
+            Text(viewModel.buildLog)
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+        }
+        .liquidGlass(style: .hud, cornerRadius: 0)
+        .foregroundStyle(.white)
+    }
+}

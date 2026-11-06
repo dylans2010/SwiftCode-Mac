@@ -1,0 +1,13 @@
+{
+  "id": "dark",
+  "name": "SwiftCode Dark",
+  "background": "#1E1E1E",
+  "foreground": "#D4D4D4",
+  "keywordColor": "#569CD6",
+  "stringColor": "#CE9178",
+  "commentColor": "#6A9955",
+  "numberColor": "#B5CEA8",
+  "typeColor": "#4EC9B0",
+  "accentColor": "#007AFF",
+  "isBuiltIn": true
+}

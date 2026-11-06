@@ -1,0 +1,192 @@
+import Foundation
+
+public struct CIBuildConfiguration: Codable {
+    public enum Platform: String, Codable, CaseIterable {
+        case iOS
+        case iOSAndIPadOS = "iOS + iPadOS"
+    }
+
+    public enum DeviceFamily: String, Codable, CaseIterable {
+        case iPhone
+        case iPad
+        case iPhoneAndIPad = "iPhone + iPad"
+
+        public var targetFamilyValue: String {
+            switch self {
+            case .iPhone: return "1"
+            case .iPad: return "2"
+            case .iPhoneAndIPad: return "1,2"
+            }
+        }
+    }
+
+    public var platform: Platform
+    public var deploymentTarget: String
+    public var targetDeviceFamily: DeviceFamily
+    public var schemeName: String
+    public var bundleIdentifier: String
+
+    public init(
+        platform: Platform = .iOS,
+        deploymentTarget: String = "16.0",
+        targetDeviceFamily: DeviceFamily = .iPhoneAndIPad,
+        schemeName: String = "Test",
+        bundleIdentifier: String = "com.example.myapp"
+    ) {
+        self.platform = platform
+        self.deploymentTarget = deploymentTarget
+        self.targetDeviceFamily = targetDeviceFamily
+        self.schemeName = schemeName
+        self.bundleIdentifier = bundleIdentifier
+    }
+}
+
+public struct ProjectBuildSettings: Codable, Sendable {
+    /// Persisted per-project build metadata edited in Project Settings.
+    /// All properties carry defaults so the synthesized Codable conformance
+    /// tolerates older project.json payloads that lack these keys.
+    public var organizationName: String = ""
+    public var bundleIdentifier: String = ""
+    public var marketingVersion: String = "1.0.0"
+    public var buildNumber: String = "1"
+    public var autoIncrementBuildNumber: Bool = false
+    public var developmentTeam: String = ""
+    public var swiftLanguageVersion: String = "6.0"
+    public var deploymentTargetPlatform: String = "macOS"
+    public var deploymentTargetVersion: String = "15.0"
+    /// When nil, build configurations are derived from the .xcodeproj on disk.
+    /// Set once the user edits the list in Project Settings.
+    public var buildConfigurationOverrides: [String]? = nil
+    /// Per-target bundle identifier overrides, keyed by target name.
+    public var targetBundleIDOverrides: [String: String] = [:]
+    /// Persisted Xcode build-setting overrides, keyed by setting name
+    /// (e.g. "SWIFT_OPTIMIZATION_LEVEL"). Keys absent here fall back to the
+    /// values detected in the project's build settings.
+    public var xcodeSettings: [String: String] = [:]
+    /// Relative paths inside the project directory; empty = auto-detect.
+    public var infoPlistPath: String = ""
+    public var entitlementsPath: String = ""
+    public var codeSignStyle: String = "Automatic"
+    public var codeSignIdentity: String = ""
+    public var provisioningProfileSpecifier: String = ""
+
+    public init() {}
+}
+
+public struct Project: Identifiable, Codable, @unchecked Sendable {
+    public var id: UUID
+    public var name: String
+    public var createdAt: Date
+    public var lastOpened: Date
+    public var files: [FileNode]
+    public var githubRepo: String?
+    public var githubToken: String? // stored in keychain, not persisted here
+    public var description: String
+    public var ciBuildConfiguration: CIBuildConfiguration?
+    public var transferConfiguration: ProjectTransferConfiguration?
+    public var customDirectoryPath: String?
+    public var destinations: [String]?
+    public var buildSettings: ProjectBuildSettings = ProjectBuildSettings()
+
+    public enum CodingKeys: String, CodingKey {
+        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration, customDirectoryPath, destinations, buildSettings
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        lastOpened = try container.decode(Date.self, forKey: .lastOpened)
+        files = []
+        fileCount = (try? container.decode(Int.self, forKey: .fileCount)) ?? 0
+        githubRepo = try container.decodeIfPresent(String.self, forKey: .githubRepo)
+        description = try container.decode(String.self, forKey: .description)
+        ciBuildConfiguration = try container.decodeIfPresent(CIBuildConfiguration.self, forKey: .ciBuildConfiguration)
+        transferConfiguration = try container.decodeIfPresent(ProjectTransferConfiguration.self, forKey: .transferConfiguration)
+        customDirectoryPath = try container.decodeIfPresent(String.self, forKey: .customDirectoryPath)
+        destinations = try container.decodeIfPresent([String].self, forKey: .destinations)
+        buildSettings = try container.decodeIfPresent(ProjectBuildSettings.self, forKey: .buildSettings) ?? ProjectBuildSettings()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(lastOpened, forKey: .lastOpened)
+        try container.encode([FileNode](), forKey: .files)
+        try container.encode(fileCount, forKey: .fileCount)
+        try container.encode(githubRepo, forKey: .githubRepo)
+        try container.encode(description, forKey: .description)
+        try container.encode(ciBuildConfiguration, forKey: .ciBuildConfiguration)
+        try container.encode(transferConfiguration, forKey: .transferConfiguration)
+        try container.encode(customDirectoryPath, forKey: .customDirectoryPath)
+        try container.encodeIfPresent(destinations, forKey: .destinations)
+        try container.encode(buildSettings, forKey: .buildSettings)
+    }
+
+    public init(name: String) {
+        self.id = UUID()
+        self.name = name
+        self.createdAt = Date()
+        self.lastOpened = Date()
+        self.files = []
+        self.fileCount = 0
+        self.githubRepo = nil
+        self.githubToken = nil
+        self.description = ""
+        self.ciBuildConfiguration = CIBuildConfiguration()
+        self.transferConfiguration = .owner
+        self.customDirectoryPath = nil
+        self.destinations = ["iphonesimulator", "iphoneos", "macosx"]
+    }
+
+    @MainActor
+    public var directoryURL: URL {
+        if let customPath = customDirectoryPath {
+            return URL(fileURLWithPath: customPath)
+        }
+        if name.hasPrefix("/") {
+            return URL(fileURLWithPath: name)
+        }
+        return CodingManager.shared.projectsRoot.appendingPathComponent(name)
+    }
+
+    public var displayName: String {
+        if let customPath = customDirectoryPath {
+            return URL(fileURLWithPath: customPath).lastPathComponent
+        }
+        if name.hasPrefix("/") {
+            return URL(fileURLWithPath: name).lastPathComponent
+        }
+        return name
+    }
+
+    public var fileCount: Int = 0
+}
+
+
+public struct ProjectTransferConfiguration: Codable, Hashable, Sendable {
+    public var originPeerID: String?
+    public var permission: TransferPermission
+    public var lastTransferSessionID: UUID?
+    public var lastTransferDate: Date?
+    public var auditLog: [TransferAuditEntry]
+
+    public init(originPeerID: String? = nil, permission: TransferPermission, lastTransferSessionID: UUID? = nil, lastTransferDate: Date? = nil, auditLog: [TransferAuditEntry] = []) {
+        self.originPeerID = originPeerID
+        self.permission = permission
+        self.lastTransferSessionID = lastTransferSessionID
+        self.lastTransferDate = lastTransferDate
+        self.auditLog = auditLog
+    }
+
+    public static let owner = ProjectTransferConfiguration(permission: .owner)
+}
+
+extension Project: Equatable {
+    public static func == (lhs: Project, rhs: Project) -> Bool {
+        return lhs.id == rhs.id
+    }
+}

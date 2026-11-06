@@ -1,0 +1,18 @@
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "globe")
+                .imageScale(.large)
+                .foregroundStyle(.tint)
+            Text("Hello, SwiftUI!")
+                .font(.title)
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    ContentView()
+}

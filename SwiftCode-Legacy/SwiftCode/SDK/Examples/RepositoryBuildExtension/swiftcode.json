@@ -1,0 +1,80 @@
+{
+  "$schema": "./schemas/swiftcode-extension-v1.schema.json",
+  "id": "com.example.repository-build-extension",
+  "manifestVersion": 1,
+  "name": "Repository Build Extension",
+  "version": "0.1.0",
+  "description": "Comprehensive demonstration extension exercising source control, managed builds, project metadata, workspace file access, network requests, and security vault capabilities.",
+  "type": "extension",
+  "runtime": {
+    "language": "typescript",
+    "entrypoint": "dist/index.js",
+    "minimumSwiftCodeVersion": "1.0.0"
+  },
+  "sdk": {
+    "name": "@swiftcode/sdk",
+    "versionRange": "^1.0.0",
+    "protocolVersion": 1
+  },
+  "capabilities": [
+    {
+      "id": "source-control.read",
+      "reason": "Display repository status and diffs."
+    },
+    {
+      "id": "build.execute",
+      "reason": "Run builds through SwiftCode's managed build service."
+    },
+    {
+      "id": "project.read",
+      "reason": "Access active project metadata."
+    },
+    {
+      "id": "workspace.read",
+      "reason": "Read workspace files."
+    },
+    {
+      "id": "credentials.use",
+      "reason": "Inspect and manage Keychain credentials."
+    },
+    {
+      "id": "network.request",
+      "reason": "Perform constrained network requests."
+    }
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "inspect-repository",
+        "title": "Inspect Repository"
+      },
+      {
+        "id": "run-build",
+        "title": "Build Current Project"
+      },
+      {
+        "id": "inspect-project",
+        "title": "Inspect Project Metadata"
+      },
+      {
+        "id": "terminal-command",
+        "title": "Run Sandboxed Terminal Command"
+      },
+      {
+        "id": "cloud-model",
+        "title": "Complete with Cloud Model"
+      },
+      {
+        "id": "security-vault",
+        "title": "Inspect Security Secret IDs"
+      },
+      {
+        "id": "open-docs",
+        "title": "Open Documentation Browser"
+      }
+    ]
+  },
+  "assist": {
+    "requested": false
+  }
+}

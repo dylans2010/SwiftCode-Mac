@@ -1,0 +1,25 @@
+name: __PROJECT_NAME__
+options:
+  bundleIdPrefix: __ORGANIZATION_IDENTIFIER__
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+configs:
+  Debug: debug
+  Release: release
+targets:
+  __TARGET_NAME__:
+    type: application
+    platform: __TARGET_PLATFORM__
+    deploymentTarget: "__DEPLOYMENT_TARGET__"
+    sources:
+__TARGET_SOURCES__
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __BUNDLE_IDENTIFIER__
+        INFOPLIST_FILE: Info.plist
+schemes:
+  __SCHEME_NAME__:
+    build:
+      targets:
+        __TARGET_NAME__: all
