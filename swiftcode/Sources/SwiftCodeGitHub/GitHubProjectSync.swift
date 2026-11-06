@@ -56,6 +56,36 @@ public struct GitHubProjectSync: Sendable {
         return destination
     }
 
+    /// Pulls a whole project from `owner/repo` into `directory` (Legacy
+    /// `GitCommands.pull`): fetches the repo tree for `branch`, then
+    /// pulls every blob into the directory (creating intermediate
+    /// directories), returning the number of files pulled. A failed
+    /// tree fetch or file pull aborts with the underlying error wrapped
+    /// as `GitCommandsError.pullFailed`, as Legacy's `pullFailed` did.
+    /// The Legacy `ProjectSessionStore.refreshFileTree` step has no
+    /// destination equivalent (no `Project` model); callers refresh
+    /// their own file tree after the pull returns.
+    @discardableResult
+    public func pullDirectory(owner: String, repo: String, branch: String = "main", into directory: URL) async throws -> Int {
+        let tree: [GitHubTreeEntry]
+        do {
+            tree = try await client.getRepoTree(owner: owner, repo: repo, ref: branch)
+        } catch {
+            throw GitCommandsError.pullFailed(error.localizedDescription)
+        }
+        let files = tree.filter { $0.type == "blob" }
+        var pulled = 0
+        for entry in files {
+            do {
+                _ = try await pullFile(owner: owner, repo: repo, path: entry.path, into: directory, ref: branch)
+                pulled += 1
+            } catch {
+                throw GitCommandsError.pullFailed(error.localizedDescription)
+            }
+        }
+        return pulled
+    }
+
     /// The text files under `directory` that `pushDirectory` would push
     /// (relative paths). Exposed for callers that want to preview a push.
     public func textFiles(in directory: URL) -> [String] {

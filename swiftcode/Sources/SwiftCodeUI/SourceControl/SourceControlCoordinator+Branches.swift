@@ -148,8 +148,8 @@ extension SourceControlCoordinator {
 
     public func applyStash(_ ref: String, pop: Bool) { integrate { try $0.applyStash(ref, pop: pop) } }
 
-    public func push(branch: String, remote: String, setUpstream: Bool = true) {
-        perform { try $0.push(remote: remote, branch: branch, setUpstream: setUpstream) }
+    public func push(branch: String, remote: String, setUpstream: Bool = true, force: Bool = false, forceLease: Bool = true) {
+        perform { try $0.push(remote: remote, branch: branch, setUpstream: setUpstream, force: force, forceLease: forceLease) }
     }
 
     public func pull(branch: String, remote: String, style: GitRepository.PullStyle) {

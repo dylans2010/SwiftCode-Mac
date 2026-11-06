@@ -13,6 +13,11 @@ public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
     public var createdAt: Date?
     public var updatedAt: Date?
     public var htmlUrl: String?
+    /// `git_push_url` / `git_pull_url` from `GET /gists/{id}`: the
+    /// clone URLs Legacy's `cloneURL(for:useSSH:)` preferred, with the
+    /// canonical `gist.github.com` forms as fallback.
+    public var gitPushUrl: String?
+    public var gitPullUrl: String?
     /// The revisions from the `history` key of `GET /gists/{id}`.
     public var history: [GitHubGistRevision]
 
@@ -21,7 +26,7 @@ public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, description, owner, files, comments, createdAt, updatedAt, htmlUrl, history
+        case id, description, owner, files, comments, createdAt, updatedAt, htmlUrl, history, gitPushUrl, gitPullUrl
         case isPublic = "public"
     }
 
@@ -35,6 +40,8 @@ public struct GitHubGist: Sendable, Equatable, Decodable, Identifiable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         htmlUrl = try container.decodeIfPresent(String.self, forKey: .htmlUrl)
+        gitPushUrl = try container.decodeIfPresent(String.self, forKey: .gitPushUrl)
+        gitPullUrl = try container.decodeIfPresent(String.self, forKey: .gitPullUrl)
         history = try container.decodeIfPresent([GitHubGistRevision].self, forKey: .history) ?? []
         // The API normally repeats the filename inside each value; when
         // it does not, the dictionary key is the filename.
@@ -262,6 +269,108 @@ public struct GitHubGistClient: Sendable {
         }
         return try await transport.perform(transport.request(
             path: "gists/\(transport.encode(gistId))/\(transport.encode(revision))"))
+    }
+
+    // MARK: - Fork / download / upload (Legacy `GitHubGistService` remainder)
+
+    /// `POST /gists/{id}/forks`: forks the gist into the authenticated
+    /// user's account and returns the fork. Requires a token.
+    public func forkGist(id: String) async throws -> GitHubGist {
+        guard !(transport.tokenProvider() ?? "").isEmpty else {
+            throw GitHubError.missingToken
+        }
+        let gistId = try validatedId(id)
+        return try await transport.perform(transport.request(path: "gists/\(transport.encode(gistId))/forks", method: "POST"))
+    }
+
+    /// The clone URL for a gist (Legacy `GitHubGistService.cloneURL`):
+    /// the SSH push URL for `useSSH`, else the HTTPS pull URL, falling
+    /// back to the canonical `gist.github.com` forms when the API did
+    /// not return them.
+    public func cloneURL(for gist: GitHubGist, useSSH: Bool) -> String {
+        if useSSH {
+            if let push = gist.gitPushUrl, !push.isEmpty {
+                return push
+            }
+            return "git@gist.github.com:\(gist.id).git"
+        }
+        if let pull = gist.gitPullUrl, !pull.isEmpty {
+            return pull
+        }
+        return "https://gist.github.com/\(gist.id).git"
+    }
+
+    /// Uploads the files at `urls` into an existing gist (Legacy
+    /// `GitHubGistService.uploadFilesToGist`): each URL is a file or a
+    /// directory (enumerated, hidden files skipped); unreadable files
+    /// are skipped, and an empty selection throws. Returns the updated
+    /// gist. Requires a token.
+    public func uploadFilesToGist(id: String, urls: [URL]) async throws -> GitHubGist {
+        guard !(transport.tokenProvider() ?? "").isEmpty else {
+            throw GitHubError.missingToken
+        }
+        var imported: [String: String?] = [:]
+        for url in urls {
+            for entry in try collectFileEntries(from: url) {
+                imported[entry.name] = entry.content
+            }
+        }
+        guard !imported.isEmpty else {
+            throw GitHubError.unprocessable(message: "No readable files found in selection.")
+        }
+        return try await updateGist(id: id, description: nil, files: imported)
+    }
+
+    /// Downloads a gist as a ZIP archive (Legacy
+    /// `GitHubGistService.downloadGistZip`): the latest revision (or
+    /// `HEAD` when the gist has no history) from
+    /// `gist.github.com/{id}/archive/{revision}.zip`, written to a
+    /// temporary file. Returns the temporary file's URL; the caller
+    /// owns it.
+    public func downloadGistZip(gistId: String) async throws -> URL {
+        let gist = try await fetchGist(id: gistId)
+        let revision = gist.history.first?.version ?? "HEAD"
+        guard let zipURL = URL(string: "https://gist.github.com/\(gist.id)/archive/\(revision).zip") else {
+            throw GitHubError.unprocessable(message: "Invalid Gist URL for download")
+        }
+        var request = URLRequest(url: zipURL)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        if let token = transport.tokenProvider(), !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw GitHubError.http(status: (response as? HTTPURLResponse)?.statusCode ?? 0, message: "Failed to download ZIP archive")
+        }
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(gistId)-\(revision).zip")
+        try data.write(to: tempURL, options: .atomic)
+        return tempURL
+    }
+
+    private func collectFileEntries(from url: URL) throws -> [(name: String, content: String)] {
+        let needsScoped = url.startAccessingSecurityScopedResource()
+        defer { if needsScoped { url.stopAccessingSecurityScopedResource() } }
+
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey])
+        if values.isDirectory == true {
+            let enumerator = FileManager.default.enumerator(
+                at: url,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+            var output: [(name: String, content: String)] = []
+            while let item = enumerator?.nextObject() as? URL {
+                let itemValues = try item.resourceValues(forKeys: [.isDirectoryKey])
+                guard itemValues.isDirectory != true else { continue }
+                if let content = try? String(contentsOf: item) {
+                    output.append((item.lastPathComponent, content))
+                }
+            }
+            return output
+        }
+
+        guard let content = try? String(contentsOf: url) else { return [] }
+        return [(url.lastPathComponent, content)]
     }
 
     private func validatedId(_ id: String) throws -> String {

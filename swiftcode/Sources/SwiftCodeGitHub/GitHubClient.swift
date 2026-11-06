@@ -666,3 +666,46 @@ private struct EnablePagesBody: Encodable {
         case buildType = "build_type"
     }
 }
+
+// MARK: - Repository languages, forks and stars
+// Added for the public repository browser (GitHubCodeSearchView port):
+// the language list, fork, and star/unstar, which the client did not
+// previously expose. Same-file extensions can use the private
+// `request`/`perform`/`performRaw`/`validate` helpers.
+
+extension GitHubClient {
+    /// `GET /repos/{owner}/{repo}/languages`: language names, most bytes first.
+    public func listLanguages(owner: String, repo: String) async throws -> [String] {
+        try validateRepo(owner: owner, repo: repo)
+        let counts: [String: Int] = try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/languages"))
+        return counts.keys.sorted { counts[$0, default: 0] > counts[$1, default: 0] }
+    }
+
+    /// `POST /repos/{owner}/{repo}/forks`: forks into the authenticated
+    /// user's account and returns the forked repository.
+    public func forkRepository(owner: String, repo: String) async throws -> GitHubRepository {
+        try validateRepo(owner: owner, repo: repo)
+        return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/forks", method: "POST"))
+    }
+
+    /// `PUT`/`DELETE /user/starred/{owner}/{repo}`: stars or unstars.
+    public func starRepository(owner: String, repo: String, starred: Bool) async throws {
+        try validateRepo(owner: owner, repo: repo)
+        let (_, http) = try await performRaw(request(path: "user/starred/\(encode(owner))/\(encode(repo))",
+                                                    method: starred ? "PUT" : "DELETE"))
+        try validate(http, data: Data())
+    }
+
+    /// `GET /user/starred/{owner}/{repo}`: 204 = starred, 404 = not.
+    public func isRepositoryStarred(owner: String, repo: String) async throws -> Bool {
+        try validateRepo(owner: owner, repo: repo)
+        let (_, http) = try await performRaw(request(path: "user/starred/\(encode(owner))/\(encode(repo))"))
+        switch http.statusCode {
+        case 204: return true
+        case 404: return false
+        default:
+            try validate(http, data: Data())
+            return false
+        }
+    }
+}

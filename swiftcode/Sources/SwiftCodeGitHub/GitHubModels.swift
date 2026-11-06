@@ -57,6 +57,20 @@ public struct GitHubUser: Sendable, Equatable, Decodable {
     public var name: String?
     public var avatarUrl: String?
     public var htmlUrl: String?
+    // Profile fields (`GET /user` returns these; all optional so older
+    // payloads still decode). Added for the GitHub account view.
+    public var bio: String?
+    public var company: String?
+    public var blog: String?
+    public var location: String?
+    public var email: String?
+    public var hireable: Bool?
+    public var followers: Int?
+    public var following: Int?
+    public var publicRepos: Int?
+    public var totalPrivateRepos: Int?
+    public var createdAt: Date?
+    public var updatedAt: Date?
 }
 
 /// A repository (`GET /repos/{owner}/{repo}`). `ownerLogin` is the nested
@@ -77,10 +91,17 @@ public struct GitHubRepository: Sendable, Equatable, Decodable, Identifiable {
     public var createdAt: Date?
     public var updatedAt: Date?
     public var pushedAt: Date?
+    // Added for the public repository browser (topics, clone URLs) and
+    // the repository dashboard (size in KB, open issue count).
+    public var topics: [String]?
+    public var sshUrl: String?
+    public var cloneUrl: String?
+    public var size: Int?
+    public var openIssuesCount: Int?
 
     private enum CodingKeys: String, CodingKey {
         case name, fullName, description, htmlUrl, defaultBranch, stargazersCount, forksCount, language,
-             createdAt, updatedAt, pushedAt, owner
+             createdAt, updatedAt, pushedAt, owner, topics, sshUrl, cloneUrl, size, openIssuesCount
         case isPrivate = "private"
     }
 
@@ -102,6 +123,11 @@ public struct GitHubRepository: Sendable, Equatable, Decodable, Identifiable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         pushedAt = try container.decodeIfPresent(Date.self, forKey: .pushedAt)
+        topics = try container.decodeIfPresent([String].self, forKey: .topics)
+        sshUrl = try container.decodeIfPresent(String.self, forKey: .sshUrl)
+        cloneUrl = try container.decodeIfPresent(String.self, forKey: .cloneUrl)
+        size = try container.decodeIfPresent(Int.self, forKey: .size)
+        openIssuesCount = try container.decodeIfPresent(Int.self, forKey: .openIssuesCount)
         let owner = try container.nestedContainer(keyedBy: OwnerKeys.self, forKey: .owner)
         ownerLogin = try owner.decode(String.self, forKey: .login)
     }

@@ -33,6 +33,13 @@ public enum SCProjectError: LocalizedError, Sendable {
     case versionIncompatible(Int, Int)
     case securityFailure(String)
     case ioError(Error)
+    /// The project folder could not be found (Legacy
+    /// `ProjectOpenError.pathNotFound`).
+    case pathNotFound
+    /// Loading took too long (Legacy `ProjectOpenError.timeout`).
+    case timeout
+    /// Loading was cancelled (Legacy `ProjectOpenError.cancelled`).
+    case cancelled
 
     public var errorDescription: String? {
         switch self {
@@ -42,6 +49,9 @@ public enum SCProjectError: LocalizedError, Sendable {
         case .versionIncompatible(let current, let required): return "Version mismatch: project requires version \(required), but only \(current) is supported."
         case .securityFailure(let message): return "Security verification failed: \(message)"
         case .ioError(let error): return "File system error: \(error.localizedDescription)"
+        case .pathNotFound: return "The project folder could not be found."
+        case .timeout: return "The project took too long to load. Please try again."
+        case .cancelled: return "Project loading was cancelled."
         }
     }
 }

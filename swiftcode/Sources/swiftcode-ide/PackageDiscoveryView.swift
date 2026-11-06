@@ -11,10 +11,18 @@ import SwiftCodeIDEShell
 /// GitHub search. Install / Remove act only through the store's injected
 /// `installHandler` — with none configured the buttons explain that no
 /// project is open instead of pretending to edit one.
+// NOTE (A4 migration): the search-filters sidebar was added for the
+// Legacy `GitHubDiscoveryView` port — see `PackageDiscoveryFiltersView`.
+// The filters compose the search query (`topic:` / `user:` / `org:` /
+// `archived:` qualifiers) and pass language / license / min-stars through
+// to `PackageDiscoveryStore.executeGitHubSearch`; verified-only filters
+// the returned results.
 public struct PackageDiscoveryView: View {
     @State private var store = PackageDiscoveryStore()
     @State private var selectedCategory: String = "All"
     @State private var searchQuery: String = ""
+    @State private var filters = PackageDiscoveryFilters()
+    @State private var showFilters = false
     @State private var selectedPackage: PackageMetadata?
     @State private var installMessage: String?
     @State private var installRequirement: DependencyRequirementType = .from
@@ -26,8 +34,17 @@ public struct PackageDiscoveryView: View {
 
     public init() {}
 
+    private var displayedSearchResults: [PackageMetadata] {
+        filters.verifiedOnly ? store.searchResults.filter(\.isVerified) : store.searchResults
+    }
+
     public var body: some View {
         NavigationSplitView {
+            VStack(spacing: 0) {
+                if showFilters {
+                    PackageDiscoveryFiltersView(filters: $filters)
+                    Divider()
+                }
             List(selection: $selectedPackage) {
                 Section("Starter catalog (curated)") {
                     ForEach(filtered(store.featuredPackages)) { pkg in packageRow(pkg) }
@@ -35,9 +52,9 @@ public struct PackageDiscoveryView: View {
                 Section("Trending starter picks") {
                     ForEach(filtered(store.trendingPackages)) { pkg in packageRow(pkg) }
                 }
-                if !store.searchResults.isEmpty {
+                if !displayedSearchResults.isEmpty {
                     Section("Search results (live)") {
-                        ForEach(store.searchResults) { pkg in packageRow(pkg) }
+                        ForEach(displayedSearchResults) { pkg in packageRow(pkg) }
                     }
                 }
                 Section("Collections") {
@@ -47,8 +64,12 @@ public struct PackageDiscoveryView: View {
                 }
             }
             .listStyle(.sidebar)
+            }
             .navigationTitle("Package Discovery")
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(showFilters ? "Hide Filters" : "Filters") { showFilters.toggle() }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Refresh catalog") { Task { await store.refreshCatalog() } }
                 }
@@ -58,7 +79,14 @@ public struct PackageDiscoveryView: View {
         }
         .searchable(text: $searchQuery, prompt: "Search GitHub packages")
         .onSubmit(of: .search) {
-            Task { await store.executeGitHubSearch(query: searchQuery) }
+            Task {
+                await store.executeGitHubSearch(
+                    query: filters.composedQuery(keyword: searchQuery),
+                    language: filters.language,
+                    license: filters.license,
+                    minStars: filters.minStars
+                )
+            }
         }
     }
 

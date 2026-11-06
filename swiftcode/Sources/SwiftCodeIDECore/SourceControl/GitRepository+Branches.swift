@@ -198,10 +198,19 @@ extension GitRepository {
     /// Pushes local `branch` to `branch` on `remote`; `setUpstream` makes
     /// it the branch's upstream. Credentials are never prompted for: a
     /// push that needs them fails.
-    public func push(remote: String, branch: String, setUpstream: Bool = false, force: Bool = false) throws {
+    public func push(remote: String, branch: String, setUpstream: Bool = false, force: Bool = false, forceLease: Bool = true) throws {
         guard !remote.hasPrefix("-"), isValidBranchName(branch) else { throw GitError(description: "Choose a remote and a branch.") }
-        _ = try git(["push"] + (setUpstream ? ["--set-upstream"] : []) + (force ? ["--force-with-lease"] : [])
+        // `force` with `forceLease` (the default) uses `--force-with-lease`;
+        // `forceLease: false` uses plain `--force`.
+        let forceFlag = force ? (forceLease ? "--force-with-lease" : "--force") : nil
+        _ = try git(["push"] + (setUpstream ? ["--set-upstream"] : []) + (forceFlag.map { [$0] } ?? [])
                     + ["--", remote, "refs/heads/\(branch):refs/heads/\(branch)"])
+    }
+
+    /// Pushes all local branches to `remote` (`git push --all`).
+    public func pushAll(remote: String) throws {
+        guard !remote.hasPrefix("-") else { throw GitError(description: "Choose a remote.") }
+        _ = try git(["push", "--all", "--", remote])
     }
 
     /// Pushes one tag, or deletes a branch or tag on a remote.

@@ -9,6 +9,11 @@ public struct GitFileStatus: Codable, Sendable, Equatable {
         case renamed = "renamed"
         case copied = "copied"
         case ignored = "ignored"
+        /// Unmerged (`U` in porcelain v1/v2): the file has merge
+        /// conflicts. Added for `GitPorcelainParser` (Legacy's
+        /// `GitFileStatus.Status.conflicted`); `SDKSourceControlAdapter`
+        /// has its own `.conflicted` on `SDKFileChangeStatus`.
+        case conflicted = "conflicted"
     }
 
     public let path: String

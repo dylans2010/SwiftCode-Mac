@@ -68,7 +68,7 @@ public final class GutterView: NSRulerView, NSViewToolTipOwner {
     }
     /// Editor ▸ Authors: the blame column at the far left
     /// (`source-control.md`, "SwiftCode implementation").
-    public var showsAuthors = false {
+    public var showsAuthors = GitBlameSettings.showInlineBlame {
         didSet {
             guard oldValue != showsAuthors else { return }
             ruleThickness = Self.baseThickness + authorsInset

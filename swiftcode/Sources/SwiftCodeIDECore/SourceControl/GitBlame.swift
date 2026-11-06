@@ -87,11 +87,30 @@ public enum GitBlame {
         return out
     }
 
+    /// Absolute blame dates: "Nov 6, 2026 at 1:03 PM".
+    private static let absoluteDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     /// The annotation at the top of a block: "Author  date" ("Not
-    /// Committed Yet" for local changes).
+    /// Committed Yet" for local changes). The date part follows the
+    /// `GitBlameSettings.dateFormat` preference: relative ("2d ago"),
+    /// absolute ("Nov 6, 2026 at 1:03 PM"), or the commit's short hash.
     public static func annotation(_ c: Commit, now: Date = Date(), calendar: Calendar = .current) -> String {
         if c.isUncommitted { return "Not Committed Yet" }
-        return "\(c.author)  \(GitDates.relativeDay(c.date, now: now, calendar: calendar))"
+        let datePart: String
+        switch GitBlameSettings.dateFormat {
+        case .relative:
+            datePart = GitDates.relativeDay(c.date, now: now, calendar: calendar)
+        case .absolute:
+            datePart = absoluteDateFormatter.string(from: c.date)
+        case .shortHash:
+            datePart = c.shortHash
+        }
+        return "\(c.author)  \(datePart)"
     }
 
     /// The hover text: hash, author and email, date, and summary.
