@@ -1,5 +1,8 @@
 import Foundation
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 #if canImport(UniformTypeIdentifiers)
 import UniformTypeIdentifiers
 #endif
@@ -76,6 +79,12 @@ struct ShellRootView: View {
     @Bindable var app: ShellAppModel
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
+    /// A Finder-opened `.scproj` package awaiting the trust decision
+    /// (Legacy `SwiftCodeApp.pendingScprojURL`).
+    @State private var pendingScprojURL: URL?
+    /// Error from a Finder open or a trust-alert delete, if any
+    /// (Legacy `SwiftCodeApp.finderOpenError`).
+    @State private var finderOpenError: String?
 
     var body: some View {
         Group {
@@ -129,12 +138,167 @@ struct ShellRootView: View {
                     if !accepted { app.linkCouldNotOpen(url) }
                 }
             }
+            #if os(macOS)
+            applyLegacyWindowGeometry(hasWorkspace: app.workspace != nil)
+            #endif
+        }
+        .onChange(of: app.workspace != nil) { _, hasWorkspace in
+            #if os(macOS)
+            applyLegacyWindowGeometry(hasWorkspace: hasWorkspace)
+            #endif
+        }
+        // Finder-opened files arrive here (Legacy `SwiftCodeApp.onOpenURL`:
+        // `.scproj` goes through the trust decision, `.xcodeproj` /
+        // `.xcworkspace` open straight away; URL schemes keep their
+        // existing handlers in the AppKit AppDelegate).
+        .onOpenURL { url in
+            guard url.isFileURL else { return }
+            handleFinderOpenedFile(url)
+        }
+        .alert(
+            "Trust this SwiftCode project?",
+            isPresented: Binding(
+                get: { pendingScprojURL != nil },
+                set: { if !$0 { pendingScprojURL = nil } }
+            ),
+            presenting: pendingScprojURL
+        ) { url in
+            Button("Trust and Open") {
+                pendingScprojURL = nil
+                ScprojTrustStore.markTrusted(url)
+                openTrustedScproj(url)
+            }
+            Button("Delete from Disk", role: .destructive) {
+                pendingScprojURL = nil
+                deleteUntrustedScproj(url)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { url in
+            // project.json carries no author identity, so the alert names
+            // the package and its location instead of inventing an author.
+            // Deletion is permanent, by the user's explicit choice here.
+            Text("“\(url.lastPathComponent)” at \(url.deletingLastPathComponent().path) was not created by this copy of SwiftCode. SwiftCode projects can run code and tools when opened. Open it only if you trust where it came from — otherwise SwiftCode will permanently delete it from disk.")
+        }
+        .alert("Couldn't Open File", isPresented: Binding(
+            get: { finderOpenError != nil },
+            set: { if !$0 { finderOpenError = nil } }
+        ), presenting: finderOpenError) { _ in
+            Button("OK") {}
+        } message: { message in
+            Text(message)
         }
         .task { await ShellDriver.start(app) }
     }
 }
 
 extension ShellRootView {
+    // MARK: - Finder-opened files (Legacy `SwiftCodeApp`)
+
+    private func handleFinderOpenedFile(_ url: URL) {
+        switch url.pathExtension.lowercased() {
+        case "scproj":
+            // Already trusted once? Open straight away; otherwise the
+            // trust alert decides (open, or delete from disk).
+            if ScprojTrustStore.isTrusted(url) {
+                openTrustedScproj(url)
+            } else {
+                pendingScprojURL = url
+            }
+        case "xcodeproj", "xcworkspace":
+            // Same path as File > Open: the destination opens the
+            // container directly (Legacy imported it through
+            // `ProjectSessionStore.importProject`, which the services
+            // migration owns; see the disposition).
+            if !app.open(path: url.path) {
+                finderOpenError = app.openError ?? "Could not open \(url.lastPathComponent)."
+            }
+        default:
+            break
+        }
+    }
+
+    /// Opens a trusted `.scproj` package. Legacy opened the package's own
+    /// project via `ProjectSessionStore.openScprojPackage` (no import copy);
+    /// the destination opens the container through `ShellAppModel.open`,
+    /// which is the closest equivalent until that port lands.
+    private func openTrustedScproj(_ url: URL) {
+        if !app.open(path: url.path) {
+            finderOpenError = app.openError ?? "Could not open \(url.lastPathComponent)."
+        }
+    }
+
+    /// Deletes an untrusted `.scproj` package from disk, exactly as the
+    /// trust alert promises. Also forgets any trust grant, so a later copy
+    /// at the same path is prompted again instead of opening silently.
+    /// (Legacy also dropped it from recents; `RecentProjects.urls` already
+    /// drops entries whose file is gone, so the deletion covers that.)
+    private func deleteUntrustedScproj(_ url: URL) {
+        ScprojTrustStore.forget(url)
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            finderOpenError = error.localizedDescription
+        }
+    }
+
+    #if os(macOS)
+    /// Legacy window geometry (Legacy `SwiftCodeApp` / `WorkspaceHostView`):
+    /// a workspace window goes fullscreen at min 900x600 with a hidden
+    /// titlebar; the Welcome window is a fixed 800x480 panel with its
+    /// titlebar buttons hidden.
+    private func applyLegacyWindowGeometry(hasWorkspace: Bool) {
+        guard let window = NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) else { return }
+        if hasWorkspace {
+            window.isOpaque = true
+            window.backgroundColor = nil
+            window.showsResizeIndicator = true
+            window.isMovableByWindowBackground = false
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.titlebarSeparatorStyle = .none
+            window.toolbar?.displayMode = .iconOnly
+            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+            window.styleMask.remove(.fullSizeContentView)
+            window.collectionBehavior.insert(.fullScreenPrimary)
+            window.minSize = NSSize(width: 900, height: 600)
+            window.maxSize = NSSize(width: 10000, height: 10000)
+            if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+                titlebarView.isHidden = false
+            }
+            window.standardWindowButton(.closeButton)?.isHidden = false
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+            window.standardWindowButton(.zoomButton)?.isHidden = false
+            if !window.styleMask.contains(.fullScreen) {
+                window.toggleFullScreen(nil)
+            }
+        } else {
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.contentView?.wantsLayer = true
+            window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+            let fixedSize = NSSize(width: 800, height: 480)
+            window.minSize = fixedSize
+            window.maxSize = fixedSize
+            if abs(window.frame.width - fixedSize.width) > 1 || abs(window.frame.height - fixedSize.height) > 1 {
+                window.setFrame(NSRect(origin: window.frame.origin, size: fixedSize), display: true, animate: false)
+                window.center()
+            }
+            window.title = ""
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.titlebarSeparatorStyle = .none
+            window.toolbar = nil
+            window.styleMask.insert([.titled, .fullSizeContentView])
+            window.standardWindowButton(.closeButton)?.isHidden = true
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            window.standardWindowButton(.zoomButton)?.isHidden = true
+            if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+                titlebarView.isHidden = true
+            }
+        }
+    }
+    #endif
+
     var unsavedTitle: String {
         let names = app.workspace?.editedDocumentNames ?? []
         if names.count == 1 { return "Save changes to “\(names[0])”?" }

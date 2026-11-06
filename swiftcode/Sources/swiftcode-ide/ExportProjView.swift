@@ -1,0 +1,93 @@
+// ExportProjView.swift
+//
+// Ported from Legacy `SwiftCode/Views/ExportProjView.swift` (SwiftCode-Mac migration, Views/UI worklist).
+// Worklist verdict: PARTIAL.
+// Missing behaviour ported: User-facing Export Project sheet/UI (destination picker, progress, error display)
+// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct ExportProjView: View {
+    @Environment(ProjectSessionStore.self) private var sessionStore
+    @State private var exportManager = ExportProjManager.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 20) {
+            if let project = sessionStore.activeProject {
+                Image(systemName: "square.and.arrow.up.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(.accentColor)
+
+                Text("Export \"\(project.name)\"")
+                    .font(.title2)
+                    .bold()
+
+                Text("This will create a SwiftCode Project Archive containing all project data, files, and metadata. The package includes integrity verification.")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+
+                if exportManager.isExporting {
+                    VStack(spacing: 12) {
+                        ProgressView(value: exportManager.exportProgress)
+                            .progressViewStyle(.linear)
+                        Text("Exporting... \(Int(exportManager.exportProgress * 100))%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    VStack(spacing: 10) {
+                        Button(action: selectDestinationAndExport) {
+                            Label("Export Project", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+
+                        Button("Close") {
+                            dismiss()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                    }
+                }
+            } else {
+                Text("No active project to export.")
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if let error = exportManager.exportError {
+                Text(error.localizedDescription)
+                    .foregroundColor(.red)
+                    .font(.caption)
+            }
+        }
+        .padding(24)
+        .frame(width: 500, height: 400)
+        .liquidGlass(style: .sheet, cornerRadius: 16)
+    }
+
+    private func selectDestinationAndExport() {
+        guard let project = sessionStore.activeProject else { return }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(exportedAs: "com.swiftcode.project")]
+        panel.nameFieldStringValue = "\(project.name).scproj"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            Task {
+                do {
+                    try await exportManager.exportProject(project, to: url)
+                    dismiss()
+                } catch {
+                    // Error is handled by ExportProjManager
+                }
+            }
+        }
+    }
+}

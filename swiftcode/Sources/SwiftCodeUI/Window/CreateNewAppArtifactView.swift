@@ -1,0 +1,46 @@
+// CreateNewAppArtifactView.swift
+//
+// Ported from Legacy `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppArtifactView.swift` (SwiftCode-Mac migration, Views/UI worklist).
+// Worklist verdict: PARTIAL.
+// Missing behaviour ported: App-summary artifact screen after creation
+// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+import SwiftUI
+
+public struct CreateNewAppArtifactView: View {
+    public let summaryContent: String
+    @Environment(\.dismiss) private var dismiss
+
+    public init(summaryContent: String) {
+        self.summaryContent = summaryContent
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("App Summary", systemImage: "doc.text.fill")
+                    .font(.headline)
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(summaryContent.isEmpty ? "No application summary available." : summaryContent)
+                        .font(.system(.body, design: .default))
+                        .textSelection(.enabled)
+                        .padding()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(minWidth: 600, minHeight: 500)
+    }
+}

@@ -1,0 +1,45 @@
+// StatusIndicator.swift
+//
+// Ported from Legacy `SwiftCode/Views/Sidebar/StatusIndicator.swift` (SwiftCode-Mac migration, Views/UI worklist).
+// Worklist verdict: PARTIAL.
+// Missing behaviour ported: standalone debug-session state dot plus label (Launching/Running/Exited with exit code)
+// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+import SwiftCodeIDECore
+import SwiftUI
+
+struct StatusIndicator: View {
+    let state: DebugSession.State
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var color: Color {
+        switch state {
+        case .launching:
+            return .orange
+        case .running:
+            return .green
+        case .terminated(let code):
+            return code == 0 ? .gray : .red
+        }
+    }
+
+    private var label: String {
+        switch state {
+        case .launching:
+            return "Launching"
+        case .running:
+            return "Running"
+        case .terminated(let code):
+            return code == 0 ? "Exited" : "Exited (\(code))"
+        }
+    }
+}

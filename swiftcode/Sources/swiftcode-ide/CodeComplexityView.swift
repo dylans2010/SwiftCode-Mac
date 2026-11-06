@@ -10,6 +10,14 @@ import SwiftUI
 // for a cyclomatic-complexity estimate, plus the maximum brace-nesting
 // depth. Results are computed from the actual file contents, sorted
 // worst-first, and the scan runs off the main actor.
+//
+// Migration (Views/UI worklist, Legacy PARTIAL): the per-file detail sheet
+// (Legacy `fileDetailSheet`) — tapping a row opens the file's metrics with
+// the Legacy complexity band (>50 Very High, >30 High, >15 Medium, else
+// Low). The destination scanner measures lines / functions / complexity /
+// nesting depth only, so the sheet shows those metrics; Legacy's
+// non-empty/comment-line counts, class/struct counts and symbol list need
+// the scanner to record them first (not invented here).
 
 /// One file's measured complexity.
 struct ComplexityFileResult: Identifiable, Equatable {
@@ -34,6 +42,7 @@ struct CodeComplexityView: View {
     @State private var isScanning = false
     @State private var scannedFileCount = 0
     @State private var errorMessage: String?
+    @State private var selectedFile: ComplexityFileResult?
 
     private var sortedResults: [ComplexityFileResult] {
         results.sorted {
@@ -99,12 +108,67 @@ struct CodeComplexityView: View {
                         metric(value: result.functions, label: "funcs", colors: c)
                         metric(value: result.maxNestingDepth, label: "depth", colors: c)
                         metric(value: result.lines, label: "lines", colors: c)
+                        Image(systemName: "chevron.right")
+                            .font(ShellFonts.mini)
+                            .foregroundStyle(c.tertiaryLabel)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture { selectedFile = result }
                 }
                 .listStyle(.plain)
+                .sheet(item: $selectedFile) { result in
+                    fileDetailSheet(result, colors: c)
+                }
             }
         }
         .onAppear { scan() }
+    }
+
+    /// Legacy complexity band (`FileComplexityResult.complexityLabel`):
+    /// >50 Very High, >30 High, >15 Medium, else Low.
+    private func complexityBand(for result: ComplexityFileResult) -> String {
+        if result.complexity > 50 { return "Very High" }
+        if result.complexity > 30 { return "High" }
+        if result.complexity > 15 { return "Medium" }
+        return "Low"
+    }
+
+    /// Per-file detail sheet (Legacy `fileDetailSheet`): the file's
+    /// measured metrics with the complexity band. The destination scanner
+    /// does not record non-empty/comment lines, class/struct counts or a
+    /// symbol list, so those Legacy rows are absent rather than invented.
+    private func fileDetailSheet(_ result: ComplexityFileResult, colors c: ShellColors) -> some View {
+        NavigationStack {
+            List {
+                Section("Metrics") {
+                    detailRow("Total Lines", "\(result.lines)", colors: c)
+                    detailRow("Functions", "\(result.functions)", colors: c)
+                    detailRow("Complexity", "\(result.complexity) (\(complexityBand(for: result)))", colors: c)
+                    detailRow("Max Nesting Depth", "\(result.maxNestingDepth)", colors: c)
+                }
+                Section("File") {
+                    Text(verbatim: result.url.path)
+                        .font(ShellFonts.small)
+                        .foregroundStyle(c.secondaryLabel)
+                        .textSelection(.enabled)
+                }
+            }
+            .navigationTitle(result.fileName)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { selectedFile = nil }
+                }
+            }
+        }
+    }
+
+    private func detailRow(_ label: String, _ value: String, colors c: ShellColors) -> some View {
+        HStack {
+            Text(verbatim: label).foregroundStyle(c.secondaryLabel)
+            Spacer()
+            Text(verbatim: value).foregroundStyle(c.label).bold()
+        }
+        .font(ShellFonts.row)
     }
 
     private func metric(value: Int, label: String, colors c: ShellColors) -> some View {

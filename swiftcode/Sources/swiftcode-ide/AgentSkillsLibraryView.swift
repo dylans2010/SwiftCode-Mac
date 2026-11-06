@@ -14,6 +14,12 @@ import UniformTypeIdentifiers
 // import and delete all read and write those files. There is no
 // enable/disable toggle here because SwiftCode has no skill enable/disable
 // store; every skill file under those directories is indexed.
+//
+// Migration (Views/UI worklist, Legacy PARTIAL): Duplicate skill (Legacy
+// `SkillsManagerView.duplicate(_:)`) — copies the SKILL.md into a new
+// `<name>-copy` directory under the same skills root, rewriting the
+// front-matter `name:` and the `# <name>` heading, mirroring Legacy's
+// `# <name>` -> `# <name> Copy` rewrite in destination naming.
 
 /// One skill file discovered under a skills root directory.
 struct SkillsLibraryEntry: Identifiable, Equatable, Hashable {
@@ -95,6 +101,9 @@ struct AgentSkillsLibraryView: View {
                         }
                         .tag(entry)
                         .contextMenu {
+                            Button("Duplicate Skill") {
+                                duplicateSkill(entry)
+                            }
                             Button("Delete Skill", role: .destructive) {
                                 selected = entry
                                 showingDeleteConfirm = true
@@ -272,6 +281,65 @@ struct AgentSkillsLibraryView: View {
         } catch {
             errorMessage = "Could not save skill: \(error.localizedDescription)"
         }
+    }
+
+    /// Duplicates a skill (Legacy `SkillsManagerView.duplicate(_:)`):
+    /// copies the SKILL.md into a new `<name>-copy` directory under the
+    /// same skills root, rewriting the front-matter `name:` and the
+    /// `# <name>` heading; `-2`, `-3`, ... when the name is taken.
+    private func duplicateSkill(_ entry: SkillsLibraryEntry) {
+        let fm = FileManager.default
+        let baseName = sanitizedSkillName(entry.name)
+        guard !baseName.isEmpty else {
+            errorMessage = "Could not duplicate skill: bad name."
+            return
+        }
+        let parent = entry.directoryURL.deletingLastPathComponent()
+        var candidate = baseName + "-copy"
+        var n = 2
+        while fm.fileExists(atPath: parent.appendingPathComponent(candidate).path) {
+            candidate = baseName + "-copy-\(n)"
+            n += 1
+        }
+        let dir = parent.appendingPathComponent(candidate)
+        do {
+            let content = try String(contentsOf: entry.fileURL, encoding: .utf8)
+            let rewritten = rewriteSkillName(content, from: entry.name, to: candidate)
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            try rewritten.write(to: dir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+            errorMessage = nil
+            reload()
+            selected = entries.first { $0.directoryURL == dir }
+        } catch {
+            errorMessage = "Could not duplicate skill: \(error.localizedDescription)"
+        }
+    }
+
+    /// Rewrites a duplicated SKILL.md's front-matter `name:` and its
+    /// `# <name>` heading to the new name (Legacy rewrote the heading to
+    /// `# <name> Copy`).
+    private func rewriteSkillName(_ content: String, from oldName: String, to newName: String) -> String {
+        var lines = content.components(separatedBy: .newlines)
+        var inFrontMatter = false
+        var sawFrontMatterEnd = false
+        for i in lines.indices {
+            let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
+            if trimmed == "---" {
+                if inFrontMatter { sawFrontMatterEnd = true; inFrontMatter = false; continue }
+                inFrontMatter = true
+                continue
+            }
+            if inFrontMatter && trimmed.hasPrefix("name:") {
+                lines[i] = "name: \(newName)"
+            }
+        }
+        if !sawFrontMatterEnd {
+            // No front-matter block: only the heading rewrite applies.
+        }
+        if let idx = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "# \(oldName)" }) {
+            lines[idx] = "# \(newName)"
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func deleteSkill(_ entry: SkillsLibraryEntry) {

@@ -1,0 +1,78 @@
+// DocumentCoordinator.swift
+//
+// Ported from Legacy `SwiftCode/Core/Editor/DocumentCoordinator.swift` (SwiftCode-Mac migration, Views/UI worklist).
+// Worklist verdict: PARTIAL.
+// Missing behaviour ported: Single shared hub: foldingState, cursor/scroll persistence, compiled-artboard cache, previewSession link, inspectorSelection; updateUnsavedStatus sync across editor + visual designer
+// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeUI — add the dependency in Package.swift or rebind at wiring time; not imported here.
+// References legacy types absent from the destination and from this worklist (wiring/integration gaps): PreviewSession.
+// Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+import Foundation
+import Observation
+import os
+#if os(macOS)
+import AppKit
+#endif
+
+/// Centralized coordinator managing editor, visual UI, and preview session synchronization
+@Observable
+@MainActor
+public final class DocumentCoordinator: Sendable {
+    public static let shared = DocumentCoordinator()
+
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "DocumentCoordinator")
+
+    // Active SwiftUI/Swift document under editing
+    public var activeDocument: SourceFileDocument? {
+        didSet {
+            if let doc = activeDocument {
+                self.fileURL = doc.url
+                self.unsavedChanges = doc.isDirty
+            } else {
+                self.fileURL = nil
+                self.unsavedChanges = false
+            }
+        }
+    }
+
+    public var fileURL: URL?
+    public var projectURL: URL?
+    public var unsavedChanges: Bool = false
+    public var generatedMetadata: [String: String] = [:]
+
+    // Editor state
+    public var cursorPosition: Int = 0
+    public var scrollPosition: Double = 0.0
+    public var selection: NSRange?
+    public var foldingState: [String: Bool] = [:]
+
+    // Visual UI Builder state
+    public var visualUIDocument: VisualUIDocument?
+    public var lastOpenedComponent: String?
+
+    // Compiled Artboards Cache
+    #if os(macOS)
+    public var compiledArtboardViews: [UUID: NSView] = [:]
+    #else
+    public var compiledArtboardViews: [UUID: Any] = [:]
+    #endif
+    public var compiledArtboardErrors: [UUID: String] = [:]
+
+    // Preview session reference
+    public var previewSession: PreviewSession?
+
+    // Inspector Selection
+    public var inspectorSelection: String?
+
+    private init() {}
+
+    /// Synchronizes isDirty/unsaved indicators across editor and visual designer
+    public func updateUnsavedStatus(isDirty: Bool) {
+        self.unsavedChanges = isDirty
+        if activeDocument != nil {
+            activeDocument?.isDirty = isDirty
+        }
+        if let visDoc = visualUIDocument {
+            visDoc.isDirty = isDirty
+        }
+    }
+}

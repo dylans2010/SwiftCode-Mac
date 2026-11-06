@@ -352,6 +352,12 @@ public struct PersonalDocSnippet: Identifiable, Codable, Sendable, Hashable {
     }
 }
 
+/// A point-in-time capture of the documentation workspace (Legacy
+/// `ProjectSnapshotRecord`). The ID lists name what the snapshot holds;
+/// the JSON payloads hold the full content at capture time, so restoring
+/// recovers edited or deleted content instead of only archiving /
+/// un-archiving whatever still exists. New fields default to `"[]"` so
+/// snapshots written before this change still decode.
 public struct PersonalDocSnapshot: Identifiable, Codable, Sendable, Hashable {
     public var id: UUID
     public var projectID: UUID
@@ -360,11 +366,22 @@ public struct PersonalDocSnapshot: Identifiable, Codable, Sendable, Hashable {
     public var documentIDs: [UUID]
     public var whiteboardIDs: [UUID]
     public var snippetIDs: [UUID]
+    /// Full `PersonalDocDocument` records at capture time (Legacy
+    /// `ProjectSnapshotRecord.documentsJSON`).
+    public var documentsJSON: String
+    /// Full `PersonalDocWhiteboard` records at capture time (Legacy
+    /// `ProjectSnapshotRecord.whiteboardsJSON`).
+    public var whiteboardsJSON: String
+    /// Full `PersonalDocSnippet` records at capture time (Legacy
+    /// `ProjectSnapshotRecord.snippetsJSON`).
+    public var snippetsJSON: String
     public var createdAt: Date
-    public init(id: UUID = UUID(), projectID: UUID, title: String, description: String, documentIDs: [UUID] = [], whiteboardIDs: [UUID] = [], snippetIDs: [UUID] = [], createdAt: Date = Date()) {
+    public init(id: UUID = UUID(), projectID: UUID, title: String, description: String, documentIDs: [UUID] = [], whiteboardIDs: [UUID] = [], snippetIDs: [UUID] = [], documentsJSON: String = "[]", whiteboardsJSON: String = "[]", snippetsJSON: String = "[]", createdAt: Date = Date()) {
         self.id = id; self.projectID = projectID; self.title = title; self.description = description
         self.documentIDs = documentIDs; self.whiteboardIDs = whiteboardIDs
         self.snippetIDs = snippetIDs; self.createdAt = createdAt
+        self.documentsJSON = documentsJSON; self.whiteboardsJSON = whiteboardsJSON
+        self.snippetsJSON = snippetsJSON
     }
 }
 
@@ -804,19 +821,58 @@ public final class PersonalDocStore {
     public func fetchSnapshots() -> [PersonalDocSnapshot] { snapshots.sorted { $0.createdAt > $1.createdAt } }
     @discardableResult
     public func createSnapshot(title: String, description: String) -> PersonalDocSnapshot {
+        // Full content at capture time (Legacy `SnapshotManager.createSnapshot`):
+        // the snapshot stores the records themselves, not just their IDs,
+        // so a later restore can recover content that was edited or deleted.
         let snapshot = PersonalDocSnapshot(
             projectID: projectID, title: title, description: description,
-            documentIDs: documents.map { $0.id }, whiteboardIDs: whiteboards.map { $0.id }, snippetIDs: snippets.map { $0.id })
+            documentIDs: documents.map { $0.id }, whiteboardIDs: whiteboards.map { $0.id }, snippetIDs: snippets.map { $0.id },
+            documentsJSON: encoded(documents), whiteboardsJSON: encoded(whiteboards), snippetsJSON: encoded(snippets))
         snapshots.append(snapshot); save(snapshots, "snapshots.json"); return snapshot
     }
     public func restoreSnapshot(_ snapshot: PersonalDocSnapshot) {
-        // Restoring a snapshot archives every document not in the snapshot and
-        // un-archives the ones it holds — the snapshot itself stores IDs only,
-        // so no document content is ever fabricated or deleted.
-        for idx in documents.indices {
-            documents[idx].archived = !snapshot.documentIDs.contains(documents[idx].id)
+        // Full-content restore (Legacy `SnapshotManager.restoreSnapshot`):
+        // the captured records replace the live ones, so edited or deleted
+        // content comes back. Snapshots written before content payloads
+        // existed carry `"[]"` and fall back to the old ID-only behaviour
+        // (archive everything not in the snapshot, un-archive what it holds).
+        let restoredDocs = decoded([PersonalDocDocument].self, from: snapshot.documentsJSON)
+        let restoredBoards = decoded([PersonalDocWhiteboard].self, from: snapshot.whiteboardsJSON)
+        let restoredSnippets = decoded([PersonalDocSnippet].self, from: snapshot.snippetsJSON)
+        if restoredDocs == nil && restoredBoards == nil && restoredSnippets == nil {
+            for idx in documents.indices {
+                documents[idx].archived = !snapshot.documentIDs.contains(documents[idx].id)
+            }
+            persistDocuments()
+            return
         }
-        persistDocuments()
+        if let docs = restoredDocs {
+            documents = docs
+            persistDocuments()
+        }
+        if let boards = restoredBoards {
+            whiteboards = boards
+            save(whiteboards, "whiteboards.json")
+        }
+        if let snippets = restoredSnippets {
+            self.snippets = snippets
+            save(self.snippets, "snippets.json")
+        }
+    }
+
+    /// Encodes records as the JSON payload a snapshot stores (`"[]"` when
+    /// encoding fails, so a snapshot is never lost to a codec error).
+    private func encoded<T: Encodable>(_ value: [T]) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let text = String(data: data, encoding: .utf8) else { return "[]" }
+        return text
+    }
+
+    /// Decodes a snapshot payload; nil when the payload is absent or corrupt
+    /// (the caller falls back to ID-only behaviour).
+    private func decoded<T: Decodable>(_ type: T.Type, from json: String) -> T? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
     }
 
     public func fetchTimeline() -> [PersonalDocTimelineItem] {

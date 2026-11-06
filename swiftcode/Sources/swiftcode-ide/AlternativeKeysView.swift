@@ -12,6 +12,13 @@ import SwiftCodeIDECore
 // the manager's real methods. There is no manual active-key picker
 // because the manager owns the active key (import sets the first
 // available key, removal advances it, rotation picks the next one).
+//
+// Migration (Views/UI worklist, Legacy PARTIAL): ready/in-cooldown status
+// counts, a Reset Cooldowns action (Legacy `resetHealth`, already present
+// on `GeminiKeyRotationManager`), and drag-to-reorder rotation priority
+// (Legacy `reorderKeys(from:to:)`; the destination manager takes an
+// ordered id list via `reorderKeys(_:)`, so the view translates the
+// IndexSet move into ids).
 
 /// Manage the alternative Gemini API keys used for rotation.
 struct AlternativeKeysSettingsView: View {
@@ -22,6 +29,7 @@ struct AlternativeKeysSettingsView: View {
     @State private var importText = ""
     @State private var showingImport = false
     @State private var showingRemoveAllConfirm = false
+    @State private var isReordering = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
 
@@ -33,6 +41,10 @@ struct AlternativeKeysSettingsView: View {
                 Spacer()
                 Button("Rotate Now") { rotate() }
                     .disabled(keys.isEmpty)
+                Button("Reset Cooldowns") { resetCooldowns() }
+                    .disabled(keys.isEmpty || !keys.contains { $0.isCurrentlyRateLimited || $0.state == .failed })
+                Button(isReordering ? "Done" : "Reorder") { isReordering.toggle() }
+                    .disabled(keys.count < 2)
                 Button("Import Keys") { showingImport = true }
                     .buttonStyle(.borderedProminent)
             }
@@ -51,6 +63,9 @@ struct AlternativeKeysSettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 10)
                 .padding(.bottom, 8)
+            if !keys.isEmpty {
+                statusCountsRow(colors: c)
+            }
             Hairline(color: c.separator)
             if keys.isEmpty {
                 ContentUnavailableView(
@@ -78,8 +93,10 @@ struct AlternativeKeysSettingsView: View {
                             Button("Remove", role: .destructive) { removeKey(key) }
                         }
                     }
+                    .onMove(perform: moveKeys)
                 }
                 .listStyle(.plain)
+                .environment(\.editMode, .constant(isReordering ? .active : .inactive))
                 HStack {
                     Button("Remove All Keys", role: .destructive) { showingRemoveAllConfirm = true }
                     Spacer()
@@ -153,6 +170,63 @@ struct AlternativeKeysSettingsView: View {
             } else {
                 statusMessage = "Added \(result.newKeysAdded) key\(result.newKeysAdded == 1 ? "" : "s") (\(result.duplicatesRemoved) duplicates, \(result.invalidKeysRejected) invalid)."
             }
+            await refresh(manager)
+        }
+    }
+
+    /// Ready / in-cooldown counts (Legacy's status pill: `keys.filter {
+    /// $0.isAvailableForUse }.count` ready, `keys.filter {
+    /// $0.isCurrentlyRateLimited }.count` in cooldown).
+    private func statusCountsRow(colors c: ShellColors) -> some View {
+        let readyCount = keys.filter { $0.isAvailableForUse }.count
+        let cooldownCount = keys.filter { $0.isCurrentlyRateLimited }.count
+        return HStack(spacing: 4) {
+            Circle().fill(Color.green).frame(width: 6, height: 6)
+            Text(verbatim: "\(keys.count) key\(keys.count == 1 ? "" : "s") saved")
+                .font(ShellFonts.small)
+                .foregroundStyle(c.label)
+            Text(verbatim: "·").font(ShellFonts.small).foregroundStyle(c.secondaryLabel)
+            Text(verbatim: "\(readyCount) ready")
+                .font(ShellFonts.small)
+                .foregroundStyle(readyCount > 0 ? .green : c.secondaryLabel)
+            if cooldownCount > 0 {
+                Text(verbatim: "·").font(ShellFonts.small).foregroundStyle(c.secondaryLabel)
+                Text(verbatim: "\(cooldownCount) in cooldown")
+                    .font(ShellFonts.small)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(c.fieldFill, in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Clears every cooldown (Legacy `resetHealth`, already on the manager:
+    /// rate-limited / failed keys return to `.ready` with no
+    /// `rateLimitedUntil`; disabled / invalid keys are left alone).
+    private func resetCooldowns() {
+        guard let manager else { return }
+        Task {
+            await manager.resetHealth()
+            statusIsError = false
+            statusMessage = "All key cooldowns reset."
+            await refresh(manager)
+        }
+    }
+
+    /// Drag-to-reorder: translates the List move into the manager's
+    /// ordered-id reorder (Legacy `reorderKeys(from:to:)`).
+    private func moveKeys(from source: IndexSet, to destination: Int) {
+        guard let manager else { return }
+        var reordered = keys
+        reordered.move(fromOffsets: source, toOffset: destination)
+        let orderedIDs = reordered.map { $0.id }
+        keys = reordered
+        Task {
+            await manager.reorderKeys(orderedIDs)
             await refresh(manager)
         }
     }
