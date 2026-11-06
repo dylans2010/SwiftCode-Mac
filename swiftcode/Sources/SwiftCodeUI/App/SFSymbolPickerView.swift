@@ -1,6 +1,19 @@
 // Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
 //   SwiftCode/Views/Utilities/SFSymbolPickerView.swift
 //
+// Cleanup C26 (2026-11-06): the symbol detail card showed the same three values for
+// every symbol — Category "General, Core, Multi-Device", Availability
+// "iOS 13.0+ | macOS 10.15+", Accessibility "Primary Screenreader Compliant" — none
+// of which is per-symbol data. Real source: the SF Symbols catalog files the loader
+// already reads (`sfsymbol{4,5,6}.txt`, lines `name[,tag,...]`), which carry
+// per-symbol category tags and `multicolor`/`variablecolor` rendering tags. The
+// loader now parses those into `SFSymbolRecord.category` / `isMulticolor` (the old
+// parser only checked the second field for "multicolor", which is the category
+// position, so most multicolor symbols were misclassified). The card shows the
+// catalog categories, or "—" where the catalog has none. Availability and
+// accessibility have no per-symbol source in the catalog — the card honestly shows
+// "—" for both instead of the old universal claims. Do not re-seed them.
+
 // Verbatim apart from this header and the access changes noted below.
 // Self-contained: `SFSymbolRecord`, `CustomSymbolRenderingMode`,
 // `PickerSymbolWeightOption`, `PickerSymbolScaleOption`,
@@ -87,6 +100,9 @@ public struct SFSymbolRecord: Identifiable, Hashable, Sendable {
     let id: String // Symbol name
     let version: Int // 4, 5, or 6
     let isMulticolor: Bool
+    /// Category tags from the SF Symbols catalog file (e.g. "health"), or
+    /// `nil` when the catalog lists none for this symbol.
+    let category: String?
 
     public var name: String { id }
 }
@@ -123,27 +139,35 @@ public final class SFSymbolResourceLoader: Sendable {
             let lineStr = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !lineStr.isEmpty else { continue }
 
+            // Catalog line: `name[,tag,...]`. Tags after the name are a mix of
+            // category tags (e.g. `health`, `editing`) and rendering/release
+            // tags (`multicolor`, `variablecolor`, `whatsnew`).
             let parts = lineStr.split(separator: ",")
             let name = String(parts[0])
 
             guard !seen.contains(name) else { continue }
             seen.insert(name)
 
-            let isMulticolor = parts.count > 1 && parts[1].contains("multicolor")
-            records.append(SFSymbolRecord(id: name, version: version, isMulticolor: isMulticolor))
+            let tags = parts.dropFirst().map(String.init)
+            let isMulticolor = tags.contains { $0.contains("multicolor") || $0.contains("variablecolor") }
+            let categories = tags.filter { $0 != "multicolor" && $0 != "variablecolor" && $0 != "whatsnew" && !$0.isEmpty }
+            let category = categories.isEmpty ? nil : categories.joined(separator: ", ")
+            records.append(SFSymbolRecord(id: name, version: version, isMulticolor: isMulticolor, category: category))
         }
         return records
     }
 
     private func fallbackSymbols(version: Int) -> [SFSymbolRecord] {
+        // No catalog file found: minimal fallback with no category data
+        // (shown as "—"), not invented categories.
         return [
-            SFSymbolRecord(id: "star.fill", version: version, isMulticolor: false),
-            SFSymbolRecord(id: "heart.fill", version: version, isMulticolor: true),
-            SFSymbolRecord(id: "gearshape.fill", version: version, isMulticolor: false),
-            SFSymbolRecord(id: "arrow.triangle.branch", version: version, isMulticolor: false),
-            SFSymbolRecord(id: "terminal.fill", version: version, isMulticolor: false),
-            SFSymbolRecord(id: "sparkles", version: version, isMulticolor: true),
-            SFSymbolRecord(id: "lock.fill", version: version, isMulticolor: false)
+            SFSymbolRecord(id: "star.fill", version: version, isMulticolor: false, category: nil),
+            SFSymbolRecord(id: "heart.fill", version: version, isMulticolor: true, category: nil),
+            SFSymbolRecord(id: "gearshape.fill", version: version, isMulticolor: false, category: nil),
+            SFSymbolRecord(id: "arrow.triangle.branch", version: version, isMulticolor: false, category: nil),
+            SFSymbolRecord(id: "terminal.fill", version: version, isMulticolor: false, category: nil),
+            SFSymbolRecord(id: "sparkles", version: version, isMulticolor: true, category: nil),
+            SFSymbolRecord(id: "lock.fill", version: version, isMulticolor: false, category: nil)
         ]
     }
 }
@@ -442,10 +466,10 @@ struct SFSymbolDetailSheet: View {
                             Text("Symbol Parameters").font(.caption.bold()).foregroundStyle(.secondary)
                             Divider()
                             LabeledContent("Name", value: symbol.name).font(.caption)
-                            LabeledContent("Category", value: "General, Core, Multi-Device").font(.caption)
-                            LabeledContent("Availability", value: "iOS 13.0+ | macOS 10.15+").font(.caption)
+                            LabeledContent("Category", value: symbol.category ?? "—").font(.caption)
+                            LabeledContent("Availability", value: "—").font(.caption)
                             LabeledContent("Variable Value Support", value: symbol.isMulticolor ? "Yes (iOS 16.0+)" : "No").font(.caption)
-                            LabeledContent("Accessibility Support", value: "Primary Screenreader Compliant").font(.caption)
+                            LabeledContent("Accessibility Support", value: "—").font(.caption)
                         }
                         .padding(6)
                     }

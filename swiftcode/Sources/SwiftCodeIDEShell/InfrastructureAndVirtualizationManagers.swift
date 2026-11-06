@@ -4,8 +4,28 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: backup creation/listing; cloud status; dependency refresh; device listing; signing-certificate refresh; VM listing; cache / DerivedData cleaning; per-directory size breakdown
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// Cleanup C30 (2026-11-06): `SCOperationsSigningManager.refreshCertificates()`
+// fabricated a certificate (`CERT-DEV-001`, "Apple Development:
+// developer@example.com (XYZ789)", expiring exactly 365 days from now). It now
+// reads the real identities: `security find-identity -v -p codesigning` for the
+// (SHA-1, name) list, with expiry read from the matching keychain certificate
+// via `SecCertificateCopyNotValidAfter` (matched by subject summary, which is
+// the common name `find-identity` prints). Empty list when `security` is
+// unavailable or no identities exist. Type is derived from the real certificate
+// name ("Apple Development…" → Development, "…Distribution"/"Developer ID…" →
+// Distribution, otherwise the kind prefix before ":"). The expiry lookup is
+// implemented locally in this file (Foundation `Process` + Security framework)
+// because this target does not depend on SwiftCodeSigning — the same source
+// C22.19's Certificate Manager uses, without inventing a new one. Identities
+// whose expiry cannot be read are omitted rather than given an invented date;
+// if that ever hides a real identity, match by SHA-1 (`SecCertificateCopyData`
+// + SHA-1) instead of by name.
 import Foundation
 import Observation
+#if canImport(Security)
+import Security
+#endif
 
 public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
     public let id: UUID
@@ -241,15 +261,113 @@ public final class SCOperationsSigningManager {
     }
 
     public func refreshCertificates() {
-        // Query keychain or fallback on typical developer configuration
-        self.certificates = [
-            SCSigningCertificate(
-                id: "CERT-DEV-001",
-                name: "Apple Development: developer@example.com (XYZ789)",
-                type: "Development",
-                expirationDate: Date().addingTimeInterval(365 * 24 * 3600)
+        self.certificates = Self.loadSigningCertificates()
+    }
+
+    /// Real code-signing identities from the user's keychain. Empty when
+    /// `/usr/bin/security` is unavailable, the command fails, or no
+    /// identities exist — never a fabricated certificate.
+    private static func loadSigningCertificates() -> [SCSigningCertificate] {
+        guard let output = runFindIdentity() else { return [] }
+        let identities = parseFindIdentity(output)
+        guard !identities.isEmpty else { return [] }
+        let expiries = certificateExpiriesByName()
+        let now = Date()
+        return identities.compactMap { identity in
+            // An identity whose certificate expiry cannot be read is omitted
+            // rather than given an invented date.
+            guard let expiry = expiries[identity.name] else { return nil }
+            return SCSigningCertificate(
+                id: "CERT-\(identity.hash)",
+                name: identity.name,
+                type: certificateType(for: identity.name),
+                expirationDate: expiry,
+                isValid: expiry > now
             )
+        }
+    }
+
+    /// Runs `security find-identity -v -p codesigning` and returns its stdout.
+    private static func runFindIdentity() -> String? {
+        let security = "/usr/bin/security"
+        guard FileManager.default.isExecutableFile(atPath: security) else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: security)
+        process.arguments = ["find-identity", "-v", "-p", "codesigning"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Parses `find-identity -v` lines of the form `  1) <SHA-1> "<name>"`.
+    /// Lines that do not match (including the "0 valid identities found"
+    /// footer) are ignored.
+    private static func parseFindIdentity(_ text: String) -> [(hash: String, name: String)] {
+        var out: [(String, String)] = []
+        var seen = Set<String>()
+        for line in text.split(whereSeparator: \.isNewline) {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard let paren = t.firstIndex(of: ")"), Int(t[..<paren]) != nil else { continue }
+            let rest = t[t.index(after: paren)...].trimmingCharacters(in: .whitespaces)
+            guard let space = rest.firstIndex(of: " ") else { continue }
+            let hash = String(rest[..<space])
+            var name = rest[space...].trimmingCharacters(in: .whitespaces)
+            guard hash.count == 40, hash.allSatisfy(\.isHexDigit), name.hasPrefix("\"") else { continue }
+            name.removeFirst()
+            // An invalid identity carries a reason after the closing quote.
+            guard let close = name.lastIndex(of: "\"") else { continue }
+            if seen.insert(hash.uppercased()).inserted {
+                out.append((hash.uppercased(), String(name[..<close])))
+            }
+        }
+        return out
+    }
+
+    /// Expiry date of every certificate in the keychain, keyed by subject
+    /// summary (the certificate's common name, as `find-identity` prints it).
+    /// Empty where there is no Security framework (Linux) or no certificates.
+    private static func certificateExpiriesByName() -> [String: Date] {
+#if canImport(Security)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassCertificate,
+            kSecReturnRef as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll,
         ]
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+              let certs = out as? [SecCertificate] else { return [:] }
+        var map: [String: Date] = [:]
+        for cert in certs {
+            guard let summary = SecCertificateCopySubjectSummary(cert) as String?,
+                  let expiry = SecCertificateCopyNotValidAfter(cert) as Date? else { continue }
+            map[summary] = expiry
+        }
+        return map
+#else
+        return [:]
+#endif
+    }
+
+    /// "Development" / "Distribution" from the real certificate name, or the
+    /// kind prefix before ":" for any other certificate kind.
+    private static func certificateType(for name: String) -> String {
+        if name.hasPrefix("Apple Development") || name.hasPrefix("iPhone Developer") || name.hasPrefix("Mac Developer") {
+            return "Development"
+        }
+        if name.hasPrefix("Apple Distribution") || name.hasPrefix("iPhone Distribution")
+            || name.hasPrefix("Developer ID") || name.contains("Distribution") {
+            return "Distribution"
+        }
+        if let colon = name.firstIndex(of: ":") {
+            return String(name[..<colon])
+        }
+        return name
     }
 }
 

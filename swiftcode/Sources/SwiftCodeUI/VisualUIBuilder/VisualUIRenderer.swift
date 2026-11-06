@@ -1,5 +1,16 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIRenderer.swift` (Dylan's own code; direct port authorised under MIT).
 // M-VUB: confirmed genuinely missing from production at bc28f653 (Audit A).
+//
+// Cleanup C31 (2026-11-06): the live-preview list state was seeded with demo
+// content — `itemsList = ["Clean Code", "Visual Builder", "Preview Engine",
+// "Workspace Sync"]`, restored verbatim by "Reset State" — and the rendered
+// `.list` node ignored its own document node entirely. The list now derives its
+// rows from the document's list node model: each row is one of the list node's
+// children (`textValue` property, falling back to the child name), adding appends
+// a real `.text` child node to the document, deleting removes that child node,
+// and the list is empty until the user adds items. "Reset State" resets only
+// the transient preview state (counter, drag offsets); it never touches document
+// content, so it can no longer resurrect the demo rows.
 import SwiftUI
 import Charts
 import MapKit
@@ -22,7 +33,6 @@ public struct VisualUIRenderer: View {
     @State private var activePopoverNode: VisualComponentNode? = nil
     @State private var dragOffsets: [UUID: CGSize] = [:]
     @State private var counter = 10
-    @State private var itemsList: [String] = ["Clean Code", "Visual Builder", "Preview Engine", "Workspace Sync"]
     @State private var newItemText = ""
 
     public init(rootNode: VisualComponentNode, document: VisualUIDocument) {
@@ -54,8 +64,9 @@ public struct VisualUIRenderer: View {
                             }
                         }
                         Button("Reset State") {
+                            // Transient preview state only. The list is document
+                            // content (the list node's children) and is not reset.
                             counter = 10
-                            itemsList = ["Clean Code", "Visual Builder", "Preview Engine", "Workspace Sync"]
                             dragOffsets.removeAll()
                         }
                     } label: {
@@ -171,16 +182,20 @@ public struct VisualUIRenderer: View {
                 }
 
             case .list:
+                // C31: rows come from the document's list node model — each
+                // child node is one row (`textValue`, else the child name).
+                // Empty until the user adds items; add/delete mutate the
+                // document node, not preview-local state.
                 List {
                     Section {
-                        ForEach(itemsList, id: \.self) { item in
+                        ForEach(node.children) { child in
                             HStack {
-                                Label(item, systemImage: "checkmark.circle.fill")
+                                Label(child.properties["textValue"] ?? child.name, systemImage: "checkmark.circle.fill")
                                     .foregroundColor(.purple)
                                 Spacer()
                                 Button(action: {
                                     withAnimation {
-                                        itemsList.removeAll(where: { $0 == item })
+                                        node.children.removeAll(where: { $0.id == child.id })
                                     }
                                 }) {
                                     Image(systemName: "trash")
@@ -190,7 +205,7 @@ public struct VisualUIRenderer: View {
                             }
                         }
                     } header: {
-                        Text("Task Items (\(itemsList.count))")
+                        Text("Task Items (\(node.children.count))")
                     }
 
                     Section {
@@ -201,7 +216,7 @@ public struct VisualUIRenderer: View {
                                 let trimmed = newItemText.trimmingCharacters(in: .whitespacesAndNewlines)
                                 if !trimmed.isEmpty {
                                     withAnimation {
-                                        itemsList.append(trimmed)
+                                        node.children.append(VisualComponentNode(type: .text, properties: ["textValue": trimmed]))
                                         newItemText = ""
                                     }
                                 }

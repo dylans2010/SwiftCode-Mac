@@ -26,6 +26,16 @@ import os
 // `databaseLoadError` and never displayed it).
 //
 // Spec: `specs/ide/wave19-docs.md` §6.
+//
+// Cleanup C27 (2026-11-06): the seeded "user" history is deleted — the model
+// used to pre-fill favorites with ["VStack", "URLSession", "View", "Task"] on
+// first launch, and the legacy `NativeDocumentationBrowserWorkspaceView` below
+// seeded favorites / searchHistory / recentlyViewed with fixed symbol names,
+// presenting them as the user's own. Both now start empty and persist only
+// what the user actually does, in UserDefaults (favorites under
+// `com.swiftcode.documentation.favorites`, recents under
+// `com.swiftcode.documentation.recents`, search history under
+// `com.swiftcode.documentation.searchHistory`).
 
 public struct DocumentationBrowserView: View {
     @State private var model = DocumentationBrowserModel()
@@ -87,12 +97,8 @@ final class DocumentationBrowserModel {
 
     init() {
         let defaults = UserDefaults.standard
-        if defaults.object(forKey: DefaultsKey.favorites) == nil {
-            // Legacy's seeded favorites (first launch only).
-            favorites = ["VStack", "URLSession", "View", "Task"]
-        } else {
-            favorites = Set(defaults.stringArray(forKey: DefaultsKey.favorites) ?? [])
-        }
+        // C27: start empty — never seed favorites the user never added.
+        favorites = Set(defaults.stringArray(forKey: DefaultsKey.favorites) ?? [])
         if let savedHistory = defaults.stringArray(forKey: DefaultsKey.history), !savedHistory.isEmpty {
             historyPaths = savedHistory
             historyIndex = savedHistory.count - 1
@@ -1329,11 +1335,13 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var selectedPlatform = "All"
     @State private var selectedKind = "All"
 
-    // Core selection
+    // Core selection — C27: start empty and persist only real user actions
+    // (UserDefaults; same favorites/recents keys the main model uses).
+    // Nothing here is pre-filled with symbol names.
     @State private var selectedSymbol: DocSymbol? = nil
-    @State private var favorites: Set<String> = ["VStack", "URLSession", "View", "Task"]
-    @State private var searchHistory: [String] = ["VStack", "Task", "JSONDecoder", "View"]
-    @State private var recentlyViewed: [String] = ["View", "VStack", "JSONDecoder"]
+    @State private var favorites: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "com.swiftcode.documentation.favorites") ?? [])
+    @State private var searchHistory: [String] = UserDefaults.standard.stringArray(forKey: "com.swiftcode.documentation.searchHistory") ?? []
+    @State private var recentlyViewed: [String] = UserDefaults.standard.stringArray(forKey: "com.swiftcode.documentation.recents") ?? []
 
     // Asynchronous on-device indexing tasks
     @State private var isSearching = false
@@ -2858,6 +2866,7 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                 self.isSearching = false
                 if !query.isEmpty && !searchHistory.contains(query) {
                     searchHistory.append(query)
+                    UserDefaults.standard.set(searchHistory, forKey: "com.swiftcode.documentation.searchHistory")
                 }
             }
         }
@@ -2869,12 +2878,14 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
         } else {
             favorites.insert(name)
         }
+        UserDefaults.standard.set(Array(favorites), forKey: "com.swiftcode.documentation.favorites")
     }
 
     private func addToRecents(_ name: String) {
         recentlyViewed.removeAll { $0 == name }
         recentlyViewed.insert(name, at: 0)
         recentlyViewed = Array(recentlyViewed.prefix(12))
+        UserDefaults.standard.set(recentlyViewed, forKey: "com.swiftcode.documentation.recents")
     }
 
     private func kindColor(_ kind: String) -> Color {

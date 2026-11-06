@@ -1,5 +1,16 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/EnvironmentProfilesView.swift` (Dylan's own code; direct port authorised under MIT).
 // Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// Cleanup C24 (2026-11-06): the hardcoded `packageDashboardData` table is deleted — it
+// asserted per-profile package versions, install dates and "Update Available" flags
+// (e.g. Vapor: Swift Compiler 6.0-release, Git 2.43.0, PostgreSQL Client 16.1, all
+// "installed" 2026-01-10…) that were never measured. Real source: query the VM guest
+// for installed packages (guest agent / `dpkg -l` / `apk info` over the VM channel).
+// No such channel exists in this codebase yet (no SSH/guest-agent command path for
+// these VMs), so the dashboard honestly shows version/install date/status as
+// unknown and derives its rows only from the selected profile's own
+// `installedPackages` list (user-editable profile data). Do not re-seed versions
+// or dates here until a real guest query lands.
 import SwiftUI
 import SwiftCodeUI
 
@@ -35,32 +46,23 @@ public struct EnvironmentProfilesView: View {
     @State private var showingRecipeExport = false
     @State private var recipeExportJSON = ""
 
-    // Package Dashboard mock metadata
+    // Package Dashboard (C24): rows are derived from the selected profile's own
+    // `installedPackages` list. Version, install date and status are honestly
+    // unknown — the guest has not been queried (no guest-agent channel exists
+    // yet to run `dpkg -l` / `apk info` inside the VM).
     public struct VMPackage: Identifiable, Sendable {
         public let id: String
         public let name: String
         public let version: String
         public let installDate: String
-        public let status: String // "Installed", "Update Available"
+        public let status: String // "Unknown" until the guest is queried
     }
 
-    private let packageDashboardData: [String: [VMPackage]] = [
-        "Vapor Backend Stack": [
-            VMPackage(id: "pkg1", name: "Swift Compiler", version: "6.0-release", installDate: "2026-01-10", status: "Installed"),
-            VMPackage(id: "pkg2", name: "Git", version: "2.43.0", installDate: "2026-01-10", status: "Installed"),
-            VMPackage(id: "pkg3", name: "PostgreSQL Client", version: "16.1", installDate: "2026-01-12", status: "Update Available"),
-            VMPackage(id: "pkg4", name: "Clang/LLVM Compiler", version: "17.0.6", installDate: "2026-01-10", status: "Installed")
-        ],
-        "React & Node Gateway": [
-            VMPackage(id: "pkg1", name: "Node.js Platform", version: "20.11.0", installDate: "2026-02-01", status: "Installed"),
-            VMPackage(id: "pkg2", name: "NPM Package Manager", version: "10.2.4", installDate: "2026-02-01", status: "Update Available"),
-            VMPackage(id: "pkg3", name: "Git Source Code Control", version: "2.43.0", installDate: "2026-01-15", status: "Installed")
-        ],
-        "Redis Cache Tunnel": [
-            VMPackage(id: "pkg1", name: "Redis Key-Value Cache", version: "7.2.4", installDate: "2026-02-04", status: "Installed"),
-            VMPackage(id: "pkg2", name: "Git Source Code Control", version: "2.40.1", installDate: "2026-02-04", status: "Installed")
-        ]
-    ]
+    private func packageDashboardRows(for profile: EnvironmentProfile) -> [VMPackage] {
+        profile.installedPackages.map { pkg in
+            VMPackage(id: pkg, name: pkg, version: "—", installDate: "—", status: "Unknown")
+        }
+    }
 
     public init() {}
 
@@ -193,43 +195,50 @@ public struct EnvironmentProfilesView: View {
                             .foregroundStyle(.blue)
                     ) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Real-time package status and versions currently indexed inside this environment stack.")
+                            Text("Packages this profile requires. Versions, install dates and update status are unknown until the guest can be queried — no guest-agent channel exists yet.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
                             Divider()
 
-                            if let prof = activeProfile,
-                               let pkgs = packageDashboardData[prof.name] {
-                                VStack(spacing: 0) {
-                                    ForEach(pkgs) { pkg in
-                                        HStack {
-                                            Image(systemName: pkg.status == "Update Available" ? "arrow.up.circle.fill" : "checkmark.circle.fill")
-                                                .foregroundStyle(pkg.status == "Update Available" ? .orange : .green)
-                                                .font(.headline)
-                                                .frame(width: 24)
-
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(pkg.name)
-                                                    .font(.subheadline)
-                                                    .fontWeight(.bold)
-                                                Text("Installed: \(pkg.installDate) • Status: \(pkg.status)")
-                                                    .font(.caption2)
+                            if let prof = activeProfile {
+                                let pkgs = packageDashboardRows(for: prof)
+                                if pkgs.isEmpty {
+                                    Text("No packages listed for this profile.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.vertical, 16)
+                                } else {
+                                    VStack(spacing: 0) {
+                                        ForEach(pkgs) { pkg in
+                                            HStack {
+                                                Image(systemName: "questionmark.circle.fill")
                                                     .foregroundStyle(.secondary)
+                                                    .font(.headline)
+                                                    .frame(width: 24)
+
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(pkg.name)
+                                                        .font(.subheadline)
+                                                        .fontWeight(.bold)
+                                                    Text("Version unknown • Status: Unknown — guest not queried")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                                Spacer()
+
+                                                Text(pkg.version)
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 3)
+                                                    .background(Color.primary.opacity(0.05))
+                                                    .cornerRadius(4)
                                             }
-                                            Spacer()
+                                            .padding(.vertical, 8)
 
-                                            Text(pkg.version)
-                                                .font(.system(.caption, design: .monospaced))
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 3)
-                                                .background(Color.primary.opacity(0.05))
-                                                .cornerRadius(4)
-                                        }
-                                        .padding(.vertical, 8)
-
-                                        if pkg.id != pkgs.last?.id {
-                                            Divider()
+                                            if pkg.id != pkgs.last?.id {
+                                                Divider()
+                                            }
                                         }
                                     }
                                 }

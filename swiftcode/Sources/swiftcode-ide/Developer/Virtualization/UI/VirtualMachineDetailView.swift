@@ -1,5 +1,18 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineDetailView.swift` (Dylan's own code; direct port authorised under MIT).
 // Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// Cleanup C29 (2026-11-06): `dispatchToolInstall(name:)` used to sleep 120 ms × 10,
+// animate a progress bar to 100%, append the tool to the VM's
+// `installedPackagesList`, persist it and log "Successfully compiled/installed
+// <name> inside developer environment." — while no command ever ran in the guest.
+// That fake install is deleted. Real source: run the real package-manager install
+// inside the VM via a guest agent/channel and mark installed only on exit code 0.
+// No such channel exists in this codebase for these VMs (no SSH credentials, no
+// guest-agent command API — the VZ serial port is configured but nothing sends
+// commands through it), so Install now fails honestly: nothing is marked installed,
+// nothing is persisted, and the catalog shows why. When a guest command channel
+// lands, implement the install there and restore progress reporting from its real
+// output; do not re-add a timed progress animation.
 import SwiftUI
 import SwiftCodeUI
 
@@ -16,9 +29,10 @@ public struct VirtualMachineDetailView: View {
     @State private var terminalSessions: [String] = ["Shell Connection 1"]
     @State private var activeTerminalIndex: Int = 0
 
-    // Software Catalog installation simulation states
-    @State private var installingPackageName: String? = nil
-    @State private var installationProgress: Double = 0.0
+    // Software Catalog installation state (C29): installs are unavailable —
+    // there is no guest command channel — so this only ever holds an honest
+    // failure message, never fake progress.
+    @State private var installationError: String? = nil
 
     public enum DetailCategory: String, CaseIterable, Identifiable {
         case consoleShell = "Console & Terminal"
@@ -453,14 +467,13 @@ public struct VirtualMachineDetailView: View {
             }
             .groupBoxStyle(ModernGroupBoxStyle())
 
-            if let pkg = installingPackageName {
+            if let error = installationError {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Installing '\(pkg)' inside the \(vm.osType) Sandbox...")
+                        Label("Install unavailable", systemImage: "exclamationmark.triangle.fill")
                             .font(.headline)
-                        ProgressView(value: installationProgress, total: 1.0)
-                            .progressViewStyle(.linear)
-                        Text("Dispatched package install payload using \(vm.osType == "Alpine" ? "apk" : (vm.osType == "Fedora" ? "dnf" : "apt")) manager...")
+                            .foregroundStyle(.red)
+                        Text(error)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -523,27 +536,13 @@ public struct VirtualMachineDetailView: View {
     }
 
     private func dispatchToolInstall(name: String) {
-        installingPackageName = name
-        installationProgress = 0.0
-
-        Task {
-            for step in 1...10 {
-                try? await Task.sleep(nanoseconds: 120_000_000)
-                installationProgress = Double(step) / 10.0
-            }
-
-            // Update VM package list
-            if let idx = stateStore.virtualMachines.firstIndex(where: { $0.id == vmID }) {
-                let lowerName = name.components(separatedBy: " ").first?.lowercased() ?? name.lowercased()
-                if !stateStore.virtualMachines[idx].installedPackagesList.contains(lowerName) {
-                    stateStore.virtualMachines[idx].installedPackagesList.append(lowerName)
-                }
-                try? VirtualMachineRegistry.shared.save(stateStore.virtualMachines)
-            }
-
-            stateStore.addLog("Successfully compiled/installed \(name) inside developer environment.", type: .success)
-            installingPackageName = nil
-        }
+        // C29: there is no guest command channel (no SSH, no guest-agent API),
+        // so no install can run. Fail honestly: do not mark the tool installed,
+        // do not persist anything, do not log success. The package manager the
+        // guest would use is shown so the user can install it manually.
+        let manager = activeVM?.osType == "Alpine" ? "apk" : (activeVM?.osType == "Fedora" ? "dnf" : "apt")
+        installationError = "Cannot install '\(name)': SwiftCode has no command channel into this guest yet (no SSH or guest agent), so no package-manager command was run and '\(name)' was not installed. Install it inside the guest manually with the \(manager) package manager."
+        stateStore.addLog("Install of '\(name)' refused: no guest command channel; nothing was installed.", type: .error)
     }
 
     // DOCUMENTATION CENTER VIEW

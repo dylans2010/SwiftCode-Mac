@@ -13,6 +13,13 @@
 // backend pool. Both must land before this file compiles. The TODO/FIXME counting at
 // lines ~101-102 is the file's own code-analysis feature, not a placeholder.
 // Audit A verdict was PARTIAL (2/26 types present).
+//
+// Cleanup C28 (2026-11-06): `CollaborationCenterView.teamBookmarks` was seeded with
+// ["Package.swift"] under "Shared Team Bookmarks" — a bookmark the user never added.
+// It now starts empty and persists per workspace in UserDefaults (keyed by the
+// active project's directory path), with add/remove controls so the list only
+// ever holds bookmarks the user actually added. Empty workspaces show an honest
+// "No team bookmarks yet." state.
 import SwiftUI
 import AppKit
 import os.log
@@ -1769,7 +1776,14 @@ public struct SecurityCenterView: View {
 // ====================================================================
 @MainActor
 public struct CollaborationCenterView: View {
-    @State private var teamBookmarks: [String] = ["Package.swift"]
+    // C28: per-workspace bookmarks, persisted in UserDefaults; start empty.
+    private static var bookmarksKey: String {
+        let projectPath = ProjectSessionStore.shared.activeProject?.directoryURL?.path ?? "no-project"
+        return "com.swiftcode.collaboration.teamBookmarks.\(projectPath)"
+    }
+
+    @State private var teamBookmarks: [String] = []
+    @State private var newBookmark: String = ""
     @State private var workspaceNotes = ""
 
     public var body: some View {
@@ -1786,8 +1800,34 @@ public struct CollaborationCenterView: View {
 
             List {
                 Section("Shared Team Bookmarks") {
+                    if teamBookmarks.isEmpty {
+                        Text("No team bookmarks yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     ForEach(teamBookmarks, id: \.self) { bookmark in
-                        Label(bookmark, systemImage: "bookmark.fill")
+                        HStack {
+                            Label(bookmark, systemImage: "bookmark.fill")
+                            Spacer()
+                            Button {
+                                teamBookmarks.removeAll { $0 == bookmark }
+                                saveBookmarks()
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove bookmark")
+                        }
+                    }
+                    HStack {
+                        TextField("Add a bookmark (e.g. Package.swift)", text: $newBookmark)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Add") {
+                            addBookmark()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(newBookmark.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
 
@@ -1803,8 +1843,21 @@ public struct CollaborationCenterView: View {
             }
         }
         .onAppear {
+            self.teamBookmarks = UserDefaults.standard.stringArray(forKey: Self.bookmarksKey) ?? []
             self.workspaceNotes = UserDefaults.standard.string(forKey: "collaboration_notes") ?? "Enter team notes or annotation decisions."
         }
+    }
+
+    private func addBookmark() {
+        let bookmark = newBookmark.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bookmark.isEmpty, !teamBookmarks.contains(bookmark) else { return }
+        teamBookmarks.append(bookmark)
+        newBookmark = ""
+        saveBookmarks()
+    }
+
+    private func saveBookmarks() {
+        UserDefaults.standard.set(teamBookmarks, forKey: Self.bookmarksKey)
     }
 }
 

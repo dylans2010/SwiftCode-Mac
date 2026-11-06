@@ -5,7 +5,29 @@
 // Missing behaviour ported: all editing across the 42 tab views (build settings/phases/rules, signing, entitlements, Info.plist, localization, dependencies, shell scripts, resources/frameworks phases); build-settings search
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): XcodeProjModel.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// Cleanup C25 (2026-11-06): the Signing & Capabilities section and the Deployment tab
+// showed hardcoded values ("Personal Apple Developer Account", "Apple Development
+// (Developer ID)", "Automatic Developer Provisioning Profile", "Embedded inside OS",
+// "Standard Architectures (Apple Silicon & Intel x86_64)", "Build Active Architecture
+// Only: YES") above a disabled `Toggle(..., isOn: .constant(true))` that asserted a
+// signing state no control could change. All of those now read the selected target's
+// real `.pbxproj` build settings (`DEVELOPMENT_TEAM`, `CODE_SIGN_STYLE`,
+// `CODE_SIGN_IDENTITY`, `PROVISIONING_PROFILE_SPECIFIER`, `ARCHS`, `ONLY_ACTIVE_ARCH`,
+// `ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES`) via `xcodeProjSetting(_:in:)`, showing
+// "—" when unset, and the signing toggle is functional: it writes `CODE_SIGN_STYLE`
+// (`Automatic`/`Manual`) back through `XcodeProjWriter`. Note the model carries no
+// target→configuration-list mapping, so settings are read from the first build
+// configuration that defines the key (the same approximation the Identity tab
+// already used for the bundle identifier), and `XcodeProjWriter.updateBuildSetting`
+// replaces the key in every configuration block it appears in.
 import SwiftUI
+
+/// The value of a build setting from the first build configuration that defines
+/// it, or `nil` when no configuration sets it. Callers display "—" for `nil`.
+private func xcodeProjSetting(_ key: String, in model: XcodeProjModel) -> String? {
+    model.buildConfigurations.first(where: { $0.buildSettings[key] != nil })?.buildSettings[key]
+}
 
 // MARK: - Reusable Modern Detail Header Component
 struct TabHeaderView: View {
@@ -144,6 +166,14 @@ public struct IdentityTabView: View {
     @State private var marketingVersion: String = ""
     @State private var projectVersion: String = ""
     @State private var saveStatus: String? = nil
+    // C25: functional signing state, loaded from the real CODE_SIGN_STYLE
+    // setting. `nil` (via signingLoaded == false / codeSignStyleUnset) means
+    // the project does not set it — the toggle then shows the off position
+    // and a caption says so instead of asserting a state.
+    @State private var automaticSigning: Bool = false
+    @State private var codeSignStyleUnset: Bool = true
+    @State private var signingLoaded: Bool = false
+    @State private var signingStatus: String? = nil
 
     public init(model: XcodeProjModel, selectedTargetID: String?) {
         self.model = model
@@ -240,12 +270,55 @@ public struct IdentityTabView: View {
                     }
 
                     Section("Signing & Capabilities") {
-                        Toggle("Automatically manage signing", isOn: .constant(true))
+                        // C25: functional toggle — the Binding setter writes
+                        // CODE_SIGN_STYLE; loading the value in onAppear assigns
+                        // the state directly and never writes.
+                        Toggle("Automatically manage signing", isOn: Binding(
+                            get: { automaticSigning },
+                            set: { newValue in
+                                guard signingLoaded else { return }
+                                let oldValue = automaticSigning
+                                automaticSigning = newValue
+                                do {
+                                    try XcodeProjWriter.shared.updateBuildSetting(
+                                        key: "CODE_SIGN_STYLE",
+                                        value: newValue ? "Automatic" : "Manual",
+                                        projectURL: model.projectURL
+                                    )
+                                    codeSignStyleUnset = false
+                                    signingStatus = "Updated CODE_SIGN_STYLE in .xcodeproj"
+                                } catch {
+                                    automaticSigning = oldValue
+                                    signingStatus = "Error: \(error.localizedDescription)"
+                                }
+                            }
+                        ))
                             .toggleStyle(.checkbox)
-                            .disabled(true)
-                        LabeledContent("Team", value: "Personal Apple Developer Account")
-                        LabeledContent("Signing Certificate", value: "Apple Development (Developer ID)")
-                        LabeledContent("Provisioning Profile", value: "Automatic Developer Provisioning Profile")
+                            .onAppear {
+                                if !signingLoaded {
+                                    if let style = xcodeProjSetting("CODE_SIGN_STYLE", in: model) {
+                                        codeSignStyleUnset = false
+                                        automaticSigning = (style == "Automatic")
+                                    } else {
+                                        codeSignStyleUnset = true
+                                        automaticSigning = false
+                                    }
+                                    signingLoaded = true
+                                }
+                            }
+                        if codeSignStyleUnset {
+                            Text("CODE_SIGN_STYLE is not set in this project.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let signingStatus {
+                            Text(signingStatus)
+                                .font(.caption)
+                                .foregroundStyle(signingStatus.starts(with: "Error") ? .red : .secondary)
+                        }
+                        LabeledContent("Team", value: xcodeProjSetting("DEVELOPMENT_TEAM", in: model) ?? "—")
+                        LabeledContent("Signing Certificate", value: xcodeProjSetting("CODE_SIGN_IDENTITY", in: model) ?? "—")
+                        LabeledContent("Provisioning Profile", value: xcodeProjSetting("PROVISIONING_PROFILE_SPECIFIER", in: model) ?? "—")
                     }
                 }
                 .formStyle(.grouped)
@@ -331,12 +404,21 @@ public struct DeploymentTabView: View {
                             .foregroundStyle(status.starts(with: "Error") ? .red : .secondary)
                     }
 
-                    LabeledContent("Swift Standard Library", value: "Embedded inside OS")
+                    // C25: read from the real .pbxproj settings; "—" when unset.
+                    // ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES YES means the standard
+                    // libraries are embedded in the app bundle.
+                    let embedSwiftLibs = xcodeProjSetting("ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES", in: model)
+                    LabeledContent(
+                        "Swift Standard Library",
+                        value: embedSwiftLibs == "YES" ? "Embedded in app bundle"
+                            : embedSwiftLibs == "NO" ? "Not embedded"
+                            : "—"
+                    )
                 }
 
                 Section("Supported Architectures") {
-                    LabeledContent("Architectures", value: "Standard Architectures (Apple Silicon & Intel x86_64)")
-                    LabeledContent("Build Active Architecture Only", value: "YES")
+                    LabeledContent("Architectures", value: xcodeProjSetting("ARCHS", in: model) ?? "—")
+                    LabeledContent("Build Active Architecture Only", value: xcodeProjSetting("ONLY_ACTIVE_ARCH", in: model) ?? "—")
                 }
             }
             .formStyle(.grouped)
