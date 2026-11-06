@@ -283,9 +283,12 @@ public final class MCPServer: @unchecked Sendable {
     /// never shown by `tools/list` (Legacy's registry resolves them the
     /// same way). Wave 1 added `read_file`; Wave 2 adds the
     /// file-writing family (verified against Legacy's
-    /// `AssistToolRegistry` alias table). `plist` and
-    /// `checksum_verifier` are deliberately NOT here: they point at
-    /// `plist_editor` and `file_checksum_verifier`, different tools.
+    /// `AssistToolRegistry` alias table). Wave 7 adds `plist` ->
+    /// `plist_editor` (in Wave 2 it was deliberately left out because
+    /// `plist_editor` was a different, unported tool from `plist_edit`).
+    /// Wave 7 also adds `checksum_verifier` -> `file_checksum_verifier`
+    /// (Legacy's alias table; the target was ported in Wave 1, so the
+    /// Wave 2 exclusion no longer applies).
     public static let toolAliases: [String: String] = [
         "read_file": "file_read",
         "write_file": "file_write",
@@ -305,6 +308,7 @@ public final class MCPServer: @unchecked Sendable {
         "insert_code_block": "code_insert",
         "insert_code": "code_insert",
         "regex_replace": "regex_replace_in_files",
+        "checksum_verifier": "file_checksum_verifier",
         // Wave 3 Search aliases (Legacy registry). `search` → `search_text`
         // is deliberately NOT an alias: it would collide with Ycode's
         // existing `search` tool.
@@ -392,6 +396,35 @@ public final class MCPServer: @unchecked Sendable {
         "snippet": "code_snippet_manager",
         "icon_generator": "icon_generator_tool",
         "colorset": "colorset_builder",
+        // Wave 7 Build & run aliases (Legacy registry). `build` and `test`
+        // are deliberately NOT aliases: they would collide with Ycode's
+        // native `build` / `test` tools (same reason Wave 3 skipped
+        // `search` -> `search_text`).
+        "build_project": "project_build",
+        "run_build": "project_build",
+        "xcodebuild": "project_build",
+        "run_tests": "project_test",
+        "xcresult": "xcresult_parser",
+        "device_destinations": "xcode_device_destination_finder",
+        // Wave 7 Project-model aliases (Legacy registry). `build_settings`
+        // is deliberately NOT an alias: it would collide with Ycode's
+        // native `build_settings` tool.
+        "xcode_scheme": "xcode_scheme_manager",
+        // Wave 7 SPM / docs aliases (Legacy registry).
+        "swift_package": "swift_package_manager",
+        "spm": "swift_package_manager",
+        "spm_tree": "spm_dependency_tree",
+        "podfile": "podfile_inspector",
+        "cartfile": "carthage_cartfile_inspector",
+        // Wave 7 Signing aliases (Legacy registry).
+        "plist": "plist_editor",
+        "entitlements": "entitlements_manager",
+        "signing_certificate": "signing_certificate_inspector",
+        "provisioning_profile": "provisioning_profile_reader",
+        // Wave 7 Assets / localization aliases (Legacy registry).
+        "asset_catalog": "asset_catalog_manager",
+        "localization": "localization_manager",
+        "string_catalog": "string_catalog_migrator",
     ]
 
     public static let modernVersion = "2026-07-28"

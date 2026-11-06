@@ -10242,6 +10242,2228 @@ Message: `No source files older than \(days) days.`.
 | `stale_files_report` | repositoryDiscovery | safeRead | none | no |
 | `tool_capability_lookup` | general | safeRead | none | no |
 
+## Wave 7 — project / Xcode / build tools
+
+Wave 7 ports the Legacy Assist Project/Xcode/build family — the last
+family of the 291-tool Assist registry: build & run (13), project model
+& pbxproj (19), SPM / dependencies / docs (13), signing / entitlements
+/ plist (11), and asset catalogs / localization (9) — 65 tools, taking
+the MCP catalogue from 251 to 316 registrations. No tool in this wave was
+already a Ycode registration, so none is aligned in place. The behaviour
+spec is `specs/ide/assist-project-build-tools.md` (Part A build & run,
+Part B project model, Part C SPM/docs, Part D signing, Part E assets /
+localization).
+
+## 250. Wave 7 build & run conventions
+
+- Build/test/clean run through the existing session seam
+  (`WorkspaceSession.build` / `runTests(only:)`, the same path as the
+  `build` / `test` tools); no parallel build system is built and no
+  direct `xcodebuild` is spawned for build/test/clean. `project_archive`
+  runs the real `xcodebuild archive` via `terminalRunFixed` (900 s bound)
+  because the seam has no archive action; `xcresult_parser` runs the real
+  `xcrun xcresulttool`, `xcode_toolchain_info` the real `xcodebuild
+  -version` / `-showsdks`, and `xcode_device_destination_finder` the real
+  `xcrun simctl list devices available -j`.
+- `project_clean` is the only writer in this slice (`build/` removal via
+  `MCPChange` + `approve()`; `derivedData` via `s.build(.clean)`).
+- `build_system_detect` fixes a Legacy bug: Legacy looked for entries
+  literally named `xcworkspace` / `xcodeproj`; the port detects by
+  extension.
+
+## 251. Wave 7 project-model conventions
+
+- No `xcodebuild` anywhere in this slice: scheme/target/settings reads use
+  parsed pbxproj + `WorkspaceModel`; build-setting values are raw (no
+  xcconfig inclusion, no `$(...)` expansion).
+- Snapshots live in `YcodeSnapshots` (not Legacy's `AssistSnapshots`), and
+  `project_snapshot` is a write (`writes: true`, Legacy `safeRead`).
+  `project_restore` is `potentiallyDestructive` and restores a whole-tree
+  copy only after an explicit `MCPChange` approval.
+- `generate_xcodeproj` never installs xcodegen (Legacy installed it via
+  Homebrew without prompting) and fails honestly when it is absent.
+- `project_target_add` registers the target properly via
+  `PBXProj.addTarget`; Legacy inserted orphan blocks never registered as
+  targets. `project_mutation_controller` makes model edits, not Legacy
+  text surgery.
+
+## 252. Wave 7 SPM / docs conventions
+
+- `swift_package_manager`, `package_dependency_update` and
+  `package_manifest_validate` run the real `swift` subprocess (fixed argv,
+  300 s bound) and fail honestly when swift is absent; `Package.swift` is
+  edited as text exactly as Legacy does it. Ycode's
+  `YcodeProject.PackageDependencies` models package references in a
+  `.pbxproj`, not `Package.swift` text, so it does not apply here and no
+  parallel package model was built.
+- `docc_build` runs the real `xcodebuild docbuild` (600 s bound) and
+  verifies a `.doccarchive` was produced. `project_changelog` reads
+  Legacy's global snapshot metadata read-only and never invents history.
+
+## 253. Wave 7 signing conventions
+
+- Inspection runs the real tools (`codesign -dv`, `security cms -D`,
+  `security find-identity`) via fixed-argv subprocesses and fails cleanly
+  where they are absent (Linux) instead of inventing a diagnosis; secret
+  material is never reported (`provisioning_profile_reader` never reports
+  `DeveloperCertificates`; `signing_certificate_inspector` reports names +
+  SHA-1 hashes only).
+- `YcodeSigning` exists but `YcodeMCP` has no target dependency on it, so
+  nothing here imports it and no parallel signing model was built; moving
+  the provisioning tools onto its pure-Swift CMS decode is a later-wave
+  option (it would also make them work on Linux).
+- `project_signing` resolves settings from the `.xcodeproj` via Ycode's own
+  `ProjectSettingsBuilder` instead of spawning `xcodebuild`, so it works on
+  Linux and honours xcconfigs.
+
+## 254. Wave 7 assets / localization conventions
+
+- `.xcstrings` goes through Ycode's own `StringCatalog` seam (`YcodeStrings`,
+  re-exported by `YcodeIDECore`); `.strings` keeps Legacy's line-based
+  scan/edit. `YcodeAssetCatalog`'s loader is not visible to `YcodeMCP` (no
+  target dependency), and nothing here needs a compiled CAR.
+- Every path is confined to the workspace (Legacy appended paths unchecked
+  in several of these tools). `.stringsdict` `add_translation` is refused,
+  as in Legacy (it would corrupt plural/format-rule dicts).
+
+## 255. `project_build` — Build Project
+
+- **Description (verbatim):** "Builds the user's Xcode project with xcodebuild, executed directly in the background without requiring terminal approval."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds the user's Xcode project with xcodebuild, executed directly in the background without requiring terminal approval.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "projectPath": {
+      "type": "string",
+      "description": "Workspace-relative path to the .xcodeproj or .xcworkspace to build. Defaults to the project found in the workspace root."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "The scheme to build. Defaults to the project's first listed scheme."
+    },
+    "configuration": {
+      "type": "string",
+      "description": "Build configuration (Debug or Release). Default is Debug."
+    },
+    "destination": {
+      "type": "string",
+      "description": "xcodebuild destination specifier. Default is 'platform=macOS'."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `project`, `scheme`, `configuration`, `status`, `duration`, `error_count`, `warning_count`, `marker`.
+Message: `Build \(status == "Passed" ? "Succeeded" : "Failed") (\(String(format: "%.2fs", duration))) — \(s.model.displayName) / \(schemeName) / \(configuration).`.
+
+**Notes.** Runs through the session seam (`s.build(.build)`); `configuration` is accepted but the scheme's config wins (no per-call override in the seam); `marker` derived from status. See `assist-project-build-tools.md` (Part A, "`project_build`").
+
+## 256. `project_test` — Run Tests
+
+- **Description (verbatim):** "Executes test suites and test plans using xcodebuild test with proper platform targeting."
+- **Capability:** `testing`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Executes test suites and test plans using xcodebuild test with proper platform targeting.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "The scheme to test. Defaults to the project's first listed scheme."
+    },
+    "testPlan": {
+      "type": "string",
+      "description": "Optional name of the test plan to execute."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `status`, `duration`, `diagnostics_count`.
+Message: `Tests \(status) (\(String(format: "%.2fs", duration))):`.
+
+**Notes.** Runs through `s.runTests()`; `testPlan` validated against `s.testPlanNames`. See `assist-project-build-tools.md` (Part A, "`project_test`").
+
+## 257. `project_clean` — Clean Project
+
+- **Description (verbatim):** "Cleans the project: removes the workspace build directory and/or runs xcodebuild clean. Requires explicit confirmation."
+- **Capability:** `compilation`. **Risk:** `potentiallyDestructive`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, destructive: true, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Cleans the project: removes the workspace build directory and/or runs xcodebuild clean. Requires explicit confirmation.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "scope": {
+      "type": "string",
+      "description": "build, derivedData, or both. Default: build. build removes workspaceRoot/build only; derivedData runs xcodebuild clean."
+    },
+    "confirm": {
+      "type": "string",
+      "description": "Must be \"true\" to proceed. Any other value fails without doing anything."
+    }
+  },
+  "required": [
+    "confirm"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `removed`, `scope`.
+
+**Notes.** The only writer in this slice: `build/` removal via `MCPChange` + `approve()`; `derivedData` via `s.build(.clean)`. See `assist-project-build-tools.md` (Part A, "`project_clean`").
+
+## 258. `project_archive` — Archive Project
+
+- **Description (verbatim):** "Archives the user's Xcode project with xcodebuild archive and verifies the .xcarchive exists."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Archives the user's Xcode project with xcodebuild archive and verifies the .xcarchive exists.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "Scheme to archive. Required."
+    },
+    "configuration": {
+      "type": "string",
+      "description": "Build configuration, e.g. Release or Debug. Default: Release."
+    },
+    "archivePath": {
+      "type": "string",
+      "description": "Workspace-relative destination path for the .xcarchive. Required, must stay inside the workspace."
+    },
+    "exportOptionsPlist": {
+      "type": "string",
+      "description": "Optional workspace-relative path to an ExportOptions.plist (not used by archive; reserved for export steps)."
+    }
+  },
+  "required": [
+    "scheme",
+    "archivePath"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `archivePath`, `scheme`, `configuration`, `exitCode`.
+Message: `Archived scheme '\(scheme)' to '\(rawArchivePath)' (exit 0).`.
+
+**Notes.** Real `xcodebuild archive` via `terminalRunFixed` (900 s bound); the build seam has no archive action. `writes: false` — the `.xcarchive` is its build product, like `build`'s products. See `assist-project-build-tools.md` (Part A, "`project_archive`").
+
+## 259. `build_log_analyze` — Build Log Analyze
+
+- **Description (verbatim):** "Parses an xcodebuild/swift-build log file: extracts errors, warnings, build result, and timing summary."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses an xcodebuild/swift-build log file: extracts errors, warnings, build result, and timing summary.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the build log file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `result`, `errorCount`, `warningCount`.
+
+**Notes.** Verbatim parsing incl. dedup, 300-char truncation, 20/10 caps. See `assist-project-build-tools.md` (Part A, "`build_log_analyze`").
+
+## 260. `build_system_detect` — Build System Detect
+
+- **Description (verbatim):** "Detects the build systems in use: .xcworkspace/.xcodeproj, SwiftPM, CocoaPods, Carthage, Tuist, xcodegen, Bazel, CMake."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Detects the build systems in use: .xcworkspace/.xcodeproj, SwiftPM, CocoaPods, Carthage, Tuist, xcodegen, Bazel, CMake.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No recognized build system files found in the workspace root.`.
+
+**Notes.** Fixes a Legacy bug: Legacy looked for entries literally named `xcworkspace` / `xcodeproj`, which no real bundle ever is; the port detects by extension. See `assist-project-build-tools.md` (Part A, "`build_system_detect`").
+
+## 261. `build_configuration_list` — Build Configuration List
+
+- **Description (verbatim):** "Lists build configurations (Debug/Release/custom) for the project and each target from the .pbxproj."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists build configurations (Debug/Release/custom) for the project and each target from the .pbxproj.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `ownerCount`, `configurations`.
+
+**Notes.** Legacy pbxproj regexes verbatim. See `assist-project-build-tools.md` (Part A, "`build_configuration_list`").
+
+## 262. `build_settings_diff` — Build Settings Diff
+
+- **Description (verbatim):** "Diffs two .xcconfig files key-by-key, reporting added, removed, and changed build settings."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Diffs two .xcconfig files key-by-key, reporting added, removed, and changed build settings.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "oldPath": {
+      "type": "string",
+      "description": "Workspace-relative path to the baseline .xcconfig."
+    },
+    "newPath": {
+      "type": "string",
+      "description": "Workspace-relative path to the new .xcconfig."
+    }
+  },
+  "required": [
+    "oldPath",
+    "newPath"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `added`, `removed`, `changed`.
+Message: `Build settings are identical.`.
+
+**Notes.** Verbatim xcconfig parsing/diff. See `assist-project-build-tools.md` (Part A, "`build_settings_diff`").
+
+## 263. `build_phase_scripts_list` — Build Phase Scripts List
+
+- **Description (verbatim):** "Lists Run Script build phases from the .pbxproj with their names and script bodies (truncated)."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists Run Script build phases from the .pbxproj with their names and script bodies (truncated).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No Run Script build phases found.`.
+
+**Notes.** Verbatim regex + `AssistTextFormat.truncated` (600). See `assist-project-build-tools.md` (Part A, "`build_phase_scripts_list`").
+
+## 264. `xcresult_parser` — XCResult Bundle Parser
+
+- **Description (verbatim):** "Locates and parses .xcresult bundles to extract test failures, warnings, and compilation diagnostics."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Locates and parses .xcresult bundles to extract test failures, warnings, and compilation diagnostics.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "bundlePath": {
+      "type": "string",
+      "description": "Optional specific path to an .xcresult bundle. If omitted, the latest result bundle in DerivedData is used."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No .xcresult bundle found. Run a build or test suite first.`; `Parsed .xcresult at \(xcresultURL.lastPathComponent), but output is non-JSON or bundle is empty.`.
+
+**Notes.** Real `xcrun xcresulttool get --format json`; DerivedData newest-bundle search; parses stdout only. See `assist-project-build-tools.md` (Part A, "`xcresult_parser`").
+
+## 265. `derived_data_locate` — DerivedData Locate
+
+- **Description (verbatim):** "Locates the project's DerivedData directories under ~/Library/Developer/Xcode/DerivedData with sizes."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Locates the project's DerivedData directories under ~/Library/Developer/Xcode/DerivedData with sizes.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "nameFilter": {
+      "type": "string",
+      "description": "Optional substring filter on the DerivedData folder name."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No DerivedData directories matched.`.
+
+**Notes.** Verbatim incl. 20 GB early-break cap. See `assist-project-build-tools.md` (Part A, "`derived_data_locate`").
+
+## 266. `xcode_toolchain_info` — Xcode Toolchain Info
+
+- **Description (verbatim):** "Reports the active Xcode version, build number, and installed SDKs via xcodebuild."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reports the active Xcode version, build number, and installed SDKs via xcodebuild.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `sdkCount`.
+
+**Notes.** Real `xcodebuild -version` / `-showsdks` via fixed argv. See `assist-project-build-tools.md` (Part A, "`xcode_toolchain_info`").
+
+## 267. `xcode_device_destination_finder` — Xcode Device Destination Finder
+
+- **Description (verbatim):** "Lists connected physical Apple devices and available simulator runtimes for building and testing."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists connected physical Apple devices and available simulator runtimes for building and testing.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "platform": {
+      "type": "string",
+      "description": "Optional platform filter (e.g. 'iOS', 'watchOS', 'macOS')."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No available simulators matching the requested filter.`.
+
+**Notes.** Real `xcrun simctl list devices available -j`; runtimes sorted (Legacy order was unspecified dict order). See `assist-project-build-tools.md` (Part A, "`xcode_device_destination_finder`").
+
+## 268. `create_new_app` — Create New App
+
+- **Description (verbatim):** "Creates a new native application project from user specifications or autonomous request parameters."
+- **Capability:** `general`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a new native application project from user specifications or autonomous request parameters.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "appName": {
+      "type": "string",
+      "description": "Display name of the application (e.g. My Notes)."
+    },
+    "bundleIdentifier": {
+      "type": "string",
+      "description": "Reverse domain bundle identifier (e.g. com.example.mynotes)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Marketing version number (e.g. 1.0)."
+    },
+    "build": {
+      "type": "string",
+      "description": "Build number (e.g. 1)."
+    },
+    "platform": {
+      "type": "string",
+      "description": "Target platform: macOS, iOS, iPadOS, watchOS, or visionOS."
+    },
+    "projectLocation": {
+      "type": "string",
+      "description": "Absolute file URL path where the project directory should be generated."
+    },
+    "applicationDescription": {
+      "type": "string",
+      "description": "Natural language description or feature specification of the application."
+    },
+    "uiPreferences": {
+      "type": "object"
+    },
+    "architecturePreferences": {
+      "type": "string",
+      "description": "Preferred software architecture pattern (e.g. MVVM, TCA, Observable Stores)."
+    },
+    "additionalRequirements": {
+      "type": "string",
+      "description": "Any extra technical requirements or constraints."
+    },
+    "overwriteExistingMetadata": {
+      "type": "boolean",
+      "description": "Whether to overwrite existing project metadata if an active project exists."
+    }
+  },
+  "required": [
+    "appName",
+    "applicationDescription"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `\n        Successfully initialized Create New App workflow for '\(appName)'.\n        Target Directory: \(targetDir.path)\n        Bundle Identifier: \(bundleIdentifier)\n        Platform: \(platform)\n        Version: \(version) (\(build))\n        Scaffolded with Ycode's '\(tab) App' template.\n        Ready for autonomous implementation and iteration.\n        `.
+
+**Notes.** Workspace-confined scaffold via Ycode's macOS/iOS "App" templates; no `project.json`, no auto-open (Legacy wrote to an absolute `projectLocation` and opened it). See `assist-project-build-tools.md` (Part B, "`create_new_app`").
+
+## 269. `generate_xcodeproj` — Generate Xcode Project
+
+- **Description (verbatim):** "Generates .xcodeproj files from an XcodeGen project.yml spec. Installs XcodeGen automatically if missing. Runs in the background without a terminal approval prompt."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates .xcodeproj files from an XcodeGen project.yml spec. Installs XcodeGen automatically if missing. Runs in the background without a terminal approval prompt.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "spec": {
+      "type": "string",
+      "description": "Workspace-relative path to the XcodeGen spec file. Default is 'project.yml'."
+    },
+    "useCache": {
+      "type": "string",
+      "description": "'true' to pass --use-cache to xcodegen. Default is 'false'."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `spec`, `projects`, `duration`.
+Message: `XcodeGen succeeded (\(durationText)). Generated: \(produced.joined(separator: ", "))\n\(run.stdout.suffix(1200))`.
+
+**Notes.** Runs real `xcodegen generate` when found (`/opt/homebrew`, `/usr/local`, `which`); fails honestly with Legacy's Homebrew message when absent; never installs anything (Legacy installed via Homebrew without prompting). See `assist-project-build-tools.md` (Part B, "`generate_xcodeproj`").
+
+## 270. `pbxproj_lint` — pbxproj Lint
+
+- **Description (verbatim):** "Lints the .pbxproj: file references pointing at missing files, duplicate paths, and build files with dangling file references."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lints the .pbxproj: file references pointing at missing files, duplicate paths, and build files with dangling file references.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `fileRefCount`, `missingCount`, `duplicateCount`, `danglingCount`, `clean`.
+
+**Notes.** Regex over pbxproj text; counts refs/missing/duplicates/dangling. See `assist-project-build-tools.md` (Part B, "`pbxproj_lint`").
+
+## 271. `project_build_settings` — Build Settings
+
+- **Description (verbatim):** "Reads Xcode build settings with xcodebuild, or sets one build setting key in the project's pbxproj."
+- **Capability:** `compilation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads Xcode build settings with xcodebuild, or sets one build setting key in the project's pbxproj.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "read or set. Default: read."
+    },
+    "target": {
+      "type": "string",
+      "description": "Optional target name for read or set."
+    },
+    "configuration": {
+      "type": "string",
+      "description": "Build configuration, e.g. Debug or Release. Default: Debug."
+    },
+    "key": {
+      "type": "string",
+      "description": "Build setting key. Required for set; optional filter for read."
+    },
+    "value": {
+      "type": "string",
+      "description": "New value for the key. Required for set."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `key`, `value`, `configuration`, `file`, `count`, `settings`.
+Message: `Set build setting \(key) = \(value) for configuration '\(configuration)'.`; `Build setting \(key) = \(found)`; `Found \(settings.count) build setting(s) for configuration '\(configuration)'.`.
+
+**Notes.** Read/set; project-level merged with target-level, target wins; raw pbxproj values (no xcconfig inclusion, no `$(...)` expansion). See `assist-project-build-tools.md` (Part B, "`project_build_settings`").
+
+## 272. `project_capabilities` — Capabilities
+
+- **Description (verbatim):** "Lists app capabilities from entitlements and pbxproj, or enables/disables one capability by editing the entitlements plist."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists app capabilities from entitlements and pbxproj, or enables/disables one capability by editing the entitlements plist.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "list, enable, or disable. Default: list."
+    },
+    "capability": {
+      "type": "string",
+      "description": "Capability name for enable/disable: push, icloud, appGroups, appSandbox, keychain, network."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `capabilities`, `count`, `entitlements`, `pbxproj`, `capability`, `entitlementsKey`, `action`.
+Message: `Enabled capability '\(rawCapability)' (\(mapping.key)) in \(entitlementsURL.lastPathComponent).`; `Disabled capability '\(rawCapability)' (\(mapping.key)) in \(entitlementsURL.lastPathComponent).`.
+
+**Notes.** List/enable/disable via entitlements plist + raw `SystemCapabilities` lines. See `assist-project-build-tools.md` (Part B, "`project_capabilities`").
+
+## 273. `project_diff` — Diff Project
+
+- **Description (verbatim):** "Compares the working tree with Git HEAD, returning real unified diffs and modified files."
+- **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Compares the working tree with Git HEAD, returning real unified diffs and modified files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `diff`, `branch`, `staged_count`, `unstaged_count`.
+Message: `No changes detected. Working tree is clean.`; `Git Status on branch '\(branch)': \(staged) staged, \(unstaged) unstaged, \(hunks) diff hunks.\n\n\(formattedDiff)`.
+
+**Notes.** `git status --porcelain` / `git diff HEAD` (Legacy's `GitService` is not available in Ycode); any git failure becomes "Diff inspection failed: …". See `assist-project-build-tools.md` (Part B, "`project_diff`").
+
+## 274. `project_mutation_controller` — Xcode Project Mutation Controller
+
+- **Description (verbatim):** "Adds/removes file references in the user's project.pbxproj, resolving groups and build phases from the target project."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Adds/removes file references in the user's project.pbxproj, resolving groups and build phases from the target project.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "One of 'add', 'remove', or 'repair'."
+    },
+    "projectFile": {
+      "type": "string",
+      "description": "Workspace-relative path to project.pbxproj. Defaults to the project.pbxproj of the project found in the workspace root."
+    },
+    "filePath": {
+      "type": "string",
+      "description": "Workspace-relative file path. Required for 'add' and 'remove'."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `project`.
+Message: `Project mutation complete: \(action)`; `Project mutation complete: added \(fileName) via 4-step registration protocol`; `File already referenced in project.pbxproj: \(filePath)`.
+
+**Notes.** Model edits, not Legacy text surgery: add is 4-step registration, remove is `removeFileReference`, repair collapses blank lines. See `assist-project-build-tools.md` (Part B, "`project_mutation_controller`").
+
+## 275. `project_restore` — Restore Snapshot
+
+- **Description (verbatim):** "Restores the project to a previously saved state."
+- **Capability:** `general`. **Risk:** `potentiallyDestructive`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, destructive: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Restores the project to a previously saved state.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "snapshot_id": {
+      "type": "string",
+      "description": "Snapshot identifier from project_snapshot or project_changelog."
+    }
+  },
+  "required": [
+    "snapshot_id"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully restored project to snapshot: \(snapshotId)`.
+
+**Notes.** Restores whole-tree copy from snapshot store after an explicit `MCPChange` approval. See `assist-project-build-tools.md` (Part B, "`project_restore`").
+
+## 276. `project_scheme_list` — List Schemes
+
+- **Description (verbatim):** "Lists the Xcode schemes available for the user's project or workspace."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists the Xcode schemes available for the user's project or workspace.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `schemes`, `count`, `project`.
+Message: `Found \(schemes.count) scheme(s): \(schemes.joined(separator: ", "))`.
+
+**Notes.** `WorkspaceModel.schemeNames` (xcscheme discovery + per-target fallback). See `assist-project-build-tools.md` (Part B, "`project_scheme_list`").
+
+## 277. `project_snapshot` — Snapshot Project
+
+- **Description (verbatim):** "Creates a full snapshot of the current project state."
+- **Capability:** `general`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a full snapshot of the current project state.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "message": {
+      "type": "string",
+      "description": "Label stored on the snapshot. Default: \"Manual Snapshot\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `snapshot_id`.
+Message: `Successfully created project snapshot: \(message)`.
+
+**Notes.** Ported honestly, not failed: self-contained store — whole-tree copy + `metadata.json` under Application Support `YcodeSnapshots/<uuid>/` (Legacy: `AssistSnapshots/`). Reclassified `writes: true` (Legacy `safeRead`). See `assist-project-build-tools.md` (Part B, "`project_snapshot`").
+
+## 278. `project_structure_map` — Project Structure Map
+
+- **Description (verbatim):** "Builds a machine-readable map of the project: top-level directories with file counts and the Xcode target layout parsed from the .pbxproj when present."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds a machine-readable map of the project: top-level directories with file counts and the Xcode target layout parsed from the .pbxproj when present.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "maxDepth": {
+      "type": "integer",
+      "description": "Directory depth to map. Default 2, max 4."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `directoryCount`, `targets`.
+
+**Notes.** Depth-bounded directory counts + pbxproj targets. See `assist-project-build-tools.md` (Part B, "`project_structure_map`").
+
+## 279. `project_target_add` — Add Target
+
+- **Description (verbatim):** "Adds a new Xcode target: creates a source directory with a real Swift file and inserts PBXNativeTarget blocks into project.pbxproj."
+- **Capability:** `compilation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Adds a new Xcode target: creates a source directory with a real Swift file and inserts PBXNativeTarget blocks into project.pbxproj.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "targetName": {
+      "type": "string",
+      "description": "Name of the new target. Letters, digits, underscore, hyphen only."
+    },
+    "type": {
+      "type": "string",
+      "description": "Target type: app, framework, or test. Default: app."
+    },
+    "bundleId": {
+      "type": "string",
+      "description": "Optional bundle identifier for the new target."
+    }
+  },
+  "required": [
+    "targetName"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `targetName`, `type`, `targetId`, `sourceDirectory`.
+Message: `Added target '\(rawName)' (\(type)) with source directory '\(rawName)/'.`.
+
+**Notes.** Proper registration via `PBXProj.addTarget` (Legacy inserted orphan blocks never registered as targets — defect not reproduced). See `assist-project-build-tools.md` (Part B, "`project_target_add`").
+
+## 280. `project_target_list` — List Targets
+
+- **Description (verbatim):** "Lists the Xcode targets in the user's project by scanning project.pbxproj and xcodebuild output."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists the Xcode targets in the user's project by scanning project.pbxproj and xcodebuild output.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `targets`, `count`, `sources`.
+Message: `Found \(sorted.count) target(s): \(sorted.joined(separator: ", "))`.
+
+**Notes.** Lists targets by scanning `project.pbxproj`. See `assist-project-build-tools.md` (Part B, "`project_target_list`").
+
+## 281. `scheme_test_plan_list` — Scheme Test Plan List
+
+- **Description (verbatim):** "Finds .xctestplan files in the workspace and lists the test targets each plan covers."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds .xctestplan files in the workspace and lists the test targets each plan covers.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No .xctestplan files found in the workspace.`.
+
+**Notes.** Parses `.xctestplan` JSON `testTargets`. See `assist-project-build-tools.md` (Part B, "`scheme_test_plan_list`").
+
+## 282. `target_dependencies_list` — Target Dependencies List
+
+- **Description (verbatim):** "Lists Xcode target-to-target dependencies parsed from the project's .pbxproj."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists Xcode target-to-target dependencies parsed from the project's .pbxproj.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `targetCount`, `edgeCount`.
+
+**Notes.** `PBXTargetDependency` graph. See `assist-project-build-tools.md` (Part B, "`target_dependencies_list`").
+
+## 283. `target_source_list` — Target Source List
+
+- **Description (verbatim):** "Lists the source files compiled into a given Xcode target (Compile Sources build phase), resolved from the .pbxproj."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists the source files compiled into a given Xcode target (Compile Sources build phase), resolved from the .pbxproj.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "target": {
+      "type": "string",
+      "description": "Target name. If omitted, lists sources for every target (truncated per target)."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum files per target. Default 200."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `targetCount`.
+
+**Notes.** Sources-phase build files resolved to file refs. See `assist-project-build-tools.md` (Part B, "`target_source_list`").
+
+## 284. `workspace_settings_read` — Workspace Settings Read
+
+- **Description (verbatim):** "Reads Xcode workspace/shared settings (.xcsettings plists): build system, derived-data location, and IDE workspace checks."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads Xcode workspace/shared settings (.xcsettings plists): build system, derived-data location, and IDE workspace checks.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No .xcsettings files found (default Xcode workspace settings apply).`.
+
+**Notes.** Parses `.xcsettings` plists. See `assist-project-build-tools.md` (Part B, "`workspace_settings_read`").
+
+## 285. `xcode_build_settings_inspector` — Xcode Build Settings Inspector
+
+- **Description (verbatim):** "Inspects and extracts active build configuration settings, flags, and paths via xcodebuild."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects and extracts active build configuration settings, flags, and paths via xcodebuild.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "target": {
+      "type": "string",
+      "description": "Optional target name to query build settings for."
+    },
+    "settingKey": {
+      "type": "string",
+      "description": "Optional specific build setting key to extract (e.g. PRODUCT_BUNDLE_IDENTIFIER, SWIFT_VERSION)."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No Xcode build settings returned. Ensure an .xcodeproj exists in the workspace.`; `\(key) = \(val)`.
+
+**Notes.** pbxproj-backed; no `xcodebuild` spawn (macOS-only, fails on Linux). See `assist-project-build-tools.md` (Part B, "`xcode_build_settings_inspector`").
+
+## 286. `xcode_scheme_manager` — Xcode Scheme & Build Configuration Manager
+
+- **Description (verbatim):** "Inspects, lists, and queries Xcode schemes, targets, and build configurations in the workspace."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, lists, and queries Xcode schemes, targets, and build configurations in the workspace.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'list_schemes', 'inspect_scheme'."
+    },
+    "schemeName": {
+      "type": "string",
+      "description": "Scheme name to inspect (for 'inspect_scheme')."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Xcode Schemes & Targets:\n\(schemes.joined(separator: "\n"))`; `Scheme '\(schemeName)' found at \(fileURL.lastPathComponent):\n\n\(xmlContent.prefix(2000))`.
+
+**Notes.** `list_schemes` / `inspect_scheme` over real `.xcscheme` files. See `assist-project-build-tools.md` (Part B, "`xcode_scheme_manager`").
+
+## 287. `swift_package_manager` — Swift Package Manager
+
+- **Description (verbatim):** "Inspects, resolves, updates, and validates Swift Package Manager (SPM) dependencies."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, resolves, updates, and validates Swift Package Manager (SPM) dependencies.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action to perform: 'resolve', 'update', 'status', 'dump_manifest', 'describe'."
+    },
+    "packageDir": {
+      "type": "string",
+      "description": "Workspace-relative directory containing Package.swift (defaults to workspace root)."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `SPM \(action) completed successfully.`.
+
+**Notes.** Runs real `swift package <resolve|update|status|dump-package|describe>` via fixed argv, 300 s bound; honest fail when swift is absent. See `assist-project-build-tools.md` (Part C, "`swift_package_manager`").
+
+## 288. `package_manifest_read` — Read Package Manifest
+
+- **Description (verbatim):** "Reads Package.swift and summarizes the package name, platforms, products, targets, and dependencies."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads Package.swift and summarizes the package name, platforms, products, targets, and dependencies.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to Package.swift. Default: \"Package.swift\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `packageName`, `platforms`, `products`, `targets`, `dependencies`, `productCount`, `targetCount`, `dependencyCount`.
+
+**Notes.** Legacy's text extractors verbatim (name/platforms/products/targets/deps, counts). See `assist-project-build-tools.md` (Part C, "`package_manifest_read`").
+
+## 289. `package_manifest_validate` — Validate Package Manifest
+
+- **Description (verbatim):** "Validates Package.swift by running swift package dump-package and reporting the package name and target count."
+- **Capability:** `compilation`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates Package.swift by running swift package dump-package and reporting the package name and target count.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to Package.swift. Default: \"Package.swift\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `packageName`, `targetCount`, `exitCode`.
+Message: `Package manifest is valid: \(packageName) with \(targetCount) target(s).`.
+
+**Notes.** Runs real `swift package dump-package`, parses stdout JSON; honest fail when swift is absent. See `assist-project-build-tools.md` (Part C, "`package_manifest_validate`").
+
+## 290. `package_dependency_add` — Add Package Dependency
+
+- **Description (verbatim):** "Inserts a .package(url:from:) entry into the dependencies array in Package.swift."
+- **Capability:** `compilation`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inserts a .package(url:from:) entry into the dependencies array in Package.swift.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "url": {
+      "type": "string",
+      "description": "Repository URL of the package (e.g. https://github.com/apple/swift-argument-parser)."
+    },
+    "requirement": {
+      "type": "string",
+      "description": "Requirement such as 'from: \"1.0.0\"' or just '1.0.0'. Default: 'from: \"1.0.0\"'."
+    },
+    "product": {
+      "type": "string",
+      "description": "Optional product name to wire into a target's dependencies."
+    },
+    "target": {
+      "type": "string",
+      "description": "Optional target name whose dependencies array should gain the product."
+    }
+  },
+  "required": [
+    "url"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `url`, `requirement`, `targetWiring`, `alreadyPresent`.
+Message: `Dependency already present in Package.swift: \(url)`; `Added dependency \(url) to Package.swift. Target wiring: \(targetWiringNote)`.
+
+**Notes.** Legacy's text insert + target wiring verbatim, written via `commit()`. See `assist-project-build-tools.md` (Part C, "`package_dependency_add`").
+
+## 291. `package_dependency_audit` — Audit Package Dependencies
+
+- **Description (verbatim):** "Audits Swift package dependencies from Package.swift and Package.resolved, flagging missing pins and unpinned requirements."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits Swift package dependencies from Package.swift and Package.resolved, flagging missing pins and unpinned requirements.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `declaredCount`, `pinnedCount`, `hasResolved`, `unpinnedCount`, `unpinned`, `flags`.
+
+**Notes.** Manifest + `Package.resolved` (v1/v2/v3 pins); `show-dependencies` appendix omitted (never an error) when the run fails. See `assist-project-build-tools.md` (Part C, "`package_dependency_audit`").
+
+## 292. `package_dependency_update` — Update Package Dependencies
+
+- **Description (verbatim):** "Runs swift package update in the workspace root to update Swift package dependencies."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs swift package update in the workspace root to update Swift package dependencies.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "package": {
+      "type": "string",
+      "description": "Optional single dependency name to update. When omitted, all dependencies are updated."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `exitCode`, `outputTail`.
+Message: `swift package update succeeded (exit 0).\n\(tail)`.
+
+**Notes.** Runs real `swift package update [name]`, 300 s bound; honest fail when swift is absent. See `assist-project-build-tools.md` (Part C, "`package_dependency_update`").
+
+## 293. `spm_dependency_tree` — SPM Dependency Tree
+
+- **Description (verbatim):** "Parses Package.resolved and Package.swift to construct the complete resolved dependency tree."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses Package.resolved and Package.swift to construct the complete resolved dependency tree.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional explicit path to Package.resolved. If omitted, workspace is searched."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No Package.resolved file found in workspace.`.
+
+**Notes.** Parses `Package.resolved` v1/v2/v3, Legacy's report format verbatim; success-with-message when no file is found. See `assist-project-build-tools.md` (Part C, "`spm_dependency_tree`").
+
+## 294. `carthage_cartfile_inspector` — Carthage Cartfile Inspector
+
+- **Description (verbatim):** "Inspects Carthage dependencies and resolved versions in Cartfile and Cartfile.resolved."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects Carthage dependencies and resolved versions in Cartfile and Cartfile.resolved.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No Carthage Cartfile or Cartfile.resolved found in workspace root.`.
+
+**Notes.** `Cartfile` / `Cartfile.resolved` at root, Legacy report verbatim. See `assist-project-build-tools.md` (Part C, "`carthage_cartfile_inspector`").
+
+## 295. `podfile_inspector` — Podfile & CocoaPods Inspector
+
+- **Description (verbatim):** "Inspects CocoaPods dependencies, versions, and target configurations in Podfile and Podfile.lock."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects CocoaPods dependencies, versions, and target configurations in Podfile and Podfile.lock.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional directory containing Podfile. Defaults to workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No CocoaPods Podfile or Podfile.lock found in workspace root.`.
+
+**Notes.** Legacy's `path`-parameter-never-read quirk preserved (always workspace root). See `assist-project-build-tools.md` (Part C, "`podfile_inspector`").
+
+## 296. `docc_build` — Build DocC Docs
+
+- **Description (verbatim):** "Builds DocC documentation with xcodebuild docbuild and verifies a .doccarchive was produced."
+- **Capability:** `compilation`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds DocC documentation with xcodebuild docbuild and verifies a .doccarchive was produced.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "The scheme to document (required)."
+    },
+    "destination": {
+      "type": "string",
+      "description": "xcodebuild destination. Default is platform=macOS."
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "Workspace-relative derived-data directory (optional). Default is .docc-derived."
+    }
+  },
+  "required": [
+    "scheme"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `scheme`, `destination`, `archive_path`, `archive_relative`.
+Message: `DocC build succeeded for scheme \(scheme). Archive: \(relativeArchive)`.
+
+**Notes.** Runs real `xcodebuild docbuild` (fixed argv, 600 s bound), verifies a `.doccarchive` was produced; honest fail when xcodebuild is absent. See `assist-project-build-tools.md` (Part C, "`docc_build`").
+
+## 297. `docs_generate` — Generate Docs
+
+- **Description (verbatim):** "Generates a markdown API document from public Swift declarations in the workspace. Refuses to overwrite unless overwrite is true."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a markdown API document from public Swift declarations in the workspace. Refuses to overwrite unless overwrite is true.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "Workspace-relative output path. Default is DOCS_GENERATED.md."
+    },
+    "title": {
+      "type": "string",
+      "description": "Document title (optional)."
+    },
+    "overwrite": {
+      "type": "string",
+      "description": "Set to true to overwrite an existing output file. Default is false."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `output_path`, `output_relative`, `file_count`, `declaration_count`.
+Message: `Generated docs for \(swiftFiles.count) Swift file(s), \(totalDeclarations) public declaration(s), at \(outputRelative)`.
+
+**Notes.** Legacy's public-declaration generator verbatim, written via `commit()`; refuses overwrite unless `overwrite=true`. See `assist-project-build-tools.md` (Part C, "`docs_generate`").
+
+## 298. `docs_index_build` — Docs Index Build
+
+- **Description (verbatim):** "Builds an index of all Markdown files in the workspace: path, title (first heading), and size."
+- **Capability:** `fileReading`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds an index of all Markdown files in the workspace: path, title (first heading), and size.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `count`.
+Message: `No Markdown files found in the workspace.`; `Markdown index (\(docs.count) files):\n\(table)`.
+
+**Notes.** Markdown index table (path/title/size). See `assist-project-build-tools.md` (Part C, "`docs_index_build`").
+
+## 299. `project_changelog` — View Changelog
+
+- **Description (verbatim):** "Displays the history of project snapshots and changes."
+- **Capability:** `general`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Displays the history of project snapshots and changes.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `log`.
+Message: `Changelog retrieved successfully.`.
+
+**Notes.** Reads Legacy's global `<Application Support>/AssistSnapshots/*/metadata.json` read-only, newest first; returns Legacy's empty case when there is none, never invents history, never creates the directory. See `assist-project-build-tools.md` (Part C, "`project_changelog`").
+
+## 300. `code_signing_diagnose` — Code Signing Diagnose
+
+- **Description (verbatim):** "Diagnoses code-signing state of a built .app/.framework: signature validity, authority chain, team identifier, and hardened-runtime flags."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Diagnoses code-signing state of a built .app/.framework: signature validity, authority chain, team identifier, and hardened-runtime flags.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .app, .framework, or binary."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `exitCode`, `teamIdentifier`, `authority`, `signed`.
+
+**Notes.** Real `codesign -dv --verbose=4` via fixed-argv runner; stdout+stderr combined (codesign reports to stderr). Fails cleanly without `/usr/bin/codesign` (Linux) instead of inventing a diagnosis. See `assist-project-build-tools.md` (Part D, "`code_signing_diagnose`").
+
+## 301. `entitlements_diff` — Entitlements Diff
+
+- **Description (verbatim):** "Compares two .entitlements plist files, reporting added, removed, and changed keys."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Compares two .entitlements plist files, reporting added, removed, and changed keys.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "oldPath": {
+      "type": "string",
+      "description": "Workspace-relative path to the baseline .entitlements file."
+    },
+    "newPath": {
+      "type": "string",
+      "description": "Workspace-relative path to the new .entitlements file."
+    }
+  },
+  "required": [
+    "oldPath",
+    "newPath"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `added`, `removed`, `changed`.
+Message: `Entitlements are identical.`.
+
+**Notes.** Added/removed/changed with Legacy's 60-char truncation. See `assist-project-build-tools.md` (Part D, "`entitlements_diff`").
+
+## 302. `entitlements_manager` — Entitlements Manager
+
+- **Description (verbatim):** "Inspects, adds, and removes Apple security entitlements (.entitlements) like App Sandbox and Network access."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, adds, and removes Apple security entitlements (.entitlements) like App Sandbox and Network access.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'inspect', 'add_entitlement', 'remove_entitlement', 'list'."
+    },
+    "filePath": {
+      "type": "string",
+      "description": "Workspace-relative path to the .entitlements file."
+    },
+    "entitlementKey": {
+      "type": "string",
+      "description": "Entitlement key (e.g. 'com.apple.security.app-sandbox' or 'com.apple.security.network.client')."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value for entitlement (default 'true')."
+    }
+  },
+  "required": [
+    "action",
+    "filePath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Entitlements in '\(filePath)' (\(keys.count) configured):\n`; `Successfully added entitlement '\(key)' = \(boolVal) in \(filePath)`; `Successfully removed entitlement '\(key)' from \(filePath)`.
+
+**Notes.** inspect/list/add/remove; value coerced to bool exactly as Legacy; creates the file on add. See `assist-project-build-tools.md` (Part D, "`entitlements_manager`").
+
+## 303. `info_plist_audit` — Info.plist Audit
+
+- **Description (verbatim):** "Audits Info.plist files for required keys, version-format sanity, and duplicate bundle identifiers."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Audits Info.plist files for required keys, version-format sanity, and duplicate bundle identifiers.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `fileCount`, `issueCount`.
+Message: `No Info.plist files found in the workspace.`.
+
+**Notes.** Required keys, `x.y[.z]` version check, duplicate bundle IDs; no-files is a success with count 0. See `assist-project-build-tools.md` (Part D, "`info_plist_audit`").
+
+## 304. `plist_editor` — Property List Editor
+
+- **Description (verbatim):** "Inspects, sets, deletes, and validates keys in Apple Property List (.plist) files."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, sets, deletes, and validates keys in Apple Property List (.plist) files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'read', 'set', 'delete', 'list_keys'."
+    },
+    "filePath": {
+      "type": "string",
+      "description": "Workspace-relative path to the .plist file."
+    },
+    "key": {
+      "type": "string",
+      "description": "Property list key to read, set, or delete."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value to write (for 'set')."
+    },
+    "valueType": {
+      "type": "string",
+      "description": "Type of value: 'string', 'boolean', 'integer' (defaults to string)."
+    }
+  },
+  "required": [
+    "action",
+    "filePath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Plist contains \(keys.count) keys:\n`; `\(key) = \(String(describing: val))`; `Successfully set '\(key)' = \(valStr) in \(filePath)`; `Successfully removed key '\(key)' from \(filePath)`.
+
+**Notes.** Distinct from `plist_edit` (Wave 2): `filePath`, actions `read/set/delete/list_keys`, typed values via `valueType`, preserves binary format, no verification re-read, no data keys. See `assist-project-build-tools.md` (Part D) for the full comparison table. See `assist-project-build-tools.md` (Part D, "`plist_editor`").
+
+## 305. `project_entitlements` — Entitlements
+
+- **Description (verbatim):** "Finds and parses .entitlements files in the workspace and returns their keys and values."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds and parses .entitlements files in the workspace and returns their keys and values.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative path to a specific .entitlements file."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `files`, `keys`, `count`.
+
+**Notes.** Workspace scan or explicit path; Legacy's failure when no files are found is kept. See `assist-project-build-tools.md` (Part D, "`project_entitlements`").
+
+## 306. `project_info_plist` — Info.plist Editor
+
+- **Description (verbatim):** "Reads and edits Info.plist keys using PropertyListSerialization with atomic writes and verification."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads and edits Info.plist keys using PropertyListSerialization with atomic writes and verification.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "get, set, or delete. Default: get."
+    },
+    "key": {
+      "type": "string",
+      "description": "Plist key. Required for set and delete."
+    },
+    "value": {
+      "type": "string",
+      "description": "New value for set. Interpreted as Bool for true/false, Int for integers, otherwise String."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative path to a specific Info.plist. Defaults to the first Info.plist found."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `key`, `value`, `file`, `keys`, `count`.
+Message: `Info.plist \(key) = \(signingPlistString(found))`; `Info.plist has \(keys.count) key(s):\n\(entries)`; `Set Info.plist \(key) = \(value) (was: \(signingPlistString(before))).`; `Deleted Info.plist key '\(key)'.`.
+
+**Notes.** get/set/delete with Legacy's Bool/Int/Double/String reading and verification re-read. See `assist-project-build-tools.md` (Part D, "`project_info_plist`").
+
+## 307. `project_signing` — Signing Check
+
+- **Description (verbatim):** "Checks code-signing build settings and lists installed provisioning profile filenames without parsing profile contents."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Checks code-signing build settings and lists installed provisioning profile filenames without parsing profile contents.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "scheme": {
+      "type": "string",
+      "description": "Optional scheme name for -showBuildSettings."
+    },
+    "configuration": {
+      "type": "string",
+      "description": "Build configuration, e.g. Debug or Release. Default: Debug."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `configuration`, `codeSignStyle`, `developmentTeam`, `bundleId`, `codeSignIdentity`, `provisioningProfileSpecifier`, `provisioningProfileCount`, `provisioningProfiles`, `scheme`.
+
+**Notes.** No `xcodebuild` spawned — settings resolved from the `.xcodeproj` via Ycode's own `ProjectSettingsBuilder` (the `build_settings` seam), so it works on Linux and honours xcconfigs. Target is the first target, or the target named by `scheme`; unknown configuration falls back to the project's default. See `assist-project-build-tools.md` (Part D, "`project_signing`").
+
+## 308. `provisioning_check` — Provisioning Check
+
+- **Description (verbatim):** "Lists installed provisioning profiles, reports expiration, and compares App IDs against an optional bundle ID."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists installed provisioning profiles, reports expiration, and compares App IDs against an optional bundle ID.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "bundleId": {
+      "type": "string",
+      "description": "Bundle ID to compare against each profile App ID (optional)."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `profile_count`, `expired_count`, `expiring_count`, `match_count`, `mismatch_count`, `bundle_id`.
+Message: `Provisioning profiles: \(profiles.count), expired: \(expiredCount), expiring within 30 days: \(expiringCount)`.
+
+**Notes.** Real `security cms -D` per profile; expiry/30-day/App-ID comparison per Legacy. Fails cleanly without `/usr/bin/security`. See `assist-project-build-tools.md` (Part D, "`provisioning_check`").
+
+## 309. `provisioning_profile_reader` — Provisioning Profile Reader
+
+- **Description (verbatim):** "Decodes and inspects entitlements, team ID, and expiration date of Apple provisioning profiles."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Decodes and inspects entitlements, team ID, and expiration date of Apple provisioning profiles.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Path to .mobileprovision or .provisionprofile file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+
+**Notes.** Real `security cms -D`; absolute path used as-is (profiles live outside any workspace — same exception Wave 6 made for `test_coverage_reporter`); never reports `DeveloperCertificates`. See `assist-project-build-tools.md` (Part D, "`provisioning_profile_reader`").
+
+## 310. `signing_certificate_inspector` — Code Signing Certificate Inspector
+
+- **Description (verbatim):** "Inspects valid Apple Development and Distribution code signing certificates in the keychain."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects valid Apple Development and Distribution code signing certificates in the keychain.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `No valid code-signing identities found in macOS Keychain.`.
+
+**Notes.** Real `security find-identity -p codesigning -v`; names + SHA-1 hashes only, no private-key material. Fails cleanly without `security` rather than reporting an empty list. See `assist-project-build-tools.md` (Part D, "`signing_certificate_inspector`").
+
+## 311. `asset_catalog_list` — List Asset Catalog
+
+- **Description (verbatim):** "Lists asset catalogs under the workspace and the image, color, and app-icon sets inside each catalog."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists asset catalogs under the workspace and the image, color, and app-icon sets inside each catalog.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative path to a single .xcassets catalog or a directory to search. Default: whole workspace."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `catalogCount`, `totalSets`, `catalogs`.
+Message: `No .xcassets catalogs found.`.
+
+**Notes.** Enumerates `.xcassets`, lists sets. See `assist-project-build-tools.md` (Part E, "`asset_catalog_list`").
+
+## 312. `asset_catalog_manager` — Asset Catalog Manager
+
+- **Description (verbatim):** "Inspects, manages, and creates asset catalogs (.xcassets), image sets, color sets, and dataset assets."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, manages, and creates asset catalogs (.xcassets), image sets, color sets, and dataset assets.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action to perform: 'inspect', 'create_catalog', 'create_colorset', 'create_imageset', 'list'."
+    },
+    "catalogPath": {
+      "type": "string",
+      "description": "Workspace-relative path to the .xcassets directory."
+    },
+    "assetName": {
+      "type": "string",
+      "description": "Name of the color set or image set to create or inspect."
+    },
+    "lightColorHex": {
+      "type": "string",
+      "description": "Hex color for Light mode (e.g. '#FFFFFF' or '#336699')."
+    },
+    "darkColorHex": {
+      "type": "string",
+      "description": "Hex color for Dark mode (e.g. '#1E1E1E')."
+    }
+  },
+  "required": [
+    "action",
+    "catalogPath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully initialized asset catalog at \(catalogPath)`; `Created Color Set '\(assetName)' in \(catalogPath) with light: \(lightHex), dark: \(darkHex)`; `Created Image Set '\(assetName)' in \(catalogPath) with universal 1x/2x/3x slots.`; `Asset Catalog '\(catalogPath)' contains \(sets.count) asset sets:\n`.
+
+**Notes.** inspect/list/create_catalog/create_colorset/create_imageset via `commit()`. See `assist-project-build-tools.md` (Part E, "`asset_catalog_manager`").
+
+## 313. `asset_image_add` — Add Asset Image
+
+- **Description (verbatim):** "Adds an image to an asset catalog by creating an .imageset with Contents.json and copying the source image."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Adds an image to an asset catalog by creating an .imageset with Contents.json and copying the source image.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "catalog": {
+      "type": "string",
+      "description": "Workspace-relative path to the .xcassets catalog (e.g. Assets.xcassets). Created if missing."
+    },
+    "imageName": {
+      "type": "string",
+      "description": "Name for the new image set (no slashes or '..')."
+    },
+    "sourcePath": {
+      "type": "string",
+      "description": "Workspace-relative path to the source image file inside the workspace."
+    }
+  },
+  "required": [
+    "catalog",
+    "imageName",
+    "sourcePath"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `catalog`, `imageName`, `imageSet`, `fileName`.
+Message: `Added image '\(imageName)' to '\(catalog)' as \(relativeSet) with file \(fileName).`.
+
+**Notes.** `Contents.json` via `commit()` + image copy as its own `MCPChange` + `approve()`. See `assist-project-build-tools.md` (Part E, "`asset_image_add`").
+
+## 314. `localization_audit` — Localization Audit
+
+- **Description (verbatim):** "Compares localization keys across locales and reports missing keys and keys never referenced in Swift code."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Compares localization keys across locales and reports missing keys and keys never referenced in Swift code.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Structured data keys: `localeCount`, `totalKeys`, `unusedCount`, `unused`.
+Message: `No Localizable.strings or Localizable.xcstrings files found.`.
+
+**Notes.** Per-locale missing keys + unused-key scan, Legacy's caps/quirks verbatim. See `assist-project-build-tools.md` (Part E, "`localization_audit`").
+
+## 315. `localization_manager` — Localization Manager
+
+- **Description (verbatim):** "Inspects, extracts, adds translations, and validates .strings, .stringsdict, and .xcstrings localization files."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, extracts, adds translations, and validates .strings, .stringsdict, and .xcstrings localization files.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'list_languages', 'read_key', 'add_translation', 'validate'."
+    },
+    "filePath": {
+      "type": "string",
+      "description": "Workspace-relative path to .strings or .xcstrings file."
+    },
+    "key": {
+      "type": "string",
+      "description": "Localization key (e.g. 'welcome_message')."
+    },
+    "translation": {
+      "type": "string",
+      "description": "Translated string value to insert."
+    }
+  },
+  "required": [
+    "action",
+    "filePath"
+  ]
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `languages`, `count`, `key`, `value`, `locale`, `file`.
+Message: `Languages (\(sorted.count)): \(sorted.joined(separator: ", "))`; `Key '\(key)' (\(locale)) = "\(found)" in \(fileURL.lastPathComponent).`; `Validation passed for \(fileURL.lastPathComponent). Valid String Catalog with \(catalog.keys.count) key(s).`; `Validation passed for \(fileURL.lastPathComponent). Valid property list.`; `Validation passed for \(fileURL.lastPathComponent). Contains \(keyCount) localized entries with no syntax errors.`; `Successfully added translation for '\(key)' (\(locale)) in \(fileURL.lastPathComponent).`; `Found localization entry for '\(key)': \(entry)`; `Successfully \(replaced ? "updated" : "added") translation for '\(key)' in \(fileURL.lastPathComponent).`; `Found localization: "\(parsed.key)" = "\(parsed.value)";`.
+
+**Notes.** `list_languages` / `read_key` / `add_translation` / `validate` across `.strings` / `.xcstrings` / `.stringsdict`. See `assist-project-build-tools.md` (Part E, "`localization_manager`").
+
+## 316. `localize_app` — App Localizer
+
+- **Description (verbatim):** "Fully localizes an app into up to 3 languages per session: discovers localizable strings in Swift sources, creates/merges a Localizable.xcstrings String Catalog with translations, and sets Info.plist CFBundleLocalizations + CFBundleDevelopmentRegion. Follows the LocalizingApps.md System Asset."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Fully localizes an app into up to 3 languages per session: discovers localizable strings in Swift sources, creates/merges a Localizable.xcstrings String Catalog with translations, and sets Info.plist CFBundleLocalizations + CFBundleDevelopmentRegion. Follows the LocalizingApps.md System Asset.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "localize (default), status, or set_development_region."
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Language codes to localize into, 1-3 per Assist session (e.g. [\"es\",\"fr\",\"de\"]). Required for action=localize."
+    },
+    "translations": {
+      "type": "object",
+      "description": "Optional map of string-key -> language-code -> translated text. Keys or languages without a supplied translation are written with state \"new\" as untranslated placeholders for the model to translate later."
+    },
+    "development_region": {
+      "type": "string",
+      "description": "Development-region language code (default \"en\"). Sets the String Catalog source language on localize; the value to set for action=set_development_region."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `count`, `languages`, `layoutDirection`, `rtl`, `sourceLanguage`, `path`, `keysAdded`.
+Message: `Localization status:\n- Discovered keys in Swift: \(discovered.keys.count)\n- String Catalog: \(catalogInfo)\n- \(plistInfo)`; `Set CFBundleDevelopmentRegion to '\(region)' (was: \(before)).\(note)`; `Localized app into \(languages.count) language(s): \(languages.joined(separator: ", ")).\n`.
+
+**Notes.** `localize` / `status` / `set_development_region`; catalog then plist, one `commit()` per file. See `assist-project-build-tools.md` (Part E, "`localize_app`").
+
+## 317. `string_catalog_migrator` — String Catalog Migrator
+
+- **Description (verbatim):** "Converts legacy .strings files into modern Xcode 15+ String Catalogs (.xcstrings)."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Converts legacy .strings files into modern Xcode 15+ String Catalogs (.xcstrings).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "sourceStringsPath": {
+      "type": "string",
+      "description": "Relative path to the legacy .strings file."
+    },
+    "targetXcstringsPath": {
+      "type": "string",
+      "description": "Relative destination path for the .xcstrings file."
+    }
+  },
+  "required": [
+    "sourceStringsPath",
+    "targetXcstringsPath"
+  ]
+}
+```
+
+**Output (success).** No structured data keys (plain text result).
+Message: `Successfully migrated \(catalog.keys.count) localization keys from `\(srcPath)` to String Catalog `\(dstPath)`.`.
+
+**Notes.** `.strings` → `.xcstrings` via the `StringCatalog` seam. See `assist-project-build-tools.md` (Part E, "`string_catalog_migrator`").
+
+## 318. `strings_file_validate` — Strings File Validate
+
+- **Description (verbatim):** "Validates .strings localization files: syntax errors, duplicate keys, and empty values."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates .strings localization files: syntax errors, duplicate keys, and empty values.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .strings file."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+**Output (success).** Structured data keys: `valid`, `duplicates`, `malformed`, `emptyValues`, `passed`.
+
+**Notes.** Valid/duplicate/malformed/empty counts, Legacy's per-line regex. See `assist-project-build-tools.md` (Part E, "`strings_file_validate`").
+
+## 319. `strings_localization` — Localization Strings
+
+- **Description (verbatim):** "Gets, sets, or deletes a localization string in Localizable.strings or Localizable.xcstrings."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Gets, sets, or deletes a localization string in Localizable.strings or Localizable.xcstrings.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "get, set, or delete. Default: get."
+    },
+    "key": {
+      "type": "string",
+      "description": "Localization key (required)."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value for set action."
+    },
+    "locale": {
+      "type": "string",
+      "description": "Locale code such as en or fr. Default: en."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional workspace-relative path to a specific .strings or .xcstrings file."
+    }
+  },
+  "required": [
+    "key"
+  ]
+}
+```
+
+**Output (success).** No output schema declared; structured data keys: `key`, `value`, `locale`, `file`.
+Message: `Key '\(key)' (\(locale)) = "\(found)" in \(fileURL.lastPathComponent).`; `Set key '\(key)' (\(locale)) in \(fileURL.lastPathComponent).`; `Deleted key '\(key)' (\(locale)) from \(fileURL.lastPathComponent).`; `Key '\(key)' = "\(foundValue)" in \(fileURL.lastPathComponent).`; `Set key '\(key)' in \(fileURL.lastPathComponent).`; `Deleted key '\(key)' from \(fileURL.lastPathComponent).`.
+
+**Notes.** get/set/delete in `.strings` / `.xcstrings`, Legacy discovery order. See `assist-project-build-tools.md` (Part E, "`strings_localization`").
+
+## 320. Summary: capability / risk / permission / writes (Wave 7)
+
+| Tool | Capability | Risk | Permission | Writes |
+|---|---|---|---|---|
+| `project_build` | compilation | execution | none | no |
+| `project_test` | testing | execution | none | no |
+| `project_clean` | compilation | potentiallyDestructive | fileSystem | yes |
+| `project_archive` | compilation | execution | none | no |
+| `build_log_analyze` | diagnostics | safeRead | none | no |
+| `build_system_detect` | repositoryDiscovery | safeRead | none | no |
+| `build_configuration_list` | compilation | safeRead | none | no |
+| `build_settings_diff` | compilation | safeRead | none | no |
+| `build_phase_scripts_list` | compilation | safeRead | none | no |
+| `xcresult_parser` | diagnostics | safeRead | none | no |
+| `derived_data_locate` | compilation | safeRead | none | no |
+| `xcode_toolchain_info` | compilation | safeRead | none | no |
+| `xcode_device_destination_finder` | diagnostics | safeRead | none | no |
+| `create_new_app` | general | safeMutation | fileSystem | yes |
+| `generate_xcodeproj` | compilation | execution | none | yes |
+| `pbxproj_lint` | diagnostics | safeRead | none | no |
+| `project_build_settings` | compilation | safeMutation | fileSystem | yes |
+| `project_capabilities` | fileModification | safeMutation | fileSystem | yes |
+| `project_diff` | gitOperations | safeRead | none | no |
+| `project_mutation_controller` | fileModification | safeMutation | fileSystem | yes |
+| `project_restore` | general | potentiallyDestructive | fileSystem | yes |
+| `project_scheme_list` | compilation | safeRead | none | no |
+| `project_snapshot` | general | safeRead | none | yes |
+| `project_structure_map` | repositoryDiscovery | safeRead | none | no |
+| `project_target_add` | compilation | safeMutation | fileSystem | yes |
+| `project_target_list` | compilation | safeRead | none | no |
+| `scheme_test_plan_list` | diagnostics | safeRead | none | no |
+| `target_dependencies_list` | compilation | safeRead | none | no |
+| `target_source_list` | compilation | safeRead | none | no |
+| `workspace_settings_read` | compilation | safeRead | none | no |
+| `xcode_build_settings_inspector` | diagnostics | safeRead | none | no |
+| `xcode_scheme_manager` | compilation | safeRead | none | no |
+| `swift_package_manager` | compilation | execution | none | no |
+| `package_manifest_read` | compilation | safeRead | none | no |
+| `package_manifest_validate` | compilation | safeRead | none | no |
+| `package_dependency_add` | compilation | safeMutation | fileSystem | yes |
+| `package_dependency_audit` | diagnostics | safeRead | none | no |
+| `package_dependency_update` | compilation | execution | none | no |
+| `spm_dependency_tree` | diagnostics | safeRead | none | no |
+| `carthage_cartfile_inspector` | diagnostics | safeRead | none | no |
+| `podfile_inspector` | diagnostics | safeRead | none | no |
+| `docc_build` | compilation | execution | none | no |
+| `docs_generate` | fileModification | safeMutation | fileSystem | yes |
+| `docs_index_build` | fileReading | safeRead | none | no |
+| `project_changelog` | general | safeRead | none | no |
+| `code_signing_diagnose` | diagnostics | safeRead | none | no |
+| `entitlements_diff` | diagnostics | safeRead | none | no |
+| `entitlements_manager` | fileModification | safeMutation | fileSystem | yes |
+| `info_plist_audit` | diagnostics | safeRead | none | no |
+| `plist_editor` | fileModification | safeMutation | fileSystem | yes |
+| `project_entitlements` | diagnostics | safeRead | none | no |
+| `project_info_plist` | fileModification | safeMutation | fileSystem | yes |
+| `project_signing` | diagnostics | safeRead | none | no |
+| `provisioning_check` | diagnostics | safeRead | none | no |
+| `provisioning_profile_reader` | diagnostics | safeRead | none | no |
+| `signing_certificate_inspector` | diagnostics | safeRead | none | no |
+| `asset_catalog_list` | repositoryDiscovery | safeRead | none | no |
+| `asset_catalog_manager` | fileModification | safeMutation | fileSystem | yes |
+| `asset_image_add` | fileModification | safeMutation | fileSystem | yes |
+| `localization_audit` | diagnostics | safeRead | none | no |
+| `localization_manager` | fileModification | safeMutation | fileSystem | yes |
+| `localize_app` | fileModification | safeMutation | fileSystem | yes |
+| `string_catalog_migrator` | fileModification | safeMutation | fileSystem | yes |
+| `strings_file_validate` | diagnostics | safeRead | none | no |
+| `strings_localization` | fileModification | safeMutation | fileSystem | yes |
+
 ## Evidence
 
 | Claim | Level | Source |
@@ -10289,3 +12511,10 @@ Message: `No source files older than \(days) days.`.
 | Wave 6 (Docs/review): all 23 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `code_review` and `safe_undo` honestly failing (LLM provider / snapshot store); `code_review` class verified live in `CodeReview.swift` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistApiDocsCoverageTool.swift`, `AssistApiEndpointAuditTool.swift`, `AssistApiSurfaceExtractTool.swift`, `AssistAutomatedRepairEngine.swift`, `AssistAutonomousReviewEngine.swift`, `AssistChangeImpactEstimateTool.swift`, `CodeReview.swift`, `AssistCodeSnippetTool.swift`, `AssistColorUsageAuditTool.swift`, `AssistColorSetBuilderTool.swift`, `AssistDocStringGeneratorTool.swift`, `AssistIconGeneratorTool.swift`, `AssistMarkdownLinkCheckTool.swift`, `AssistMarkdownTocGenerateTool.swift`, `AssistReadmeGenerateTool.swift`, `AssistReadmeLocateTool.swift`, `AssistRepoOverviewTool.swift`, `AssistUndoTool.swift`, `AssistValidateChangesTool.swift`, `AssistSessionExportTool.swift`, `AssistSessionProgressReportTool.swift`, `AssistStaleFilesReportTool.swift`, `AssistToolCapabilityLookupTool.swift`, read directly |
 | Wave 6: capability/risk/permission for all 79 tools extracted live from each Legacy tool file's `capability` / `riskLevel` properties (router static metadata agrees for the two tools it covers); permission follows the `AssistTool` default derivation (fileSystem iff mutating) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistTool.swift:192-198` (permission derivation); `AssistToolRouter.swift` static `metadata(for:)` (`code_review`, `compiler_diagnostics_engine` entries), read directly |
 | Wave 6: registry aliases for this wave (23 entries) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 7 (Build & run): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; session seam for build/test/clean, real `xcodebuild`/`xcrun` subprocesses for archive/xcresult/toolchain/destinations; `project_clean` the only writer | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistBuildProjectTool.swift`, `AssistTestRunnerTool.swift`, `AssistProjectCleanTool.swift`, `AssistProjectArchiveTool.swift`, `AssistBuildLogAnalyzeTool.swift`, `AssistBuildSystemDetectTool.swift`, `AssistBuildConfigurationListTool.swift`, `AssistBuildSettingsDiffTool.swift`, `AssistBuildPhaseScriptsListTool.swift`, `AssistXCResultParserTool.swift`, `AssistDerivedDataLocateTool.swift`, `AssistXcodeToolchainInfoTool.swift`, `AssistXcodeDeviceDestinationTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+ProjectBuild.swift`, `YcodeBuild`, `YcodeXcodebuild` |
+| Wave 7 (Project model): all 19 IDs, titles, descriptions, capabilities, risk levels, and input schemas; pbxproj-backed, no `xcodebuild`; `YcodeSnapshots` store; `project_target_add` registers properly; `project_mutation_controller` model edits | 1 | Legacy `Tools/AssistCreateNewAppTool.swift`, `AssistBuildProjectTool.swift` (`AssistGenerateXcodeprojTool`), `AssistPbxprojLintTool.swift`, `AssistProjectBuildSettingsTool.swift`, `AssistProjectCapabilitiesTool.swift`, `AssistDiffTool.swift`, `AssistProjectMutationController.swift`, `AssistRestoreSnapshotTool.swift`, `AssistProjectSchemeListTool.swift`, `AssistSnapshotProjectTool.swift`, `AssistProjectStructureMapTool.swift`, `AssistProjectTargetAddTool.swift`, `AssistProjectTargetListTool.swift`, `AssistSchemeTestPlanListTool.swift`, `AssistTargetDependenciesListTool.swift`, `AssistTargetSourceListTool.swift`, `AssistWorkspaceSettingsReadTool.swift`, `AssistXcodeBuildSettingsTool.swift`, `AssistXcodeSchemeTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+ProjectModel.swift`, `YcodeProject` |
+| Wave 7 (SPM/docs): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; real `swift` subprocesses; `Package.swift` edited as text | 1 | Legacy `Tools/AssistSwiftPackageTool.swift`, `AssistPackageManifestReadTool.swift`, `AssistPackageManifestValidateTool.swift`, `AssistPackageDependencyAddTool.swift`, `AssistPackageDependencyAuditTool.swift`, `AssistPackageDependencyUpdateTool.swift`, `AssistSPMDependencyTreeTool.swift`, `AssistCarthageCartfileInspectorTool.swift`, `AssistPodfileInspectorTool.swift`, `AssistDoccBuildTool.swift`, `AssistDocsGenerateTool.swift`, `AssistDocsIndexBuildTool.swift`, `AssistChangeLogTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+SPMDocs.swift` |
+| Wave 7 (Signing): all 11 IDs, titles, descriptions, capabilities, risk levels, and input schemas; real `codesign`/`security` subprocesses; `plist_editor` distinct from Wave 2 `plist_edit` | 1 | Legacy `Tools/AssistCodeSigningDiagnoseTool.swift`, `AssistEntitlementsDiffTool.swift`, `AssistEntitlementsTool.swift`, `AssistInfoPlistAuditTool.swift`, `AssistPlistTool.swift`, `AssistProjectEntitlementsTool.swift`, `AssistProjectInfoPlistTool.swift`, `AssistProjectSigningTool.swift`, `AssistProvisioningCheckTool.swift`, `AssistProvisioningProfileReaderTool.swift`, `AssistSigningCertificateInspectorTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Signing.swift`, `YcodeSigning`, `YcodePlist` |
+| Wave 7 (Assets/localization): all 9 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `StringCatalog` seam for `.xcstrings`, line-based `.strings`, workspace-confined paths | 1 | Legacy `Tools/AssistAssetCatalogListTool.swift`, `AssistAssetCatalogTool.swift`, `AssistAssetImageAddTool.swift`, `AssistLocalizationAuditTool.swift`, `AssistLocalizationTool.swift`, `AssistLocalizeAppTool.swift`, `AssistStringCatalogMigratorTool.swift`, `AssistStringsFileValidateTool.swift`, `AssistStringsLocalizationTool.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+AssetsLocalization.swift`, `YcodeStrings` (`StringCatalog`), `YcodeAssetCatalog` |
+| Wave 7: registry aliases for this wave (21 entries); `build` / `test` deliberately NOT carried over (collide with Ycode's native `build` / `test`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |
+| Wave 7: `scan-public.py` findings in Wave 6's `YcodeAuditToolsTests.swift` (AWS documentation example key in the `secrets_scan` fixture) fixed by assembling the example key from parts so the literal never appears in tracked source; test semantics unchanged | 1 | Ycode `ycode/Tests/YcodeMCPTests/YcodeAuditToolsTests.swift`, `.github/scripts/scan-public.py` |

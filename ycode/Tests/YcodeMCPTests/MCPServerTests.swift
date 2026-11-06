@@ -179,7 +179,30 @@ import YcodeAssistant
                         "docstring_generator", "icon_generator_tool", "markdown_link_check",
                         "markdown_toc_generate", "readme_generate", "readme_locate",
                         "repo_overview", "safe_undo", "safe_validate_changes", "session_export",
-                        "session_progress_report", "stale_files_report", "tool_capability_lookup"]
+                        "session_progress_report", "stale_files_report", "tool_capability_lookup",
+                        "project_build", "project_test", "project_clean", "project_archive",
+                        "build_log_analyze", "build_system_detect", "build_configuration_list",
+                        "build_settings_diff", "build_phase_scripts_list", "xcresult_parser",
+                        "derived_data_locate", "xcode_toolchain_info",
+                        "xcode_device_destination_finder", "create_new_app", "generate_xcodeproj",
+                        "pbxproj_lint", "project_build_settings", "project_capabilities",
+                        "project_diff", "project_mutation_controller", "project_restore",
+                        "project_scheme_list", "project_snapshot", "project_structure_map",
+                        "project_target_add", "project_target_list", "scheme_test_plan_list",
+                        "target_dependencies_list", "target_source_list", "workspace_settings_read",
+                        "xcode_build_settings_inspector", "xcode_scheme_manager",
+                        "swift_package_manager", "package_manifest_read",
+                        "package_manifest_validate", "package_dependency_add",
+                        "package_dependency_audit", "package_dependency_update",
+                        "spm_dependency_tree", "carthage_cartfile_inspector", "podfile_inspector",
+                        "docc_build", "docs_generate", "docs_index_build", "project_changelog",
+                        "code_signing_diagnose", "entitlements_diff", "entitlements_manager",
+                        "info_plist_audit", "plist_editor", "project_entitlements",
+                        "project_info_plist", "project_signing", "provisioning_check",
+                        "provisioning_profile_reader", "signing_certificate_inspector",
+                        "asset_catalog_list", "asset_catalog_manager", "asset_image_add",
+                        "localization_audit", "localization_manager", "localize_app",
+                        "string_catalog_migrator", "strings_file_validate", "strings_localization"]
         #expect(tools.map(\.name) == expected)
         for t in tools {
             let l = t.listing
@@ -224,7 +247,7 @@ import YcodeAssistant
                                                            "json_validator_tool", "yaml_validate",
                                                            "code_mutation_engine", "dependency_resolution_engine",
                                                            "external_resource_gateway", "patch_application_engine",
-                                                           "test_data_factory", "test_snapshot_manage", "test_target_add", "ui_test_scaffold", "import_cleanup", "privacy_manifest_auditor", "automated_repair_engine", "colorset_builder", "icon_generator_tool", "markdown_toc_generate", "readme_generate", "safe_undo", "session_export"])
+                                                           "test_data_factory", "test_snapshot_manage", "test_target_add", "ui_test_scaffold", "import_cleanup", "privacy_manifest_auditor", "automated_repair_engine", "colorset_builder", "icon_generator_tool", "markdown_toc_generate", "readme_generate", "safe_undo", "session_export", "project_clean", "create_new_app", "generate_xcodeproj", "project_build_settings", "project_capabilities", "project_mutation_controller", "project_restore", "project_snapshot", "project_target_add", "package_dependency_add", "docs_generate", "entitlements_manager", "plist_editor", "project_info_plist", "asset_catalog_manager", "asset_image_add", "localization_manager", "localize_app", "string_catalog_migrator", "strings_localization"])
     }
 }
 

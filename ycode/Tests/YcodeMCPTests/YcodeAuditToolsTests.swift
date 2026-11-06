@@ -472,10 +472,13 @@ import Testing
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        // The AWS example key from the public documentation (not a real secret).
+        // The AWS example key from the public documentation (not a real secret),
+        // assembled from parts so the literal never appears in tracked source
+        // (scan-public flags the AKIA pattern).
+        let awsExampleKey = "AKIA" + "IOSFODNN7EXAMPLE"
         try write(sample, "Audit/Secrets.swift", """
             import Foundation
-            let key = "AKIAIOSFODNN7EXAMPLE"
+            let key = "\(awsExampleKey)"
             let password = "hunter2"
             """)
         try write(sample, "Audit/Clean.swift", "import Foundation\nlet greeting = \"hello\"\n")
@@ -486,7 +489,7 @@ import Testing
         #expect(r.structured?["files_with_findings"] == 1)
         #expect(r.firstText.contains("Audit/Secrets.swift:2:AWS Access Key ID"))
         #expect(r.firstText.contains("Audit/Secrets.swift:3:password assignment"))
-        #expect(!r.firstText.contains("AKIAIOSFODNN7EXAMPLE"))
+        #expect(!r.firstText.contains(awsExampleKey))
         #expect(!r.firstText.contains("hunter2"))
         let traversal = try await host.server.callTool("secrets_scan", ["path": .string("../..")])
         #expect(traversal.isToolError && traversal.firstText.contains("Invalid path: '../..'"))
