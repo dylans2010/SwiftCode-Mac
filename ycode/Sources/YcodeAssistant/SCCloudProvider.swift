@@ -240,8 +240,19 @@ public struct SCCloudProvider: AssistantProvider {
         return canonicalModelName(String(id.dropFirst(internalIDPrefix.count + 1)))
     }
 
+    /// Whether `id` is a SwiftCode Cloud internal ID: the bare legacy
+    /// `swiftcode-cloud` or a per-model `swiftcode-cloud:<name>`.
+    /// Legacy `SCCloudConfiguration.isCloudModelID` (Wave 15 router).
+    static func isCloudModelID(_ id: String) -> Bool {
+        id == internalIDPrefix || id.hasPrefix(internalIDPrefix + ":")
+    }
+
     /// The prefix of Legacy's internal cloud-model IDs.
     static let internalIDPrefix = "swiftcode-cloud"
+
+    /// Display name for a cloud model with no endpoint name
+    /// (Legacy `SCCloudConfiguration.displayName`).
+    static let displayNameFallback = "SwiftCode Cloud Model"
 
     /// The chat-completion reply text. Accepts, in order:
     ///   1. OpenAI-style `choices[0].message.content`

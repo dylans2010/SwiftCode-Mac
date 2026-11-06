@@ -1,9 +1,9 @@
 /**
  * Public developer contract for the SwiftCode SDK (TypeScript).
  *
- * Finalized from Docs/Intro-to-SDK.md §6.2 (TypeScript developer contract
+ * Finalized from specs/ide/sdk-platform.md (TypeScript developer contract
  * intent) and §11.2/§11.3 (API minimums), matched against the Swift host
- * contracts in `SwiftCode/SDK/Contracts/Protocol/`.
+ * contracts in `ycode/Sources/YcodeSDK/Contracts/`.
  *
  * These are types only. The real implementations of the IPC client and the
  * context live in `ipc.ts` and `context.ts`.
@@ -384,7 +384,7 @@ export interface UIAPI {
  * The context handed to an extension on activation.
  *
  * Assist reaches extensions ONLY through the two entitled SDK variants
- * (Docs/Intro-to-SDK.md §11, task B2): `assist` (headless `assistSDK`)
+ * (specs/ide/sdk-platform.md, task B2): `assist` (headless `assistSDK`)
  * and `assistUI` (`assistSDK.UI`). Both are entitlement-gated — the
  * `com.SwiftCode.developer-AI-Assist` entitlement on the developer's API
  * key (task B3), never the manifest — and every call fails with the
@@ -561,7 +561,7 @@ export interface SDKErrorShape {
 
 /**
  * The exact user-facing message the host produces when an Assist call is
- * denied for lack of a verified entitlement (Docs/Intro-to-SDK.md §13).
+ * denied for lack of a verified entitlement (specs/ide/sdk-platform.md).
  *
  * VERBATIM — do not reword. The TypeScript layer never fabricates this:
  * it is thrown only when the host answers with the typed `ASSIST_DENIED`
@@ -602,12 +602,12 @@ export class SDKAssistAccessError extends Error {
 
 /** Metadata for one headless Assist session. Never carries contents. */
 /* ------------------------------------------------------------------ */
-/* Cloud-model access denial (Docs/Intro-to-SDK.md §12–§13, task B4)    */
+/* Cloud-model access denial (specs/ide/sdk-platform.md, task B4)    */
 /* ------------------------------------------------------------------ */
 
 /**
  * The exact user-facing message the host produces when a cloud-model call
- * is denied for lack of a verified entitlement (Docs/Intro-to-SDK.md §13).
+ * is denied for lack of a verified entitlement (specs/ide/sdk-platform.md).
  *
  * PROPOSED WORDING — Dylan finalizes the exact text. The TypeScript layer
  * never fabricates this: it is thrown only when the host answers with the

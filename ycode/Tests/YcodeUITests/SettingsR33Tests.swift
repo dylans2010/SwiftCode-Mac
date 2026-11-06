@@ -119,6 +119,7 @@ private let ycodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent
             "# Report Navigator", "Local report history",
             "# Settings Import & Export", "Export…",
             "# Reset Ycode", "Reset Settings", "\u{201C}Don\u{2019}t ask me\u{201D} warnings",
+            "# SwiftCode Pro", "SwiftCode Pro",
         ])
         func items(_ row: String) -> [String] { pane.control(NSPopUpButton.self, inRow: row)?.itemTitles ?? [] }
         #expect(items("Restore open projects and workspaces") == ["Use System Setting", "Always", "Never"])

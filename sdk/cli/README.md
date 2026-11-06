@@ -8,7 +8,7 @@ modules live in `commands/` and follow the contract in
 ## Install / run
 
 ```sh
-cd SwiftCode/SDK/TypeScript/cli
+cd sdk/cli
 npm install -g .        # exposes the `swiftcode` binary, or:
 node swiftcode.mjs <command> [args]
 ```
@@ -65,7 +65,7 @@ swiftcode validate [dir] [--json]
 `[dir]` defaults to the current directory. Checks that `swiftcode.json`
 exists and parses, then runs structural validation mirroring the real
 manifest schema
-(`SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json`):
+(`sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json`):
 required fields, types, length bounds, `manifestVersion === 1`,
 reverse-DNS `id`, semver `version`, `runtime.language === "typescript"`,
 `sdk.name === "@swiftcode/sdk"`, `sdk.protocolVersion === 1`, capability
@@ -130,7 +130,7 @@ swiftcode package [dir] [--out <dir>] [--json]
 
 Full format specification (fields, digest algorithm + canonicalization
 rules, extension vs. app handling, error taxonomy):
-`SwiftCode/SDK/Documentation/Package-Format.md`.
+`sdk/docs/Package-Format.md`.
 
 ### dev — local development loop
 

@@ -1,7 +1,7 @@
 # The `.swiftcode-extension` Package Format
 
 **Status:** Task A4, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §8 · **Producers/consumers:** `swiftcode package`
+**Spec:** `specs/ide/sdk-platform.md` · **Producers/consumers:** `swiftcode package`
 (`TypeScript/cli/commands/package.mjs`), `swiftcode install`
 (`TypeScript/cli/commands/install.mjs`), Studio Ship/Export
 (`SDK/Studio/Views/SDKShipExportView.swift`)
@@ -39,7 +39,7 @@ Size limit: 256 MiB (installer-side).
 | Entry                 | Required | Notes                                                              |
 | --------------------- | -------- | ------------------------------------------------------------------ |
 | `swiftcode.json`      | yes      | The manifest (`Extension-Manifest.md`); validated against the v1 schema |
-| `swiftcode-digest.json` | yes    | Embedded integrity record (§3)                                     |
+| `swiftcode-digest.json` | yes    | Embedded integrity record                                     |
 | `dist/**`             | yes      | Compiled output; must contain `runtime.entrypoint`                 |
 | `schemas/**`          | no       | Shipped schema copies (the manifest `$schema` pointer resolves here) |
 | `README.md`           | no       |                                                                    |
@@ -79,8 +79,8 @@ deterministic):
 | `formatVersion` | `1`. Packages with any other version are rejected (`DIGEST_RECORD_MALFORMED`). |
 | `id`            | Manifest id the package was built from. Must equal `swiftcode.json`'s `id`. |
 | `version`       | Manifest version. Must equal `swiftcode.json`'s `version`.              |
-| `kind`          | `"extension"` or `"app"` (§5). Must equal the manifest `type`.          |
-| `contentDigest` | SHA-256 over the canonicalized package contents (§4).                   |
+| `kind`          | `"extension"` or `"app"`. Must equal the manifest `type`.          |
+| `contentDigest` | SHA-256 over the canonicalized package contents.                   |
 
 ## 4. Digest algorithm and canonicalization
 

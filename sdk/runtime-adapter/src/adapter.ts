@@ -1,0 +1,427 @@
+/**
+ * @swiftcode/runtime-adapter — Node runtime adapter that hosts a TypeScript
+ * SwiftCode extension as an out-of-process runtime.
+ *
+ * Written from the protocol spec in `sdk/runtime-adapter/README.md`
+ * (behaviour spec: `specs/ide/sdk-platform.md` §13.2) — not copied from
+ * any earlier implementation. The README is the contract; where it does
+ * not pin a value down, the choice is marked DECISION below and recorded
+ * in the spec's Wave 15 section.
+ *
+ * Wire: NDJSON over stdio, protocol version 1 (`SDK_PROTOCOL_VERSION`).
+ * stdout is the IPC channel only — diagnostics go to stderr.
+ *
+ * CLI:
+ *   node dist/adapter.js --entrypoint <path> [--manifest <swiftcode.json>]
+ *                        [--id <id>] [--version <v>] [--name <n>]
+ *
+ * The entry module's default export must be `{ id, activate, deactivate }`
+ * with function-valued `activate`/`deactivate`; anything else is a
+ * contract failure (stderr + exit 1, never a silent hang).
+ */
+
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import {
+  createContext,
+  createStdioConnection,
+  SDK_PROTOCOL_VERSION,
+} from "@swiftcode/sdk";
+import type {
+  CreatedContext,
+  HostConnection,
+  SwiftCodeExtension,
+} from "@swiftcode/sdk";
+
+/** Best-effort `deactivate()` budget (README: 5 s). */
+const DEACTIVATE_BUDGET_MS = 5_000;
+/** Bounded stdout flush before a fatal exit (README: 1 s). */
+const FLUSH_BUDGET_MS = 1_000;
+
+const USAGE = `Usage: node dist/adapter.js --entrypoint <path> [--manifest <swiftcode.json>] [--id <id>] [--version <v>] [--name <n>]
+
+Options:
+  --entrypoint <path>   Path (absolute or cwd-relative) to the entry module. Required.
+  --manifest <path>     Path to swiftcode.json. Supplies id/name/version.
+  --id <id>             Identity override. Precedence: flag > manifest > module id.
+  --name <name>         Display-name override. Precedence: flag > manifest > module id.
+  --version <version>   Version override. Precedence: flag > manifest > "0.0.0".
+  --help, -h            Print this usage and exit 0.
+`;
+
+function diagnose(message: string): void {
+  process.stderr.write(`[@swiftcode/runtime-adapter] ${message}\n`);
+}
+
+/** Flush pending stdout writes, bounded so a fatal exit never hangs. */
+async function flushStdout(): Promise<void> {
+  await Promise.race([
+    new Promise<void>((resolve) => {
+      process.stdout.write("", () => resolve());
+    }),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, FLUSH_BUDGET_MS);
+    }),
+  ]);
+}
+
+interface CliOptions {
+  entrypoint: string;
+  manifestPath: string | undefined;
+  id: string | undefined;
+  name: string | undefined;
+  version: string | undefined;
+}
+
+/**
+ * Parses `process.argv`. Unknown flags, a flag missing its value, a
+ * positional argument, or a missing `--entrypoint` are usage errors
+ * (stderr + exit 1). `--help`/`-h` prints usage and exits 0.
+ */
+function parseArgs(argv: string[]): CliOptions | "help" {
+  let entrypoint: string | undefined;
+  let manifestPath: string | undefined;
+  let id: string | undefined;
+  let name: string | undefined;
+  let version: string | undefined;
+
+  const takeValue = (flag: string, i: number): string => {
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new Error(`flag ${flag} requires a value`);
+    }
+    return value;
+  };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    switch (arg) {
+      case "--help":
+      case "-h":
+        return "help";
+      case "--entrypoint":
+        entrypoint = takeValue(arg, i);
+        i += 1;
+        break;
+      case "--manifest":
+        manifestPath = takeValue(arg, i);
+        i += 1;
+        break;
+      case "--id":
+        id = takeValue(arg, i);
+        i += 1;
+        break;
+      case "--name":
+        name = takeValue(arg, i);
+        i += 1;
+        break;
+      case "--version":
+        version = takeValue(arg, i);
+        i += 1;
+        break;
+      default:
+        throw new Error(`unknown argument: ${arg}`);
+    }
+  }
+
+  if (entrypoint === undefined) {
+    throw new Error("--entrypoint <path> is required");
+  }
+  return { entrypoint, manifestPath, id, name, version };
+}
+
+interface ManifestShape {
+  id?: unknown;
+  name?: unknown;
+  version?: unknown;
+}
+
+/** Reads and parses the manifest. Any read/parse failure is fatal. */
+async function loadManifest(manifestPath: string): Promise<ManifestShape> {
+  let raw: string;
+  try {
+    raw = await readFile(manifestPath, "utf8");
+  } catch (error) {
+    throw new Error(
+      `cannot read manifest ${manifestPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  try {
+    return JSON.parse(raw) as ManifestShape;
+  } catch (error) {
+    throw new Error(
+      `cannot parse manifest ${manifestPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/** Validates the entry module's default export against the §12.4 contract. */
+function asExtension(module: unknown): SwiftCodeExtension {
+  const candidate =
+    typeof module === "object" && module !== null
+      ? (module as Record<string, unknown>)["default"]
+      : undefined;
+  if (typeof candidate !== "object" || candidate === null) {
+    throw new Error(
+      "entry module's default export must be an object { id, activate, deactivate }",
+    );
+  }
+  const record = candidate as Record<string, unknown>;
+  if (typeof record["activate"] !== "function" || typeof record["deactivate"] !== "function") {
+    throw new Error(
+      "entry module's default export must have function-valued activate and deactivate",
+    );
+  }
+  return candidate as SwiftCodeExtension;
+}
+
+/** Best-effort `deactivate()` inside the 5 s budget; never throws. */
+async function deactivateBestEffort(
+  extensionModule: SwiftCodeExtension,
+): Promise<void> {
+  try {
+    await Promise.race([
+      extensionModule.deactivate(),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, DEACTIVATE_BUDGET_MS);
+      }),
+    ]);
+  } catch {
+    // Best effort only — teardown must not mask the original outcome.
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * DECISION (README gap): the README fixes the `commands.executeResult`
+ * error shape `{ code, message, correlationId }` but never says what
+ * `correlationId` is. The adapter uses the thrown error's own
+ * `correlationId` when it carries one (`SDKError` does), and the
+ * `invocationId` otherwise — the invocation is the only correlation the
+ * host can match the result against.
+ */
+function resultError(
+  invocationId: string,
+  code: string,
+  message: string,
+  correlationId?: string,
+): Record<string, unknown> {
+  return {
+    invocationId,
+    ok: false,
+    error: { code, message, correlationId: correlationId ?? invocationId },
+  };
+}
+
+async function main(): Promise<number> {
+  let options: CliOptions;
+  try {
+    const parsed = parseArgs(process.argv.slice(2));
+    if (parsed === "help") {
+      process.stdout.write(USAGE);
+      return 0;
+    }
+    options = parsed;
+  } catch (error) {
+    process.stderr.write(`error: ${errorMessage(error)}\n${USAGE}`);
+    return 1;
+  }
+
+  // -- Manifest (fatal on any read/parse failure). -------------------------
+  let manifest: ManifestShape = {};
+  if (options.manifestPath !== undefined) {
+    try {
+      manifest = await loadManifest(options.manifestPath);
+    } catch (error) {
+      process.stderr.write(`error: ${errorMessage(error)}\n`);
+      return 1;
+    }
+  }
+
+  // -- Entry module (fatal on import failure or contract violation). ------
+  let extensionModule: SwiftCodeExtension;
+  try {
+    const entrypointAbs = path.resolve(options.entrypoint);
+    const imported: unknown = await import(pathToFileURL(entrypointAbs).href);
+    extensionModule = asExtension(imported);
+  } catch (error) {
+    process.stderr.write(`error: ${errorMessage(error)}\n`);
+    return 1;
+  }
+
+  // -- Identity. Precedence: flag > manifest > module id; version falls
+  // back to "0.0.0"; name falls back to the module id (README §12.4).
+  // DECISION (README gap): the README never states what happens when no
+  // source supplies an id at all. An `extension.ready` frame needs an
+  // extensionId, so a missing id is a contract failure, not a silent
+  // default — the adapter exits 1 naming the gap.
+  const extensionId =
+    options.id ?? asNonEmptyString(manifest.id) ?? asNonEmptyString(extensionModule.id);
+  if (extensionId === undefined) {
+    process.stderr.write(
+      "error: no extension id: pass --id, set it in the manifest, or export it from the entry module\n",
+    );
+    return 1;
+  }
+  const extensionName =
+    options.name ?? asNonEmptyString(manifest.name) ?? extensionId;
+  const extensionVersion =
+    options.version ?? asNonEmptyString(manifest.version) ?? "0.0.0";
+
+  const connection: HostConnection = createStdioConnection();
+  const created: CreatedContext = createContext(connection, {
+    id: extensionId,
+    name: extensionName,
+    version: extensionVersion,
+  });
+
+  let teardownStarted = false;
+  let exitCode = 0;
+
+  /** Shared teardown: best-effort deactivate, dispose, close, exit. */
+  const teardown = async (code: number): Promise<void> => {
+    if (teardownStarted) return;
+    teardownStarted = true;
+    exitCode = code;
+    await deactivateBestEffort(extensionModule);
+    try {
+      created.context.subscriptions.disposeAll();
+    } catch {
+      // Best effort only.
+    }
+    connection.close();
+    await flushStdout();
+    process.exit(exitCode);
+  };
+
+  // -- Host → extension event dispatch. ------------------------------------
+  connection.onEvent((event) => {
+    if (event.name === "commands.execute") {
+      void (async () => {
+        const payload =
+          typeof event.payload === "object" && event.payload !== null
+            ? (event.payload as Record<string, unknown>)
+            : {};
+        const commandId = payload["commandId"];
+        const invocationId = payload["invocationId"];
+        if (typeof commandId !== "string" || typeof invocationId !== "string") {
+          diagnose("ignoring malformed commands.execute event (missing commandId/invocationId)");
+          return;
+        }
+        const handler = created.getCommandHandler(commandId);
+        if (handler === undefined) {
+          connection.sendEvent("commands.executeResult", resultError(
+            invocationId,
+            "UNKNOWN_COMMAND",
+            `Unknown command "${commandId}".`,
+          ));
+          return;
+        }
+        try {
+          const result = await handler(payload["payload"]);
+          connection.sendEvent("commands.executeResult", {
+            invocationId,
+            ok: true,
+            result: result ?? null,
+          });
+        } catch (error) {
+          const code =
+            typeof error === "object" && error !== null && "code" in error
+              ? String((error as Record<string, unknown>)["code"])
+              : "COMMAND_FAILED";
+          const correlationId =
+            typeof error === "object" && error !== null && "correlationId" in error
+              ? String((error as Record<string, unknown>)["correlationId"])
+              : undefined;
+          connection.sendEvent(
+            "commands.executeResult",
+            resultError(invocationId, code, errorMessage(error), correlationId),
+          );
+        }
+      })();
+      return;
+    }
+    if (event.name === "shutdown") {
+      void teardown(0);
+      return;
+    }
+    // Anything else (e.g. build.output / build.finished) is routed
+    // internally by the SDK context to its live build handles.
+  });
+
+  // -- Crash paths: best-effort extension.error, then exit 1. --------------
+  // DECISION (README gap): the README fixes the `extension.error` shape
+  // `{ extensionId, message, detail }` but not `detail`'s content. The
+  // adapter sends the error stack when one exists, else the message.
+  process.on("uncaughtException", (error: unknown) => {
+    const message = errorMessage(error);
+    connection.sendEvent("extension.error", {
+      extensionId,
+      message,
+      detail: error instanceof Error && error.stack !== undefined ? error.stack : message,
+    });
+    void teardown(1);
+  });
+  process.on("unhandledRejection", (reason: unknown) => {
+    const message = errorMessage(reason);
+    connection.sendEvent("extension.error", {
+      extensionId,
+      message,
+      detail: reason instanceof Error && reason.stack !== undefined ? reason.stack : message,
+    });
+    void teardown(1);
+  });
+
+  // -- Clean teardown triggers: stdin EOF/close, SIGTERM. ------------------
+  process.stdin.on("end", () => void teardown(0));
+  process.stdin.on("close", () => void teardown(0));
+  process.on("SIGTERM", () => void teardown(0));
+
+  // -- Activation. ----------------------------------------------------------
+  try {
+    await extensionModule.activate(created.context);
+  } catch (error) {
+    const message = errorMessage(error);
+    connection.sendEvent("extension.activationFailed", { extensionId, message });
+    await deactivateBestEffort(extensionModule);
+    try {
+      created.context.subscriptions.disposeAll();
+    } catch {
+      // Best effort only.
+    }
+    connection.close();
+    await flushStdout();
+    process.stderr.write(`error: activation failed: ${message}\n`);
+    return 1;
+  }
+
+  connection.sendEvent("extension.ready", {
+    extensionId,
+    version: extensionVersion,
+    protocolVersion: SDK_PROTOCOL_VERSION,
+  });
+  // Stay alive awaiting host events until shutdown / stdin EOF / SIGTERM.
+  return 0;
+}
+
+main()
+  .then((code) => {
+    // 0 here means "activated; awaiting host events" — the process stays
+    // alive on the open stdio pipe and exits via teardown(), not here.
+    // A non-zero code is a startup/activation failure: flush and exit.
+    if (code !== 0) {
+      void flushStdout().then(() => process.exit(code));
+    }
+  })
+  .catch((error: unknown) => {
+    process.stderr.write(`error: ${errorMessage(error)}\n`);
+    void flushStdout().then(() => process.exit(1));
+  });

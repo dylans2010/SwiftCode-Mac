@@ -12,6 +12,17 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     public var openRouterURL = OpenRouterProvider.defaultBaseURL
     /// The local OpenCode server's address (Wave 9).
     public var openCodeURL = OpenCodeProvider.defaultBaseURL
+    /// The OpenCode agent every session names (Wave 15: Legacy
+    /// `OpenCodeConfiguration.agentName`, default `"swiftcode"`).
+    /// It must be configured server-side with every permission
+    /// denied, so the server returns JSON tool requests for Ycode
+    /// to run instead of executing tools itself.
+    public var openCodeAgentName = OpenCodeProvider.defaultAgentName
+    /// The free-text custom model ID (Wave 15: Legacy
+    /// `AssistModelManager.customModelID` / `AppSettings.customModel`).
+    /// A bare ID stored here is user-provided by definition; provider
+    /// IDs arrive as `provider/model` or via a discovered record.
+    public var customModelID = ""
     /// SwiftCode Cloud's base URL (Wave 9). Empty by default: no
     /// endpoint is shipped, and the provider reports unconfigured
     /// until Dylan enters a real one.
@@ -36,6 +47,35 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     /// Output limit and sampling for the model servers (Ollama, llama.cpp,
     /// OpenAI); unset values are not sent.
     public var generation = GenerationOptions.assistantDefault
+    /// How a request picks its model (Wave 15: Legacy
+    /// `AppSettings.assistModelRoutingStrategy`). `.providerDefault`
+    /// uses the provider + model chosen in Settings;
+    /// `.appModels` considers every eligible model from every
+    /// provider when a turn fails over. Legacy's third strategy,
+    /// `"rotation"` (Gemini key rotation through the Antigravity SDK
+    /// catalog), has no Ycode equivalent and decodes to
+    /// `.providerDefault`.
+    public var routingStrategy: AssistRoutingStrategy = .providerDefault
+    /// "Automatically Switch Models" (Wave 15: Legacy
+    /// `assistAutomaticallySwitchModels`, default true). When off,
+    /// a turn failure never silently substitutes another model: the
+    /// router returns nil and the caller waits on / retries the
+    /// selected model.
+    public var automaticallySwitchModels = true
+    /// "Use Provider Models" (Wave 15: Legacy
+    /// `assistUseProviderModels`, default false). When on, selection
+    /// and failover may never pick a user-provided (custom) model,
+    /// even as a fallback.
+    public var useProviderModelsOnly = false
+    /// "Only Use Free Models" (Wave 15: Legacy `onlyUseFreeModels`,
+    /// default false). When on, a model is eligible only when its ID
+    /// contains "free" (see `AssistModelEligibilityPolicy`).
+    public var onlyUseFreeModels = false
+    /// "Use SwiftCode's Cloud Model" (Wave 15: Legacy
+    /// `useSwiftCodeCloudModel`, default false). When on, the cloud
+    /// model is eligible under every routing strategy and bypasses
+    /// provider credentials entirely.
+    public var useSwiftCodeCloudModel = false
 
     public init() {}
 
@@ -52,6 +92,8 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
         openAIURL = (try? c.decode(String.self, forKey: .openAIURL)) ?? d.openAIURL
         openRouterURL = (try? c.decode(String.self, forKey: .openRouterURL)) ?? d.openRouterURL
         openCodeURL = (try? c.decode(String.self, forKey: .openCodeURL)) ?? d.openCodeURL
+        openCodeAgentName = (try? c.decode(String.self, forKey: .openCodeAgentName)) ?? d.openCodeAgentName
+        customModelID = (try? c.decode(String.self, forKey: .customModelID)) ?? d.customModelID
         scCloudURL = (try? c.decode(String.self, forKey: .scCloudURL)) ?? d.scCloudURL
         openAIAuth = (try? c.decode(OpenAIAuth.self, forKey: .openAIAuth)) ?? d.openAIAuth
         models = (try? c.decode([String: String].self, forKey: .models)) ?? [:]
@@ -62,6 +104,11 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
         acpCommand = (try? c.decode(String.self, forKey: .acpCommand)) ?? ""
         agentMode = (try? c.decode(Bool.self, forKey: .agentMode)) ?? d.agentMode
         generation = (try? c.decode(GenerationOptions.self, forKey: .generation)) ?? d.generation
+        routingStrategy = (try? c.decode(AssistRoutingStrategy.self, forKey: .routingStrategy)) ?? d.routingStrategy
+        automaticallySwitchModels = (try? c.decode(Bool.self, forKey: .automaticallySwitchModels)) ?? d.automaticallySwitchModels
+        useProviderModelsOnly = (try? c.decode(Bool.self, forKey: .useProviderModelsOnly)) ?? d.useProviderModelsOnly
+        onlyUseFreeModels = (try? c.decode(Bool.self, forKey: .onlyUseFreeModels)) ?? d.onlyUseFreeModels
+        useSwiftCodeCloudModel = (try? c.decode(Bool.self, forKey: .useSwiftCodeCloudModel)) ?? d.useSwiftCodeCloudModel
     }
 }
 
@@ -120,7 +167,32 @@ public struct AssistantBackends: Sendable {
                 fingerprint = fresh
             }
             return SCCloudProvider(baseURL: settings.scCloudURL, fingerprint: fingerprint)
+        case .metaAssist:
+            return MetaAssistProvider(locator: locator)
         }
+    }
+
+    /// The provider a stored model identifier belongs to (Wave 15:
+    /// Legacy `AssistProviderConfiguration.AssistProviderSelection`).
+    /// Prefixed IDs win first — `hermes:`, `opencode:`,
+    /// `swiftcode-cloud:` — so a stored OpenCode model can never be
+    /// misreported (and misrouted) as a direct provider model.
+    /// Every other identifier keeps the routing the name-based
+    /// specification already gives it, so existing selections are
+    /// unaffected. The model identifier remains the routing source
+    /// of truth for a running session; the persisted provider
+    /// picker (`settings.provider`) is kept in sync by Settings.
+    public func providerKind(forModelID storedID: String) -> ProviderKind {
+        if HermesModelID.isHermesModelID(storedID) { return .hermes }
+        if OpenCodeModelID.isOpenCodeModelID(storedID) { return .openCode }
+        if SCCloudProvider.isCloudModelID(storedID) { return .scCloud }
+        return AssistModelSpecification.specification(for: storedID).provider
+    }
+
+    /// The back end for a stored model identifier, through the
+    /// existing `provider(_:)` dispatch — no second dispatcher.
+    public func provider(forModelID storedID: String) -> AssistantProvider {
+        provider(providerKind(forModelID: storedID))
     }
 
     /// Every back end's availability, checked concurrently.

@@ -33,7 +33,9 @@ replacement was performed.
   plus package name/version/runtime entry points, disables lifecycle scripts,
   and falls back honestly on failed/incomplete remote releases. The rebuilt
   archive includes Assist and Assist UI modules absent from the previous archive.
-- `Distribution/bundle-sdk.sh` ships prebuilt package, CLI and its runtime
+- `sdk/scripts/package-sdk.sh` (destination packaging pipeline; the Legacy
+  `Distribution/bundle-sdk.sh` was never ported — see
+  `specs/ide/sdk-platform.md`) ships prebuilt package, CLI and its runtime
   dependencies, runtime adapter, templates, schemas/contracts, snippets,
   documentation and offline archive under `Resources/SwiftCodeSDK`. Missing
   required artifacts fail the build rather than generating a partial app.
@@ -65,13 +67,13 @@ The latter alone does not grant Gemini or Anthropic provider access.
 From the repository root:
 
 ```bash
-(cd SwiftCode/SDK/TypeScript/package && npm ci && npm run build && npm test && npm pack --pack-destination ../../Distribution)
-(cd SwiftCode/SDK/TypeScript/cli && npm ci)
-(cd SwiftCode/SDK/TypeScript/runtime-adapter && npm ci && npm run build && npm run typecheck)
+(cd sdk/package && npm ci && npm run build && npm test && npm pack --pack-destination ../Distribution)
+(cd sdk/cli && npm ci)
+(cd sdk/runtime-adapter && npm ci && npm run build && npm run typecheck)
 PYTHONDONTWRITEBYTECODE=1 python3 "SwiftCode/Resources/Google Cloud SDK/bridge/gemini_auth_test.py"
 PYTHONDONTWRITEBYTECODE=1 "SwiftCode/Resources/Google Cloud SDK/runtime/bin/python3" "SwiftCode/Resources/Google Cloud SDK/bridge/session_auth_test.py"
-SRCROOT="$PWD" TARGET_BUILD_DIR="$PWD/build/sdk-check" UNLOCALIZED_RESOURCES_FOLDER_PATH=Resources bash SwiftCode/SDK/Distribution/bundle-sdk.sh
-node SwiftCode/SDK/Distribution/verify-bundle.mjs build/sdk-check/Resources/SwiftCodeSDK
+bash sdk/scripts/package-sdk.sh
+bash sdk/scripts/verify-sdk.sh
 ```
 
 The installer XCTest source can be run in an isolated SwiftPM target named

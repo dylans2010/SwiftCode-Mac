@@ -104,6 +104,69 @@ public actor SDKSecurityService {
         )
     }
 
+    // MARK: - List all apps (host-only enumeration, S-4)
+
+    /// Every app Security namespace that holds at least one stored
+    /// value, with per-app value metadata. Metadata only — secret values
+    /// are never returned.
+    ///
+    /// HOST-ONLY: this is a Studio/host surface, never reachable from
+    /// extension IPC (extensions list only their own namespace via
+    /// `listValueIDs`). The grouping key is the namespaced Security ID
+    /// (`<extensionID>.<appSecurityID>`) recorded in each value's
+    /// envelope; values written before the envelope carried it fall back
+    /// to a last-dot split of the account name (the value ID is the last
+    /// segment), which mis-groups only pre-existing values whose value
+    /// IDs themselves contain dots.
+    public func listAllApps() async throws -> [SDKSecurityAppSummary] {
+        await SDKExtensionRegistry.shared.scan()
+        let installed = await SDKExtensionRegistry.shared.installedExtensions()
+        let store = SDKSecretStoreFactory.defaultStore()
+        let prefix = KeychainSDK.servicePrefix + "."
+        let accounts: [String]
+        do {
+            accounts = try store.accountNames(withPrefix: prefix)
+        } catch {
+            throw SDKError(
+                code: .serviceUnavailable,
+                message: "Could not list stored security values.",
+                suggestion: "Check that the secret store is reachable and try again.",
+                diagnostics: ["operation": "list-all-apps", "underlying": "\(error)"]
+            )
+        }
+        var securityIDs: Set<String> = []
+        for account in accounts {
+            let remainder = account.dropFirst(prefix.count)
+            guard !remainder.isEmpty else { continue }
+            if let data = try? store.read(account: account),
+               let recorded = KeychainSDK.securityIDInEnvelope(data),
+               !recorded.isEmpty {
+                securityIDs.insert(recorded)
+                continue
+            }
+            // Legacy envelope: split at the last dot — the value ID is
+            // the last segment, the rest is the namespaced Security ID.
+            let segments = remainder.split(separator: ".", omittingEmptySubsequences: false)
+            guard segments.count >= 3 else { continue }
+            securityIDs.insert(segments.dropLast().joined(separator: "."))
+        }
+        var summaries: [SDKSecurityAppSummary] = []
+        for securityID in securityIDs.sorted() {
+            let metadata = (try? KeychainSDK.listValueIDs(securityID: securityID)) ?? []
+            guard !metadata.isEmpty else { continue }
+            let formatter = ISO8601DateFormatter()
+            let values = metadata.map {
+                SDKSecurityStoredValue(valueID: $0.valueID, label: $0.label ?? "", createdAt: formatter.string(from: $0.created))
+            }
+            let extensionID = installed
+                .map(\.id)
+                .filter { securityID == $0 || securityID.hasPrefix($0 + ".") }
+                .max(by: { $0.count < $1.count })
+            summaries.append(SDKSecurityAppSummary(securityID: securityID, extensionID: extensionID, values: values))
+        }
+        return summaries
+    }
+
     // MARK: - Use (host-side injection only)
 
     /// The only supported use of a stored value: inject it as the
@@ -273,6 +336,25 @@ private final class SDKSecurityRedirectHandler: NSObject, URLSessionTaskDelegate
             redirected.setValue(nil, forHTTPHeaderField: "Authorization")
         }
         completionHandler(redirected)
+    }
+}
+
+/// One app Security namespace in the host vault, as returned by
+/// `SDKSecurityService.listAllApps`. Metadata only: value IDs, labels,
+/// and creation times — secret values are never returned.
+/// `extensionID` is the longest installed-extension prefix of the
+/// namespaced Security ID, or nil when the extension is not installed
+/// (leftover values from an uninstalled extension).
+public struct SDKSecurityAppSummary: Sendable, Codable, Equatable {
+    /// Namespaced Security ID (`<extensionID>.<appSecurityID>`).
+    public let securityID: String
+    public let extensionID: String?
+    public let values: [SDKSecurityStoredValue]
+
+    public init(securityID: String, extensionID: String?, values: [SDKSecurityStoredValue]) {
+        self.securityID = securityID
+        self.extensionID = extensionID
+        self.values = values
     }
 }
 

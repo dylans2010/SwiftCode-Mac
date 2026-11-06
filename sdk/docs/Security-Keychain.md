@@ -1,7 +1,7 @@
 # Security and Keychain (`use.Security`)
 
 **Status:** Implemented — uncommitted working tree · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §§8, 16 · **ADRs:** `SDK-Architecture.md` §§5, 11
+**Spec:** `specs/ide/sdk-platform.md` · **ADRs:** `SDK-Architecture.md` §§5, 11
 
 > **Implementation-status warning:** as of this writing every piece below
 > exists as **uncommitted working-tree changes** (not yet committed or

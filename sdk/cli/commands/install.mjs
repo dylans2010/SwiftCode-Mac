@@ -5,7 +5,7 @@
  *   swiftcode install <file.swiftcode-extension> [--update] [--json]
  *
  * Extensions and apps share the identical `.swiftcode-extension` format
- * (format details in SwiftCode/SDK/Documentation/Package-Format.md); the
+ * (format details in sdk/docs/Package-Format.md); the
  * manifest `type` field ("extension" | "app") selects the kind, and both
  * install into the same controlled extensions directory.
  *
@@ -75,7 +75,7 @@ export const definition = {
   usage: `swiftcode install <file.swiftcode-extension> [--update] [--json]
 
 Installs the extension or app packaged in <file> (see 'swiftcode package';
-format details in SwiftCode/SDK/Documentation/Package-Format.md):
+format details in sdk/docs/Package-Format.md):
 
   1. extracts to a private temp dir (zip traversal / unsafe symlinks rejected)
   2. verifies the embedded swiftcode-digest.json integrity record — a

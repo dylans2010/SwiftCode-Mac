@@ -1,8 +1,11 @@
 import AppKit
+import SwiftUI
 import UniformTypeIdentifiers
 import YcodeCloud
 import YcodeCompletion
+import YcodeGoogleAuth
 import YcodeIDECore
+import YcodePaywall
 import YcodeSettings
 import YcodeWorkspace
 import YcodeSubprocess
@@ -388,6 +391,50 @@ public final class GeneralSettingsPane: SettingsPane {
         heading("Reset Ycode")
         row("Reset Settings:", button("Reset…") { [weak self] in self?.resetClicked() })
         row("\u{201C}Don\u{2019}t ask me\u{201D} warnings:", button("Reset All") { [weak self] in self?.resetWarningsClicked() })
+
+        heading("SwiftCode Pro")
+        proSection()
+    }
+
+    /// Whether the Pro section has refreshed entitlements once.
+    /// The refresh runs a single time per pane lifetime: the
+    /// refresh itself ends in `rebuild()`, which re-runs `build()`,
+    /// so an unguarded refresh would loop forever.
+    private var proSectionRefreshed = false
+
+    /// The Pro section (Wave 15, Legacy
+    /// `GeneralSettingsView.proSection`): the IDE's only
+    /// production Pro gate. Pro members see the member line;
+    /// everyone else gets the "Upgrade to Pro" button that
+    /// presents the Wave 13 paywall as a sheet. The row title is
+    /// the same in both states so the pane's structure does not
+    /// depend on entitlement. No feature is gated here — Legacy
+    /// gated nothing behind Pro either, and no gate is invented.
+    /// Ycode style: no orange accent, sentence case.
+    private func proSection() {
+        if PaywallStore.shared.isPro {
+            let member = NSTextField(labelWithString: "SwiftCode Pro Member!")
+            let active = NSTextField(labelWithString: "Active")
+            active.textColor = .systemGreen
+            let stack = NSStackView(views: [member, active])
+            stack.spacing = 8
+            row("SwiftCode Pro:", stack)
+        } else {
+            row("SwiftCode Pro:", button("Upgrade to Pro") { [weak self] in self?.showPaywall() })
+        }
+        note("Pro status comes from a verified App Store purchase, or the developer bypass flag.")
+        guard !proSectionRefreshed else { return }
+        proSectionRefreshed = true
+        Task { [weak self] in
+            await PaywallStore.shared.refreshEntitlements()
+            PaywallStore.shared.refreshBypassFlag()
+            self?.rebuild()
+        }
+    }
+
+    /// Presents the Wave 13 paywall as a sheet.
+    private func showPaywall() {
+        presentAsSheet(NSHostingController(rootView: PaywallView()))
     }
 
     /// The help under Restore open projects and workspaces (Ycode's words).
@@ -470,6 +517,12 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
     public let authManager: CloudAuthManager
     public let cloudManager: CloudManager
     public let syncEngine: CloudSyncEngine
+    /// The Google account (Wave 15, slice C): Legacy's
+    /// `GoogleAccountAuthService` — the separate Google Cloud /
+    /// Antigravity OAuth identity, not the Appwrite account above.
+    /// Injectable so tests can substitute a stub-backed service;
+    /// the app uses the shared one.
+    public let googleAuthService: GoogleAccountAuthService
     /// The SwiftCode section's selected tab.
     public var selectedCloudTab: CloudAccountsTab = .account { didSet { if isViewLoaded { rebuild() } } }
     /// The last sync statistics (`CloudSyncEngine.getStatistics()`).
@@ -505,6 +558,29 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
         + "on the Appwrite authentication server. This action is destructive and cannot be undone."
     public static let verificationSentText = "Verification email sent."
 
+    /// Whether the Google section has triggered its one session
+    /// restore (the service does not restore in `init`).
+    var googleRestoreAttempted = false
+    /// The Google section's explanation: the account signs in to
+    /// Google for the Gemini / Antigravity models in Assist, and
+    /// only OAuth tokens are kept, in the Keychain — never the
+    /// Google password.
+    public static let googleExplanation = "Sign in with Google to use the Gemini / Antigravity models in Assist. "
+        + "Ycode stores only OAuth tokens in the Keychain, never your Google password. "
+        + "Sign-in opens your browser (macOS only); on Linux the browser flow is unavailable."
+    /// The Google section's note when the OAuth client secret is not
+    /// configured: the browser step succeeds but Google refuses the
+    /// token exchange without it.
+    public static let googleMissingSecretNote = "No OAuth client secret is configured: the browser authorization "
+        + "will succeed, but Google will refuse the token exchange. Enter your OAuth client's secret below "
+        + "(Google Cloud Console → APIs & Services → Credentials → your OAuth client); it is stored in the Keychain."
+    /// The Google section's Assist-scope status when the session has
+    /// the required scopes.
+    public static let googleScopesReadyText = "Ready for Assist"
+    /// The Google section's Assist-scope status when the session
+    /// lacks the required scopes.
+    public static let googleScopesMissingText = "Re-authentication needed for Assist"
+
     /// The one background statistics load (guarded in the extension).
     var statsTask: Task<Void, Never>?
     var presentedAuthSheet: CloudAuthSheetController?
@@ -512,11 +588,19 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
     var presentedChangePasswordSheet: CloudChangePasswordSheetController?
 
     public init(prefs: Preferences = .shared, authManager: CloudAuthManager = CloudAuthManager.shared,
-                cloudManager: CloudManager? = nil, syncEngine: CloudSyncEngine = CloudSyncEngine.shared) {
+                cloudManager: CloudManager? = nil, syncEngine: CloudSyncEngine = CloudSyncEngine.shared,
+                googleAuthService: GoogleAccountAuthService = GoogleAccountAuthService.shared) {
         self.authManager = authManager
         self.cloudManager = cloudManager ?? CloudManager(authManager: authManager)
         self.syncEngine = syncEngine
+        self.googleAuthService = googleAuthService
         super.init(AccountsPage.title, prefs: prefs)
+        // Rebuild when the Google sign-in state changes (sign-in,
+        // sign-out, restore, verification failure).
+        googleAuthService.onStateChange = { [weak self] in
+            guard let self, self.isViewLoaded else { return }
+            self.rebuild()
+        }
     }
     // Informational only: Ycode never asks for or stores credentials.
     /// The explanation shown by + (for tests).

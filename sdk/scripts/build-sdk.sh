@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Wave 14 adaptation (Legacy SwiftCode/SDK/Scripts/build-sdk.sh):
+# Wave 14 adaptation (Legacy SDK/Scripts/build-sdk.sh):
 # - SDK_ROOT is now this repo's sdk/ (the TypeScript SDK root).
-# - The Swift SDK package (Legacy SwiftCode/SDK/Package.swift) has not been
+# - The Swift SDK package (Legacy ycode/Package.swift) has not been
 #   migrated yet (ledger: NOT STARTED, other wave), so the Swift build runs
 #   against ycode/ — the repo's Swift package, which hosts the migrated Swift
 #   SDK code. Until that wave lands the `sdk-test-runner` target, the test

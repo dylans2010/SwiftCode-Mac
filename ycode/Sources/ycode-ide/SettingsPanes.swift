@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 #endif
 import YcodeIDECore
 import YcodeIDEShell
+import YcodePaywall
 
 // Settings ▸ General, Navigation, Notifications and Behaviors on Linux:
 // the macOS IDE's panes (YcodeUI `SettingsPanes.swift`,
@@ -76,6 +77,14 @@ struct GeneralSettingsPane: View {
                 SettingsRow("\u{201C}Don\u{2019}t ask me\u{201D} warnings") {
                     Button("Reset All") { confirmWarnings = true }.buttonStyle(.bordered).controlSize(.small).shellTarget("settings reset warnings")
                 }
+            }
+            // SwiftCode Pro (Wave 15): the IDE's only production Pro
+            // gate — the member line for Pro users, otherwise an
+            // "Upgrade to Pro" button presenting the Wave 13 paywall.
+            // On Linux the paywall cannot load products (StoreKit ops
+            // fail honestly with `.storeKitUnavailable`).
+            SettingsSection("SwiftCode Pro") {
+                ProSettingsSection()
             }
         }
         .fileExporter(isPresented: $exporting, document: exporting ? SettingsFile(data: (try? Preferences.shared.exportSettings()) ?? Data()) : nil,

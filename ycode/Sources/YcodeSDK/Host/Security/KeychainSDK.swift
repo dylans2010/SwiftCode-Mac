@@ -48,6 +48,32 @@ public enum KeychainSDK {
         var label: String?
         var created: Date
         var modified: Date
+        /// Namespaced Security ID (`<extensionID>.<appSecurityID>`) this
+        /// value belongs to. Written by `addValue` so `listAllApps` can
+        /// recover the app grouping exactly; older envelopes without it
+        /// fall back to a last-dot split of the account name.
+        var securityID: String?
+
+        init(data: Data, label: String?, created: Date, modified: Date, securityID: String? = nil) {
+            self.data = data
+            self.label = label
+            self.created = created
+            self.modified = modified
+            self.securityID = securityID
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case data, label, created, modified, securityID
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            data = try container.decode(Data.self, forKey: .data)
+            label = try container.decodeIfPresent(String.self, forKey: .label)
+            created = try container.decode(Date.self, forKey: .created)
+            modified = try container.decode(Date.self, forKey: .modified)
+            securityID = try container.decodeIfPresent(String.self, forKey: .securityID)
+        }
     }
 
     private static let store: any SDKSecretStoring = SDKSecretStoreFactory.defaultStore()
@@ -81,7 +107,7 @@ public enum KeychainSDK {
         } else {
             created = now
         }
-        let envelope = Envelope(data: value, label: label, created: created, modified: now)
+        let envelope = Envelope(data: value, label: label, created: created, modified: now, securityID: securityID)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(envelope)
@@ -181,6 +207,14 @@ public enum KeychainSDK {
         guard (1...256).contains(label.count), !label.contains("\0") else {
             throw SDKError(code: .invalidArgument, message: "The label is invalid.")
         }
+    }
+
+    /// The namespaced Security ID recorded in a stored value's envelope,
+    /// when the value was written with one. Host-only helper for
+    /// `listAllApps`: the envelope is the exact grouping key. Returns nil
+    /// for envelopes written before the field existed (or unreadable data).
+    static func securityIDInEnvelope(_ data: Data) -> String? {
+        (try? decodeEnvelope(data))?.securityID
     }
 
     // MARK: - Private

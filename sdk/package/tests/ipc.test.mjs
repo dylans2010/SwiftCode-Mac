@@ -1,4 +1,4 @@
-// IPC contract tests for @swiftcode/sdk (Docs/Intro-to-SDK.md §19.1, §19.3).
+// IPC contract tests for @swiftcode/sdk (specs/ide/sdk-platform.md).
 //
 // Loads the real compiled dist/index.js and exercises the real
 // createStdioConnection over a loopback PassThrough pair: nothing about

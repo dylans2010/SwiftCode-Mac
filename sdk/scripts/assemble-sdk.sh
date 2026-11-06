@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Wave 14 adaptation (Legacy SwiftCode/SDK/Scripts/assemble-sdk.sh):
+# Wave 14 adaptation (Legacy SDK/Scripts/assemble-sdk.sh):
 # - SDK_ROOT is now this repo's sdk/ (TypeScript SDK root); the TypeScript
 #   trees live at sdk/package, sdk/cli, sdk/runtime-adapter, sdk/templates.
 # - The Swift build outputs now come from ycode/.build/release (SWIFT_PACKAGE_DIR);
-#   the Swift SDK package migration (ledger: SwiftCode/SDK/Package.swift
+#   the Swift SDK package migration (ledger: ycode/Package.swift
 #   NOT STARTED, other wave) must land before the binaries exist to copy.
 # - Step 6 (populate-distribution.py) was REMOVED: that script is a synthetic-
 #   filler generator, dropped by design in Wave 14 along with the other 10
@@ -13,7 +13,7 @@ set -euo pipefail
 #   reason: it was only passable via filler.
 # - The Contracts/Manifest copies in section 4 now resolve: the schema
 #   landed at sdk/Contracts/Manifest/ in Wave 14 (copied verbatim from
-#   Legacy SwiftCode/SDK/Contracts/Manifest/, with ExampleManifests).
+#   Legacy SDK/Contracts/Manifest/, with ExampleManifests).
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$SDK_ROOT/.." && pwd)"
 SWIFT_PACKAGE_DIR="$REPO_ROOT/ycode"

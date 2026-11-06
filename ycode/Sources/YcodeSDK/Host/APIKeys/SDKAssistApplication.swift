@@ -13,11 +13,29 @@ import Foundation
 // persisted, so a stored approval never lacks its entitlement.
 
 /// Which Assist SDK variant the application is for.
-public enum SDKAssistSDKVariant: String, Sendable, Codable {
+public enum SDKAssistSDKVariant: String, Sendable, Codable, CaseIterable {
     /// The extension embeds the host's Assist main view.
     case assistSDKUI = "assistSDK.UI"
     /// The extension drives Assist headlessly over the IPC route.
     case assistSDK = "assistSDK"
+
+    /// Human-readable label for Studio.
+    public var displayLabel: String {
+        switch self {
+        case .assistSDKUI: return "assistSDK.UI — with UI"
+        case .assistSDK: return "assistSDK — headless"
+        }
+    }
+
+    /// Studio-facing description of what the variant unlocks.
+    public var detail: String {
+        switch self {
+        case .assistSDKUI:
+            return "Your app embeds SwiftCode's own Assist interface. You do not render Assist responses yourself."
+        case .assistSDK:
+            return "Your app calls the Assist API directly (sessions, streaming, tools) and renders all responses with your own UI."
+        }
+    }
 }
 
 public enum SDKAssistApplicationStatus: String, Sendable, Codable {
@@ -29,6 +47,10 @@ public enum SDKAssistApplicationStatus: String, Sendable, Codable {
 /// One Assist application, stored by the host. The store's timestamp is
 /// the authority for submission/decision time.
 public struct SDKAssistApplication: Sendable, Codable {
+    /// Minimum accepted length for the usage description, measured on
+    /// the trimmed text (Legacy `SDKAssistApplication`).
+    public static let minimumUsageDescriptionLength = 40
+
     public struct Field: Sendable, Codable {
         public let extensionID: String
         public let displayName: String
@@ -72,11 +94,18 @@ public struct SDKAssistApplication: Sendable, Codable {
         }
 
         /// Validates the application. Usage descriptions must be at least
-        /// 40 characters (trimmed); the contact email must look like an
-        /// email; conditional fields are required when their flag is set.
+        /// `SDKAssistApplication.minimumUsageDescriptionLength` characters
+        /// (trimmed); the contact email must look like an email;
+        /// conditional fields are required when their flag is set.
         public func validate() throws {
-            guard usageDescription.trimmingCharacters(in: .whitespacesAndNewlines).count >= 40 else {
-                throw SDKError(code: .invalidArgument, message: "The usage description must be at least 40 characters.")
+            guard !extensionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw SDKError(code: .invalidArgument, message: "The extension ID is required.")
+            }
+            guard !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw SDKError(code: .invalidArgument, message: "The display name is required.")
+            }
+            guard usageDescription.trimmingCharacters(in: .whitespacesAndNewlines).count >= SDKAssistApplication.minimumUsageDescriptionLength else {
+                throw SDKError(code: .invalidArgument, message: "The usage description must be at least \(SDKAssistApplication.minimumUsageDescriptionLength) characters.")
             }
             let emailPattern = "^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$"
             guard contactEmail.range(of: emailPattern, options: .regularExpression) != nil else {
@@ -183,8 +212,8 @@ public actor SDKAssistApplicationStore {
         var count = 0
         for application in list() where application.field.extensionID == extensionID {
             guard let keyID = try? keyID(for: application) else { continue }
-            try? await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, fromKeyID: keyID)
-            try? await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAllowsCloud, fromKeyID: keyID)
+            _ = try? await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAssist, fromKeyID: keyID)
+            _ = try? await SDKAPIKeyStore.shared.revokeEntitlement(.developerAIAllowsCloud, fromKeyID: keyID)
             count += 1
         }
         return count

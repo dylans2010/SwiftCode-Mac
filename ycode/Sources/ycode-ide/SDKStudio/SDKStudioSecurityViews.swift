@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import YcodeExtensions
+import YcodeSDK
 import YcodeSDKStudio
 
 // MARK: - Developer API keys
@@ -246,9 +247,12 @@ private struct SDKStudioGenerateKeySheet: View {
 //
 // Legacy: `SwiftCode/SDK/Studio/Views/SDKSecurityManagerView.swift` —
 // per-app `use.Security` values: list, add (with label + prompt text),
-// delete one, delete all. Backed by the Studio security seam; until the
-// Host slice provides the `use.Security` store, the view reports the gap
-// instead of writing secrets somewhere unprotected.
+// delete one, delete all. Backed by the Studio security seam; the
+// default is the live Host adapter (`SDKHostSecurityStore`, S-4) over
+// the Host slice's `SDKSecurityService.listAllApps` enumeration
+// (metadata only — values are never listed). A nil store shows the seam
+// as unavailable instead of inventing storage — Studio will not keep
+// secrets in UserDefaults or plain files.
 
 @MainActor
 struct SDKSecurityManagerView: View {
@@ -262,7 +266,7 @@ struct SDKSecurityManagerView: View {
     @State private var confirmingDeleteValue: (appID: String, valueID: String)?
     @State private var confirmingDeleteAll: String?
 
-    init(securityStore: (any SDKStudioSecurityStore)? = nil) {
+    init(securityStore: (any SDKStudioSecurityStore)? = SDKHostSecurityStore()) {
         self.securityStore = securityStore
     }
 
@@ -275,7 +279,7 @@ struct SDKSecurityManagerView: View {
             }
             .padding(8)
             if securityStore == nil {
-                Text("The `use.Security` store has not been ported yet (Host slice). Stored values cannot be listed, added, or deleted from Studio until it lands — Studio will not keep secrets in UserDefaults or plain files.")
+                Text("No security store is connected. Stored values cannot be listed, added, or deleted from Studio until one is provided — Studio will not keep secrets in UserDefaults or plain files.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(8)
@@ -486,7 +490,7 @@ struct SDKEnterSecurityView: View {
     @Environment(\.dismiss) private var dismiss
 
     init(appID: String, valueID: String, displayLabel: String, replacesExistingValue: Bool = false,
-         securityStore: (any SDKStudioSecurityStore)? = nil) {
+         securityStore: (any SDKStudioSecurityStore)? = SDKHostSecurityStore()) {
         self.appID = appID
         self.valueID = valueID
         self.displayLabel = displayLabel
@@ -519,7 +523,7 @@ struct SDKEnterSecurityView: View {
                     .disabled(secret.isEmpty || isStoring || securityStore == nil)
             }
             if securityStore == nil {
-                Text("No security store is connected (Host slice).")
+                Text("No security store is connected.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -546,12 +550,14 @@ struct SDKEnterSecurityView: View {
 // MARK: - Assist access form
 //
 // Legacy: `SwiftCode/SDK/Studio/Views/AssistAccessFormView.swift` — the
-// Assist access application: extension + developer key, variant, usage
-// description, own-UI, third-party models, data-leaves-device, contact.
-// Validation is the model's `validationErrors()`; submission belongs to
-// the Host slice (`SDKAssistApplication`), so the form validates and
-// shows the application summary, and reports submission as unavailable
-// rather than faking an approval.
+// Assist access application: extension + developer key, SDK variant,
+// usage description, own-UI, third-party models, data-leaves-device,
+// contact. Validation is the model's `validationErrors()`; submission
+// (S-5) goes to the Host slice's `SDKAssistApplicationStore` — the API
+// key secret is pasted into a `SecureField`, held in memory only for
+// the submit call, verified against the Keychain-backed key store, and
+// never persisted by the form. Approval stays a separate host action;
+// the form never approves applications itself.
 
 @MainActor
 struct SDKAssistAccessFormView: View {
@@ -559,6 +565,8 @@ struct SDKAssistAccessFormView: View {
     @State private var displayName = ""
     @State private var selectedKeyID: String?
     @State private var variant: SDKStudioAssistAccessApplication.Variant = .newApplication
+    @State private var sdkVariant: SDKAssistSDKVariant = .assistSDKUI
+    @State private var apiKeySecret = ""
     @State private var usageDescription = ""
     @State private var hasOwnUI = false
     @State private var ownUIDescription = ""
@@ -569,7 +577,9 @@ struct SDKAssistAccessFormView: View {
     @State private var contactEmail = ""
     @State private var fieldErrors: [String: String] = [:]
     @State private var submitted: SDKStudioAssistAccessApplication?
+    @State private var submittedApplication: SDKAssistApplication?
     @State private var submitMessage: String?
+    @State private var isSubmitting = false
 
     var body: some View {
         ScrollView {
@@ -590,6 +600,26 @@ struct SDKAssistAccessFormView: View {
                             Text("Existing Application").tag(SDKStudioAssistAccessApplication.Variant.existingApplication)
                         }
                         .pickerStyle(.segmented)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("SDK variant").font(.headline)
+                            Picker("SDK variant", selection: $sdkVariant) {
+                                ForEach(SDKAssistSDKVariant.allCases, id: \.self) { option in
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(option.displayLabel)
+                                        Text(option.detail)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .tag(option)
+                                }
+                            }
+                            .pickerStyle(.radioGroup)
+                        }
+                        field("Developer API Key Secret", error: fieldErrors["apiKeySecret"]) {
+                            SecureField("Paste the key secret (sc_dev_…)", text: $apiKeySecret)
+                        }
+                        Text("Paste the secret shown once when the key was generated. It is verified against the Keychain-backed key store on submit and never saved by this form.")
+                            .font(.caption).foregroundStyle(.secondary)
                         field("Usage Description", error: fieldErrors["usageDescription"]) {
                             TextEditor(text: $usageDescription).frame(height: 80)
                         }
@@ -627,20 +657,25 @@ struct SDKAssistAccessFormView: View {
                 HStack {
                     Button("Submit Application") { submit() }
                         .buttonStyle(.borderedProminent)
+                        .disabled(isSubmitting)
                     Button("Reset") { resetForm() }
                 }
                 if let submitMessage {
                     Text(submitMessage).foregroundStyle(.secondary)
                 }
-                if let submitted {
+                if let submitted, let submittedApplication {
                     SDKStudioGroupBox("Application Summary") {
                         VStack(alignment: .leading, spacing: 4) {
+                            Text("Application \(submittedApplication.id.uuidString) — \(submittedApplication.status.rawValue)")
                             Text("Extension: \(submitted.extensionID) — \(submitted.displayName)")
                             Text("Variant: \(submitted.variant.rawValue)")
+                            Text("SDK variant: \(submitted.sdkVariant.displayLabel)")
                             Text("Own UI: \(submitted.hasOwnUI ? "yes" : "no")")
                             Text("Third-party models: \(submitted.usesThirdPartyModels ? "yes" : "no")")
                             Text("Data leaves device: \(submitted.dataLeavesDevice ? "yes" : "no")")
                             Text("Contact: \(submitted.contactEmail)")
+                            Text("Submitted \(submittedApplication.submittedAt.formatted(date: .abbreviated, time: .shortened)). Approval is a separate host action — no entitlements are granted until it is approved.")
+                                .foregroundStyle(.secondary)
                         }
                         .font(.callout)
                     }
@@ -664,6 +699,7 @@ struct SDKAssistAccessFormView: View {
     private func currentApplication() -> SDKStudioAssistAccessApplication {
         SDKStudioAssistAccessApplication(
             extensionID: extensionID, displayName: displayName, keyID: selectedKeyID, variant: variant,
+            sdkVariant: sdkVariant,
             usageDescription: usageDescription, hasOwnUI: hasOwnUI,
             ownUIDescription: hasOwnUI ? ownUIDescription : nil,
             usesThirdPartyModels: usesThirdPartyModels,
@@ -675,15 +711,34 @@ struct SDKAssistAccessFormView: View {
 
     private func submit() {
         let application = currentApplication()
-        let errors = application.validationErrors()
+        var errors = application.validationErrors()
+        if apiKeySecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors["apiKeySecret"] = "Paste the developer API key secret for this application."
+        }
         fieldErrors = errors
         guard errors.isEmpty else {
             submitMessage = "Fix the highlighted fields before submitting."
             submitted = nil
+            submittedApplication = nil
             return
         }
-        submitted = application
-        submitMessage = "Application validated. Submission goes to the Host slice's Assist application review (`SDKAssistApplication`) — Studio does not approve applications itself."
+        isSubmitting = true
+        submitMessage = nil
+        Task {
+            do {
+                let decided = try await application.submit(apiKeySecret: apiKeySecret)
+                submitted = application
+                submittedApplication = decided
+                submitMessage = "Application submitted and pending review."
+            } catch {
+                submitted = nil
+                submittedApplication = nil
+                submitMessage = "Submission failed: \((error as? SDKError)?.message ?? error.localizedDescription)"
+            }
+            // The secret is never retained past the submit call.
+            apiKeySecret = ""
+            isSubmitting = false
+        }
     }
 
     private func resetForm() {
@@ -691,6 +746,8 @@ struct SDKAssistAccessFormView: View {
         displayName = ""
         selectedKeyID = nil
         variant = .newApplication
+        sdkVariant = .assistSDKUI
+        apiKeySecret = ""
         usageDescription = ""
         hasOwnUI = false
         ownUIDescription = ""
@@ -701,6 +758,7 @@ struct SDKAssistAccessFormView: View {
         contactEmail = ""
         fieldErrors = [:]
         submitted = nil
+        submittedApplication = nil
         submitMessage = nil
     }
 }

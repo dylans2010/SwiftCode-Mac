@@ -643,18 +643,23 @@ public protocol SDKStudioGrantStore: Sendable {
 
 /// Live-grant adapter over `PermissionManager`: records are synthesized
 /// from currently-granted capabilities (mapped from the v2 runtime
-/// capabilities back to the SDK ids they enforce). No revoked tombstones
-/// exist in this store — `grants(for:)` returns active grants only.
+/// capabilities back to the SDK ids they enforce), merged with the
+/// revoked tombstones kept in the Host slice's `SDKGrantStore` (S-2).
+/// Revocation is real and immediate in the live store; the tombstone is
+/// stamped in the record store best-effort (a tombstone failure never
+/// fails the revoke itself — the grant is already gone).
 public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
     private let permissions: PermissionManager
+    private let grantRecords: SDKGrantStore
 
-    public init(permissions: PermissionManager) {
+    public init(permissions: PermissionManager, grantRecords: SDKGrantStore = .shared) {
         self.permissions = permissions
+        self.grantRecords = grantRecords
     }
 
     public func grants(for extensionID: String) async throws -> [SDKStudioGrantRecord] {
         let granted = permissions.grantedCapabilities(for: extensionID)
-        return granted.flatMap { v2 -> [SDKStudioGrantRecord] in
+        var records = granted.flatMap { v2 -> [SDKStudioGrantRecord] in
             SDKCapabilityID.allCases
                 .filter { ExtensionCapability.v2Capabilities(for: $0).contains(v2) }
                 .map { sdk in
@@ -663,18 +668,71 @@ public struct SDKPermissionManagerGrantStore: SDKStudioGrantStore {
                                          grantedBy: "user-approval")
                 }
         }
+        // Revoked history from the durable record store (tombstones are
+        // kept forever; a re-granted capability appears twice — once
+        // live, once revoked — which is the audit trail).
+        let stored = await grantRecords.grants(for: extensionID)
+        for tombstone in stored where tombstone.revokedAt != nil {
+            records.append(SDKStudioGrantRecord(
+                id: tombstone.id, extensionID: tombstone.extensionID,
+                packageDigest: tombstone.packageDigest, packageVersion: tombstone.packageVersion,
+                capability: tombstone.capability,
+                scopeDescription: tombstone.scope.projectRootPath.isEmpty
+                    ? "All projects (flat grant)" : "Project: \(tombstone.scope.projectRootPath)",
+                grantedAt: tombstone.grantedAt, grantedBy: tombstone.grantedBy,
+                expiresAt: tombstone.expiresAt, revokedAt: tombstone.revokedAt,
+                policyVersion: tombstone.policyVersion))
+        }
+        return records.sorted { $0.grantedAt < $1.grantedAt }
     }
 
-    public func extensionName(for extensionID: String) async -> String? { nil }
+    public func extensionName(for extensionID: String) async -> String? {
+        await SDKExtensionRegistry.shared.installedExtension(id: extensionID)?.name
+    }
 
     public func revoke(_ record: SDKStudioGrantRecord) async throws {
         for v2 in ExtensionCapability.v2Capabilities(for: record.capability) {
             permissions.revoke(extensionId: record.extensionID, capability: v2)
         }
+        await stampTombstone(extensionID: record.extensionID, capability: record.capability,
+                             packageDigest: record.packageDigest, packageVersion: record.packageVersion)
     }
 
     public func revokeAll(for extensionID: String) async throws {
+        // Capture the live grants first: only capabilities that were
+        // actually held get a tombstone.
+        let live = permissions.grantedCapabilities(for: extensionID)
+        let liveSDKCapabilities = Set(SDKCapabilityID.allCases.filter { sdk in
+            ExtensionCapability.v2Capabilities(for: sdk).contains(where: { live.contains($0) })
+        })
         permissions.revokeAll(for: extensionID)
+        // Stamp every record the store holds for this extension, plus a
+        // tombstone for each live-only capability (no record yet).
+        try? await grantRecords.revokeAll(for: extensionID)
+        for sdk in liveSDKCapabilities {
+            await stampTombstone(extensionID: extensionID, capability: sdk,
+                                 packageDigest: "", packageVersion: "")
+        }
+    }
+
+    /// Stamps a revocation tombstone for one capability: revokes any
+    /// record the store already holds, and appends a tombstone record
+    /// when the grant lived only in the flat store. Best-effort — the
+    /// live revoke above already happened, so a record-store failure
+    /// must not surface as a revoke failure.
+    private func stampTombstone(extensionID: String, capability: SDKCapabilityID,
+                                packageDigest: String, packageVersion: String) async {
+        let installed = await SDKExtensionRegistry.shared.installedExtension(id: extensionID)
+        let digest = installed?.packageDigest ?? packageDigest
+        let version = installed?.version ?? packageVersion
+        let stored = await grantRecords.grants(for: extensionID)
+        if stored.contains(where: { $0.capability == capability }) {
+            try? await grantRecords.revoke(extensionID: extensionID, capability: capability)
+        } else {
+            try? await grantRecords.recordRevocation(
+                extensionID: extensionID, capability: capability,
+                packageDigest: digest, packageVersion: version)
+        }
     }
 }
 
@@ -843,13 +901,60 @@ public protocol SDKStudioSecurityStore: Sendable {
     func deleteAllValues(forApp appID: String) async throws
 }
 
+/// The live security-store adapter (S-4): delegates to the Host slice's
+/// real `SDKSecurityService` (§5 of the SDK spec). `listApps` uses the
+/// host's `listAllApps` enumeration (metadata only — values are never
+/// returned). `store` is the HOST-side entry: the Studio user typed the
+/// secret into the sheet, so it goes straight to `KeychainSDK.addValue`
+/// (the extension-facing `addValue` collects through the host secure
+/// prompt instead and never receives plaintext); `promptText` is unused
+/// here because the value was already collected. `appID` is the
+/// namespaced Security ID (`<extensionID>.<appSecurityID>`).
+public struct SDKHostSecurityStore: SDKStudioSecurityStore {
+    public init() {}
+
+    public func listApps() async throws -> [SDKStudioSecurityApp] {
+        let apps = try await SDKSecurityService.shared.listAllApps()
+        var result: [SDKStudioSecurityApp] = []
+        for app in apps {
+            let name: String?
+            if let extensionID = app.extensionID {
+                name = await SDKExtensionRegistry.shared.installedExtension(id: extensionID)?.name
+            } else {
+                name = nil
+            }
+            result.append(SDKStudioSecurityApp(
+                id: app.securityID,
+                displayName: name ?? app.securityID,
+                valueIDs: app.values.map(\.valueID)))
+        }
+        return result
+    }
+
+    public func store(value: String, valueID: String, label: String?, promptText: String?, forApp appID: String) async throws {
+        _ = promptText
+        _ = try KeychainSDK.addValue(securityID: appID, valueID: valueID, value: Data(value.utf8), label: label)
+    }
+
+    public func deleteValue(valueID: String, forApp appID: String) async throws {
+        try KeychainSDK.deleteValue(securityID: appID, valueID: valueID)
+    }
+
+    public func deleteAllValues(forApp appID: String) async throws {
+        _ = try KeychainSDK.deleteAllValues(securityID: appID)
+    }
+}
+
 // MARK: - Assist access application seam
 //
 // Legacy: `AssistAccessFormView` submits an Assist access application
 // (`SDKAssistApplication`, Host slice) for an extension + developer key:
 // variant, own-UI, third-party models, data-leaves-device, contact. The
-// form model below carries the validated application; submission is the
-// Host slice's to implement — Studio never fakes an approval.
+// form model below carries the validated application; `submit` (S-5)
+// sends it to the Host slice's `SDKAssistApplicationStore` — the API key
+// secret is passed in-memory only and never stored on this model — and
+// approval stays a separate host action. Studio never approves
+// applications itself.
 
 public struct SDKStudioAssistAccessApplication: Sendable, Codable {
     public enum Variant: String, Sendable, Codable {
@@ -861,6 +966,9 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
     public let displayName: String
     public let keyID: String?
     public let variant: Variant
+    /// The SDK variant the application is for (Host `SDKAssistSDKVariant`).
+    /// Defaults to the UI variant, matching Legacy's form default.
+    public let sdkVariant: SDKAssistSDKVariant
     public let usageDescription: String
     public let hasOwnUI: Bool
     public let ownUIDescription: String?
@@ -871,6 +979,7 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
     public let contactEmail: String
 
     public init(extensionID: String, displayName: String, keyID: String?, variant: Variant,
+                sdkVariant: SDKAssistSDKVariant = .assistSDKUI,
                 usageDescription: String, hasOwnUI: Bool, ownUIDescription: String?,
                 usesThirdPartyModels: Bool, thirdPartyModels: String?,
                 dataLeavesDevice: Bool, dataDestination: String?, contactEmail: String) {
@@ -878,6 +987,7 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         self.displayName = displayName
         self.keyID = keyID
         self.variant = variant
+        self.sdkVariant = sdkVariant
         self.usageDescription = usageDescription
         self.hasOwnUI = hasOwnUI
         self.ownUIDescription = ownUIDescription
@@ -888,8 +998,46 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         self.contactEmail = contactEmail
     }
 
+    /// Builds the Host slice's application field. The API key secret is
+    /// a parameter, never a stored property: the secret lives only in
+    /// the form's in-memory `SecureField` for the duration of the submit
+    /// call and is never persisted by this model. The comma-separated
+    /// third-party model list is split into individual names.
+    public func makeField(apiKeySecret: String) -> SDKAssistApplication.Field {
+        SDKAssistApplication.Field(
+            extensionID: extensionID,
+            displayName: displayName,
+            apiKey: apiKeySecret,
+            sdkVariant: sdkVariant,
+            usageDescription: usageDescription,
+            hasOwnUI: hasOwnUI,
+            ownUIDescription: ownUIDescription,
+            usesThirdPartyModels: usesThirdPartyModels,
+            thirdPartyModels: (thirdPartyModels ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty },
+            dataLeavesDevice: dataLeavesDevice,
+            dataDestination: dataDestination,
+            contactEmail: contactEmail)
+    }
+
+    /// Submits the application to the Host slice's
+    /// `SDKAssistApplicationStore` (S-5): validates the fields, requires
+    /// the extension to be installed, and verifies the presented secret
+    /// against the Keychain-backed key store. Returns the stored
+    /// application (status `pending`); approval is a separate host
+    /// action (`SDKAssistApplicationStore.approve`) that grants the
+    /// entitlements. Throws `SDKError` on any failure — the secret is
+    /// never included in an error.
+    public func submit(apiKeySecret: String) async throws -> SDKAssistApplication {
+        try await SDKAssistApplicationStore.shared.submit(makeField(apiKeySecret: apiKeySecret))
+    }
+
     /// Field errors keyed by field name, mirroring Legacy's form
-    /// validation. Empty means submittable.
+    /// validation. Empty means submittable. The usage-description
+    /// minimum matches the Host field rule
+    /// (`SDKAssistApplication.minimumUsageDescriptionLength`).
     public func validationErrors() -> [String: String] {
         var errors: [String: String] = [:]
         if extensionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -898,8 +1046,8 @@ public struct SDKStudioAssistAccessApplication: Sendable, Codable {
         if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             errors["displayName"] = "Display name is required."
         }
-        if usageDescription.trimmingCharacters(in: .whitespacesAndNewlines).count < 20 {
-            errors["usageDescription"] = "Describe the Assist usage (at least 20 characters)."
+        if usageDescription.trimmingCharacters(in: .whitespacesAndNewlines).count < SDKAssistApplication.minimumUsageDescriptionLength {
+            errors["usageDescription"] = "Describe the Assist usage (at least \(SDKAssistApplication.minimumUsageDescriptionLength) characters)."
         }
         if hasOwnUI, (ownUIDescription ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             errors["ownUIDescription"] = "Describe your own UI for Assist responses."

@@ -4,10 +4,10 @@ import XCTest
 /// Build output parser grammars and the truthful-success rule.
 final class SDKBuildParserTests: XCTestCase {
     func testLocatedError() {
-        let output = "/Users/dylan/App.swift:42:7: error: cannot find 'foo' in scope\n"
+        let output = "/Users/user/App.swift:42:7: error: cannot find 'foo' in scope\n"
         let parsed = SDKBuildOutputParser.parse(output)
         XCTAssertEqual(parsed.errorCount, 1)
-        XCTAssertEqual(parsed.diagnostics.first?.file, "/Users/dylan/App.swift")
+        XCTAssertEqual(parsed.diagnostics.first?.file, "/Users/user/App.swift")
         XCTAssertEqual(parsed.diagnostics.first?.line, 42)
         XCTAssertTrue(parsed.diagnostics.first?.message.contains("cannot find") == true)
     }

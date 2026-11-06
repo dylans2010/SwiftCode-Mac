@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Wave 14 adaptation (Legacy SwiftCode/SDK/Scripts/package-sdk.sh):
+# Wave 14 adaptation (Legacy SDK/Scripts/package-sdk.sh):
 # - SDK_ROOT is now this repo's sdk/; the scripts live in sdk/scripts/
 #   (lowercase), so the verify step calls "$SDK_ROOT/scripts/verify-sdk.sh".
 # - The packaged binary (bin/swiftcode-sdk) comes from the Swift SDK
-#   migration (ledger: SwiftCode/SDK/Package.swift NOT STARTED, other wave);
+#   migration (ledger: ycode/Package.swift NOT STARTED, other wave);
 #   the clean-room extraction test below fails until that wave lands.
 SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$SDK_ROOT/Distribution"

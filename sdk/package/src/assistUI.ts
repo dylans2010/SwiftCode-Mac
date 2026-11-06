@@ -1,5 +1,5 @@
 /**
- * UI Assist SDK variant: `assistSDK.UI` (Docs/Intro-to-SDK.md §11, task B2).
+ * UI Assist SDK variant: `assistSDK.UI` (specs/ide/sdk-platform.md, task B2).
  *
  * Exposes ONLY embedding of the host's real Assist main view inside the
  * developer's app. The host presents it; the extension never touches
@@ -11,7 +11,7 @@
  * other view-opening path.
  *
  * HOST DEPENDENCY (deterministic viewId rule): no Assist main view is
- * registered in `SwiftCode/SDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift`
+ * registered in `ycode/Sources/YcodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift`
  * as of this change, so this module defines and uses
  * `ASSIST_VIEW_ID = "assist.main"`. The host MUST register an opener for
  * exactly this viewId (a sibling Swift task owns the view-opener

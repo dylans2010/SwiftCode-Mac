@@ -31,6 +31,13 @@ let package = Package(
         // the Appwrite Account REST client, the Cloud framework
         // types, and the CloudManager orchestration.
         .library(name: "YcodeCloud", targets: ["YcodeCloud"]),
+        // Google account auth (specs/ide/cloud-accounts.md §10):
+        // Legacy's GoogleAccountAuthService — PKCE OAuth2 with a
+        // loopback listener, ADC/Antigravity/gcloud fallbacks.
+        // Separate target from YcodeCloud: its Apple-only pieces
+        // (AuthenticationServices, Network, Security, AppKit) stay
+        // fenced here instead of landing in platform-clean YcodeCloud.
+        .library(name: "YcodeGoogleAuth", targets: ["YcodeGoogleAuth"]),
         // Paywall / entitlement runtime (specs/ide/storekit-paywall.md):
         // Apple StoreKit 2 products, Pro entitlement checks, the
         // paywall UI. No dependency on frameworks/storekit's
@@ -119,6 +126,9 @@ let package = Package(
         // dependency. Depends on YcodeAssistant only for SecretStore.
         .target(name: "YcodeCloud", dependencies: ["YcodeAssistant"]),
         .testTarget(name: "YcodeCloudTests", dependencies: ["YcodeCloud", "YcodeAssistant"]),
+        // Google account auth (specs/ide/cloud-accounts.md §10).
+        .target(name: "YcodeGoogleAuth", dependencies: ["YcodeAssistant", .product(name: "Crypto", package: "swift-crypto")]),
+        .testTarget(name: "YcodeGoogleAuthTests", dependencies: ["YcodeGoogleAuth", "YcodeAssistant"]),
         // Paywall / entitlement runtime (specs/ide/storekit-paywall.md):
         // Apple StoreKit 2 only (behind `#if canImport(StoreKit)`),
         // no third-party dependency.
@@ -196,11 +206,11 @@ package.targets += [
     .target(name: "YcodeDeviceUI", dependencies: ["YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel"]),
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
-    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodePaywall",
+    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodeGoogleAuth", "YcodePaywall",
                                              // The StoreKit editor controller (specs/ide/storekit-paywall.md).
                                              .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
     .executableTarget(name: "YcodeApp", dependencies: ["YcodeRelease", "YcodeUI"]),
-    .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell", "YcodeCloud"]),
+    .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell", "YcodeCloud", "YcodeGoogleAuth"]),
 ]
 #else
 // The Linux viewer: an SDL 3 window (loaded at run time) on the portable viewer (display-stream.md §13).
@@ -383,7 +393,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
     package.products += [.executable(name: "ycode-ide", targets: ["ycode-ide"])]
     package.targets += [
         .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
-                                                          "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio",
+                                                          "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio", "YcodePaywall",
                                                           .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
                                                           .product(name: "SwiftUI", package: "swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftui"),
@@ -394,7 +404,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
 package.products += [.executable(name: "ycode-ide", targets: ["ycode-ide"])]
 package.targets += [
     .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
-                                                      "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio",
+                                                      "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio", "YcodePaywall",
                                                       .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
 ]
 #endif

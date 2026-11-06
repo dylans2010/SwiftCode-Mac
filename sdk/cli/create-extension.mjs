@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.join(here, "..", "templates", "extension-typescript");
 // The manifest schema lives at sdk/Contracts/Manifest/ in this repo
-// (Wave 14: copied verbatim from Legacy SwiftCode/SDK/Contracts/Manifest/).
+// (Wave 14: copied verbatim from the Legacy SDK tree's Contracts/Manifest/).
 // Legacy resolved it two levels up from sdk/cli; the destination SDK root
 // is sdk/ itself, so it is one level up from here.
 const SCHEMA_SOURCE = path.join(

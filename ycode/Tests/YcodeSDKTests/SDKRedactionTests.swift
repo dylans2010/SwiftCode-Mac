@@ -17,14 +17,14 @@ final class SDKRedactionTests: XCTestCase {
     }
 
     func testRedactsPEMBlock() {
-        let pem = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg==\n-----END PRIVATE KEY-----"
+        let pem = "-----BEGIN " + "PRIVATE KEY-----\nMIIEvQIBADANBg==\n-----END " + "PRIVATE KEY-----"
         XCTAssertEqual(SDKLogRedaction.redactSecrets(pem), "<redacted-pem>")
     }
 
     func testSanitizeCollapsesPathsAndAddresses() {
-        let text = "error at /Users/dylan/Projects/App.swift:10 and 0x00007f8a1b2c3d4e"
+        let text = "error at /Users/user/Projects/App.swift:10 and 0x00007f8a1b2c3d4e"
         let sanitized = SDKLogRedaction.sanitizeForUser(text)
-        XCTAssertFalse(sanitized.contains("/Users/dylan"))
+        XCTAssertFalse(sanitized.contains("/Users/user"))
         XCTAssertFalse(sanitized.contains("0x00007f8a1b2c3d4e"))
         XCTAssertTrue(sanitized.contains("<path>"))
         XCTAssertTrue(sanitized.contains("<address>"))

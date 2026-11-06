@@ -8,7 +8,7 @@
 //     here — this is the "actually works" proof.
 // (b) `searchSnippets` finds "virtualization" -> the sandbox snippet.
 // (c) Every snippet's `capabilityId` is a real registry wire ID
-//     (SwiftCode/SDK/Contracts/Capability/SDKCapability.swift).
+//     (ycode/Sources/YcodeExtensions/Capabilities.swift).
 // (d) `snippets.json` is in sync with the compiled `src/snippets.ts` and
 //     carries the full executable `code` for every snippet.
 //
@@ -25,7 +25,7 @@ const packageDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const distUrl = pathToFileURL(path.join(packageDir, "dist", "snippets.js")).href;
 const { SNIPPETS, searchSnippets, getSnippet } = await import(distUrl);
 
-/** Exact wire IDs from SDKCapabilityID (SwiftCode/SDK/Contracts/Capability/SDKCapability.swift). */
+/** Exact wire IDs from SDKCapabilityID (ycode/Sources/YcodeExtensions/Capabilities.swift). */
 const REGISTRY_IDS = new Set([
   "project.read",
   "workspace.read",

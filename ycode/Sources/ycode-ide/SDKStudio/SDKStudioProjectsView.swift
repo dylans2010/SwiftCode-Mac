@@ -24,6 +24,7 @@ struct SDKStudioProjectsView: View {
     @State private var recentProjectPaths: [String] = []
     @State private var openPathText: String = ""
     @State private var openError: String?
+    @State private var isPreparingExample = false
 
     var body: some View {
         ScrollView {
@@ -33,6 +34,7 @@ struct SDKStudioProjectsView: View {
                 Text("Create a new extension or project, or open an existing one. Extensions run out-of-process under host capability controls; standalone projects are ordinary user-owned code.")
                     .foregroundStyle(.secondary)
                 creationCards
+                sdkExample
                 recentProjects
                 openExisting
                 if let openError {
@@ -70,6 +72,48 @@ struct SDKStudioProjectsView: View {
                                   systemImage: "folder.badge.gearshape") {
                 activeWizard = .newSwiftProject
             }
+        }
+    }
+
+    private var sdkExample: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SDK Example").font(.headline)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Repository Build Extension").font(.callout)
+                    Text("A minimal working extension (\(SDKExampleManager.exampleID)) prepared from the SDK templates into your own projects folder. Open it to inspect the manifest, commands, and build setup.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(isPreparingExample ? "Preparing…" : "Open Example") { openExample() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isPreparingExample)
+            }
+        }
+    }
+
+    private func openExample() {
+        isPreparingExample = true
+        openError = nil
+        Task {
+            do {
+                let url = try SDKExampleManager.prepareExampleProject()
+                SDKStudioRecentProjects.record(url)
+                loadRecentProjects()
+                onOpenInCodeEditor(url)
+            } catch let error as SDKExampleManager.SDKExampleError {
+                switch error {
+                case .templateNotFound:
+                    openError = "The SDK example template was not found. Run Studio from a SwiftCode checkout or install the SDK templates."
+                case .invalidTemplate(let reason):
+                    openError = "The SDK example is invalid: \(reason)"
+                case .preparationFailed(let reason):
+                    openError = "Could not prepare the SDK example: \(reason)"
+                }
+            } catch {
+                openError = error.localizedDescription
+            }
+            isPreparingExample = false
         }
     }
 

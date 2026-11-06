@@ -566,3 +566,443 @@ Xcode/Simulator observation was opened, read, or run.
 | No concrete `CloudProvider` and no `setProvider` caller in Legacy | `grep` over Legacy Swift sources (0 conformances, 0 callers) |
 | `SCCloudProvider` already covers SwiftCode Cloud model discovery | `ycode/Sources/YcodeAssistant/SCCloudProvider.swift`, read directly |
 | `SecretStore` pattern, `SecretAccount` cases | `ycode/Sources/YcodeAssistant/SecretStore.swift`, read directly |
+| Google OAuth client id, scopes, endpoints, callback scheme, loopback ports | Legacy `Services/GoogleAccountAuthService.swift` (1,773 lines), read directly |
+| PKCE helpers, authorize-URL parameters, token exchange/refresh bodies, userinfo/tokeninfo | Legacy `GoogleAccountAuthService.swift`, read directly; RFC 7636 Appendix B vector in tests |
+| Loopback listener port order, request-line parsing, success page | Legacy `OAuthLoopbackServer` in `GoogleAccountAuthService.swift`, read directly |
+| Antigravity keychain entries, JSON shapes, `go-keyring-base64:` wrapper | Legacy `GoogleAccountAuthService.swift`, read directly |
+| ADC file locations, `gcloud` CLI fallback, `agy` CLI discovery and Terminal launch | Legacy `GoogleAccountAuthService.swift`, read directly |
+| Error classification kinds, matching order, diagnostic fields | Legacy `GoogleAuthErrorClassification` in `GoogleAccountAuthService.swift`, read directly |
+| Client-secret requirement (exchange fails without it) and Settings field | Legacy `GoogleAccountAuthService.swift` + `Views/Settings/AssistSettingsView.swift` (client-id override, client-secret field), read directly |
+| No Ycode quota service, no assistant quarantine concept | `grep` over `ycode/Sources` (0 hits for `resetToFresh` / `clearAllQuarantines` / `restartEngine` / `quarantine` in `YcodeAssistant`) |
+| `extractOAuthURL(from:)` is dead code in Legacy | `grep` over `GoogleAccountAuthService.swift` (1 hit: the definition only) |
+| No URL-scheme callback plumbing in Ycode | `grep` over `ycode/Sources` for `onOpenURL` / `handleOpenURL` (no handler found; Wave 12 evidence) |
+| `swift-crypto` `Crypto` product name and package name | `ycode/Package.swift` (`YcodeSimLink` / `YcodeSDK` deps: `.product(name: "Crypto", package: "swift-crypto")`) |
+
+## 10. Google account auth — the `YcodeGoogleAuth` target
+
+Wave 15 (slice C) of the Legacy → Mac migration. Legacy's
+`Services/GoogleAccountAuthService.swift` (1,773 lines) is a
+separate Google-account auth system (Google Cloud / Antigravity),
+unrelated to Appwrite: OAuth2 authorization-code flow with PKCE,
+`ASWebAuthenticationSession`, a loopback redirect listener,
+token exchange + refresh, and fallback to ambient Application
+Default Credentials. This wave ports it faithfully onto Ycode,
+including the parts that only work on macOS — which fail honestly
+elsewhere instead of being faked.
+
+No Swift toolchain exists in this environment, so everything
+below is statically checked only — `swift build` / `swift test`
+and live sign-in against Google are pending on Dylan's Mac.
+Dylan must supply one thing to sign in end-to-end: his OAuth
+client's secret (see §10.2). No live sign-in was attempted.
+
+### 10.1 The target decision: a new target, not `YcodeCloud`
+
+`YcodeGoogleAuth` is a new SwiftPM target
+(`ycode/Sources/YcodeGoogleAuth/`, tests in
+`ycode/Tests/YcodeGoogleAuthTests/`), following the `YcodeCloud`
+model — plain `.target`, library product, test target — with one
+dependency: `YcodeAssistant`, for `SecretStore`. It additionally
+uses the `Crypto` product of `swift-crypto` for the PKCE SHA-256
+(the `YcodeSimLink` / `YcodeSDK` precedent), so the target needs
+no Apple-only cryptography import to stay Linux-buildable. The
+coordinator wires `ycode/Package.swift` (the slice does not edit
+it): the `YcodeGoogleAuth` target + product + test target, and the
+`YcodeGoogleAuth` dependency on `YcodeUI` (for the Accounts pane)
+and on `YcodeUITests` (for the pane tests).
+
+`YcodeCloud` was the serious alternative and lost on three
+counts. First, the Google service is a separate system from
+Appwrite — Wave 12's own words — with its own identity, its own
+endpoints, and its own Keychain accounts; folding it into the
+Appwrite target would blur exactly the boundary the spec draws.
+Second, the service's Apple-only pieces (`AuthenticationServices`,
+`Network`, `Security`, AppKit) would land in a target that is
+currently free of platform-gated imports and Linux-buildable;
+isolated in its own target, the Apple-only code is fenced by
+`#if canImport(...)` in one place. Third, the Accounts pane
+already depends on `YcodeCloud`, so either home wires the UI the
+same way — the new target costs one extra `Package.swift` line
+and buys the separation. The shared pieces stay shared: the
+secret store (`YcodeAssistant`), the stub-transport test pattern
+(Wave 12), and the error style (§5).
+
+### 10.2 Configuration (public identifiers) and the client secret (a Dylan-supplied prerequisite)
+
+From Legacy's `GoogleAccountAuthService.swift`, read directly:
+
+| Setting | Value | Source |
+|---|---|---|
+| OAuth client id | `671720100031-tkph1mke7c5bj3l93t5eemrplti78i77.apps.googleusercontent.com` | Legacy's `swiftCodeClientID` |
+| Scopes | `cloud-platform`, `generative-language.retriever`, `userinfo.email`, `userinfo.profile`, `openid` | Legacy's `requiredScopes` |
+| Authorize endpoint | `https://accounts.google.com/o/oauth2/v2/auth` | `buildAuthorizationURL` |
+| Token endpoint | `https://oauth2.googleapis.com/token` | exchange / refresh |
+| Tokeninfo endpoint | `https://www.googleapis.com/oauth2/v3/tokeninfo` | `verifyRuntimeSession` |
+| Userinfo endpoint | `https://www.googleapis.com/oauth2/v2/userinfo` | `fetchUserEmail` |
+| Callback scheme | `swiftcode` | Legacy's `callbackScheme` |
+| Loopback ports | 65000, then 8085...8099, then ephemeral | `OAuthLoopbackServer.start()` |
+
+The client id is a public identifier by design (PKCE public
+clients carry it in the clear in the authorize URL) and lives in
+`GoogleOAuthConfiguration` with exactly this default, like Wave
+12's Appwrite coordinates. The scopes are Legacy's verbatim: the
+Gemini Developer API's documented OAuth contract requires
+`generative-language.retriever` (without it the API rejects the
+token with 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT), and Google's
+first-party clients do not have the `generative-language.*`
+scopes registered, so the authorization server would reject the
+request outright on a borrowed client.
+
+The client id resolves in Legacy's order: the
+`GOOGLE_CLIENT_ID` environment variable, then the
+`GOOGLE_CLIENT_ID` Info.plist key, then the user-editable
+override (Legacy read it from
+`AppSettings.assistGoogleOAuthClientIDOverride`; Ycode has no
+`AppSettings`, so the service reads the same UserDefaults key,
+`assist_google_oauth_client_id_override`, directly — same stored
+value, same behaviour), then the built-in id. The override is set
+from Settings → Accounts → Google Account.
+
+**The client secret is a Dylan-supplied prerequisite.** Google's
+token endpoint rejects the authorization-code exchange without it
+for this client (400 invalid_request: "client_secret is
+missing."), even though the browser authorization step succeeds
+and Google's installed-app docs label the parameter "Optional".
+Legacy embedded no secret either: it came from the user's own
+OAuth client, entered in Settings and stored in Keychain, or from
+the `GOOGLE_CLIENT_SECRET` environment variable / Info.plist key.
+This port keeps exactly those sources (secret store →
+environment → Info.plist) and never writes a real secret anywhere.
+Without a secret, sign-in fails honestly at the exchange with
+`.missingClientSecret`, and the UI shows the remediation
+(§10.8). A desktop app cannot keep a secret truly confidential —
+anyone can extract it from the installed app or its keychain.
+That is accepted because Google requires the secret for the
+exchange; the secret alone grants nothing without the user's own
+authorization grant, and shipping it would let anyone impersonate
+SwiftCode's OAuth client. (Legacy's comment, kept.)
+
+### 10.3 The sign-in flow (PKCE + loopback + web-auth session)
+
+`GoogleAccountAuthService.signIn()` (macOS only — see below):
+
+1. Builds a PKCE pair: a verifier of 64 random bytes,
+   base64url-encoded (86 characters, inside RFC 7636's 43–128
+   range), and the S256 challenge, base64url(SHA-256(ASCII
+   (verifier))). The random bytes come from the system generator
+   (portable; Legacy's `SecRandomCopyBytes` is Apple-only and the
+   generator cannot fail). The RFC 7636 Appendix B vector is in
+   tests.
+2. Starts the loopback listener (`GoogleLoopbackServer`, §10.4)
+   and builds the redirect URI: port 65000 uses
+   `http://localhost:65000/auth/callback`, every other port uses
+   `http://127.0.0.1:<port>` with no path — Legacy's exact rule,
+   kept so an existing Google Cloud Console redirect registration
+   keeps working.
+3. Builds the authorize URL: `client_id`, `redirect_uri`,
+   `response_type=code`, the scopes, `code_challenge`,
+   `code_challenge_method=S256`, `state` (a fresh UUID),
+   `access_type=offline` (so Google returns a refresh token),
+   `prompt=consent` (so it returns one on every sign-in, not just
+   the first).
+4. Opens it in an `ASWebAuthenticationSession`
+   (`callbackURLScheme: swiftcode`, non-ephemeral browser
+   session, presentation anchor = the main / key / first visible
+   window, Legacy's fallback chain). If the session fails to
+   start, the URL opens in the system browser instead (Legacy's
+   fallback).
+5. The loopback listener and the web-auth session both funnel the
+   redirect into `handleCallbackURL`: the `error` query item is
+   rejected first, then the state is checked, then the code is
+   required — Legacy's order, with Legacy's messages. The code is
+   exchanged once (`hasProcessedCallback` guards the second
+   delivery), the tokens are stored (§10.5), the email is fetched
+   (userinfo, falling back to the id token's `email` claim), and
+   the runtime session is verified (§10.6). A scope-upgrade
+   re-authentication (`isScopeUpgradeReauth`) ends here regardless
+   of outcome and never leaks into a later sign-in (Legacy M-2).
+
+**Linux (and any platform without `AuthenticationServices` and
+`Network`) fails honestly.** `signIn()` sets
+`.browserSignInUnavailable` and returns; no browser is faked, no
+token is invented. The portable pieces — PKCE, token exchange and
+refresh, ADC file discovery, Antigravity parsing, error
+classification — work everywhere.
+
+The loopback listener serves Legacy's success page verbatim
+(dark card, "Authentication Successful", product name SwiftCode
+to match the Accounts pane's "SwiftCode Account" naming): it
+redirects to `swiftcode://oauth-callback` after 350 ms and closes
+the window after 2 seconds.
+
+`handleOpenURL(_:)` accepts the `swiftcode://` and
+`antigravity://` schemes, plain `http` URLs, and `127.0.0.1` /
+`localhost` hosts (Legacy's exact rule — the loopback redirects
+are `http`), and returns false for anything else. It is the
+second delivery path for the callback; the app shell must forward
+opened URLs to it (see §10.10) — until then, the loopback
+listener is the path that actually delivers the callback.
+
+### 10.4 The loopback listener (`GoogleLoopbackServer`)
+
+Ported from Legacy's `OAuthLoopbackServer`: binds the first free
+port in `preferredLoopbackPorts` (65000, then 8085...8099),
+falling back to an ephemeral port; serves one success page per
+connection; hands the full redirect URL (host prefix + path +
+query) to `onCallback`. The request-line → callback-URL parsing
+is a pure static function (`callbackURL(fromRequestLine:port:)`)
+so tests can check loopback URL parsing without a socket. On
+platforms without the `Network` framework, `start()` returns nil
+and sign-in fails with `.loopbackUnavailable`.
+
+### 10.5 Token storage (Keychain, never files or logs)
+
+Tokens live in the injected `SecretStore` (Keychain on macOS, a
+0600 file on Linux — see `SecretStore`), under Ycode-style dotted
+account names in `GoogleSecretAccount` (the target does not edit
+`YcodeAssistant`'s `SecretAccount` — these keys belong to this
+service, so they live here):
+
+| Account | Contents |
+|---|---|
+| `google.oauth.access-token` | current access token |
+| `google.oauth.refresh-token` | refresh token (kept across sign-ins until revoked) |
+| `google.oauth.email` | signed-in Google account's email |
+| `google.oauth.expires-at` | access-token expiry, seconds since the epoch |
+| `google.oauth.scope` | granted scopes, space-joined |
+| `google.oauth.client-secret` | user-entered OAuth client secret |
+
+The explicitly-signed-out flag and the client-id override live in
+UserDefaults under Legacy's exact key strings
+(`google_oauth_explicitly_signed_out`,
+`assist_google_oauth_client_id_override`), so an existing
+install's override and sign-out state survive the port. Secrets
+are never logged and never written to a file by this service.
+
+### 10.6 Session restore, verification, and token accessors
+
+`restoreSessionFromKeychain()` keeps Legacy's order: (1)
+Antigravity keychain credentials are imported first — the
+CLI-imported access token gets an assumed one-hour expiry (the
+CLI does not report a lifetime), so the accessors refresh it when
+due instead of serving it unchecked forever (Legacy C-4); (2) a
+stored email + token restores the session and verifies it in the
+background; a token without an email restores and then fetches
+the email; (3) an ADC email restores a session with no token.
+An explicit sign-out blocks all of it.
+
+`verifyRuntimeSession(accessToken:depth:)` is Legacy's tokeninfo
+probe: 200 → valid; 400/401 → refresh once (bounded recursion,
+`depth < 1`) and retry, else drop the dead access token and its
+expiry (the refresh token is kept for a later retry), set
+`lastTokenRefreshError` and the "session expired or unauthorized"
+error, and mark unauthenticated (Legacy M-1); any other status or
+a failed probe falls back to the stored expiry (valid when no
+expiry was recorded or it is still in the future).
+
+`getValidAccessToken()` (async) and `getValidAccessTokenSync()`
+never return a known-expired token (Legacy C-4): a stored token
+is returned directly when unexpired (a 60-second skew margin) or
+when no expiry was recorded; an expired token is refreshed, then
+ambient ADC is tried, and only then — when the expiry is past —
+nil is returned so callers surface a re-authentication prompt
+instead of sending a dead token. One deviation: the async
+accessor is non-throwing (Legacy's `throws` was vestigial — no
+path threw). The synchronous accessor keeps Legacy's semaphore
+refresh (8-second wait, via a locked box — the `RateLimitBox` /
+`Box` precedent — so the data-task completion can write the
+result under Swift 6).
+
+`hasRequiredAssistScopes()` is Legacy's check, verbatim: false
+when unauthenticated; true when Antigravity credentials exist
+(they possess the required scopes); otherwise true when the
+stored scope contains `generative-language.retriever` or
+`cloud-platform`; true when authenticated with no recorded scope
+(to prevent false lockouts). `reAuthenticateForAssistScopes()`
+re-runs `signIn()` with the scope-upgrade flag set, keeping the
+existing session until the new sign-in succeeds.
+
+`signOut()` deletes all five stored keys, sets the explicit
+sign-out flag, cleans up the session, and resets all state.
+
+### 10.7 Ambient credentials (ADC, Antigravity, `agy` CLI)
+
+`checkAmbientADC()` keeps Legacy's order and its H-3 rule (an
+explicit sign-out sticks — ambient credentials must not resurrect
+the session): (1) Antigravity keychain credentials — a cached
+access token is returned directly, otherwise the refresh token is
+refreshed under the Antigravity client's own id and secret
+(Legacy's `refreshAccessTokenWithDetails`); (2) ADC files — the
+`GOOGLE_APPLICATION_CREDENTIALS` environment variable, then
+`~/.config/gcloud/application_default_credentials.json` — an
+`authorized_user` file refreshes under the file's own client id
+and secret, a bare `access_token` is returned directly; (3) the
+`gcloud` CLI (`auth print-access-token`, token must start with
+`ya29.`). `ambientADCEmail()` reads the ADC file's `client_email`,
+else the `account =` line of gcloud's active config
+(`config_default`).
+
+Antigravity parsing is ported verbatim: the nested
+`{ "token": { "refresh_token", "access_token" } }` shape and the
+flat shape, the `go-keyring-base64:` wrapper, a missing
+`client_id` falling back to Ycode's own client id, and unknown
+scopes staying empty (never fabricated). The keychain fetch reads
+service `gemini`, accounts `antigravity` / `antigravity-acp`,
+first via `SecItemCopyMatching`, then via the `/usr/bin/security`
+CLI fallback. It is Apple-only (`Security` does not exist on
+Linux), so on Linux the ADC file and `gcloud` paths are the only
+ambient sources.
+
+`importExistingAntigravityCredentials()` refreshes the
+Antigravity credentials (falling back to the cached access token
+with a one-hour expiry when refresh fails), stores the tokens,
+and resolves the email from the id token, then userinfo, then
+ADC, then the literal "Google Account (Antigravity)".
+
+`signInViaCLI()` checks the keychain import first, then finds
+the `agy` CLI (`AGY_PATH`, `~/.gemini/bin/agy`,
+`~/.local/bin/agy`, `/opt/homebrew/bin/agy`, `/usr/local/bin/agy`,
+`/usr/bin/agy`), launches it in Terminal via AppleScript
+(falling back to a `.command` script when AppleScript reports an
+error), and polls for the credentials for up to 120 seconds
+(80 × 1.5 s). On a platform without AppleScript/Terminal the CLI
+path fails honestly with `.cliSignInUnavailable`.
+
+Testability seam: the Antigravity keychain fetch and the `gcloud`
+runner are injectable closures on the service (the defaults read
+the real keychain / run the real CLI). Tests neutralize both, so
+no test ever reads the user's keychain, refreshes a real token, or
+runs the real `gcloud`. The environment, home directory, and user
+defaults are likewise injectable, so ADC discovery runs against
+fixture files in a temp home.
+
+### 10.8 Errors and the messages the UI shows
+
+`GoogleAuthError` mirrors the Wave 12 error style: the server's
+status and message are preserved verbatim in `.http`, and
+`userFacingMessage` carries the mapping. A missing client secret
+gets Legacy's `actionableSignInError` remediation — the browser
+authorization succeeded but Google refused the exchange, enter
+the secret in Settings → Accounts → Google Account (the path is
+updated from Legacy's Settings → Assist → Google Account, where
+the field now lives), stored in Keychain, found in Google Cloud
+Console → APIs & Services → Credentials → your OAuth client.
+A network failure says the connection failed; anything else passes
+the server's message through.
+
+`GoogleAuthErrorClassification` is ported verbatim in semantics
+(same kinds, same matching order, same diagnostic fields):
+scope-insufficient (carrying the stored scopes, so the caller can
+tell a pre-scope token from a real restriction), missing client
+secret (checked before the generic credential branch),
+quota/rate-limit, invalid API key, invalid/expired credential,
+and not-an-auth-error, with the HTTP status, RPC reason, service,
+and method parsed from the text. One deliberate change: Legacy's
+`classify(_:)` convenience read the granted scopes straight out
+of its Keychain service; this port has no such global, so the
+caller passes the stored scopes in — the service reads them from
+its injected secret store.
+
+### 10.9 The Accounts pane wiring
+
+The Google section is added to the existing Accounts pane
+(`YcodeUI/App/CloudAccountsSettings.swift` — the pane is not
+duplicated, and the Appwrite section is untouched): a "Google
+Account" heading below the SwiftCode tabs, built by
+`buildGoogleAccountSection()`. It shows the signed-in email, the
+Assist-scope status ("Ready for Assist" / "Re-authentication
+needed for Assist"), sign-in (browser) and sign-in-via-`agy`-CLI
+buttons when signed out, re-authenticate-for-Assist-scopes and
+sign-out buttons when signed in, the OAuth client-secret field
+(a secure field that never shows a stored value — it only sets a
+new one, with the "Saved in Keychain" state in its placeholder)
+and the client-id override field, the missing-secret note when no
+secret is configured, and the last error / last refresh failure.
+The pane holds the service (`AccountsSettingsPane.googleAuthService`,
+injectable, default `.shared`), triggers its one session restore
+on first build, and rebuilds on `onStateChange` — the service's
+replacement for Legacy's `@Published` observation (the service is
+a plain `@MainActor` class, not `NSObject` + `ObservableObject`:
+the pane is AppKit and rebuilds imperatively). The pane actions
+(`signInWithGoogle`, `signOutGoogle`,
+`reAuthenticateGoogleForAssistScopes`, `signInGoogleViaCLI`,
+`saveGoogleClientSecret`, `saveGoogleClientIDOverride`) are the
+test seams: they call the service and rebuild.
+
+The auth sheet's "Continue with Google" button is unchanged —
+it is the Appwrite OAuth flow (§4.4), a different identity from
+this Google Cloud account, and the two must not be conflated.
+
+### 10.10 What is live, what is honestly unavailable, and what was not ported
+
+Live in this slice: PKCE challenge/verifier generation and the
+authorize URL, the loopback listener and its success page,
+callback parsing and the code exchange, token refresh (async and
+synchronous), userinfo email and id-token email, tokeninfo
+verification with the one-retry rule, session restore and the
+never-expired-token accessors, sign-out with the explicit
+sign-out flag, Antigravity import and parsing, ADC file discovery
+and `gcloud` fallback, the `agy` CLI flow, scope verification and
+scope-upgrade re-authentication, error classification with the
+missing-secret remediation, the client id/secret configuration,
+and the Accounts pane Google section.
+
+Honestly unavailable (with reasons):
+
+| Capability | Reason |
+|---|---|
+| Browser sign-in on Linux | `ASWebAuthenticationSession` and the `Network` loopback listener are Apple-only. `signIn()` fails with `.browserSignInUnavailable` instead of faking a browser. |
+| `agy` CLI sign-in on Linux | Driving the CLI's interactive login needs macOS Terminal / AppleScript. Fails with `.cliSignInUnavailable`. |
+| Callback delivery via `handleOpenURL` | No app-shell URL-scheme plumbing exists yet: the app must register the `swiftcode` scheme and forward opened URLs to `GoogleAccountAuthService.handleOpenURL(_:)`. Until then the loopback listener is the delivery path. (Same gap as Appwrite OAuth, §4.4.) |
+| End-to-end sign-in without a client secret | Google refuses the token exchange without it; the secret is Dylan-supplied (§10.2). |
+
+Not ported, with the exact blocker or reason:
+
+| Legacy piece | Disposition |
+|---|---|
+| `AntigravityQuotaService.resetToFresh()` (called on sign-out) | No Ycode counterpart: no quota service exists in Ycode. Dropped, not faked. |
+| `AssistModelRouter.clearAllQuarantines()` (called after auth) | No Ycode counterpart: Ycode's assistant has no quarantine concept (`grep quarantine` over `YcodeAssistant` finds nothing). Dropped. |
+| `GoogleCloudSDKLifecycleManager.restartEngine()` (called after auth) | No Ycode counterpart: the Google Cloud SDK engine is not ported (it is a Legacy Assist framework, not this slice). Dropped; a later wave that ports the engine re-attaches it. |
+| `AppSettings.assistGoogleOAuthClientIDOverride` | Ycode has no `AppSettings`. The service reads the same UserDefaults key directly — same stored value, same behaviour. |
+| `KeychainService.shared` | Replaced by the injected `SecretStore` (`YcodeAssistant`). |
+| `GoogleAuthErrorClassification.classify(_:)` (keychain-reading overload) | Replaced by passing `storedScopes` explicitly; the service reads the scope from its injected store. |
+| `extractOAuthURL(from:)` | Dead code in Legacy (defined but never called anywhere in the file). Not ported. |
+| `GoogleAccountAuthService` as `NSObject` + `ObservableObject` with `@Published` | A plain `@MainActor` class with `onStateChange`; the Accounts pane is AppKit and rebuilds imperatively. |
+
+### 10.11 Tests
+
+`ycode/Tests/YcodeGoogleAuthTests/` — Swift Testing, stub
+transport (`StubURLProtocol`, the Wave 12 pattern),
+hand-written JSON fixtures, temp-home ADC fixtures, no live
+network, no real credentials, no real keychain (the Antigravity
+and `gcloud` seams are neutralized; the secret store is always a
+`MemorySecretStore`). Test counts are counted from `@Test`
+functions:
+
+| File | Tests | Covers |
+|---|---|---|
+| `GooglePKCETests.swift` | 14 | RFC 7636 Appendix B vector, verifier shape and challenge round-trip, base64url encoding, authorize-URL parameters, redirect-URI rule, callback parsing (success / error / state mismatch / missing code), id-token email extraction, loopback URL parsing, success-page content, preferred ports |
+| `GoogleTokenClientTests.swift` | 10 | Code-exchange request body and token decoding, secret omitted when unconfigured, missing-secret and generic HTTP error mapping, refresh grant and old-refresh-token retention, `expires_in` Int/Double/String tolerance, undecodable body, userinfo email and Bearer header, tokeninfo status |
+| `GoogleAuthErrorClassificationTests.swift` | 11 | Scope-insufficient (with stored scopes), permission-denied scope, missing secret (before the credential branch), quota/rate-limit, API-key invalid, invalid/expired credential, not-an-auth-error, diagnostic summary, actionable remediation text and passthrough, network user-facing message |
+| `GoogleADCAndAntigravityTests.swift` | 14 | Antigravity nested/flat/base64 parsing and garbage, ADC file parsing, ADC path order, gcloud config account line, `agy` candidate order, ADC-file refresh under the file's own client, bare access-token ADC file, `GOOGLE_APPLICATION_CREDENTIALS`, explicit sign-out blocking ADC, `ambientADCEmail` |
+| `GoogleAccountAuthServiceTests.swift` | 20 (19 on macOS) | Stored-session restore, explicit sign-out blocking restore, sign-out clearing the store, valid/unexpired/no-expiry token accessors, sync accessor, expired-token refresh and refresh failure (nil, no dead token), no-token nil, callback exchange success / state mismatch / authorization error / missing secret / processed-once, tokeninfo verification and 401 token drop, scope checks, client-secret storage and environment source, client-id resolution order, `handleOpenURL` accept/reject, Linux sign-in honest failure (Linux only) |
+
+69 tests total in `YcodeGoogleAuthTests`. `ycode/Tests/YcodeUITests/GoogleAccountsPaneTests.swift`
+adds 6 pane tests: the Google section and its buttons when
+signed out, the email and scope status when signed in, the
+missing-scope status and re-authenticate button, saving the
+client secret (and clearing it), saving the client-id override,
+and sign-out from the pane. The browser sign-in is never driven
+in tests — on macOS it would open a real web-auth session.
+
+Evidence for §10's claims is in the Evidence table above (§9):
+Legacy's `GoogleAccountAuthService.swift` was read directly for
+the client id, scopes, endpoints, PKCE, loopback, ADC,
+Antigravity, and classification claims; the not-ported rows rest
+on the `grep` evidence listed there; the clean-room basis is the
+same as the rest of this spec (Legacy is Dylan's own code,
+direct porting authorised under MIT, plus public Google OAuth
+documentation — RFC 7636, RFC 8252, Google's OAuth 2.0 endpoint
+shapes). No reference Xcode copy, Ghidra, simulator IPSW,
+`research/dirty/`, or Apple Xcode/Simulator observation was
+opened, read, or run.

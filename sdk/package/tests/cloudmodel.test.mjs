@@ -1,4 +1,4 @@
-// Cloud model contract tests for @swiftcode/sdk (Docs/Intro-to-SDK.md §19.1, §19.2).
+// Cloud model contract tests for @swiftcode/sdk (specs/ide/sdk-platform.md).
 //
 // Loads the real compiled dist/index.js and builds the real context via
 // createContext over a scripted fake HostConnection (the same pattern as
@@ -174,7 +174,7 @@ describe("cloudModel.complete wire contract", () => {
   });
 });
 
-describe("cloudModel.complete entitlement denial (Docs/Intro-to-SDK.md §13, task B4)", () => {
+describe("cloudModel.complete entitlement denial (specs/ide/sdk-platform.md, task B4)", () => {
   it("maps the host's typed CLOUD_MODEL_DENIED to SDKCloudModelAccessError with the verbatim message", async () => {
     const host = createFakeHost({
       "cloudModel.complete": () => {

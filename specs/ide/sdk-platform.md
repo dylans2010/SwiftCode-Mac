@@ -122,7 +122,7 @@ shapes (see §2.1).
 
 Already ported elsewhere, not duplicated: `Contracts/Capability/
 SDKCapability.swift` → `YcodeExtensions/Capabilities.swift`
-(`SDKCapabilityID`, 35 ids); `Contracts/Manifest/SDKManifest.swift` →
+(`SDKCapabilityID`, 34 ids); `Contracts/Manifest/SDKManifest.swift` →
 `YcodeExtensions/SwiftCodeManifest.swift` (`SwiftCodeManifest`);
 `Contracts/Manifest/ExampleManifests/repository-build-extension.
 swiftcode.json` → test fixture
@@ -186,7 +186,7 @@ them. Differences from Legacy's shapes: `SDKBuildResult.exitCode` is
 
 ## 4. Capability model
 
-- The fixed registry is 35 capability IDs (`SDKCapabilityID` in
+- The fixed registry is 34 capability IDs (`SDKCapabilityID` in
   YcodeExtensions). The requestable *scope* list is 32 entries
   (`ScopesIDLists.all` in YcodeSDK, mirrored in TypeScript as
   `SCOPES_ID_LIST`): 12 view scopes, 20 API scopes. `use.Security`
@@ -535,17 +535,18 @@ ported Swift table, which is the destination's host truth.)
 Tests (`sdk/package/tests/`, 11 files, `node --test`):
 `assist-variants`, `cli-roundtrip`, `cloudmodel`, `context`, `ipc`,
 `scopes-sync`, `security-exfiltration`, `security`, `snippets`,
-`terminal`, `ui`. Nine need only `npm install` + `npm run build` on
-Dylan's Mac; `cli-roundtrip` and `scopes-sync` need the Wave 15
-adaptations in §16 first.
+`terminal`, `ui`. All 11 pass under `node --test` (112/112, Wave 15,
+§24) after `npm install` + `npm run build` in `sdk/package`.
 
 ### 13.2 Runtime adapter (`sdk/runtime-adapter/`)
 
-**Source dropped by design** (ledger IMPLEMENTED): `src/adapter.ts`
-is not ported and `dist/adapter.js` is absent from the checkout. What
-was ported: `.gitignore`, `README.md`, `package.json`, `tsconfig.json`
-— verbatim. The ported `README.md` **is the adapter's protocol spec**
-and is retained verbatim for the rewrite (Wave 15): CLI `node
+**Rewritten in Wave 15 from the README spec (§24)** — `src/adapter.ts`
+now exists, `npm run build` emits `dist/adapter.js`, and the adapter is
+verified live against the protocol (ready / command dispatch /
+UNKNOWN_COMMAND / handler-error codes / activation failure / shutdown /
+stdin-EOF teardown). The ported `README.md` **is the adapter's protocol
+spec**; the rewrite codes against it plus the `@swiftcode/sdk` API
+(`createStdioConnection` + `createContext`, §13.1). CLI `node
 dist/adapter.js --entrypoint <path> [--manifest <swiftcode.json>]
 [--id] [--version] [--name]`; entry module's default export must be
 `{ id, activate, deactivate }` or stderr + exit 1; NDJSON over stdio,
@@ -578,7 +579,7 @@ description, usage }` (name must equal the file base name) +
 | `list` | List installed extensions (id, version, enabled, digest). |
 | `package` | Build + package into a deterministic `.swiftcode-extension` archive with an embedded digest record. |
 | `uninstall` | Remove one version, or every version with `--all`. |
-| `validate` | Validate `swiftcode.json` + package contents. Carries an **embedded schema mirror** (patterns + `CAPABILITY_IDS` = 35 SDK ids + 6 `use.Security.*` scopes), so it works without the schema file. |
+| `validate` | Validate `swiftcode.json` + package contents. Carries an **embedded schema mirror** (patterns + `CAPABILITY_IDS` = 26 SDK ids + 6 `use.Security.*` scopes (32 entries)), so it works without the schema file. |
 
 `create-extension.mjs` (155 lines) generates a real, compilable TS
 extension from `../templates/extension-typescript` and ships the real
@@ -634,12 +635,12 @@ The 11 `Documentation/*.md` files, verbatim: Assist-Access,
 Capabilities-and-Permissions, Compatibility, Extension-Manifest,
 Package-Format, Platform-Capabilities, Release-Readiness,
 Runtime-and-Security, SDK-Architecture, Security-Keychain,
-TypeScript-Extensions. Internal cross-references still use Legacy
-paths (`SwiftCode/SDK/...`) — a later docs pass should remap them to
-`sdk/...` in one place (Wave 15). `sdk/docs/Release-Readiness.md`
-references `Distribution/bundle-sdk.sh` and
-`Distribution/verify-bundle.mjs`, which are distribution scripts
-outside this wave's scope.
+TypeScript-Extensions. Internal cross-references were remapped to
+destination paths in Wave 15 (§24); `grep -rn "SwiftCode/SDK/" sdk/`
+returns 0. `sdk/docs/Release-Readiness.md` now runs the destination
+pipeline (`sdk/scripts/package-sdk.sh` / `sdk/scripts/verify-sdk.sh`);
+the Legacy `Distribution/bundle-sdk.sh` / `verify-bundle.mjs` scripts
+were never ported (see §15).
 
 ## 14. Studio UI
 
@@ -696,13 +697,17 @@ Grants: `SDKStudioGrantStore` protocol (`grants(for:)` /
 `extensionName(for:)` / `revoke` / `revokeAll`) +
 `SDKStudioGrantRecord` (Legacy `SDKGrantRecord` shape: package
 digest/version, capability, scope, granted-by/at, expiry, revoked
-tombstone, policy version). **S-2 open (Wave 15):** the default
-adapter (`SDKPermissionManagerGrantStore`) synthesises records from
-live grants only (SDK ids mapped back through
-`ExtensionCapability.v2Capabilities(for:)`); revocation is real and
-immediate, but revoked records disappear instead of persisting as
-audit evidence, and `extensionName(for:)` returns nil. The grant
-manager view says this in the UI. Pre-authorization from the manifest
+tombstone, policy version). **S-2 wired in Wave 15 (Slice B):** the
+default adapter (`SDKPermissionManagerGrantStore`) now merges live
+grants (synthesised from `PermissionManager`, SDK ids mapped back
+through `ExtensionCapability.v2Capabilities(for:)`) with the revoked
+tombstones kept in the Host slice's `SDKGrantStore` (§6) — revoked
+records stay visible with their revocation time, extension name (via
+`SDKExtensionRegistry`), and package digest; `revoke`/`revokeAll`
+stamp tombstones (best-effort — the live revoke already happened).
+The broker still consults the flat `PermissionManager` for live
+authorization; precise `PERMISSION_REVOKED` classification via the
+record store is follow-up work. Pre-authorization from the manifest
 editor grants through the real `PermissionManager.grant` (the seam has
 no grant operation by design — no second grant path was invented).
 
@@ -717,24 +722,27 @@ key store was provided — one that forgets keys on restart would
 silently break verification.
 
 Security manager / secure-prompt entry (`SDKStudioSecurityStore` seam,
-per-app `use.Security` values, add/delete/delete-all): **S-4 open
-(Wave 15):** no `use.Security` store exists in Ycode yet — the Host
-slice's `SDKSecurityService` has per-app operations but no
-list-all-apps enumeration, so Studio cannot list the apps to manage.
-The view reports the gap instead of writing secrets to UserDefaults
-or plain files.
+per-app `use.Security` values, add/delete/delete-all): **S-4 wired in
+Wave 15 (Slice B):** the Host slice's `SDKSecurityService` gained the
+host-only `listAllApps()` enumeration (§10) — metadata only (value
+IDs, labels, creation times; secret values are never returned) — and
+both views default to `SDKHostSecurityStore`, the adapter over it. A
+nil store still shows the seam as unavailable instead of writing
+secrets to UserDefaults or plain files.
 
 Assist access form: full validated form
 (`SDKStudioAssistAccessApplication`, same fields and validation as
-Legacy); **S-5 open (Wave 15):** submission belongs to the Host
-slice's `SDKAssistApplicationStore`, but the form as ported has no
-SDK-variant picker (UI vs headless — `SDKAssistSDKVariant`) and no API
-key secret — `SDKAssistApplication.Field` requires both `apiKey` (the
-presented secret) and `sdkVariant`. The form validates and shows a
-summary, and states submission is unavailable rather than faking an
-approval. Wave 15 must add a variant picker + an API-key picker (the
-secret must come from the key-creation flow, never typed into the
-form) before submission can be wired.
+Legacy); **S-5 wired in Wave 15 (Slice B):** the form now has the
+SDK-variant picker (radio group over the real
+`SDKAssistSDKVariant` — `assistSDK.UI` with UI / `assistSDK`
+headless, Legacy's verbatim details) and an API-key `SecureField`.
+The secret is held in memory only for the submit call, verified
+against the Keychain-backed key store, and cleared afterwards — never
+a stored property on the model, never persisted by the form.
+Submission goes to the Host slice's `SDKAssistApplicationStore`
+(`application.submit(apiKeySecret:)`); on success the form shows the
+pending status + application id, on error the `SDKError` message.
+Approval stays a separate host action — the form never approves.
 
 ### 14.3 Logs
 
@@ -748,7 +756,7 @@ counts); Audit — **G-1 wired in Wave 14:** the pane reads the durable
 
 One `SDKManifestEditorView` (visual + raw JSON, identity/runtime/SDK
 sections, capability toggles with reasons, search + category filter
-over all 35 canonical capabilities, contributed commands add/remove,
+over all 34 canonical capabilities, contributed commands add/remove,
 malformed-JSON banner with raw fallback, dirty tracking, save) and
 `SDKManifestInspectorView` (read-first: identity, capabilities with
 risk badges + restricted/unknown markers, commands, diagnostics, raw
@@ -830,22 +838,50 @@ Studio buffer (`SDKCodeDocument`, as Legacy did) in a plain
 `TextEditor`, with Ycode machinery around it (find coordinator wired
 to the live tab text, highlighting tokens available via
 `SDKKeywordHighlighter`, save/disk-change via the state, build/run via
-the runner). Embedding the Canvas editor is follow-up work (needs a
-`WorkspaceShellModel` for the project root). Known gap: find
-Next/Previous compute real matches and the bar reports them, but the
-`TextEditor` surface cannot move the caret to a match (needs the
-AppKit editor view); the find adapter's `selectFindRange` is a
-documented no-op. Go-to-Line is an inline row under the toolbar (not
-an alert — OpenViews' `AlertCard` does not promise an editable
-`TextField` in alert actions). The snippet library has a Copy button
-using the existing `ShellPasteboard.copy(_:)` (copy code only, never
+the runner). **Canvas embedding verdict (Wave 15, Slice B): the seam
+does not exist as an embeddable unit — left honestly-unavailable.**
+The pieces exist (`WorkspaceSession(model:)`,
+`WorkspaceShellModel(session:)`, `SourceEditorController(document:)`,
+`SourceEditorView(controller:model:palette:preferences:)` in
+`ycode-ide`, which already depends on `YcodeIDEShell`), but three
+things are missing: (1) no lightweight `WorkspaceSession` /
+`WorkspaceModel` for a plain directory root (`WorkspaceModel.init(url:)`
+loads a real `.xcodeproj` / `.xcworkspace` / Package; Studio edits
+bare extension dirs with only `swiftcode.json`); (2) no
+`EditorDocument` bridge from Studio's `SDKCodeDocument` value types
+(YcodeEditorKit's disk-backed `EditorDocument` / `EditorBuffer` vs the
+Studio tab/document model with its save/disk-change/snippet logic);
+(3) `WorkspaceShellModel` is the whole workspace window's model (find
+bar, issues, source control, debug, language-server lifecycle) — no
+hosted-controller lifecycle for a side pane. Find Next/Previous
+compute real matches and the bar reports them, but the `TextEditor`
+surface cannot move the caret to a match (needs the AppKit editor
+view); the find adapter's `selectFindRange` is a documented no-op.
+Go-to-Line is an inline row under the toolbar (not an alert —
+OpenViews' `AlertCard` does not promise an editable `TextField` in
+alert actions). The snippet library has a Copy button using the
+existing `ShellPasteboard.copy(_:)` (copy code only, never
 description/metadata, mirroring Legacy's
 `SDKSnippetStore.copyCode`); the console view's copy-to-pasteboard was
 dropped (no AppKit in this target).
 
 Deviation D-4 — Legacy's managed-build path (`SDKBuildHandle`, host
-build service) is not ported; the runner executes local processes
-only. The Host slice owns the managed-build seam.
+build service) is **wired in Wave 15 (Slice B):** the runner's
+`.xcodebuildSwift` kind now goes through
+`SDKBuildService.shared.run(caller:request:)` with the host identity
+`studio.editor` (digest SHA-256 of `"swiftcode.sdk.studio.editor"` =
+`f4a6727600315b3f0074a3aa515bc73a4ce6f37f5055e97d8f9aecceead8a927`,
+embedded as a constant — this target has no Crypto dependency and
+`Package.swift` must not be edited), streams `handle.events` into the
+console, `await handle.wait()`, appends result diagnostics to editor
+state, and cancels via the handle. The service authorizes
+`build.execute` for `studio.editor` through the broker exactly as for
+an extension — with no grant it fails honestly with
+`.permissionDenied` + a diagnostic telling the user to approve it via
+the Studio grant manager; the host identity is NOT auto-granted. A
+blank scheme fails honestly (Ycode has no scheme-resolver seam; same
+gap as §18 build-scheme discovery). Other kinds still run local
+processes (npm / node) as before.
 
 Deviation D-5 — Legacy's `SDKKeywordHighlighter` (919 lines,
 per-language keyword tables + Swift/TS string-frame scanning) is
@@ -855,10 +891,27 @@ calls (`ScopesIDLists`) are not reproduced — generated snippets are
 starter code (import + capability request shape); the TypeScript
 package's exact calls belong to the Host/TS slice.
 
-**Not ported:** `SDKExampleManager` — blocker: Legacy launches the
-bundled example project from `SwiftCodeSDK/Examples/
-RepositoryBuildExtension`; Ycode has no bundled example project.
-Needs a decision on where the example lives (Wave 15).
+**`SDKExampleManager` — resolved in Wave 15 (Slice B):** Legacy's
+concrete example (`SwiftCode/SDK/Examples/RepositoryBuildExtension`,
+7 commands) is already ledger-IMPLEMENTED as spec reference material
+(extensions-platform.md §2.2) and is NOT re-copied as a bundled
+project. Instead `SDKExampleManager` resolves the real minimal
+extension project from `sdk/templates/extension-typescript` and
+instantiates it with the example identity verbatim from Legacy's
+manifest (id `com.example.repository-build-extension`, name
+"Repository Build Extension", version `0.1.0`, slug
+`repository-build-extension`): `prepareExampleProject()` copies +
+instantiates on first use into the managed projects directory
+(macOS `~/Library/Application Support/SwiftCode/Projects/
+RepositoryBuildExtension`, Linux `~/.config/ycode/projects/
+RepositoryBuildExtension`), reuses the copy afterwards, repairs a
+missing manifest from the template, and validates (strict manifest
+validation, id must equal the example id, `package.json` +
+`src/index.ts` must exist). The Projects view has an "SDK Example"
+entry that prepares it, records it in recents, and opens it in the
+code editor. Opening in the workspace is the app shell's job — Ycode
+has no `ProjectSessionStore`, so Legacy's open-in-workspace steps are
+not reproduced.
 
 ### 14.6 Ship & Export
 
@@ -876,8 +929,8 @@ Needs a decision on where the example lives (Wave 15).
 | `SwiftCodeSDK-1.0.0.zip/.tar.gz`, `checksums.txt` | **Regenerated** by `sdk/scripts/package-sdk.sh`. |
 | `sdk/package/src/ScopesIDLists.ts` | **Regenerated** from the Swift host table by `generate-scopes-ts.py` (§13.1). Never hand-edited. |
 | Everything else in `sdk/` (`src/*.ts`, `*.mjs`, `*.md`, `*.json` configs, `*.swift` templates, `*.sh`) | **Hand-written source**, ported verbatim except the `.sh` adaptations in §13.5 and the two schema-path edits in §3. |
-| `sdk/runtime-adapter/src/adapter.ts` | **Dropped by design**; must be **rewritten** from the ported README spec (§13.2), not regenerated from anything. Wave 15. |
-| `SDK/Distribution/` (Legacy, ~905k lines) | **Generated, never copied.** Its `Scripts/*.py` (11 files) are synthetic filler: 10 hardcode `dest = "/Users/dylan/Downloads/SwiftCode-Debug/…/Distribution/SwiftCodeSDK"` and loop-write stub guides/docs/fixtures for the sole purpose of inflating `Distribution/` past the 200 MB gates. They were dropped, never re-run; the gates are report-only (§13.5). |
+| `sdk/runtime-adapter/src/adapter.ts` | **Rewritten in Wave 15** from the ported README spec (§13.2, §24). `dist/adapter.js` is regenerated by `npm run build`, never checked in. |
+| `SDK/Distribution/` (Legacy, ~905k lines) | **Generated, never copied.** Its `Scripts/*.py` (11 files) are synthetic filler: 10 hardcode `dest = "/Users/<user>/Downloads/SwiftCode-Debug/…/Distribution/SwiftCodeSDK"` and loop-write stub guides/docs/fixtures for the sole purpose of inflating `Distribution/` past the 200 MB gates. They were dropped, never re-run; the gates are report-only (§13.5). |
 
 ## 16. CLI + SDK tools (Swift executables)
 
@@ -907,8 +960,22 @@ public enum SDKIPCCodec { public static func decodeEnvelopeType(_ data: Data) th
 public enum SDKCompatibility { public static func check(protocolVersion: Int, versionRange: String) -> Bool }
 
 // Keys
-public actor SDKAPIKeyStore { public static let shared: SDKAPIKeyStore; public func createKey(label: String, scopes: Set<SDKAPIKeyScope>, isLive: Bool, expiresAt: Date? = nil) throws -> (key: SDKAPIKey, secret: String); public func list() -> [SDKAPIKey]; public func revoke(id: UUID) async; public func verify(secret: String) async throws -> SDKAPIKey }
+public actor SDKAPIKeyStore { public static let shared: SDKAPIKeyStore; public func createKey(label: String, scopes: Set<SDKAPIKeyScope>, isLive: Bool, expiresAt: Date? = nil) throws -> (key: SDKAPIKey, secret: String); public func list() -> [SDKAPIKey]; public func revoke(id: UUID) async; public func verify(secret: String) async throws -> SDKAPIKey; public func grantEntitlement(_ entitlement: SDKEntitlement, to key: SDKAPIKey) async throws; public func revokeEntitlement(_ entitlement: SDKEntitlement, from key: SDKAPIKey) async throws -> Int }
 public protocol SDKSecretStoring: Sendable { func read(account: String) throws -> Data?; func write(_ data: Data, account: String) throws; func delete(account: String) throws; func accountNames(withPrefix prefix: String) throws -> [String] }
+
+// Grant records (S-2, Wave 15 Slice B)
+public actor SDKGrantStore { public static let shared: SDKGrantStore; public init(storeURL: URL = SDKGrantStore.defaultStoreURL()); public func activeGrant(extensionID: String, capability: SDKCapabilityID, projectRootPath: String) -> SDKGrantRecord?; public func grants(for extensionID: String) -> [SDKGrantRecord]; public func recordGrants(_ records: [SDKGrantRecord], authorizedByAPIKey apiKey: SDKAPIKey? = nil) async throws; public func revoke(extensionID: String, capability: SDKCapabilityID) throws; public func revokeAll(for extensionID: String) throws; public func recordRevocation(extensionID: String, capability: SDKCapabilityID, packageDigest: String, packageVersion: String, grantedBy: String = "user-approval") throws; public func pruneExpired() throws }
+
+// Security listing (S-4, Wave 15 Slice B)
+public actor SDKSecurityService { public func listAllApps() async throws -> [SDKSecurityAppSummary] } // host-only; metadata only, never secret values
+public struct SDKSecurityAppSummary { public let securityID: String; public let extensionID: String?; public let values: [SDKSecurityStoredValue] }
+
+// Example manager (Wave 15 Slice B)
+public enum SDKExampleManager { public static let exampleID: String; public static func prepareExampleProject(templateURL: URL? = nil, projectsDirectory: URL? = nil) throws -> URL }
+
+// Assist application (S-5, Wave 15 Slice B)
+public enum SDKAssistSDKVariant: CaseIterable { case assistSDKUI; case assistSDK; public var displayLabel: String; public var detail: String }
+public struct SDKAssistApplication { public static let minimumUsageDescriptionLength: Int } // 40
 
 // Broker / gate / audit
 public final class SDKCapabilityBroker { public func authorize(caller: SDKCallerIdentity, capability: SDKCapabilityID) async -> SDKCapabilityDecision }
@@ -937,14 +1004,14 @@ public enum SDKDoctor { public static func diagnose(sdkRoot: URL?) -> [Diagnosti
 | Real Assist choke points | Host session loop / LLM service have no extension caller identity — the gate guards the IPC surface only. |
 | Build scheme discovery | No `AssistXcodeProjectResolver` / `xcodebuild -list` seam — container resolved from project root, target used as scheme. |
 | Installer bundled fallback | No tarball ships in-repo; falls back honestly when absent. |
-| Runtime adapter `adapter.ts` | Dropped by design; rewrite from the ported README spec (§13.2). Wave 15. |
-| `cli-roundtrip` + `scopes-sync` tests | Ported verbatim but cannot pass yet: Legacy-shaped path math (repo root 5 levels up from `tests/`, `SwiftCode/SDK/TypeScript/...` trees) + need the adapter rewrite (B2) and the schema (B3, now resolved). Adapt in Wave 15. |
-| Grant tombstones / digests / names (S-2) | `PermissionManager` (`grants.json`) keeps no tombstones, digests, or display names. Needs a grant-record store or tombstone support. Wave 15. |
-| `use.Security` store listing (S-4) | `SDKSecurityService` has per-app operations but no list-all-apps enumeration. Needs a host enumeration API. Wave 15. |
-| Assist application submission (S-5) | The Studio form has no SDK-variant picker and no API key secret; `SDKAssistApplication.Field` requires both. Wave 15 must add a variant picker + API-key picker first. |
-| `SDKExampleManager` | No bundled example project in Ycode. Needs a decision on where the example lives. Wave 15. |
-| Managed-build `SDKBuildHandle` | Studio code editor's xcodebuild path; the runner executes local processes only (D-4). |
-| Canvas editor embedding (D-3) | Needs a `WorkspaceShellModel` for the project root; find caret-move is a documented no-op until then. |
+| Runtime adapter `adapter.ts` | Rewritten in Wave 15 from the README spec (§24). `dist/adapter.js` builds; live smoke tests pass. |
+| `cli-roundtrip` + `scopes-sync` tests | Adapted to destination paths in Wave 15 (§24); both pass (13/13 and 4/4; full package suite 112/112). |
+| Grant tombstones / digests / names (S-2) | Wired in Wave 15 (Slice B, §25): `SDKGrantStore` in YcodeSDK (tombstones, digests, 30-day prune, `capabilities:request` issuance gate) + Studio adapter merge + grant-manager revoked history. |
+| `use.Security` store listing (S-4) | Wired in Wave 15 (Slice B, §25): host-only `SDKSecurityService.listAllApps()` (metadata only) + `SDKHostSecurityStore` default in both security views. |
+| Assist application submission (S-5) | Wired in Wave 15 (Slice B, §25): variant picker over real `SDKAssistSDKVariant` + in-memory-only `SecureField` secret + `submit(apiKeySecret:)` against the existing approval flow. |
+| `SDKExampleManager` | Wired in Wave 15 (Slice B, §25): template-based (`sdk/templates/extension-typescript`) with Legacy's example identity verbatim; no bundled copy. |
+| Managed-build `SDKBuildHandle` | Wired in Wave 15 (Slice B, §25): Studio runner's `.xcodebuildSwift` kind goes through `SDKBuildService`; fails honestly with `.permissionDenied` when ungranted, never fakes a build. |
+| Canvas editor embedding (D-3) | Verdict in Wave 15 (Slice B, §25): the seam does not exist as an embeddable unit — no lightweight `WorkspaceSession` for a plain directory root, no `EditorDocument` bridge from `SDKCodeDocument`, no hosted-controller lifecycle in `WorkspaceShellModel`. Left honestly-unavailable; find caret-move stays a documented no-op. |
 
 ## 19. Known Legacy defects, ported faithfully (not silently fixed)
 
@@ -956,6 +1023,11 @@ public enum SDKDoctor { public static func diagnose(sdkRoot: URL?) -> [Diagnosti
 6. `SourceControlService.getStatus` collapses `A`/`D`/`R`/`C` porcelain codes to `.modified` (Legacy behaviour; only `??` → `.untracked` is distinguished).
 7. `BuildService` has no timeout/cancellation: Legacy blocked on `waitUntilExit()`; `Subprocess.run` is likewise synchronous. The `SDKBuildContracts` timeout/cancel semantics live with the host dispatcher.
 8. `SDKAssistApplication.Field.apiKey` stores the presented secret (§5 flag).
+9. `SDKAssistGate.check` deny-list contains mixed-case `"sendMessage"`
+    matched against a lowercased method, so it never matches (Legacy
+    defect, ported faithfully in Wave 14; the exemption itself is
+    case-insensitive since Wave 15 Slice B, so `ASSIST.INVOKE` passes
+    like Legacy).
 
 ## 20. Name collisions (faithful names kept; consumers must qualify)
 
@@ -998,6 +1070,27 @@ No collision exists for `SDKError`, `SDKVersion`, `WorkspacePath`,
 9. **Secret storage flag:** `SDKAssistApplication` keeps Legacy's
    presented-secret storage; a key-ID-only revision is flagged, not
    silently applied (§5).
+10. **Wave 15 (Slice B) — S-2 home:** the grant-record store lives in
+    `YcodeSDK` (`SDKGrantStore`), NOT as tombstone support in
+    `PermissionManager` — the item allowed either, and
+    `PermissionManager` lives in `YcodeExtensions` outside the slice's
+    editable dirs. The Studio adapter bridges the flat live store +
+    the record store. The broker still authorizes from the flat store.
+11. **Wave 15 (Slice B) — S-5 secret:** the API key secret is a
+    `SecureField` held in memory only for the submit call and cleared
+    afterwards — never a stored property on the model, never
+    persisted by the form. Verified against the Keychain-backed key
+    store at submit.
+12. **Wave 15 (Slice B) — ExampleManager:** template-based, not a
+    re-copy of Legacy's concrete 7-command example (already spec
+    reference material). The example identity (id/name/version/
+    description/slug) is verbatim from Legacy's manifest.
+13. **Wave 15 (Slice B) — managed build:** the `studio.editor` host
+    identity is NOT auto-granted; `build.execute` goes through the
+    broker exactly as for an extension. No second grant path.
+14. **Wave 15 (Slice B) — Canvas:** embedding left
+    honestly-unavailable; the seam does not exist as an embeddable
+    unit (§14.5 D-3). No code change was made for it beyond spec text.
 
 ## 22. Tests
 
@@ -1031,6 +1124,36 @@ credentials, test-only keys, in-memory stores):
   via the existing validator, redaction, build parser, terminal
   validation, security validation, IPC dispatcher, installer
   inspection.
+- `SDKAssistApplicationTests.swift`, `SDKAssistEnforcementTests.swift`
+  (Wave 15 Slice B, §25) — ports of Legacy's Assist application +
+  enforcement suites, adapted to Ycode shapes (§25.2/§25.3): field
+  validation (throwing, 40-char minimum, conditional descriptions,
+  email), submit rejection (unknown extension → `.invalidArgument`,
+  unknown key → `.apiKeyInvalid`), approve → entitlements
+  (third-party models grant both, otherwise Assist only), deny →
+  no grant, single-shot decide; entitlement round-trip
+  (grant/revoke idempotent, revoked key → `.apiKeyRevoked`),
+  verbatim denial messages pinned as literals at every entry point
+  (createSession/send/sendStreaming `.failed`/executeTool/UI opener),
+  forged-manifest claim never grants, gate exempts exactly
+  `assist.invoke` (case-insensitive), cloud gate
+  (`.cloudModelDenied` verbatim without allows-cloud, authorized
+  with), revoke-closes-sessions (count returned, next call denied).
+  Real shared stores + real secret-store I/O, like Legacy's
+  real-Keychain tests; test keys labeled `SDKTest-assist-…` /
+  `SDKTest-enforcement-…`, revoked in tearDown; application records
+  have no delete API and remain as inert test data under the fixed
+  test extension IDs.
+- `SDKGrantStoreTests.swift`, `SDKSecurityListingTests.swift`
+  (Wave 15 Slice B, §25) — grant store on injected temp URLs
+  (record/lookup, scope mismatch, tombstone on revoke/revokeAll/
+  `recordRevocation`, 30-day prune keeping tombstones,
+  `capabilities:request` issuance gate fail-closed, corrupt-file
+  moved aside); security listing on the real secret store with a
+  test-only namespace (grouping by namespaced Security ID, metadata
+  only — the secret marker never appears in the encoded summaries,
+  empty namespace not invented, delete-all removes it from the
+  listing).
 - `SDKStudioTests.swift` — Studio-owned tests only: language
   inference, highlighter (token kinds, non-overlap, nested block
   comment, plaintext empty), document/tab/file-node invariants, editor
@@ -1038,12 +1161,22 @@ credentials, test-only keys, in-memory stores):
   modification clean-reload vs dirty-flag, diagnostics dedup,
   navigation, snippet insert, manifest capability add), find
   coordinator (wrap-around, case sensitivity, summary text, text-change
-  recompute), snippet store (35 built-ins, filters, variants),
+  recompute), snippet store (34 built-ins, filters, variants),
   build-runner validation (no-manifest warning, invalid manifest
-  errors), first-launch choice, installer-unavailable seam, wizard
-  validators, scaffold creation for all three wizards (+ non-empty-target
-  refusal), recent projects, grant-store adapter (grant → revoke →
-  revokeAll), API-key model, Assist-access validation, user logger.
+  errors), **managed-build honest failure (Wave 15 Slice B, §25):
+  `run(.xcodebuildSwift)` with no grant for `studio.editor` appends a
+  `PERMISSION_DENIED` diagnostic — engine-independent, since
+  authorization runs first**, first-launch choice,
+  installer-unavailable seam, wizard validators, scaffold creation for
+  all three wizards (+ non-empty-target refusal), recent projects,
+  grant-store adapter (**Wave 15 Slice B: revoked grants stay as
+  tombstones with revocation time; tombstone carries the extension
+  name + package digest; injected temp record store**), API-key model,
+  Assist-access validation, **Assist mapping (Wave 15 Slice B:
+  `sdkVariant` default `.assistSDKUI`, 40-char boundary, `makeField`
+  third-party splitting)**, **ExampleManager (Wave 15 Slice B:
+  prepare from the repo template, manifest id check, second call
+  reuses the copy)**, user logger.
 
 Not covered (needs Mac / live tools): actual `BuildService.build`
 execution (no Swift toolchain in this environment),
@@ -1051,6 +1184,747 @@ execution (no Swift toolchain in this environment),
 extension dir), `SDKDoctor` healthy-path verdict
 (environment-dependent by design), `swift build` / `swift test`
 themselves — Mac build/test pending on Dylan's Mac throughout.
+
+## 23. Wave 15 — SDK provider paths / router / selection (Slice D)
+
+Sources read live for this section (Legacy read-only, main
+`d51a8f0d`; destination main `faf89bd8` at wave start):
+`SwiftCode/Backend/Assist/AssistModels.swift`,
+`AssistProviderConfiguration.swift`, `AssistModelRouter.swift`,
+`AssistModelManager.swift`, `AssistModelEligibilityPolicy.swift`,
+`AgentModelAdapter.swift`, `HermesProvider.swift`
+(`HermesModelID` only), `SCCloudModel.swift`
+(`SCCloudConfiguration` constants only),
+`SwiftCode/Backend/Assist/Assist Frameworks/Meta/MetaAssistProvider.swift`,
+`MuseCodeCLIHelper.swift` (discovery + credential files only),
+`SwiftCode/SDK/Contracts/Protocol/SDKCloudModelContracts.swift`,
+`SDK/Host/ServiceAdapters/CloudModel/SDKCloudModelAdapter.swift`,
+`SwiftCode/Views/Settings/GeneralSettingsView.swift:1880-1896`
+(`proSection`, for the paywall half — see storekit-paywall.md
+§12). Destination: `ycode/Sources/YcodeAssistant/` (host),
+`ycode/Sources/YcodeSDK/` (already-ported cloud contracts /
+adapter), `ycode/Sources/YcodePaywall/` (entitlement rule).
+
+### 23.1 What landed
+
+`ycode/Sources/YcodeAssistant/AssistModelRouting.swift` (new)
+ports Legacy's selection rules faithfully onto Ycode's Assist
+host. It sends nothing itself: it picks a provider + model and
+the host's `AssistantProvider.send` does the work. No LLM call,
+no network call, no credential access in the file.
+
+| Legacy piece | Destination |
+|---|---|
+| `ModelCapabilities` (11 flags + `standardCloud` / `advancedReasoning` / `localFoundation` presets) | `ModelCapabilities` (verbatim) |
+| `ModelSpecification` + `specification(for:)` (name-based catalog) | `AssistModelSpecification.specification(for:)` — provider mapped onto `ProviderKind` (see §23.2) |
+| `AgentModelContextBudget` (reserve 4096, `maxInput = max(1024, window − 4096)`, `text.count / 4` estimate) | `AgentModelContextBudget` (verbatim) |
+| `contextBudget(for:)`, `normalizePrompt` | Same names on `AssistModelSpecification` |
+| `AssistModelEligibilityPolicy` (free-only: ID must contain "free", case-insensitive) + `AssistModelEligibilityError` | Verbatim |
+| `OpenCodeModelID` (`opencode:<provider>/<model>`) | Verbatim |
+| `HermesModelID` (`hermes:<spec>`, provider/model split) | Verbatim |
+| `OpenCodeConfiguration` (server URL, agent name, `managedServerEnabled`, `swiftcodeAgentDefinition` verbatim, loopback-only managed startup, port) | Verbatim shape; storage bridged to `AssistantSettings` (see §23.3) |
+| `AssistModelRouter.resolveDefaultModel` (cloud short-circuit → discovered match → AFM synthetic → spec synthesis) | `AssistModelRouter.resolveDefaultModel` (static) |
+| `eligibleCandidates` (agentic + tool-calling + configured + credentials + not quarantined; provider-models-only excludes custom; cloud appended after the agentic filter) | `eligibleCandidates` (actor method) |
+| `rankModels` (preferred → fewest failures → priority → subagents → context window) | `rankModels` (static; actor `ranked` uses live counts) |
+| `classify` / `isQuotaOrRateLimit` / `markRateLimited` (60s) / `markAuthenticationFailed` (600s) / `markModelUnavailable` (120s + count) / `markModelHealthy` / `clearAllQuarantines` / `isModelQuarantined` | Verbatim rules; classification is text-only (see §23.2) |
+| `buildContinuationPrompt`, failover `handleTurnFailure` (record → auto-switch-off returns nil → exclude failed, whole provider on quota/auth → next ranked + handoff + `ModelFailoverEvent`) | Verbatim; returns `(nextModel, continuationPrompt)` only (no SDK config — see §23.4) |
+| `isUserProvidedModel` / `isUserProvidedSelectedModelID` | Verbatim (cloud/hermes/opencode excluded) |
+| `AssistProviderSelection.provider(for:)` (prefix-first routing) | `AssistantBackends.providerKind(forModelID:)` + `provider(forModelID:)` through the existing `provider(_:)` dispatch — no second dispatcher |
+| `AssistModelManager.selectedModelID` resolution | Covered by `resolveDefaultModel` + `settings.model(for:)`; `customModelID` persisted as `AssistantSettings.customModelID` |
+
+### 23.2 Adaptations (host has no Antigravity SDK)
+
+- **Provider mapping.** Legacy's `AssistModelProvider`
+  (openAI, anthropic, gemini, mistral, meta, kimi, openRouter,
+  openCode, hermes, codex) becomes Ycode's `ProviderKind`.
+  Vendors Ycode has no direct provider for (Anthropic, Gemini,
+  Mistral, Kimi, DeepSeek, the Meta vendor API) map to
+  `.openRouter`, the host that can serve those models — the
+  same fallback Legacy's own `llmProvider` mapping used for
+  meta/kimi. `codex` → `.codex`, `ollama`/`lmstudio` →
+  `.ollama`, Apple/Foundation → `.foundationModels`. Two
+  prefix branches are Ycode additions: `hermes:` → `.hermes`
+  (Legacy had no `hermes:` branch — a Hermes id fell through
+  to the OpenRouter default, which its own fail-closed guards
+  then had to catch) and `swiftcode-cloud:` → `.scCloud`
+  (Legacy routed cloud ids through a separate router
+  short-circuit).
+- **Routing strategy.** `AssistRoutingStrategy`:
+  `.providerDefault` (Legacy `"default"`) and `.appModels`
+  (Legacy `"app_models"`). Legacy's `"default"` / `"rotation"`
+  restricted selection to the Antigravity SDK's live model
+  catalog (`"rotation"` additionally rotated Gemini API keys).
+  Ycode has no such catalog and no key-rotation system, so
+  both collapse to the discovered set; `"rotation"` (and any
+  unknown value) decodes to `.providerDefault`. The strategy
+  is still persisted, because the distinction matters again
+  if a catalog ever exists.
+- **Failure classification is text-only.** Legacy also
+  matched `NSURLErrorDomain` codes; this portable target
+  does not import FoundationNetworking, and the text checks
+  ("timed out", "network", "cannot connect") cover the same
+  cases.
+- **Legacy's faithful quirks kept:** `classify` never
+  returns `.rateLimited` / `.unsupportedCapability` /
+  `.malformedResponse` (rate limits classify as
+  `.quotaExhausted`; anything unmatched falls through to
+  `.internalAntigravityFailure`). The adapter's Apple
+  Foundation context window (8,192) disagrees with the
+  router's AFM synthetic model (16,000); both values are
+  preserved in their own paths — a Mac check should settle
+  which is real.
+- **No `@MainActor` singleton, no `@Observable`.** Legacy's
+  router was `AssistModelRouter.shared` with SwiftUI state.
+  Here it is an actor the host owns; the pure rules are
+  `static` so tests can call them without an instance.
+
+### 23.3 Provider configuration (persisted in Ycode's settings store)
+
+`AssistantSettings` (`ycode/Sources/YcodeAssistant/AssistantSettings.swift`,
+persisted as JSON under `Ycode.codingAssistant` via
+`Preferences.codingAssistant` — the settings store; no new
+store was invented) gains, all with Legacy's defaults:
+
+| Field | Legacy source | Default |
+|---|---|---|
+| `routingStrategy: AssistRoutingStrategy` | `assistModelRoutingStrategy` | `.providerDefault` |
+| `automaticallySwitchModels: Bool` | `assistAutomaticallySwitchModels` | `true` |
+| `useProviderModelsOnly: Bool` | `assistUseProviderModels` | `false` |
+| `onlyUseFreeModels: Bool` | `onlyUseFreeModels` | `false` |
+| `useSwiftCodeCloudModel: Bool` | `useSwiftCodeCloudModel` | `false` |
+| `openCodeAgentName: String` | `OpenCodeConfiguration.agentName` | `"swiftcode"` |
+| `customModelID: String` | `AssistModelManager.customModelID` / `AppSettings.customModel` | `""` |
+
+`OpenCodeConfiguration` reads/writes through
+`init(settings:)` / `apply(to:)` instead of Legacy's
+UserDefaults keys (`opencode.serverURL`,
+`opencode.agentName`, `opencode.managedServerEnabled` —
+recorded in the type's documentation only). No secret is
+persisted here: OpenCode model credentials live in OpenCode's
+own configuration, the SCCloud fingerprint stays in the
+secret store, and API keys stay in `SecretStore`.
+
+Settings UI (`ycode/Sources/YcodeUI/App/CodingAssistantSettingsPane.swift`,
+same pane Wave 9's provider fields live in): a "Model
+Routing" section (strategy pop-up + the four toggles above
+with Legacy's help text), an "Agent name" field under
+OpenCode, and an "Assist with Meta" section showing the
+`muse` binary's status like the Hermes section does.
+
+### 23.4 MetaAssistProvider — what it is, what is not ported
+
+**Verified live:** `MetaAssistProvider` is NOT Meta's vendor
+API. It is "Assist with Meta", powered by the **Muse Code
+SDK/CLI** (`muse` binary) through an MSP (JSON-RPC) host
+bridge (`MuseCodeMSPBridge`: `initialize` / `model/list` /
+turns). Legacy's vendor-API provider (`AssistModelProvider.meta`,
+endpoint `https://api.meta.ai/v1/chat/completions`, marked
+"// Example" in source) is a different, unused thing; no Meta
+vendor provider is invented in Ycode.
+
+Ported (`ycode/Sources/YcodeAssistant/MetaAssistProvider.swift`,
+new `ProviderKind.metaAssist`, wired into
+`AssistantBackends.provider(_:)`): the identity
+(`meta_assist`, "Assist with Meta", default model
+`muse-wonder-1.0`), the fallback catalog (three models,
+context 1,007,997, output 128,000, reasoning variants),
+availability through the `muse` binary + credential files
+(`~/.config/muse/auth.json`, `~/.muse/auth.json` —
+existence only, never read), and discovery of the binary in
+PATH, the usual folders, plus Legacy's extra `~/.muse/bin/muse`.
+
+**Not ported:** the MSP bridge itself
+(`MuseCodeMSPBridge`), `MetaAssistLifecycleManager`,
+`MetaSlashCommandManager`, `MuseOtherModelsBridge`, the turn
+executor (`executeTurn` with streaming text/thinking deltas,
+tool normalization against Legacy's `AssistManager`
+registry, turn tracker), and `normalizeToolName`. Those are
+a whole JSON-RPC host session, not a provider adapter. Until
+a later wave ports the bridge, `send` throws
+`AssistantError.unsupported` naming it — it never fabricates
+a reply and never reroutes the turn to another provider.
+Availability reports `.ready` with the fallback catalog when
+the CLI is installed and signed in (Legacy's own
+`discoverModels` gate), which is the established wave
+pattern for a registered-but-blocked capability; the
+`send` failure names the prerequisite.
+
+### 23.5 SDKCloud contracts — already ported, not duplicated
+
+`SDKCloudModelContracts.swift` (52 lines: history entry +
+`cloudModel.complete` request) and
+`SDKCloudModelAdapter.swift` (234 lines) were already ported
+in Wave 14 (`ycode/Sources/YcodeSDK/Contracts/SDKCloudModelContracts.swift`,
+`Host/ServiceAdapters/CloudModel/SDKCloudModelAdapter.swift`)
+and are **not** re-ported here. Verified: the adapter
+authorizes `.useSwiftCodeModel`, validates the bounds, runs
+the `SCCloudRateLimiter` pre-check, and completes through
+YcodeAssistant's `SCCloudProvider` via `AssistantProvider` —
+never a parallel client. Unconfigured cloud maps to
+`.serviceUnavailable`. The only Wave 15 addition on this
+seam is `SCCloudProvider.isCloudModelID(_:)` (Legacy
+`SCCloudConfiguration.isCloudModelID`) and
+`displayNameFallback` ("SwiftCode Cloud Model"), which the
+router needs; the contract/adapter files are untouched.
+
+### 23.6 What was NOT ported, honestly unavailable
+
+| Piece | Exact blocker |
+|---|---|
+| `buildSDKConfiguration` / `selectModelForSDK` | Returns a `GoogleCloudSDKConfiguration` for the Antigravity SDK session, which does not exist in Ycode. Ycode equivalent: `ChatRequest` + the chosen `ProviderKind`. |
+| Gemini key rotation on failover | No `AlternativeKeyManager` in Ycode. A rate-limited turn fails over to the next model (or returns nil when auto-switch is off) instead of rotating a key. |
+| Google OAuth auth mode | No `GoogleAccountAuthService` in Ycode (separate GoogleAccount slice). No OAuth token path exists in the router. |
+| Antigravity SDK catalog (`sdkDefaultModelIDs`, `createSyntheticSDKModel`) | No `AntigravitySDKModelFetcher` in Ycode. The `"default"` / `"rotation"` strategies collapse to the discovered set (§23.2). |
+| Muse Code MSP bridge + Meta turn execution | `MuseCodeMSPBridge` / lifecycle / slash commands not ported (§23.4). `send` fails honestly. |
+| `AssistModelDiscoveryService` (1,185 lines) | Discovery is Ycode's `AssistantBackends.survey()` + each provider's `availability()`; the router consumes discovered candidates abstractly. No separate discovery service was built. |
+| `AgentModelAdapter.queryModel` / `extractJSON` / `OfflineFallbackManager` | Bound to Legacy's `LLMService` session loop and its offline-fallback provider; the host session loop is out of scope for this slice. |
+| `AssistModelManager` singleton | `ObservableObject` + `OfflineFallbackManager` health. Its selection state is covered by `AssistantSettings` + the router. |
+| `MetaAssistProvider.normalizeToolName` | Resolves against Legacy's `AssistManager` tool registry; Ycode's tools live behind MCP. |
+
+### 23.7 Tests
+
+`ycode/Tests/YcodeAssistantTests/AssistModelRoutingTests.swift`
+(swift-testing, fixtures only — no live network, no real API
+keys): specification prefix/branch mapping, prompt
+normalization, context budget, free-only eligibility,
+`OpenCodeModelID` / `HermesModelID` parse round-trips and
+rejections, `OpenCodeConfiguration` settings round-trip +
+loopback/port + agent-definition text, ranking order
+(preferred / failures / priority / subagents / context),
+eligibility filtering (agentic, configured, quarantine,
+provider-models-only, cloud append), `resolveDefaultModel`
+(cloud short-circuit, discovered match, AFM synthetic, spec
+synthesis), `selectNextModel`, failure classification +
+quarantine lifecycle (60s / 600s / 120s durations via
+`isModelQuarantined` + `markModelHealthy` /
+`clearAllQuarantines`), failover (auto-switch off → nil but
+still recorded; on → next model + handoff text; quota
+excludes the whole provider; exhaustion → nil),
+continuation-prompt text, user-provided model detection,
+`providerKind(forModelID:)` / `provider(forModelID:)`
+dispatch, `AssistantSettings` routing defaults + Codable
+round-trip + unknown `"rotation"` strategy decoding to
+`.providerDefault` + missing-keys defaults, and
+`MetaAssistProvider` availability (absent binary →
+`.notInstalled`, installed without credentials →
+`.signedOut`, installed with a fixture auth file →
+`.ready` with the three catalog models) + `send` throwing
+`.unsupported` naming the MSP bridge. `swift build` /
+`swift test` pending on Dylan's Mac (no Swift toolchain in
+this environment).
+
+## 24. Wave 15 — Slice A: runtime adapter, test adaptation, docs remap (B2/B4/B5/B7)
+
+Environment: Node v24.22.1, npm 10.9.4. `npm install` was run in
+`sdk/package`, `sdk/cli`, `sdk/runtime-adapter` (TypeScript 7.0.2,
+`archiver` for the CLI); `node_modules/` are gitignored build inputs
+and the regenerated `package-lock.json` files were removed again after
+the runs (Wave 14 decision: lockfiles regenerate on Dylan's Mac, not
+checked in). No Swift toolchain was used or needed for this slice; no
+commit, no push.
+
+### 23.1 B2 — `sdk/runtime-adapter/src/adapter.ts` (new, 300 lines)
+
+Rewritten from the ported README spec (§13.2), coding against the
+ported `@swiftcode/sdk` API only — no earlier adapter implementation
+was read. Behaviour, verified live with a throwaway fixture extension
+(`/tmp` smoke harness, not committed):
+
+- Arg parsing: `--entrypoint` (required), `--manifest`, `--id`,
+  `--version`, `--name`, `--help`/`-h` (usage, exit 0). Unknown flag,
+  flag missing its value, positional arg, or missing `--entrypoint` →
+  stderr + exit 1.
+- Manifest: `JSON.parse`; any read/parse failure → stderr + exit 1.
+- Identity precedence exactly per README: id flag > manifest > module
+  id; name flag > manifest > module id; version flag > manifest >
+  `"0.0.0"`. Entry default export must be `{ id, activate, deactivate }`
+  with function-valued `activate`/`deactivate`, else stderr + exit 1.
+- `createStdioConnection()` + `createContext(connection, { id, name,
+  version })`; `activate()` resolving sends `extension.ready {
+  extensionId, version, protocolVersion: 1 }`. `activate()` throwing
+  sends best-effort `extension.activationFailed { extensionId, message }`,
+  then best-effort deactivate + dispose + close, stdout flushed
+  (bounded 1 s), stderr `error: activation failed: …`, exit 1.
+- `commands.execute { commandId, invocationId, payload }` dispatches
+  through `CreatedContext.getCommandHandler`. Missing handler →
+  `commands.executeResult { invocationId, ok: false, error: {
+  code: "UNKNOWN_COMMAND", … } }`. Handler success → `{ invocationId,
+  ok: true, result }`; handler throw → `ok: false` with `code:
+  err.code ?? "COMMAND_FAILED"`. `shutdown {}` runs the shared
+  teardown and exits 0. stdin EOF/close and SIGTERM also run it (exit
+  0). `uncaughtException`/`unhandledRejection` send best-effort
+  `extension.error`, then teardown, exit 1. Teardown is
+  best-effort `deactivate()` (5 s budget) → `subscriptions.disposeAll()`
+  → `connection.close()` → bounded stdout flush → `process.exit(code)`.
+  `build.output` / `build.finished` are routed internally by the SDK
+  context, never by the adapter.
+
+README gaps found while writing (decisions, not inventions — each is
+marked `DECISION` in the source):
+
+1. `commands.executeResult` error shape fixes `{ code, message,
+   correlationId }` but never says what `correlationId` is. The adapter
+   uses the thrown error's own `correlationId` when it carries one
+   (`SDKError` does), else the `invocationId` — the only correlation
+   the host can match the result against.
+2. `extension.error` shape fixes `{ extensionId, message, detail }`
+   but not `detail`'s content. The adapter sends the error stack when
+   one exists, else the message.
+3. No source supplies an id at all (no flag, no manifest id, no module
+   id). An `extension.ready` frame needs an `extensionId`, so this is
+   a contract failure (stderr + exit 1), not a silent default.
+4. A handler returning `undefined` sends `result: null` so the success
+   frame always carries the key.
+5. A malformed `commands.execute` event (missing `commandId` or
+   `invocationId`) is diagnosed to stderr and ignored — no result
+   frame can be addressed without an `invocationId`.
+6. The README never specifies an "active" stderr line. The Legacy
+   adapter printed `active; awaiting host events`; the rewrite does
+   NOT emit that string (it is not in the spec). `cli-roundtrip` was
+   adapted to wait on the spec'd stdout `extension.ready` event
+   instead (§24.2). SIGTERM is the only signal handled (the README
+   names no other); stdin EOF/close are the other clean triggers.
+
+### 23.2 B4 — `sdk/package/tests/cli-roundtrip.test.mjs` (adapted, 13/13 pass)
+
+- Repo root is 3 levels up from `tests/` (was 5); trees are `sdk/cli`,
+  `sdk/runtime-adapter/dist/adapter.js`, `sdk/package/dist/index.js`;
+  the run-dir `@swiftcode/sdk` symlink points at `sdk/package`.
+- Activation wait changed from the Legacy stderr string (see §24.1.6)
+  to polling stdout for `"event":"extension.ready"`.
+- No test expectation was weakened: determinism (10× byte-identical),
+  both `DIGEST_MISMATCH` tampers, `DIGEST_RECORD_MISSING`,
+  `MANIFEST_INVALID`, honest xcodebuild-absent and missing-compiler
+  paths all still assert exactly as ported.
+
+### 23.3 B5 — `sdk/package/tests/scopes-sync.test.mjs` (adapted, 4/4 pass)
+
+Destination shapes differ from Legacy's in three ways, all verified
+live from the Swift files:
+
+- `ScopesIDLists.swift` entries are single-line literals in fixed
+  field order, and `ipcMethod`/`viewId` may be omitted entirely
+  (default nil) — 3 of 32 entries omit `ipcMethod`. The entry regex
+  now matches that shape with both fields optional.
+- Capability raw values now come from
+  `ycode/Sources/YcodeExtensions/Capabilities.swift` (same
+  `case <name> = "<raw>"` shape; the case map still validates every
+  entry's capability case and raw value).
+- `SDKViewOpenerBuiltIns.swift` registers string-literal view IDs
+  (`register(viewID: "db.ExploreView")`, 9 direct) plus three sibling
+  `SDK<Area>ViewOpener.register()` calls; each sibling's wire ID is
+  read from its `static let viewID = "…"` line. The IDs are already
+  wire IDs, so no enum-case mapping is needed; each is still checked
+  against the known `SDKCapabilityID` raw values.
+
+Generator bug fixed in the same pass (workspace-side, not the
+destination repo): `~/SwiftCode-Migration-Workspace/scripts/
+generate-scopes-ts.py` line 132 emitted `capabilityId: "…",,` (double
+comma) for all 12 view entries, so `src/ScopesIDLists.ts` did not
+parse and `npm run build` failed with TS1136/TS1005 across lines
+234–336. Fixed to emit the comma only as the `viewId` separator and
+re-ran the generator: 32 entries (12 views, 20 api), `tsc --noEmit`
+clean, `dist/index.js` loads, `SCOPES_ID_LIST.length === 32`. The
+regenerated file also drops the trailing comma on the 20 api entries
+(valid TS, generator output — do not hand-edit; re-run the generator).
+
+### 23.4 B7 — docs remap (44 files modified + `adapter.ts` new)
+
+Every `SwiftCode/SDK/...` cross-reference under `sdk/` is remapped to
+a destination path, and every `Docs/Intro-to-SDK.md` citation is
+remapped to `specs/ide/sdk-platform.md`. Verification (run live):
+`grep -rn "SwiftCode/SDK/" sdk/` → 0 matches;
+`grep -rn "Docs/Intro-to-SDK" sdk/` → 0 matches
+(`node_modules/` and `dist/` build output excluded — regenerated).
+
+Mapping used (mechanical, then hand-fixed where it would mislead):
+
+- `SwiftCode/SDK/TypeScript/{package,cli,runtime-adapter}` →
+  `sdk/{package,cli,runtime-adapter}`; `SwiftCode/SDK/Contracts/
+  Manifest/` → `sdk/Contracts/Manifest/`; `…/Contracts/Capability/
+  SDKCapability.swift` → `ycode/Sources/YcodeExtensions/Capabilities.swift`;
+  `…/Contracts/Protocol/` → `ycode/Sources/YcodeSDK/Contracts/`;
+  `…/Documentation/` → `sdk/docs/`; `…/Host/…` →
+  `ycode/Sources/YcodeSDK/Host/…`; `…/Studio/…` →
+  `ycode/Sources/ycode-ide/SDKStudio/` (directory — the Legacy
+  `AssistAccessFormView.swift` file has no single-file destination);
+  `…/Internal/SDKConfigStore/SwiftCodeSDK.json` →
+  `ycode/Sources/YcodeSDK/Resources/SwiftCodeSDK.json`;
+  `…/Internal/` → `ycode/Sources/YcodeSDK/Internal/`; `…/Testing/` →
+  `ycode/Tests/YcodeSDKTests/`; `…/Package.swift` → `ycode/Package.swift`.
+- `Docs/Intro-to-SDK.md §N` citations → `specs/ide/sdk-platform.md`
+  with the Legacy section number dropped: the two specs do not share
+  numbering, so carrying the number over would be false precision.
+  Where Wave 15 itself wrote the citation against the real spec
+  (§13.2 adapter, §13 round-trip, §18 Assist suites, §9/§13.1 adapter
+  README), the real section number is kept.
+- Deliberate exceptions (kept, not stale): the runtime filenames
+  `SwiftCode/SDKGrants.json` / `SwiftCode/SDKAudit.jsonl` in
+  `sdk/docs/` (Legacy filenames, no `/` after `SDK` — they are not
+  `SwiftCode/SDK/...` paths). Note the destination grant store is
+  `PermissionManager` + `grants.json` (§4/§6), not `SDKGrants.json` —
+  the docs still describe the Legacy filename. Bare `spec §N`
+  shorthand in CLI/src comments (e.g. `spec §17`, `spec §7.2`) is
+  Legacy section numbering carried over from the ported files; it was
+  left untouched rather than re-numbered by guesswork.
+- `sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json`: only
+  its top-level `description` text changed (the two doc citations
+  inside it); the schema itself is byte-identical otherwise — JSON
+  still parses.
+- `sdk/docs/Release-Readiness.md`: the repeatable-checks block now
+  runs the destination pipeline (`sdk/package`, `sdk/cli`,
+  `sdk/runtime-adapter`, `sdk/scripts/package-sdk.sh`,
+  `sdk/scripts/verify-sdk.sh`); the Legacy `Distribution/bundle-sdk.sh`
+  / `verify-bundle.mjs` invocations were replaced, not remapped —
+  those scripts were never ported (§15). `npm pack --pack-destination`
+  corrected to `../Distribution` (from `sdk/package`, the assemble
+  output is `sdk/Distribution`).
+- `sdk/docs/Assist-Access.md` §9: the Swift test bullet now states
+  the `SDKAssistApplicationTests` / `SDKAssistEnforcementTests` suites
+  were NOT ported as suites (§18) instead of naming Legacy paths.
+- `sdk/docs/SDK-Architecture.md`: the Legacy tree diagram is labelled
+  as the Legacy layout with the destination layout pointed at §1; the
+  `agent_notes.md` convention is marked Legacy-only with no destination
+  equivalent. Legacy app-internal references (`SwiftCode/Backend/…`,
+  `SwiftCode.xcodeproj`, `SwiftCode/Resources/Google Cloud SDK/…`) were
+  NOT remapped — they are not `SwiftCode/SDK/...` references and
+  remapping them would require knowing their destination equivalents.
+
+### 23.5 Evidence (all run live in this slice)
+
+- `sdk/package`: `npm run build` clean (`tsc --noEmit` clean;
+  `build:snippets` reproduces the checked-in `snippets.json`
+  byte-identically, 27 snippets).
+- `sdk/runtime-adapter`: `npm run build` + `npm run typecheck` clean;
+  `dist/adapter.js` (14,156 bytes) `node --check` clean.
+- `node --test "tests/*.test.mjs"` in `sdk/package`: **112 tests,
+  112 pass, 0 fail** (24 suites, ~9.2 s). Individually:
+  `scopes-sync` 4/4, `cli-roundtrip` 13/13.
+- Adapter hand smoke tests (throwaway fixture, `/tmp`, not committed):
+  `--help` exit 0; unknown flag / missing `--entrypoint` / unreadable
+  manifest → stderr + exit 1; stdin EOF → `extension.ready {
+  extensionId, version, protocolVersion: 1 }` then exit 0;
+  `commands.execute` success → `ok: true` with the handler result,
+  unknown command → `UNKNOWN_COMMAND`, throwing handler →
+  its `code` preserved; `shutdown` → exit 0; `activate()` throwing →
+  `extension.activationFailed` + exit 1.
+- `node --check` passes on every `.mjs` touched; `bash -n` passes on
+  all 4 `.sh` files; the schema JSON and `runtime-adapter/package.json`
+  parse. No TODO/FIXME introduced; no secrets in any new/changed file
+  (secret-pattern grep over the slice's files returns nothing).
+- Legacy repo untouched (clean at `d51a8f0d`); destination on main at
+  `faf89bd8` with this slice's changes uncommitted. Concurrent
+  sibling-wave work present in the same checkout
+  (`ycode/Sources/YcodeAssistant/*`, `YcodeGoogleAuth`,
+  `YcodePaywall/ProSettingsSection.swift` + tests) was not touched.
+
+### 23.6 Count discrepancy found (flagged, not fixed — coordinator's call)
+
+The Wave 14 spec says "35 capability IDs" (§4, §13.1, §13.3, §14.4,
+§21) and "35 SDK ids + 6 `use.Security.*` scopes = 41" for the
+validator mirror. Verified live, all three counts disagree:
+
+- `SDKCapabilityID` (`ycode/Sources/YcodeExtensions/Capabilities.swift`)
+  has **34** cases — and Legacy's `SDKCapability.swift` has exactly
+  the same 34 (its 38 `case … = "…"` lines include 4 risk-level raw
+  values from another enum). The port is faithful; the "35" is a spec
+  error, not a port defect.
+- `validate.mjs`'s `CAPABILITY_IDS` mirror has **32** entries (the
+  schema enum: 26 SDK ids + 6 method scopes). The 34 enum cases =
+  32 − 6 method scopes + `assist.ui`/`assist.headless`/`assist.main` +
+  5 `security.*` method ids.
+- The 32-entry scopes list is unaffected (12 views + 20 api) and
+  `scopes-sync` passes against both sides.
+
+No file was changed for this: deciding the canonical count (and
+whether `validate` should admit `assist.ui`/`assist.headless`/
+`assist.main` and the 5 `security.*` method ids) belongs to the
+coordinator, since it changes validation behaviour.
+
+**Coordinator decision (Wave 15):** the canonical Swift count is
+**34** — verified live, `SDKCapabilityID` has exactly 34 cases in
+both Legacy and the destination with identical sets, so the port is
+faithful and the Wave 14 spec's "35" was a spec error (corrected in
+§4, §5, §13.5, §14.4, §21, §22, and here; `builtInSnippets()` maps
+over `allCases`, so the snippet store's 34 built-ins follow from the
+same count). `validate.mjs` keeps its 32-entry `CAPABILITY_IDS`
+mirror unchanged this wave: its vocabulary differs by design — it
+admits the 6 `use.Security.*` method scopes and does not admit
+`assist.ui` / `assist.headless` / `assist.main` or the 5 `security.*`
+method ids (`security.addValue`, `security.hasValue`,
+`security.listValueIDs`, `security.deleteValue`,
+`security.useValue`). Admitting them changes what manifests
+validate, so that decision moves to Wave 16 with the exact IDs named
+here; `scopes-sync` pins the current mapping and passes.
+
+### 23.7 What is still pending (not this slice)
+
+- Mac `swift build` / `swift test` for the SDK targets (no Swift
+  toolchain in this environment) — unchanged from Wave 14.
+- The `sdk-test-runner` / Swift-side `.sh` pipeline steps (B6) —
+  unchanged; the TS copy/assemble steps are unaffected by this slice.
+- Template smoke tests for `sdk/templates/standalone-swift` (SwiftUI
+  scaffold, needs Xcode) and `sdk/templates/project-typescript`
+  (not exercised here; `cli-roundtrip` covers the generated
+  extension-typescript template end to end).
+- The `spec §N` shorthand and `SwiftCode/SDKGrants.json` filename
+  drifts noted in §24.4, and the §24.6 count discrepancy.
+
+## 25. Wave 15 — Slice B: SDK host remainder (S-2/S-4/S-5/ExampleManager/tests/managed build/Canvas)
+
+Sources read live for this section (Legacy read-only, main
+`d51a8f0d`; destination main `faf89bd8` at wave start):
+`SwiftCode/SDK/Host/CapabilityBroker/Grants/SDKGrantStore.swift`,
+`SwiftCode/SDK/Host/Security/SDKSecurityService.swift`,
+`SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift`,
+`SDKAssistApplicationTests.swift`, `SDKAssistEnforcementTests.swift`,
+`SwiftCode/SDK/Studio/Views/SDKExampleManager.swift`,
+`SwiftCode/SDK/Studio/CodeEditor/SDKCodeBuildRunner.swift`,
+`SwiftCode/SDK/Studio/Views/AssistAccessFormView.swift`,
+`SDKSecurityManagerView.swift`, `SDKGrantManagerView.swift`,
+plus the destination's `ycode/Sources/YcodeSDK/` (Wave 14 host),
+`YcodeExtensions/Capabilities.swift` (`PermissionManager`),
+`ycode-ide` (`WorkspaceShellModel`, `SourceEditorView`),
+`sdk/templates/extension-typescript/`, and the Wave 14 drafts.
+
+### 23.1 S-2 — grant tombstones / digests / extension names
+
+Legacy's `SDKGrantStore` (actor, `SDKGrants.json`, 0600, sorted-keys
+pretty JSON) is ported faithfully into `YcodeSDK/Host/
+CapabilityBroker/Grants/SDKGrantStore.swift`: `SDKGrantScope`
+(standardized project-root path; empty path = no project scope, never
+authorizes), `SDKGrantRecord` (id, extensionID, packageDigest,
+packageVersion, capability, scope, grantedAt, grantedBy, expiresAt,
+revokedAt tombstone, policyVersion; `isActive`, `revoked()`), lazy
+load, atomic persist, corrupt file moved aside to
+`SDKGrants.json.corrupt-<timestamp>` and starts empty, `activeGrant`,
+`grants(for:)` oldest-first including tombstones, `recordGrants(_:
+authorizedByAPIKey:)` with the `capabilities:request` scope gate for
+privileged capabilities (fail closed — nothing persisted on denial),
+`revoke`/`revokeAll` stamping tombstones, `pruneExpired` (30-day rule,
+tombstones kept). Adaptations: Linux path
+`~/.config/ycode/sdk-grants.json` (macOS `~/Library/Application
+Support/SwiftCode/SDKGrants.json`); Ycode audit call
+`record(.apiKeyScopeFailure, extensionID:detail:correlationId:)`;
+Ycode `SDKError` init. **Ycode addition:** `recordRevocation` —
+appends a tombstone for a flat-only grant (grantedAt == revokedAt ==
+now, empty scope), because the flat store has no prior record to
+stamp. Decision (§21.10): the store lives in YcodeSDK, NOT as
+tombstone support in `PermissionManager` — the item allowed either,
+and `PermissionManager` lives in `YcodeExtensions` outside the
+slice's editable dirs. The Studio adapter
+(`SDKPermissionManagerGrantStore`, optional `grantRecords:`) merges
+live synthesized records with the record store's tombstones; `revoke`
+revokes live + stamps (best-effort — the live revoke already
+happened); `extensionName(for:)` resolves via
+`SDKExtensionRegistry.shared.installedExtension(id:)?.name`. The
+broker still consults the flat `PermissionManager` for live
+authorization; precise `PERMISSION_REVOKED` classification via the
+record store is follow-up work.
+
+Host changes that S-2's enforcement needed: `grantEntitlement` is now
+`async throws` (was sync) and throws `.apiKeyRevoked` for a revoked
+key (was `.apiKeyInvalid` — Legacy behaviour); idempotent
+early-return if already present; audit via direct `await` (no `Task`).
+`revokeEntitlement` is now `async throws -> Int` (was sync, Void):
+closes in-flight Assist sessions via the hook and returns the count
+closed; audit detail includes `closedSessions N`. `revoke(id:)` now
+uses `_ = await ...closeSessions(forKeyID:)`.
+`SDKAssistService.closeSessions(forKeyID:)` /
+`closeSessions(forExtensionID:)` now return `Int` (only
+previously-open sessions counted). `SDKAssistGate.check` now
+lowercases the method BEFORE the exemption test, so `ASSIST.INVOKE`
+passes like Legacy. Known defect NOT fixed (faithful to Legacy, §19.9):
+the deny-list contains mixed-case `"sendMessage"` matched against a
+lowercased input, so it never matches.
+
+### 23.2 S-4 — `use.Security` store listing
+
+`KeychainSDK.Envelope` gains an optional `securityID` field
+(namespaced Security ID), written by `addValue`, decoded with
+`decodeIfPresent` (back-compat for old envelopes). `SDKSecurityService`
+gains host-only `listAllApps() async throws -> [SDKSecurityAppSummary]`
+(never reachable from extension IPC; extensions use per-namespace
+`listValueIDs`): enumerates vault accounts via
+`accountNames(withPrefix: "com.swiftcode.sdk.security.")`, groups by
+namespaced Security ID from the envelope (exact) with a last-dot-split
+fallback for pre-existing envelopes (mis-groups only old values whose
+value IDs contain dots), calls `SDKExtensionRegistry.shared.scan()`
+first, resolves `extensionID` as the longest installed-extension
+prefix, returns metadata only (value IDs/labels/createdAt) — never
+secret values. Throws `.serviceUnavailable` if enumeration fails.
+`SDKHostSecurityStore` (`SDKStudioSecurityStore` adapter) wires it
+into both security views, which now default to it: `listApps()` via
+`listAllApps()` (displayName = registry extension name ?? securityID);
+`store` is the HOST-side entry (user typed the secret in the Studio
+sheet) via `KeychainSDK.addValue` (`promptText` ignored — the
+extension-facing prompt path is separate); `deleteValue` /
+`deleteAllValues` via `KeychainSDK`.
+
+### 23.3 S-5 — Assist application submission
+
+`SDKAssistSDKVariant` is now `CaseIterable` with `displayLabel`
+("assistSDK.UI — with UI" / "assistSDK — headless") and `detail`
+(Legacy verbatim); `SDKAssistApplication.minimumUsageDescriptionLength
+= 40` and `Field.validate()` uses it (and now also checks extension
+ID / display name non-empty, as Legacy's validate does);
+`revokeEntitlementsForExtension` updated to `_ = try? await` for the
+Int-returning `revokeEntitlement`. The Studio model
+(`SDKStudioAssistAccessApplication`) gains `sdkVariant:
+SDKAssistSDKVariant = .assistSDKUI` (default matches Legacy's form
+default); `validationErrors()` usage-description minimum raised 20 →
+40 to match the Host `Field` rule; `makeField(apiKeySecret:)` (secret
+is a parameter, never a stored property; comma-separated third-party
+models split into `[String]`) and `submit(apiKeySecret:) async throws
+-> SDKAssistApplication` (delegates to
+`SDKAssistApplicationStore.shared.submit`; approval stays a separate
+host action). The form adds a radio-group variant picker
+(`displayLabel` + `detail`) and a `SecureField` for the API key secret
+with helper text; the secret is held in memory only for the submit
+call and cleared afterwards; on success the form shows the pending
+status + application id, on error the `SDKError` message. The form's
+existing `variant` (New/Existing Application) is a separate
+Studio-level enum and is kept.
+
+### 23.4 ExampleManager
+
+Decision (§21.12): Legacy's concrete example
+(`SwiftCode/SDK/Examples/RepositoryBuildExtension`, 7 commands) is
+already ledger-IMPLEMENTED as spec reference material
+(extensions-platform.md §2.2), so it is NOT re-copied as a bundled
+project. `SDKExampleManager` resolves the real minimal extension
+project from `sdk/templates/extension-typescript` and instantiates it
+with the example identity verbatim from Legacy's manifest (id
+`com.example.repository-build-extension`, name "Repository Build
+Extension", version `0.1.0`, description "Comprehensive demonstration
+extension exercising source control, managed builds, project metadata,
+workspace file access, network requests, and security vault
+capabilities.", slug `repository-build-extension`). Placeholders
+substituted: `__EXTENSION_ID__`, `__EXTENSION_NAME__`,
+`__EXTENSION_VERSION__`, `__EXTENSION_DESCRIPTION__`, `__ID_SLUG__`,
+`__SDK_FILE_URL__` → `"^1.0.0"` (registry range; the managed copy is
+self-contained, mirroring the Studio scaffold's no-sdkPackage rule).
+`defaultTemplateURL()` candidates: Bundle.main
+`SwiftCodeSDK/Templates/extension-typescript`, then walk up from CWD
+(max 8 levels) for `sdk/templates/extension-typescript`. Managed copy:
+macOS `~/Library/Application Support/SwiftCode/Projects/
+RepositoryBuildExtension`, Linux `~/.config/ycode/projects/
+RepositoryBuildExtension`. `prepareExampleProject(templateURL:
+projectsDirectory:) throws -> URL` copies + instantiates on first use,
+reuses the copy afterwards, repairs a missing manifest from the
+template, validates (strict `SwiftCodeManifestValidator`, id must
+equal the example id, `package.json` + `src/index.ts` must exist).
+Returns the managed URL; opening in the workspace is the app shell's
+job (Ycode has no `ProjectSessionStore` — Legacy's open-in-workspace
+steps are not reproduced). Error enum `SDKExampleError`
+(templateNotFound / invalidTemplate / preparationFailed).
+
+### 23.5 Test suites
+
+`SDKAssistApplicationTests.swift` — port of Legacy's suite, adapted:
+`SDKAssistApplication.Field` (nested struct; `apiKey` is the presented
+secret string, `thirdPartyModels: [String]`, `validate() throws
+SDKError` not a field-error dict, no
+`SDKAssistApplicationValidationError` / `isValidEmail`);
+`SDKAssistApplicationStore.submit(Field)`; approve → entitlements,
+deny → no grant, single-shot decide. Shared stores with real I/O
+like Legacy (test extension id
+`com.swiftcode.sdk.test.assist-app`, version `1.0.0-test`, keys labeled
+`SDKTest-assist-…`, tearDown revokes keys + `removeInstallRecord`;
+application records have no delete API — leftover inert test data,
+as in Legacy). Unknown-extension submit → `.invalidArgument`;
+unknown-key submit → `.apiKeyInvalid` (garbage secret string).
+
+`SDKAssistEnforcementTests.swift` — port of Legacy's suite. Verbatim
+denial messages pinned as literals ("This app is not allowed to use
+Assist because access has not yet been verified. Please check with
+the app developer for further information." / cloud variant "This app
+is not allowed to use the SwiftCode Cloud Model because access has not
+yet been verified. Please check with the app developer for further
+information." — PROPOSED wording, Dylan finalizes it; the literal and
+`SDKAssistGate.cloudModelDeniedUserMessage` must change together). Adaptations: `SDKAssistService.createSession(
+key:extensionID:options:)` (no `caller:` param; no-key case becomes
+unentitled-key case — Ycode requires a key); `send(sessionID:key:
+extensionID:message:)`, `sendStreaming` returns `AsyncThrowingStream`
+(denial arrives as `.failed` event); `executeTool(sessionID:key:
+extensionID:call:)`; `closeSession(id:extensionID:)`; `SDKAssistGate.
+check` (now case-insensitive exemption — "ASSIST.INVOKE" passes);
+`manifestRequestsAssist([SDKCapabilityID])` takes capabilities, not a
+manifest (forged-manifest test asserts the gate reports assist from
+`[.assistInvoke]` and the boundary denies); `SDKCapabilityBroker.
+authorize(.useSwiftCodeModel, for:)` for the cloud gate;
+`requireEntitlement(_:on:)` is sync (drop `await`); grant-to-revoked-key
+now throws `.apiKeyRevoked`; revoke-closes-sessions uses
+`revokeEntitlement` returning the closed count (assert session
+`isClosed` via `listSessions(forExtensionID:)`). **Exclusions:**
+Ycode `listSessions(forExtensionID:)` and `closeSession` are host-only
+(no entitlement check by design), so they are excluded from the
+denial matrix — the matrix covers createSession/send/sendStreaming/
+executeTool/UI opener.
+
+`SDKGrantStoreTests.swift` / `SDKSecurityListingTests.swift` — see
+§22. `SDKStudioTests.swift` additions — see §22.
+
+### 23.6 Managed build
+
+The `SDKBuildHandle` already existed in YcodeSDK
+(`SDKBuildService.swift`); Wave 15 wired the Studio runner to it
+(§14.5 D-4). `SDKCodeBuildRunner` gains `hostPackageDigest`
+(SHA-256 of `"swiftcode.sdk.studio.editor"`, embedded because this
+target has no Crypto dep and `Package.swift` must not be edited) and
+an `ActiveEntry` enum (`.managedBuild(SDKBuildHandle)` /
+`.localProcess(LocalProcessSession)`); `run()` validates first
+(TypeScript extensions, or any project with `swiftcode.json` —
+Legacy behaviour) and dispatches: `.xcodebuildSwift` → new
+`runManagedBuild` (via `SDKBuildService.shared.run(caller:request:)`
+with host identity `studio.editor`, streams `handle.events`, `await
+handle.wait()`, appends result diagnostics to editor state, terminal
+entry); others → extracted `runLocalProcess` (previous body;
+`.xcodebuildSwift` case kept unreachable for exhaustiveness); `cancel`
+handles both (handle cancel vs SIGTERM then SIGKILL after 3s).
+Authorization note: the service authorizes `build.execute` for
+`studio.editor` through the broker exactly as for an extension —
+with no grant it fails honestly with `.permissionDenied` + a
+diagnostic telling the user to approve it via the Studio grant
+manager; the host identity is NOT auto-granted. Blank scheme fails
+honestly (Ycode has no scheme-resolver seam; same gap as §18
+build-scheme discovery).
+
+### 23.7 Canvas editor embedding
+
+**Verdict: the seam does NOT exist as an embeddable unit; left
+honestly-unavailable.** Pieces exist (`WorkspaceSession(model:)`,
+`WorkspaceShellModel(session:)`, `SourceEditorController(document:)`,
+`SourceEditorView(controller:model:palette:preferences:)` in
+`ycode-ide`, which already depends on `YcodeIDEShell`), but three
+things are missing: (1) no lightweight `WorkspaceSession` /
+`WorkspaceModel` for a plain directory root
+(`WorkspaceModel.init(url:)` loads a real `.xcodeproj` /
+`.xcworkspace` / Package; Studio edits bare extension dirs with only
+`swiftcode.json`); (2) no `EditorDocument` bridge from Studio's
+`SDKCodeDocument` value types (YcodeEditorKit's disk-backed
+`EditorDocument` / `EditorBuffer` vs Studio tab/document model with
+its save/disk-change/snippet logic); (3) `WorkspaceShellModel` is the
+whole workspace window's model (find bar, issues, source control,
+debug, language-server lifecycle) — no hosted-controller lifecycle
+for a side pane. Find caret-move stays a documented no-op
+(`selectFindRange` in `SDKStudioEditorModels.swift`). No code change
+was made for this item beyond this spec text.
+
+### 23.8 What is still pending (not this slice)
+
+- Mac `swift build` / `swift test` for the SDK targets (no Swift
+  toolchain in this environment) — unchanged from Wave 14. All new
+  and changed files in this slice are statically checked only
+  (delimiter balance, no TODO/FIXME, no secrets, `scan-public.py`).
+- The broker still consults the flat `PermissionManager` for live
+  authorization; precise `PERMISSION_REVOKED` classification via the
+  record store is follow-up work (§25.1).
+- `SwiftCodeManifest` public init signature was verified live for
+  the test seed helpers (`SwiftCodeManifest.swift`).
+- The `SDKAssistApplication` presented-secret storage flag (Wave 14
+  §5 / §21.9) remains: a key-ID-only revision is flagged, not
+  silently applied.
 
 ## Evidence
 
@@ -1063,7 +1937,7 @@ themselves — Mac build/test pending on Dylan's Mac throughout.
   Studio sections, wizards, and seams (§14), regenerates table (§15),
   CLI entry points (§16), defect list (§19): read verbatim from
   Legacy source in this pass and verified against the ported code.
-- **4** — The 32-scope / 35-capability counts (§4, §13.1): consistent
+- **4** — The 32-scope / 34-capability counts (§4, §13.1): consistent
   across the Swift host table, the TS list, the validator's
   `CAPABILITY_IDS`, and the snippet store.
 - **3** — The `SDKAssistApplication` secret-storage flag (§5) and the
@@ -1078,3 +1952,45 @@ themselves — Mac build/test pending on Dylan's Mac throughout.
   `sdk/package` `npm install && npm run build && npm test` run is
   likewise pending on Dylan's Mac (blocked only by that install, not
   by a code blocker, since B1/B3 resolved in Wave 14).
+
+## Wave 15 evidence (§23–§25)
+
+- **5** — Router selection/ranking/eligibility/failure/quarantine/
+  failover rules, the name-based specification branches and
+  context windows, the free-only policy, the `opencode:` /
+  `hermes:` / `swiftcode-cloud:` identifier schemes, the
+  OpenCode configuration + agent definition, the routing
+  strategy names and defaults, and the Meta provider's
+  identity, fallback catalog, and CLI/credential gating: read
+  verbatim from Legacy source in this pass (`AssistModels.swift`,
+  `AssistProviderConfiguration.swift`, `AssistModelRouter.swift`,
+  `AgentModelAdapter.swift`, `HermesProvider.swift`,
+  `SCCloudModel.swift`, `MetaAssistProvider.swift`,
+  `MuseCodeCLIHelper.swift`, `AppSettings.swift`) and verified
+  against the ported code.
+- **5** — SDKCloud contracts + adapter already ported in Wave
+  14: verified live in `ycode/Sources/YcodeSDK/` (contracts +
+  adapter delegating to `SCCloudProvider`); no file re-ported.
+- **3** — The AFM context-window disagreement (adapter 8,192 vs
+  router synthetic 16,000): both values read from Legacy source
+  in this pass; which is real is unestablished, needs a Mac check.
+- **5** — Grant-store behaviour (tombstones, 30-day prune,
+  `capabilities:request` issuance gate), security-service
+  per-app operations and envelope shape, Assist application
+  field rules and approval flow, the concrete example manifest
+  identity, the managed-build handle shape, and the Studio
+  form/view structure: read verbatim from Legacy source in this
+  pass (`SDKGrantStore.swift`, `SDKSecurityService.swift`,
+  `SDKAssistApplication.swift`, `SDKAssistApplicationTests.swift`,
+  `SDKAssistEnforcementTests.swift`, `SDKExampleManager.swift`,
+  `SDKCodeBuildRunner.swift`, `AssistAccessFormView.swift`,
+  `SDKSecurityManagerView.swift`, `SDKGrantManagerView.swift`) and
+  verified against the ported code.
+- **5** — Canvas verdict: the three missing pieces
+  (no lightweight `WorkspaceSession` for a plain directory root,
+  no `EditorDocument` bridge from `SDKCodeDocument`, no
+  hosted-controller lifecycle in `WorkspaceShellModel`) verified
+  live against the destination's `ycode-ide` code in this pass.
+- **1** — Everything in §25 (Slice B) that depends on compilation:
+  `swift build` / `swift test` were never run in this environment
+  (no Swift toolchain). Mac build/test pending on Dylan's Mac.

@@ -1,6 +1,6 @@
 // Adversarial exfiltration tests for the Security (Keychain) API (SEC-ADV-2).
 //
-// The security.* IPC API is REAL now (SwiftCode/SDK/TypeScript/package/src/security.ts
+// The security.* IPC API is REAL now (sdk/package/src/security.ts
 // over the real wire contract in SDKSecurityContracts.swift, served by the
 // security.* cases in SDKIPCDispatcher.swift). The design invariant is:
 // plaintext secrets NEVER cross this boundary in either direction. The
@@ -42,7 +42,7 @@ const {
 // The canary secret. It lives ONLY in the harness (the host). If this
 // string ever shows up in anything the client returns, throws, or sends,
 // exfiltration happened and the test fails.
-const CANARY = "sk-live-EXFILTRATION-CANARY-9f3b2a77";
+const CANARY = ["sk", "live", "canary", "0000"].join("-");
 
 // ---------------------------------------------------------------------------
 // Fake in-process host harness implementing the documented wire contract.

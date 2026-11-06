@@ -42,6 +42,19 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         })
         note("Choose the model itself in the Coding Assistant pane's model menu.")
 
+        heading("Model Routing")
+        row("Routing:", popUp(AssistRoutingStrategy.allCases.map(\.displayName), selected: s.routingStrategy.displayName) { [weak self] title in
+            guard let self, let r = AssistRoutingStrategy.allCases.first(where: { $0.displayName == title }) else { return }
+            settings.routingStrategy = r
+        })
+        note("Provider default uses the model chosen above. App model catalog considers every eligible model from every provider when a turn fails over.")
+        row("", check("Automatically switch models on failure", s.automaticallySwitchModels) { [weak self] on in self?.settings.automaticallySwitchModels = on })
+        note("Off: a failed turn never silently substitutes another model — it waits on the selected model instead.")
+        row("", check("Use provider models only", s.useProviderModelsOnly) { [weak self] on in self?.settings.useProviderModelsOnly = on })
+        row("", check("Only use free models", s.onlyUseFreeModels) { [weak self] on in self?.settings.onlyUseFreeModels = on })
+        row("", check("Use SwiftCode’s Cloud Model", s.useSwiftCodeCloudModel) { [weak self] on in self?.settings.useSwiftCodeCloudModel = on })
+        note("The cloud model is eligible under every routing strategy and needs no API key or sign-in.")
+
         heading("Local Models")
         row("Ollama address:", field(s.ollamaURL, width: 260) { [weak self] v in self?.settings.ollamaURL = v.isEmpty ? OllamaProvider.defaultBaseURL : v })
         note("Ollama's API (default \(OllamaProvider.defaultBaseURL)). To add a model, run `ollama pull \(OllamaProvider.suggestedModel)` in Terminal.")
@@ -74,6 +87,8 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         heading("OpenCode")
         row("OpenCode address:", field(s.openCodeURL, width: 260) { [weak self] v in self?.settings.openCodeURL = v.isEmpty ? OpenCodeProvider.defaultBaseURL : v })
         note("The local OpenCode server (default \(OpenCodeProvider.defaultBaseURL)). Start it with `opencode serve` in Terminal.")
+        row("Agent name:", field(s.openCodeAgentName, width: 160) { [weak self] v in self?.settings.openCodeAgentName = v.isEmpty ? OpenCodeProvider.defaultAgentName : v })
+        note("The OpenCode agent every session names. It must be configured server-side with every permission denied, so the server returns JSON tool requests for Ycode to run instead of executing tools itself.")
 
         heading("Hermes")
         let hermesFound = services.locator.find("hermes")
@@ -83,6 +98,15 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         hermesStatus.lineBreakMode = .byTruncatingMiddle
         row("Hermes:", hermesStatus)
         note("The Hermes CLI agent, run one-shot per task. Install Hermes and sign in once by running `hermes setup` and `hermes model` in Terminal. Hermes runs its own tools; Ycode only observes.")
+
+        heading("Assist with Meta")
+        let museFound = services.locator.find("muse")
+        let museStatus = NSTextField(labelWithString: museFound.map { "Found: \($0.path)" } ?? "Not found (`muse`)")
+        museStatus.textColor = museFound == nil ? .secondaryLabelColor : .labelColor
+        museStatus.font = .systemFont(ofSize: 11)
+        museStatus.lineBreakMode = .byTruncatingMiddle
+        row("Muse CLI:", museStatus)
+        note("“Assist with Meta”, powered by the Muse Code CLI. Install the `muse` CLI and sign in once in Terminal. Ycode lists Meta’s models when the CLI is installed, but running turns needs the Muse Code bridge, which is not ported yet.")
 
         heading("Foundation Models")
         note("Apple's on-device model (macOS 26+, Apple Intelligence-capable Mac). No API key, no account, nothing to configure.")

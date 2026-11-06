@@ -8,7 +8,7 @@
  * Swift host's `SDKIPCDispatcher` routes.
  *
  * Each snippet declares the exact capability wire ID (`capabilityId`,
- * from `SwiftCode/SDK/Contracts/Capability/SDKCapability.swift`) that the
+ * from `ycode/Sources/YcodeExtensions/Capabilities.swift`) that the
  * extension manifest must request for the snippet to work.
  *
  * The full manifest (`id`, `title`, `description`, `capabilityId`, `tags`,

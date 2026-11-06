@@ -60,7 +60,7 @@ public enum ExtensionCapability: String, Codable, Sendable, CaseIterable {
     }
 }
 
-// MARK: - SDK capabilities (spec §5.1, 35 ids verbatim)
+// MARK: - SDK capabilities (spec §5.1, 34 ids verbatim)
 
 public enum SDKCapabilityID: String, Codable, Sendable, CaseIterable {
     case projectRead = "project.read"

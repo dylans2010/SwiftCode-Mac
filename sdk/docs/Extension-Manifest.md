@@ -1,7 +1,7 @@
 # Extension Manifest (`swiftcode.json`)
 
 **Status:** Phase 1 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §7 · **ADR:** `SDK-Architecture.md` §§1, 10
+**Spec:** `specs/ide/sdk-platform.md` · **ADR:** `SDK-Architecture.md` §§1, 10
 
 Every SwiftCode extension declares itself in a `swiftcode.json` manifest at the
 package root. The manifest is a **request to the host, not an authorization
@@ -12,7 +12,7 @@ an explicit user grant via the capability broker (see
 ## The schema (single source of truth)
 
 The canonical schema is
-`SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json`
+`sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json`
 (JSON Schema draft 2020-12). It is intentionally strict:
 
 - `additionalProperties: false` at the top level and on capability and command
@@ -102,7 +102,7 @@ Validation runs at different points, and they are not identical. From fastest
 ## Example manifest
 
 The canonical example is
-`SwiftCode/SDK/Contracts/Manifest/ExampleManifests/repository-build-extension.swiftcode.json`
+`sdk/Contracts/Manifest/ExampleManifests/repository-build-extension.swiftcode.json`
 (requests only `source-control.read` + `build.execute`, `"assist":
 {"requested": false}`):
 

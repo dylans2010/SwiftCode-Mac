@@ -1,7 +1,7 @@
 # SwiftCode SDK — Architecture Decision Record
 
 **Status:** Phase 0 exit gate · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` (proposed names in the spec are requirements, not existing APIs)
+**Spec:** `specs/ide/sdk-platform.md` (proposed names in the spec are requirements, not existing APIs)
 
 ## 0. Baseline (Phase 0)
 
@@ -18,11 +18,12 @@
 
 The app is a **single target** (`SwiftCode`, macOS 15.0, Swift 6.0). No XPC services, no test targets, no sandbox entitlement.
 Per spec §1.1 ("names are architectural labels, not a requirement to introduce a separate target for every label") and
-"adapt to the existing project rather than forcing a disruptive reorganization" (§5), the SDK ships **inside the
-existing app target** under `SwiftCode/SDK/`, with hard directory boundaries standing in for module boundaries:
+"adapt to the existing project rather than forcing a disruptive reorganization", the SDK ships **inside the
+destination's `YcodeSDK` SwiftPM target plus the repo-root `sdk/` TypeScript tree** — see `specs/ide/sdk-platform.md`
+for the destination layout. The tree below is the **Legacy layout** it was ported from, kept for reference:
 
 ```
-SwiftCode/SDK/
+Legacy SDK tree (destination: ycode/Sources/YcodeSDK/ + sdk/)
 ├── Contracts/        # versioned public data contracts, manifest schema, error taxonomy, IPC envelopes (data only, no services)
 ├── Host/             # PublicAPI façade, CapabilityBroker, ExtensionRegistry, ServiceAdapters (only layer that may touch app singletons)
 ├── Runtime/         # Lifecycle, IPC transport, Isolation, Diagnostics (never touches app services directly)
@@ -40,9 +41,9 @@ New Swift files are registered in `SwiftCode.xcodeproj` by the coordinator (pbxp
 alphanumeric IDs; path-less groups resolve to the parent's path; anchor child-ID extraction to line start).
 Subagents MUST NOT edit the `.pbxproj` themselves; they return exact file lists.
 
-Per-task notes convention (spec §2.6): each SDK area maintains `SwiftCode/SDK/<Area>/agent_notes.md`.
+Per-task notes convention (spec §2.6): each SDK area maintains `<Area>/agent_notes.md` (Legacy convention; no destination equivalent — see `specs/ide/sdk-platform.md`).
 
-## 2. Services wrapped (adapters in `SwiftCode/SDK/Host/ServiceAdapters/`)
+## 2. Services wrapped (adapters in `ycode/Sources/YcodeSDK/Host/ServiceAdapters/`)
 
 | SDK capability | Real service wrapped | Adapter responsibilities |
 |---|---|---|
@@ -64,7 +65,7 @@ Rationale: no sandbox/XPC infrastructure exists; the closest working precedent i
 
 ## 4. Host ↔ extension communication
 
-Versioned JSON envelopes over stdio, `protocolVersion: 1`, every message carrying `type` (`request`/`response`/`event`), `requestId` correlation ID, `method`, validated `payload`. Bounded messages (1 MB default), per-request timeouts, malformed/unknown privileged messages rejected with typed errors. **Extension identity is bound by the host to the runtime session** (validated manifest ID + package digest) — an extension-supplied identity field is never trusted (§10.4).
+Versioned JSON envelopes over stdio, `protocolVersion: 1`, every message carrying `type` (`request`/`response`/`event`), `requestId` correlation ID, `method`, validated `payload`. Bounded messages (1 MB default), per-request timeouts, malformed/unknown privileged messages rejected with typed errors. **Extension identity is bound by the host to the runtime session** (validated manifest ID + package digest) — an extension-supplied identity field is never trusted.
 
 ## 5. Permission grants: storage, scope, revocation, audit
 
@@ -93,7 +94,7 @@ Stable codes: `MANIFEST_INVALID`, `MANIFEST_UNSUPPORTED_VERSION`, `SCHEMA_VALIDA
 `API_KEY_INVALID`, `API_KEY_SCOPE_INSUFFICIENT`, `API_KEY_REVOKED`, `ASSIST_DENIED`, `RUNTIME_UNAVAILABLE`, `OUTPUT_TOO_LARGE`,
 `REQUEST_TIMEOUT`, `UNKNOWN_CAPABILITY`, `INCOMPATIBLE_SDK_VERSION`, `TIMEOUT`.
 Each carries: stable code, user-safe message, actionable suggestion, correlation ID (`ERR-XXXXXX`), structured diagnostics.
-Dual logging (§16): user-facing sanitized stream ↔ developer verbose stream at `~/.swiftcode/logs/developer-sdk.log`, mapped by correlation ID.
+Dual logging: user-facing sanitized stream ↔ developer verbose stream at `~/.swiftcode/logs/developer-sdk.log`, mapped by correlation ID.
 
 ## 9. Assist isolation (spec §9, non-negotiable)
 
@@ -105,8 +106,8 @@ Dual logging (§16): user-facing sanitized stream ↔ developer verbose stream a
 ## 10. Versioning (spec §18)
 
 - SDK package: `1.0.0` · manifest schema: `manifestVersion 1` · host/runtime protocol: `1` · internal `apiVersion`: `2026.1`.
-- `SwiftCode/SDK/Internal/SDKConfigStore/SwiftCodeSDK.json` is the canonical version metadata, managed by internal developers; user projects' SDK bindings sync from it on launch (non-breaking auto, breaking with explicit Studio prompt).
-- `SwiftCode/SDK/Internal/` compiles **only under `#if DEBUG`** (stripped from release builds).
+- `ycode/Sources/YcodeSDK/Resources/SwiftCodeSDK.json` is the canonical version metadata, managed by internal developers; user projects' SDK bindings sync from it on launch (non-breaking auto, breaking with explicit Studio prompt).
+- `ycode/Sources/YcodeSDK/Internal/` compiles **only under `#if DEBUG`** (stripped from release builds).
 
 ## 11. Developer API keys (spec §8.2.1)
 
@@ -121,7 +122,7 @@ Built-in key system, format `sc_dev_live_…` / `sc_dev_test_…` (cryptographic
 - Command contributions need a new open registry — today's `CommandPaletteView.CommandAction` enum and `ToolbarActionManager.SheetDestination` enum are closed and cannot be plugged into without refactor (Studio/registry design must account for this).
 - Assist is unavailable to extensions, period.
 - The app is unsandboxed; extension isolation is process-boundary + broker enforcement, not OS sandboxing — documented honestly, no sandbox claims.
-- No XCTest target exists; SDK tests ship as: Swift in-app runtime suite (`SwiftCode/SDK/Testing/`), node-based tests for TS sources, Python AST-exec pattern for bridge-adjacent logic — mirroring the repo's existing working patterns.
+- No XCTest target exists; SDK tests ship as: Swift in-app runtime suite (`ycode/Tests/YcodeSDKTests/`), node-based tests for TS sources, Python AST-exec pattern for bridge-adjacent logic — mirroring the repo's existing working patterns.
 
 ## 13. Phase 1 work items (contracts & manifest)
 

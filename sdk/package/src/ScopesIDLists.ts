@@ -71,7 +71,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Read basic facts about the active project.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "project.read",
+    capabilityId: "project.read"
   },
   {
     id: "workspace.read",
@@ -79,7 +79,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Read files inside the approved workspace scope.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "workspace.read",
+    capabilityId: "workspace.read"
   },
   {
     id: "workspace.write",
@@ -87,7 +87,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Create or modify files inside the approved workspace through the host's constrained file API.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "workspace.write",
+    capabilityId: "workspace.write"
   },
   {
     id: "source-control.read",
@@ -95,7 +95,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Inspect repository status, diffs, branch, and approved history. Read-only.",
     kind: "api",
     ipcMethod: "sourceControl.getStatus",
-    capabilityId: "source-control.read",
+    capabilityId: "source-control.read"
   },
   {
     id: "source-control.write",
@@ -103,7 +103,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Perform explicitly supported source-control mutations.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "source-control.write",
+    capabilityId: "source-control.write"
   },
   {
     id: "build.execute",
@@ -111,7 +111,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Request builds through SwiftCode's managed build service.",
     kind: "api",
     ipcMethod: "build.run",
-    capabilityId: "build.execute",
+    capabilityId: "build.execute"
   },
   {
     id: "task.execute",
@@ -119,7 +119,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Invoke approved host task types.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "task.execute",
+    capabilityId: "task.execute"
   },
   {
     id: "network.request",
@@ -127,7 +127,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Make network requests constrained by host policy.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "network.request",
+    capabilityId: "network.request"
   },
   {
     id: "ui.contribute",
@@ -135,7 +135,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Register supported extension UI contributions.",
     kind: "api",
     ipcMethod: "commands.register",
-    capabilityId: "ui.contribute",
+    capabilityId: "ui.contribute"
   },
   {
     id: "credentials.use",
@@ -143,7 +143,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Use a narrowly scoped, host-mediated credential for an approved service.",
     kind: "api",
     ipcMethod: null,
-    capabilityId: "credentials.use",
+    capabilityId: "credentials.use"
   },
   {
     id: "assist.invoke",
@@ -151,7 +151,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Request Assist operations. Unavailable to extensions in this release.",
     kind: "api",
     ipcMethod: "assist.invoke",
-    capabilityId: "assist.invoke",
+    capabilityId: "assist.invoke"
   },
   {
     id: "assist.ui",
@@ -159,7 +159,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Embed the host's Assist main view. Entitlement-only.",
     kind: "api",
     ipcMethod: "assist.invoke",
-    capabilityId: "assist.ui",
+    capabilityId: "assist.ui"
   },
   {
     id: "assist.headless",
@@ -167,7 +167,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Drive Assist sessions over the entitled assist.invoke route. Entitlement-only.",
     kind: "api",
     ipcMethod: "assist.invoke",
-    capabilityId: "assist.headless",
+    capabilityId: "assist.headless"
   },
   {
     id: "use.SwiftCodeModel",
@@ -175,7 +175,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Call the SwiftCode Cloud Model through the host under host-enforced quota.",
     kind: "api",
     ipcMethod: "cloudModel.complete",
-    capabilityId: "use.SwiftCodeModel",
+    capabilityId: "use.SwiftCodeModel"
   },
   {
     id: "terminal.sandbox",
@@ -183,7 +183,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Run allow-listed commands through the host's sandboxed execution service.",
     kind: "api",
     ipcMethod: "terminalSandbox.run",
-    capabilityId: "terminal.sandbox",
+    capabilityId: "terminal.sandbox"
   },
   {
     id: "security.addValue",
@@ -191,7 +191,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Store a named secret in the host's Keychain vault.",
     kind: "api",
     ipcMethod: "security.addValue",
-    capabilityId: "security.addValue",
+    capabilityId: "security.addValue"
   },
   {
     id: "security.hasValue",
@@ -199,7 +199,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Check whether a named secret exists, without revealing the value.",
     kind: "api",
     ipcMethod: "security.hasValue",
-    capabilityId: "security.hasValue",
+    capabilityId: "security.hasValue"
   },
   {
     id: "security.listValueIDs",
@@ -207,7 +207,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "List the names of the extension's stored secrets.",
     kind: "api",
     ipcMethod: "security.listValueIDs",
-    capabilityId: "security.listValueIDs",
+    capabilityId: "security.listValueIDs"
   },
   {
     id: "security.deleteValue",
@@ -215,7 +215,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Permanently delete a named stored secret.",
     kind: "api",
     ipcMethod: "security.deleteValue",
-    capabilityId: "security.deleteValue",
+    capabilityId: "security.deleteValue"
   },
   {
     id: "security.useValue",
@@ -223,7 +223,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Have the host inject a stored secret into an approved operation.",
     kind: "api",
     ipcMethod: "security.useValue",
-    capabilityId: "security.useValue",
+    capabilityId: "security.useValue"
   },
   {
     id: "db.ExploreView",
@@ -231,7 +231,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the Database Explorer window for project databases.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "db.ExploreView",,
+    capabilityId: "db.ExploreView",
     viewId: "db.ExploreView"
   },
   {
@@ -240,7 +240,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the CI and visual workflow views.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "ci.VisualWF",,
+    capabilityId: "ci.VisualWF",
     viewId: "ci.VisualWF"
   },
   {
@@ -249,7 +249,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open SwiftCode's real Terminal view (full interactive shell).",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "sandbox.view",,
+    capabilityId: "sandbox.view",
     viewId: "sandbox.view"
   },
   {
@@ -258,7 +258,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the Virtualization console.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "virtualization.view",,
+    capabilityId: "virtualization.view",
     viewId: "virtualization.view"
   },
   {
@@ -267,7 +267,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the Deployments console.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "deployConsole.view",,
+    capabilityId: "deployConsole.view",
     viewId: "deployConsole.view"
   },
   {
@@ -276,7 +276,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the Simulator workspace.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "simulator.view",,
+    capabilityId: "simulator.view",
     viewId: "simulator.view"
   },
   {
@@ -285,7 +285,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Render live SwiftUI previews of project views.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "preview.live",,
+    capabilityId: "preview.live",
     viewId: "preview.live"
   },
   {
@@ -294,7 +294,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the Visual UI Builder.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "uibuilder.open",,
+    capabilityId: "uibuilder.open",
     viewId: "uibuilder.open"
   },
   {
@@ -303,7 +303,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the SF Symbol picker.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "symbols.browse",,
+    capabilityId: "symbols.browse",
     viewId: "symbols.browse"
   },
   {
@@ -312,7 +312,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the documentation browser.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "docs.search",,
+    capabilityId: "docs.search",
     viewId: "docs.search"
   },
   {
@@ -321,7 +321,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the coding dictionary reference.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "dictionary.open",,
+    capabilityId: "dictionary.open",
     viewId: "dictionary.open"
   },
   {
@@ -330,7 +330,7 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     description: "Open the Device Connect surface for paired devices.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "deviceconnect.open",,
+    capabilityId: "deviceconnect.open",
     viewId: "deviceconnect.open"
   },
 ];

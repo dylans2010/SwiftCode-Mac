@@ -1,7 +1,7 @@
 # Capabilities and Permissions
 
 **Status:** Phase 2 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §8 · **ADR:** `SDK-Architecture.md` §§5, 7, 9, 11
+**Spec:** `specs/ide/sdk-platform.md` · **ADR:** `SDK-Architecture.md` §§5, 7, 9, 11
 
 ## The capability registry (fixed for Phase 1+)
 

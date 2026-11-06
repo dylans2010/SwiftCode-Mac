@@ -1,5 +1,5 @@
 // Build → ship → install round-trip tests for the swiftcode CLI
-// (Docs/Intro-to-SDK.md §8 Task A4).
+// (Task A4; destination behaviour spec specs/ide/sdk-platform.md §13).
 //
 // Exercises the REAL CLI end to end with stock node: generate an extension
 // with the real generator -> `swiftcode build` (tsc, live output) ->
@@ -12,7 +12,7 @@
 // violation with a valid digest (MANIFEST_INVALID), broken-TypeScript build
 // failure, and the honest xcodebuild-absent path.
 //
-// Run: `npm run build && npm test` from SwiftCode/SDK/TypeScript/package
+// Run: `npm run build && npm test` from sdk/package
 // (npm test = `node --test "tests/*.test.mjs"`). Everything the tests
 // touch lives under a private mkdtemp sandbox; the real
 // ~/Library/Application Support/SwiftCode/Extensions is never used.
@@ -36,25 +36,21 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
-// tests/ -> package/ -> TypeScript/ -> SDK/ -> SwiftCode/ -> repo root
-const REPO = path.resolve(testsDir, "..", "..", "..", "..", "..");
-const CLI_DIR = path.join(REPO, "SwiftCode", "SDK", "TypeScript", "cli");
+// tests/ -> package/ -> sdk/ -> repo root (Wave 15: destination layout).
+const REPO = path.resolve(testsDir, "..", "..", "..");
+const CLI_DIR = path.join(REPO, "sdk", "cli");
 const CLI = path.join(CLI_DIR, "swiftcode.mjs");
 const GENERATOR = path.join(CLI_DIR, "create-extension.mjs");
 const RUNTIME_ADAPTER = path.join(
   REPO,
-  "SwiftCode",
-  "SDK",
-  "TypeScript",
+  "sdk",
   "runtime-adapter",
   "dist",
   "adapter.js"
 );
 const SDK_PACKAGE_DIST = path.join(
   REPO,
-  "SwiftCode",
-  "SDK",
-  "TypeScript",
+  "sdk",
   "package",
   "dist",
   "index.js"
@@ -390,7 +386,7 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     const runDir = path.join(sandbox, "rundir");
     await mkdir(path.join(runDir, "node_modules", "@swiftcode"), { recursive: true });
     await symlink(
-      path.join(REPO, "SwiftCode", "SDK", "TypeScript", "package"),
+      path.join(REPO, "sdk", "package"),
       path.join(runDir, "node_modules", "@swiftcode", "sdk")
     );
     await symlink(path.join(installedDir, "dist"), path.join(runDir, "dist"));
@@ -411,14 +407,22 @@ describe("swiftcode build -> package -> install -> run round-trip", () => {
     child.stdout.on("data", (d) => {
       stdout += d.toString();
     });
+    // Wave 15: activation is the spec'd `extension.ready` event on stdout
+    // (sdk/runtime-adapter/README.md). The Legacy adapter also printed
+    // "active; awaiting host events" to stderr; the rewritten adapter
+    // does not emit that string, so the test waits on the protocol event
+    // instead of the diagnostic.
     const active = new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(`adapter never activated:\n${stderr}`)), 20000);
-      child.stderr.on("data", (d) => {
-        stderr += d.toString();
-        if (stderr.includes("active; awaiting host events")) {
+      const poll = setInterval(() => {
+        if (stdout.includes('"event":"extension.ready"')) {
           clearTimeout(timer);
+          clearInterval(poll);
           resolve();
         }
+      }, 25);
+      child.stderr.on("data", (d) => {
+        stderr += d.toString();
       });
     });
     const closed = new Promise((resolve) => child.on("close", resolve));

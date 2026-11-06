@@ -250,21 +250,29 @@ public actor SDKAssistService {
     }
 
     /// Closes every session owned by `keyID` (revocation hook).
-    public func closeSessions(forKeyID keyID: UUID) {
-        for (id, stored) in sessions where stored.keyID == keyID {
+    /// Returns the number of sessions closed.
+    public func closeSessions(forKeyID keyID: UUID) -> Int {
+        var closed = 0
+        for (id, stored) in sessions where stored.keyID == keyID && !stored.session.isClosed {
             var updated = stored
             updated.session.isClosed = true
             sessions[id] = updated
+            closed += 1
         }
+        return closed
     }
 
     /// Closes every session owned by `extensionID` (uninstall hook).
-    public func closeSessions(forExtensionID extensionID: String) {
-        for (id, stored) in sessions where stored.session.extensionID == extensionID {
+    /// Returns the number of sessions closed.
+    public func closeSessions(forExtensionID extensionID: String) -> Int {
+        var closed = 0
+        for (id, stored) in sessions where stored.session.extensionID == extensionID && !stored.session.isClosed {
             var updated = stored
             updated.session.isClosed = true
             sessions[id] = updated
+            closed += 1
         }
+        return closed
     }
 
     // MARK: - Validation

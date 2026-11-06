@@ -22,6 +22,12 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Hashable {
     /// default endpoint is shipped; unconfigured until Dylan supplies
     /// a real one.
     case scCloud
+    /// "Assist with Meta" (Wave 15: Legacy `MetaAssistProvider`,
+    /// powered by the Muse Code CLI). The provider lists Meta's
+    /// models when the `muse` CLI is installed; running turns needs
+    /// the Muse Code MSP bridge, which is not ported yet — see
+    /// `MetaAssistProvider`.
+    case metaAssist
 
     public var displayName: String {
         switch self {
@@ -37,6 +43,7 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Hashable {
         case .hermes: "Hermes"
         case .foundationModels: "Foundation Models"
         case .scCloud: "SwiftCode Cloud"
+        case .metaAssist: "Assist with Meta"
         }
     }
 

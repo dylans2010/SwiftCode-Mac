@@ -1,29 +1,34 @@
 // Two-way sync test for the ScopesIDLists pair.
 //
 // Enforces that `src/ScopesIDLists.ts` (TypeScript) and
-// `SwiftCode/SDK/Host/ScopesIDLists.swift` (host) stay identical: the same
-// capability IDs, the same scope kinds, and the same primary IPC methods.
-// It also enforces that every `kind: "view"` entry in the list has a real
-// opener registered in `SDKViewOpenerBuiltIns.swift` — and that every
-// registered opener has a matching `view` entry in the list.
+// `ycode/Sources/YcodeSDK/Host/ScopesIDLists.swift` (host) stay identical:
+// the same capability IDs, the same scope kinds, and the same primary IPC
+// methods. It also enforces that every `kind: "view"` entry in the list
+// has a real opener registered in
+// `ycode/Sources/YcodeSDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` —
+// and that every registered opener has a matching `view` entry in the list.
 //
 // PARSING APPROACH (documented here so the contract is explicit):
 //   1. The TypeScript side comes from the compiled `dist/index.js`
 //      (`SCOPES_ID_LIST`, `SCOPES_BY_ID`) — run `npm run build` first,
 //      exactly like the other package tests.
-//   2. The Swift side is read from disk as text and parsed with regexes
-//      that match the canonical `ScopeEntry(...)` literal shape used in
-//      `ScopesIDLists.swift` (fields in fixed order: id, title,
-//      description, kind, ipcMethod, capabilityId, viewId). If that shape
-//      ever changes, this test must be updated in the same change — the
-//      test fails loudly rather than silently comparing nothing.
+//   2. The Swift side is read from disk as text and parsed with a regex
+//      that matches the canonical single-line `ScopeEntry(...)` literal
+//      shape used in `ScopesIDLists.swift` (fields in fixed order: id,
+//      title, description, kind, ipcMethod, capabilityId, viewId —
+//      `ipcMethod`/`viewId` may be omitted entirely, defaulting to nil).
+//      If that shape ever changes, this test must be updated in the same
+//      change — the test fails loudly rather than silently comparing
+//      nothing.
 //   3. Registered view IDs are collected from
-//      `SDKViewOpenerBuiltIns.swift` (direct `register(viewID: .case)`
-//      calls, `(.case, "toolID")` notification-bridge tuples, and
-//      `SDK<Area>ViewOpener.capabilityID` sibling references whose case is
-//      read from the sibling file). Enum case names are mapped to wire IDs
-//      through `SDKCapability.swift`'s `case <name> = "<raw>"` lines, so a
-//      renamed raw value breaks this test rather than the mapping.
+//      `SDKViewOpenerBuiltIns.swift` (direct `register(viewID: "...")`
+//      string-literal calls and `SDK<Area>ViewOpener.register()` sibling
+//      calls, resolved by reading each sibling file's
+//      `static let viewID = "..."` line). The IDs are already wire IDs,
+//      so no enum-case mapping is needed; each one is still checked
+//      against `SDKCapabilityID`'s raw values in
+//      `ycode/Sources/YcodeExtensions/Capabilities.swift`, so a renamed
+//      raw value breaks this test rather than the mapping.
 //
 // This test FAILS when someone adds an ID to one file and not the other —
 // that is the entire point of the ScopesIDLists pair.
@@ -36,28 +41,28 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
-// tests/ -> SwiftCode/SDK/TypeScript/package/tests/, so the repo root is
-// five levels up.
-const repoRoot = path.resolve(testsDir, "..", "..", "..", "..", "..");
+// tests/ -> package/ -> sdk/ -> repo root (Wave 15: destination layout).
+const repoRoot = path.resolve(testsDir, "..", "..", "..");
 const swiftScopesPath = path.join(
   repoRoot,
-  "SwiftCode",
-  "SDK",
+  "ycode",
+  "Sources",
+  "YcodeSDK",
   "Host",
   "ScopesIDLists.swift",
 );
 const swiftCapabilityPath = path.join(
   repoRoot,
-  "SwiftCode",
-  "SDK",
-  "Contracts",
-  "Capability",
-  "SDKCapability.swift",
+  "ycode",
+  "Sources",
+  "YcodeExtensions",
+  "Capabilities.swift",
 );
 const swiftBuiltInsPath = path.join(
   repoRoot,
-  "SwiftCode",
-  "SDK",
+  "ycode",
+  "Sources",
+  "YcodeSDK",
   "Host",
   "ViewOpener",
   "SDKViewOpenerBuiltIns.swift",
@@ -73,21 +78,25 @@ const { SCOPES_ID_LIST, SCOPES_BY_ID } = await import(distUrl);
  * entries in file order. Asserts the table is non-empty and has no duplicate
  * IDs — a silent parse failure (zero entries) is itself a failure, so a
  * formatting change that breaks the regex cannot go unnoticed.
+ *
+ * Destination shape: single-line `ScopeEntry(...)` literals, fields in
+ * fixed order; `ipcMethod` and `viewId` may be omitted (default nil).
  */
 function parseSwiftScopeEntries() {
   const src = readFileSync(swiftScopesPath, "utf8");
-  // Canonical ScopeEntry(...) literal shape; fields in fixed order. `nil`
-  // maps to null; quoted strings map to their contents.
+  // Groups: 1 id, 2 title, 3 description, 4 kind, 5 ipcMethod raw
+  // (nil | "..." | absent), 6 ipcMethod string, 7 capability case,
+  // 8 viewId raw (nil | "..." | absent), 9 viewId string.
   const entryRe =
-    /ScopeEntry\(\s*\n\s*id:\s*"([^"]+)",\s*\n\s*title:\s*"([^"]*)",\s*\n\s*description:\s*"([^"]*)",\s*\n\s*kind:\s*\.(\w+),\s*\n\s*ipcMethod:\s*(nil|"([^"]*)"),\s*\n\s*capabilityId:\s*\.(\w+),\s*\n\s*viewId:\s*(nil|"([^"]*)")\s*\n?\)/g;
+    /ScopeEntry\(\s*id:\s*"([^"]+)",\s*title:\s*"([^"]*)",\s*description:\s*"([^"]*)",\s*kind:\s*\.(\w+)(?:,\s*ipcMethod:\s*(nil|"([^"]*)"))?,\s*capabilityId:\s*\.(\w+)(?:,\s*viewId:\s*(nil|"([^"]*)"))?\s*\)/g;
   const entries = [];
   for (const m of src.matchAll(entryRe)) {
     entries.push({
       id: m[1],
       kind: m[4],
-      ipcMethod: m[5] === "nil" ? null : m[6],
+      ipcMethod: m[5] === undefined || m[5] === "nil" ? null : m[6],
       capabilityCase: m[7],
-      viewId: m[8] === "nil" ? null : m[9],
+      viewId: m[8] === undefined || m[8] === "nil" ? null : m[9],
     });
   }
   assert.ok(
@@ -103,9 +112,10 @@ function parseSwiftScopeEntries() {
 
 /**
  * Maps `SDKCapabilityID` enum case names to their wire raw values by
- * parsing `case <name> = "<raw>"` in SDKCapability.swift. Used so the
- * opener-registration check works with wire IDs, and so a raw-value
- * rename fails this test rather than silently mismatching.
+ * parsing `case <name> = "<raw>"` in `ycode/Sources/YcodeExtensions/
+ * Capabilities.swift`. Used so the opener-registration check works with
+ * wire IDs, and so a raw-value rename fails this test rather than
+ * silently mismatching.
  */
 function parseCapabilityCaseMap() {
   const src = readFileSync(swiftCapabilityPath, "utf8");
@@ -115,54 +125,41 @@ function parseCapabilityCaseMap() {
   }
   assert.ok(
     map.size > 0,
-    "SDKCapability.swift: parsed 0 capability cases — update the test",
+    "Capabilities.swift: parsed 0 capability cases — update the test",
   );
   return map;
 }
 
 /**
- * Collects the enum case names of every view ID registered by
- * `registerBuiltInOpeners()`: direct `register(viewID: .case)` calls, the
- * `(.case, "toolID")` notification-bridge tuples, and sibling
- * `SDK<Area>ViewOpener.capabilityID` references (resolved by reading the
- * sibling file's `capabilityID = .case` line).
+ * Collects the wire view IDs registered by `registerBuiltInOpeners()`:
+ * direct `register(viewID: "...")` string-literal calls, plus
+ * `SDK<Area>ViewOpener.register()` sibling calls (resolved by reading
+ * each sibling file's `static let viewID = "..."` line).
  */
-function parseRegisteredViewCases() {
+function parseRegisteredViewIDs() {
   const src = readFileSync(swiftBuiltInsPath, "utf8");
-  const cases = new Set();
-  for (const m of src.matchAll(/register\(viewID:\s*\.(\w+)\)/g)) {
-    cases.add(m[1]);
+  const ids = new Set();
+  for (const m of src.matchAll(/register\(viewID:\s*"([^"]+)"\)/g)) {
+    ids.add(m[1]);
   }
-  for (const m of src.matchAll(/\(\.(\w+),\s*"[^"]+"\)/g)) {
-    cases.add(m[1]);
-  }
-  for (const m of src.matchAll(/register\(viewID:\s*(SDK\w+ViewOpener)\.capabilityID\)/g)) {
+  for (const m of src.matchAll(/await (SDK\w+ViewOpener)\.register\(\)/g)) {
     const siblingName = m[1];
     const siblingSrc = readFileSync(
-      path.join(
-        repoRoot,
-        "SwiftCode",
-        "SDK",
-        "Host",
-        "ViewOpener",
-        `${siblingName}.swift`,
-      ),
+      path.join(path.dirname(swiftBuiltInsPath), `${siblingName}.swift`),
       "utf8",
     );
-    const caseMatch = siblingSrc.match(
-      /capabilityID:\s*SDKCapabilityID\s*=\s*\.(\w+)/,
-    );
+    const viewMatch = siblingSrc.match(/static let viewID = "([^"]+)"/);
     assert.ok(
-      caseMatch,
-      `${siblingName}.swift: could not parse its capabilityID case`,
+      viewMatch,
+      `${siblingName}.swift: could not parse its static viewID`,
     );
-    cases.add(caseMatch[1]);
+    ids.add(viewMatch[1]);
   }
   assert.ok(
-    cases.size > 0,
+    ids.size > 0,
     "SDKViewOpenerBuiltIns.swift: parsed 0 registered view IDs — update the test",
   );
-  return cases;
+  return ids;
 }
 
 describe("ScopesIDLists two-way sync", () => {
@@ -275,15 +272,16 @@ describe("ScopesIDLists two-way sync", () => {
 
   it("every view entry has a registered opener, and every registered opener has a view entry", () => {
     const caseMap = parseCapabilityCaseMap();
-    const registeredRawIds = new Set(
-      [...parseRegisteredViewCases()].map((caseName) => {
-        assert.ok(
-          caseMap.has(caseName),
-          `opener registered for unknown capability case .${caseName}`,
-        );
-        return caseMap.get(caseName);
-      }),
-    );
+    const knownRawIds = new Set(caseMap.values());
+    // The registered IDs are already wire IDs; each must be a known
+    // SDKCapabilityID raw value, so a raw-value rename fails here.
+    const registeredRawIds = parseRegisteredViewIDs();
+    for (const id of registeredRawIds) {
+      assert.ok(
+        knownRawIds.has(id),
+        `opener registered for unknown capability ID "${id}"`,
+      );
+    }
     const viewIds = new Set(
       SCOPES_ID_LIST.filter((e) => e.kind === "view").map((e) => e.id),
     );

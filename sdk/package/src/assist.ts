@@ -1,5 +1,5 @@
 /**
- * Headless Assist SDK variant: `assistSDK` (Docs/Intro-to-SDK.md §11, task B2).
+ * Headless Assist SDK variant: `assistSDK` (specs/ide/sdk-platform.md, task B2).
  *
  * The full Assist API surface EXCEPT UI — sessions, streaming responses,
  * tool access per the approved scope. The developer renders everything

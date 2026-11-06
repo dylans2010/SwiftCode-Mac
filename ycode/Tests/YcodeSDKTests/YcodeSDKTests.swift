@@ -270,8 +270,8 @@ final class YcodeSDKTests: XCTestCase {
     func testBuildDiagnosticsParser() {
         let parser = BuildDiagnosticsParser()
         let output = """
-        /Users/dylan/App/Sources/A.swift:10:5: error: cannot find 'foo' in scope
-        /Users/dylan/App/Sources/B.swift:3:1: warning: unused variable 'x'
+        /Users/user/App/Sources/A.swift:10:5: error: cannot find 'foo' in scope
+        /Users/user/App/Sources/B.swift:3:1: warning: unused variable 'x'
         src/index.ts(7,3): error TS2322: Type 'string' is not assignable.
         All good here.
         """

@@ -1,6 +1,6 @@
 /**
  * Real implementation of the developer-facing SDK context
- * (Docs/Intro-to-SDK.md §6.2, §11.2, §11.3).
+ * (specs/ide/sdk-platform.md).
  *
  * Method list is taken from the Swift host's `SDKIPCDispatcher` routing
  * table — only methods the dispatcher actually supports are called:

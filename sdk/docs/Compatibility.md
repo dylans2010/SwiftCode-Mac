@@ -1,7 +1,7 @@
 # Compatibility
 
 **Status:** Phase 1 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §18 · **ADR:** `SDK-Architecture.md` §10
+**Spec:** `specs/ide/sdk-platform.md` · **ADR:** `SDK-Architecture.md` §10
 
 > **Released:** the `use.Security` capability family (below) shipped with
 > the 1.2.0 SDK package bump, per the registry's additive-case convention
@@ -26,7 +26,7 @@ are checked on their own paths.
 
 ## `SwiftCodeSDK.json` — canonical version metadata
 
-`SwiftCode/SDK/Internal/SDKConfigStore/SwiftCodeSDK.json` is the canonical
+`ycode/Sources/YcodeSDK/Resources/SwiftCodeSDK.json` is the canonical
 host version metadata, managed by internal developers:
 
 ```json

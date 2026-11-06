@@ -398,10 +398,12 @@ struct SDKAvailableExtensionsView: View {
 // One installed extension's capability grants, with revoke (confirm)
 // and the audit trail of revoked tombstones. The store is the Studio
 // grant seam: the default adapter reads live grants from Ycode's real
-// `PermissionManager`. Tombstones are NOT available in `PermissionManager`
-// — revoked records disappear instead of persisting as audit evidence —
-// so this view shows live grants only and says so, rather than faking
-// history.
+// `PermissionManager` and merges the revoked tombstones kept in the
+// Host slice's `SDKGrantStore` (S-2) — revoked records stay visible
+// with their revocation time, extension name, and package digest.
+// Pre-authorization from the manifest editor grants through the real
+// `PermissionManager.grant` (the seam has no grant operation by design
+// — no second grant path was invented).
 
 @MainActor
 struct SDKGrantManagerView: View {
@@ -460,7 +462,7 @@ struct SDKGrantManagerView: View {
                 Text("\(grants.count) grant(s)").foregroundStyle(.secondary)
             }
             .padding(8)
-            Text("Grants are read from the live permission store. Revoked grants are not kept as audit records in Ycode's permission manager — revocation removes the grant immediately.")
+            Text("Grants are read from the live permission store. Revoked grants are kept as audit records with their revocation time, extension name, and package digest — revocation removes the grant immediately but never erases the history.")
                 .font(.caption).foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
             if let actionError {
@@ -485,6 +487,14 @@ struct SDKGrantManagerView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if let expiresAt = grant.expiresAt {
                     Text("Expires \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let revokedAt = grant.revokedAt {
+                    Text("Revoked \(revokedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !grant.packageDigest.isEmpty {
+                    Text("Digest \(grant.packageDigest.prefix(12))… · v\(grant.packageVersion)")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

@@ -1,7 +1,7 @@
 # TypeScript Extensions
 
 **Status:** Phase 5 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §§6, 11–13 · **ADR:** `SDK-Architecture.md` §3
+**Spec:** `specs/ide/sdk-platform.md` · **ADR:** `SDK-Architecture.md` §3
 
 TypeScript extensions run **out-of-process** in a `node` child process
 (see `Runtime-and-Security.md`) and talk to the SwiftCode host over a stdio

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import YcodeExtensions
+import YcodeSDK
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -923,13 +924,13 @@ public final class SDKCodeFindCoordinator {
 //
 // Legacy: `SwiftCode/SDK/Studio/CodeEditor/SDKBuildRunRequest.swift` +
 // `SDKCodeBuildRunner.swift`. Each kind maps to a real command line:
-// `.xcodebuildSwift` → `xcodebuild` (scheme from `schemeOrEntry`),
-// `.typescriptExtension` → `npm run build`, `.nodeScript` → `node <entry>`.
-// Legacy's managed-build path (`SDKBuildHandle`, the host build service)
-// is NOT ported here — it belongs to the Host slice; this runner executes
-// local processes only and reports that seam in the Studio spec draft.
-// Output streams live into the editor console line by line; cancellation
-// is cooperative by `taskID` (SIGTERM, then SIGKILL after 3 s).
+// `.xcodebuildSwift` → the managed build service (`SDKBuildService` /
+// `SDKBuildHandle`, Wave 15 — the xcodebuild path no longer runs a raw
+// `Process`), `.typescriptExtension` → `npm run build`, `.nodeScript` →
+// `node <entry>` (local processes). Output streams live into the editor
+// console line by line; cancellation is cooperative by `taskID`
+// (SIGTERM, then SIGKILL after 3 s for local processes; handle cancel
+// for managed builds).
 
 public enum SDKBuildRunKind: String, Sendable, Codable, CaseIterable, Hashable {
     case xcodebuildSwift
@@ -964,13 +965,28 @@ public struct SDKBuildRunRequest: Identifiable, Sendable, Hashable {
 public actor SDKCodeBuildRunner {
     public static let shared = SDKCodeBuildRunner()
     public static let hostExtensionID = "studio.editor"
+
+    /// Stable digest for the host identity: SHA-256 of
+    /// `"swiftcode.sdk.studio.editor"` (Legacy computed it at runtime via
+    /// CryptoKit; this target has no Crypto dependency, so the constant
+    /// is embedded — verify with
+    /// `python3 -c "import hashlib; print(hashlib.sha256(b'swiftcode.sdk.studio.editor').hexdigest())"`).
+    /// Distinct from every extension ID, so the managed build service's
+    /// one-build-per-extension slot never collides with extension builds.
+    public static let hostPackageDigest = "f4a6727600315b3f0074a3aa515bc73a4ce6f37f5055e97d8f9aecceead8a927"
+
     private static let cancelGraceNanoseconds: UInt64 = 3_000_000_000
 
     private struct LocalProcessSession {
         let process: Process
     }
 
-    private var active: [UUID: LocalProcessSession] = [:]
+    private enum ActiveEntry {
+        case managedBuild(SDKBuildHandle)
+        case localProcess(LocalProcessSession)
+    }
+
+    private var active: [UUID: ActiveEntry] = [:]
 
     public init() {}
 
@@ -1032,12 +1048,137 @@ public actor SDKCodeBuildRunner {
         return errorCount == 0
     }
 
+    /// Executes `request` for real, streaming output lines into
+    /// `editorState` as they arrive. Does not return until the run reaches
+    /// a terminal state (or the request fails to start); the caller keeps
+    /// `request.taskID` and uses `cancel(taskID:)` to stop it early.
+    /// The project is validated first (manifest schema, semantic rules)
+    /// for TypeScript extensions and for any project with a
+    /// `swiftcode.json`; a failed validation aborts the run before
+    /// anything is launched.
     public func run(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
+        guard active[request.taskID] == nil else {
+            await editorState.appendConsole(.system("Build/run ignored: task \(request.taskID.uuidString) is already in flight."))
+            return
+        }
+        let manifestURL = request.projectRoot.appendingPathComponent("swiftcode.json")
+        if request.kind == .typescriptExtension || FileManager.default.fileExists(atPath: manifestURL.path) {
+            let valid = await validateProject(at: request.projectRoot, into: editorState)
+            if !valid {
+                await editorState.appendConsole(.stderr("Build aborted: fix swiftcode.json validation errors before building."))
+                return
+            }
+        }
+        switch request.kind {
+        case .xcodebuildSwift:
+            await runManagedBuild(request, into: editorState)
+        case .typescriptExtension, .nodeScript:
+            await runLocalProcess(request, into: editorState)
+        }
+    }
+
+    // MARK: - Managed xcodebuild path (D-4, Wave 15)
+    //
+    // The xcodebuild path runs through the host's managed build service
+    // (`SDKBuildService` / `SDKBuildHandle`), never a raw `Process`:
+    // typed allow-list request, host environment only, one build per
+    // caller, bounded streams, and a truthful terminal result (exit 0
+    // AND `** BUILD SUCCEEDED **` AND zero parsed errors). When
+    // xcodebuild is unavailable the service fails honestly — the runner
+    // never fakes a build.
+    //
+    // Authorization: the service authorizes `build.execute` for the
+    // Studio host identity (`studio.editor`) through the capability
+    // broker, exactly as for an extension. With no grant the run fails
+    // here with `.permissionDenied` and the diagnostic tells the user
+    // to approve the capability for the Studio editor (Studio →
+    // Extensions → grant manager pre-authorization). The host identity
+    // is NOT auto-granted: silently granting the host its own build
+    // capability would bypass the approval model.
+
+    private func runManagedBuild(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
+        let taskID = request.taskID
+        let scheme = request.schemeOrEntry?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let sdkRequest = SDKBuildRequest(target: scheme)
+        let caller = SDKCallerIdentity(
+            extensionID: Self.hostExtensionID,
+            packageDigest: Self.hostPackageDigest,
+            projectRootPath: request.projectRoot.path,
+            apiKey: nil
+        )
+        await editorState.appendConsole(.system(
+            "Build requested (xcodebuild) — project: \(request.projectRoot.lastPathComponent), scheme: \(scheme.isEmpty ? "<explicit scheme required>" : "\"\(scheme)\"")"))
+
+        let handle: SDKBuildHandle
+        do {
+            handle = try await SDKBuildService.shared.run(caller: caller, request: sdkRequest)
+        } catch let sdkError as SDKError {
+            var text = "Build could not start [\(sdkError.code.rawValue)]: \(sdkError.message)"
+            if let suggestion = sdkError.suggestion, !suggestion.isEmpty {
+                text += " \(suggestion)"
+            }
+            await editorState.appendDiagnostic(SDKEditorDiagnostic(
+                severity: .error, source: "xcodebuild", code: sdkError.code.rawValue,
+                message: sdkError.message, suggestion: sdkError.suggestion,
+                fileURL: request.projectRoot, line: 1))
+            await editorState.appendConsole(.system(text))
+            return
+        } catch {
+            await editorState.appendConsole(.system("Build could not start: \(error.localizedDescription)"))
+            return
+        }
+        active[taskID] = .managedBuild(handle)
+
+        for await event in handle.events {
+            await editorState.appendConsole(consoleEntry(for: event))
+        }
+        let result = await handle.wait()
+        active[taskID] = nil
+        for diagnostic in result.diagnostics {
+            await editorState.appendDiagnostic(SDKEditorDiagnostic(
+                severity: .error, source: "xcodebuild", code: "BUILD_DIAGNOSTIC",
+                message: diagnostic.message,
+                fileURL: diagnostic.file.map { request.projectRoot.appendingPathComponent($0) },
+                line: diagnostic.line))
+        }
+        await editorState.appendConsole(terminalEntry(for: result))
+    }
+
+    private func consoleEntry(for event: SDKBuildOutputEvent) -> SDKConsoleEntry {
+        switch event.kind {
+        case .stdout: return .stdout(event.text)
+        case .stderr: return .stderr(event.text)
+        case .status: return .system(event.text)
+        }
+    }
+
+    private func terminalEntry(for result: SDKBuildResult) -> SDKConsoleEntry {
+        let duration = String(format: "%.1f", result.durationSeconds)
+        switch result.status {
+        case .succeeded:
+            return .system("Build succeeded in \(duration)s.")
+        case .failed:
+            let exit = result.exitCode.map(String.init) ?? "?"
+            return .system("Build failed (exit \(exit), \(result.errorCount) error(s), \(result.warningCount) warning(s), \(duration)s).")
+        case .cancelled:
+            return .system("Build cancelled.")
+        case .timedOut:
+            return .system("Build timed out after 30 minutes.")
+        case .running:
+            return .system("Build ended in an unexpected state (still marked running).")
+        }
+    }
+
+    // MARK: - Local process path (npm / node)
+
+    private func runLocalProcess(_ request: SDKBuildRunRequest, into editorState: SDKCodeEditorState) async {
         await editorState.appendConsole(.system("Starting \(request.kind.displayName) in \(request.projectRoot.lastPathComponent)…"))
         let process = Process()
         process.currentDirectoryURL = request.projectRoot
         switch request.kind {
         case .xcodebuildSwift:
+            // Unreachable: the xcodebuild kind is handled by the managed
+            // path above. Kept for exhaustiveness if the dispatch changes.
             process.executableURL = URL(fileURLWithPath: "/usr/bin/xcodebuild")
             var args: [String] = []
             if let scheme = request.schemeOrEntry, !scheme.isEmpty { args += ["-scheme", scheme] }
@@ -1064,7 +1205,7 @@ public actor SDKCodeBuildRunner {
                 await editorState.appendConsole(.stderr(line))
             }
         }
-        active[request.taskID] = LocalProcessSession(process: process)
+        active[request.taskID] = .localProcess(LocalProcessSession(process: process))
         do {
             try process.run()
         } catch {
@@ -1092,17 +1233,24 @@ public actor SDKCodeBuildRunner {
         }
     }
 
+    /// Genuine cancellation: terminates the underlying build handle or
+    /// local process for `taskID`.
     public func cancel(taskID: UUID) async {
-        guard let session = active[taskID] else { return }
-        session.process.terminate()
-        // SIGTERM, then SIGKILL after the grace period if the pid still
-        // exists. Only the pid crosses into the detached task: the
-        // Process itself is not Sendable.
-        let pid = session.process.processIdentifier
-        Task {
-            try? await Task.sleep(nanoseconds: Self.cancelGraceNanoseconds)
-            if kill(pid, 0) == 0 {
-                kill(pid, SIGKILL)
+        guard let entry = active[taskID] else { return }
+        switch entry {
+        case .managedBuild(let handle):
+            await handle.cancel()
+        case .localProcess(let session):
+            session.process.terminate()
+            // SIGTERM, then SIGKILL after the grace period if the pid still
+            // exists. Only the pid crosses into the detached task: the
+            // Process itself is not Sendable.
+            let pid = session.process.processIdentifier
+            Task {
+                try? await Task.sleep(nanoseconds: Self.cancelGraceNanoseconds)
+                if kill(pid, 0) == 0 {
+                    kill(pid, SIGKILL)
+                }
             }
         }
         active.removeValue(forKey: taskID)

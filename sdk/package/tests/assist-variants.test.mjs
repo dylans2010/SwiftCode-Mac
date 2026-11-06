@@ -8,7 +8,7 @@
 //     view via `ui.openView({ viewId: ASSIST_VIEW_ID })` — no headless
 //     session/streaming APIs may exist here.
 //
-// Denial contract (Docs/Intro-to-SDK.md §13): when the host answers with
+// Denial contract (specs/ide/sdk-platform.md): when the host answers with
 // the typed `ASSIST_DENIED` denial, the TS wrapper throws
 // `SDKAssistAccessError` carrying the VERBATIM user message. The TS layer
 // cannot know entitlement state itself and must NOT fabricate it: any

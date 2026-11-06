@@ -7,7 +7,7 @@
  * shipped).
  *
  * This mirrors the REAL manifest schema at
- * SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json
+ * sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json
  * (patterns, enums, length bounds, required fields, additionalProperties).
  * Every violation is collected and reported — never just the first.
  *
@@ -37,7 +37,7 @@ Validates the extension in [dir] (default: current directory):
 
   - swiftcode.json exists and parses as JSON
   - structural validation mirroring the real manifest schema
-    (SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json):
+    (sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json):
     required fields, types, length bounds, manifestVersion === 1,
     reverse-DNS id, semver version, runtime.language === "typescript",
     sdk.name === "@swiftcode/sdk", sdk.protocolVersion === 1,
@@ -60,7 +60,7 @@ Options:
 };
 
 // ---------------------------------------------------------------------------
-// Schema mirror (SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json)
+// Schema mirror (sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json)
 // ---------------------------------------------------------------------------
 
 const ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)+$/;

@@ -1,7 +1,7 @@
 # Platform Capabilities
 
 **Status:** Phase 2 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §§8.1, 10.4 · **ADR:** `SDK-Architecture.md` §§5, 7, 9, 11
+**Spec:** `specs/ide/sdk-platform.md` · **ADR:** `SDK-Architecture.md` §§5, 7, 9, 11
 
 SDK 1.1.0 introduced the **platform capabilities**; SDK 1.2.0 completes the
 set at 14 capability IDs with `deployConsole.view` and `virtualization.view`,

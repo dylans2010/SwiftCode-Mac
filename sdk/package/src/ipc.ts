@@ -1,5 +1,5 @@
 /**
- * IPC client for the SwiftCode extension host (Docs/Intro-to-SDK.md §10.4).
+ * IPC client for the SwiftCode extension host (specs/ide/sdk-platform.md).
  *
  * NDJSON transport: one JSON object per line, UTF-8, over the stdio pipe.
  * Requests correlate to responses by `requestId` with a 60 s timeout;

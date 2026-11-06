@@ -3,7 +3,7 @@
  * the `package` and `install` commands.
  *
  * Format (documented precisely in
- * SwiftCode/SDK/Documentation/Package-Format.md):
+ * sdk/docs/Package-Format.md):
  *   - a ZIP archive (stored or deflate entries only; no encryption, no
  *     zip64, no multi-disk), entries sorted byte-wise by name, fixed mtime
  *     2000-01-01T00:00:00Z, fixed mode 0644 — byte-reproducible.

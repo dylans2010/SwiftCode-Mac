@@ -68,10 +68,11 @@ public enum SDKAssistGate {
     /// Checks an IPC method name for an extension caller. Throws
     /// `.assistDenied` (audited) when the method is Assist-shaped and not
     /// the entitled `assist.invoke` route. Call this BEFORE routing or
-    /// decoding the payload.
+    /// decoding the payload. The exemption is case-insensitive (Legacy):
+    /// `ASSIST.INVOKE` is the same route as `assist.invoke`.
     public static func check(ipcMethod: String, callerExtensionID: String) async throws {
-        if entitledAssistMethods.contains(ipcMethod) { return }
         let lowered = ipcMethod.lowercased()
+        if entitledAssistMethods.contains(lowered) { return }
         for fragment in deniedIPCSubstrings where lowered.contains(fragment) {
             throw await deny(callerExtensionID: callerExtensionID, route: ipcMethod)
         }

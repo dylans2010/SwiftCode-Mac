@@ -47,7 +47,7 @@ implemented — do not invent a package format.
 commands, and the SDK/protocol versions it was built against. The schema
 pointer `$schema` resolves to `schemas/swiftcode-extension-v1.schema.json`,
 which the generator copies into every generated project from
-`SwiftCode/SDK/Contracts/Manifest/swiftcode-extension-v1.schema.json` —
+`sdk/Contracts/Manifest/swiftcode-extension-v1.schema.json` —
 a single source of truth, never a dead URL.
 
 ## Build targets

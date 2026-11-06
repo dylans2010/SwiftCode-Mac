@@ -1073,6 +1073,103 @@ read only to place it. It is **not** part of this wave:
 | SDK developer-key entitlements | Deferred to the SDK-platform wave (§9) |
 | `showManageSubscriptions` UI entry point | Available but unwired (gap 4) |
 
+## 12. Wave 15 — Settings Pro section (Slice D)
+
+Sources read live for this section (Legacy read-only, main
+`d51a8f0d`; destination main `faf89bd8` at wave start):
+`SwiftCode/Views/Settings/GeneralSettingsView.swift:1880-1896`
+(`proSection`), `SwiftCode/Backend/Store/EntitlementManager.swift`,
+`SwiftCode/Backend/Developer/FeatureFlags.swift` (the
+`bypass_paywall` key). Destination: Wave 13's
+`ycode/Sources/YcodePaywall/` (`PaywallStore`,
+`PaywallEntitlementState`, `PaywallView`, `PaywallBypass`),
+`ycode/Sources/YcodeUI/App/SettingsPanes.swift`
+(`GeneralSettingsPane`), `ycode/Sources/ycode-ide/SettingsPanes.swift`
+(Linux/SwiftUI shell — see §12.3).
+
+### 12.1 What landed
+
+The Settings Pro-section paywall presentation hook — the
+follow-up Wave 13 left open — is now wired in the AppKit
+Settings (macOS):
+
+- **General pane, "SwiftCode Pro" section**
+  (`GeneralSettingsPane.proSection`, at the end of
+  `build()`, after "Reset Ycode"): the row title is
+  `"SwiftCode Pro"` in both states, so the pane's structure
+  never depends on entitlement. Pro members see
+  "SwiftCode Pro Member!" + "Active" (green); everyone else
+  gets an "Upgrade to Pro" button that presents the Wave 13
+  `PaywallView` as a sheet (`NSHostingController`). The note
+  under the row states the rule honestly: "Pro status comes
+  from a verified App Store purchase, or the developer bypass
+  flag." Ycode style throughout: no orange accent (Legacy's
+  `.orange` crown row), sentence case.
+- **Refresh, once.** Building the section refreshes
+  entitlements and re-reads the bypass flag through
+  `PaywallStore` (`refreshEntitlements()` +
+  `refreshBypassFlag()`), then rebuilds the pane — guarded
+  by a `proSectionRefreshed` flag, because the refresh ends
+  in `rebuild()`, which re-runs `build()`, so an unguarded
+  refresh would loop forever. A purchase made while the
+  paywall sheet is open is picked up when Settings is
+  reopened (the store's transaction listener also updates
+  the entitlement live; the pane re-reads it on its next
+  build).
+- **Pure state + SwiftUI view** (`ycode/Sources/YcodePaywall/ProSettingsSection.swift`):
+  `ProSectionState` derives the section from
+  `PaywallEntitlementState` (member title, status text,
+  upgrade title, `showsUpgradeButton`) and is covered by
+  `ycode/Tests/YcodePaywallTests/ProSettingsSectionTests.swift`
+  (not-Pro → upgrade; Pro via entitlements / bypass /
+  debug override → member + "Active"; debug override off →
+  upgrade; any verified entitlement grants Pro — Legacy's
+  faithful quirk, preserved). `ProSettingsSection` is the
+  same section as a SwiftUI view for SwiftUI hosts: member
+  line or upgrade button, paywall sheet, refresh on appear.
+  It snapshots the store into `@State` like `PaywallView`
+  does (the store is not an `ObservableObject` — this target
+  compiles on Linux, where Combine does not exist).
+- **No new gate.** The section presents the paywall and
+  shows Pro status. No feature is gated here: Legacy gated
+  nothing behind Pro either (§3), and no gate is invented.
+  The six paywall features remain ungated promises (§10.2
+  gap 2, unchanged).
+
+### 12.2 Entry points that present the paywall (updated)
+
+§3 listed two Legacy entry points. In the destination they
+are now: the Settings Pro section (AppKit General pane,
+this wave) and the developer debug views
+(`PaywallDebugViews`, Wave 13). Nothing presents the
+paywall automatically on launch, on feature use, or after a
+trial period — unchanged from Legacy. There is still no
+trial, no usage counter, and no "Pro required" alert.
+
+### 12.3 What is still pending
+
+- **Linux/SwiftUI Settings — WIRED by the Wave 15 coordinator.**
+  `"YcodePaywall"` was added to the `ycode-ide` executable
+  target's dependencies in `ycode/Package.swift` (both the Linux
+  and macOS branches), and a "SwiftCode Pro" section using the
+  already-built `ProSettingsSection` view was added at the end of
+  the SwiftUI General pane (`ycode/Sources/ycode-ide/
+  SettingsPanes.swift`). On Linux the section shows the upgrade
+  button and a paywall that cannot load products (every StoreKit
+  operation fails honestly with
+  `PaywallError.storeKitUnavailable`).
+- **Mac build/test.** No Swift toolchain in this
+  environment: `swift build` / `swift test`, the Settings
+  snapshot render (`settings-general.png`), and any live
+  purchase test stay pending on Dylan's Mac. The
+  `SettingsR33Tests.generalPaneRowsAndDefaults` expectation
+  was updated for the two new rows (`"# SwiftCode Pro"`,
+  `"SwiftCode Pro"`).
+- **Dylan decisions.** Unchanged from §10.2: products must
+  exist in App Store Connect before end-to-end purchase
+  testing (gap 1); whether the six paywall features should
+  ever be gated is a product decision, not a port (gap 2).
+
 ## Evidence
 
 Per the destination `AGENTS.md` clean-room protocol (rule 4) and
@@ -1128,8 +1225,12 @@ this spec slice.
 > window hosts the editor instead). The simulation service landed as
 > a local port (`StoreKitSimulationSession`), not re-implemented over
 > `AppTestStore` / `SKTestSession` as §6.6b recommended — that engine
-> mapping is a follow-up. The Settings Pro-section paywall
-> presentation hook is not yet wired — follow-up.
+> mapping is a follow-up. **Wave 15 update:** the Settings
+> Pro-section paywall presentation hook is now wired in the
+> AppKit Settings (§12) — the macOS General pane's
+> "SwiftCode Pro" section presents the paywall; the
+> Linux/SwiftUI Settings wiring is still pending (needs a
+> `Package.swift` dependency, §12.3).
 
 | Legacy file | Lines | Disposition | Destination file / target (recommended) |
 |---|---|---|---|
@@ -1149,7 +1250,7 @@ this spec slice.
 | `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowController.swift` | 173 | PORT | NOT reproduced — Legacy's standalone StoreKit window chrome has no destination; the Ycode workspace window hosts the editor instead |
 | `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowManager.swift` | 43 | PORT | NOT reproduced — same as above; window management is the Ycode workspace's |
 | `SwiftCode/Views/Utilities/StoreKit/Workspace/StoreKitSplitViewController.swift` | 212 | PORT | NOT reproduced as a standalone split view — the editor lives in the Ycode workspace window; the editor view itself carries the sidebar/inspector layout |
-| `SwiftCode/Views/Paywall/PaywallView.swift` | 143 | PORT | `YcodePaywall/PaywallView.swift` (SwiftUI, Ycode style, no orange/crown/liquid-glass Legacy styling); model `YcodePaywall/PaywallStore.swift`. Presented from debug view only — the Settings Pro-section presentation hook is NOT yet wired (follow-up) |
+| `SwiftCode/Views/Paywall/PaywallView.swift` | 143 | PORT | `YcodePaywall/PaywallView.swift` (SwiftUI, Ycode style, no orange/crown/liquid-glass Legacy styling); model `YcodePaywall/PaywallStore.swift`. Presented from the AppKit Settings Pro section (Wave 15, §12) and the debug view — the Linux/SwiftUI Settings hook is NOT yet wired (needs a `Package.swift` dependency, §12.3) |
 | `SwiftCode/Views/Developer/PaywallDebug/PaywallDebugView.swift` | 41 | PORT | `YcodePaywall/PaywallDebugViews.swift` (developer surface; grant/revoke + force-show paywall, honestly labelled local-only overrides) |
 | `SwiftCode/Views/Developer/StoreKitDebug/StoreKitDebugView.swift` | 38 | PORT | `YcodePaywall/PaywallDebugViews.swift` (4 simulations, honestly labelled local-only overrides — they never create transactions) |
 | `SwiftCode/Core/Editor/EntitlementsEditorManager.swift` | 725 | PORT | `YcodeIDECore/Model/EntitlementsEditorModel.swift` (plist I/O via `YcodeSigning.EntitlementValue`, sorted-key XML write, validation + cross-entitlement rules, raw-XML generation); 17-entry manager catalog subsumed (verified). The 4 empty stub structs are dropped |

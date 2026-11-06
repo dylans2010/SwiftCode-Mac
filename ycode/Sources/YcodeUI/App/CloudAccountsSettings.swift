@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import YcodeCloud
+import YcodeGoogleAuth
 import YcodeIDECore
 
 /// The SwiftCode account section of Settings ▸ Accounts (specs/ide/
@@ -540,6 +541,7 @@ extension AccountsSettingsPane {
         case .sync: buildCloudSyncTab()
         case .status: buildCloudStatusTab()
         }
+        buildGoogleAccountSection()
         ensureStatsLoaded()
     }
 
@@ -661,6 +663,131 @@ extension AccountsSettingsPane {
         row("Pending changes:", value("\(statistics.pendingUploadsCount)"))
         row("Conflicts:", value("\(statistics.conflictCount)"))
         footnote("Record syncing has no backend yet: sync stamps the last-sync time and queues changes, but nothing is uploaded or downloaded.")
+    }
+
+    // MARK: Google account
+
+    /// Legacy's Google account section (the Google Account card in
+    /// `AssistSettingsView`): the signed-in email, the Assist-scope
+    /// status, sign-in / sign-out, re-authentication for Assist
+    /// scopes, the `agy` CLI path, and the OAuth client id/secret
+    /// fields. This is the separate Google Cloud / Antigravity
+    /// identity — not the Appwrite SwiftCode account above — and it
+    /// calls the `GoogleAccountAuthService` API exactly as written;
+    /// no auth logic is re-implemented in the UI. The section
+    /// triggers the service's one session restore on first build
+    /// (the service does not restore in `init`).
+    func buildGoogleAccountSection() {
+        if !googleRestoreAttempted {
+            googleRestoreAttempted = true
+            googleAuthService.restoreSessionFromKeychain()
+        }
+        endCard()
+        heading("Google Account")
+        note(Self.googleExplanation)
+        let service = googleAuthService
+        if service.isAuthenticated {
+            if let email = service.userEmail {
+                row("Signed in as:", value(email))
+            }
+            let scopesReady = service.hasRequiredAssistScopes()
+            let scopes = value(scopesReady ? Self.googleScopesReadyText : Self.googleScopesMissingText)
+            scopes.textColor = scopesReady ? .systemGreen : .systemOrange
+            row("Assist scopes:", scopes)
+            var buttons: [NSView] = []
+            if !scopesReady {
+                buttons.append(cloudButton("Re-authenticate for Assist Scopes") { [weak self] in
+                    self?.reAuthenticateGoogleForAssistScopes()
+                })
+            }
+            buttons.append(cloudButton("Sign Out") { [weak self] in self?.signOutGoogle() })
+            let stack = NSStackView(views: buttons)
+            stack.spacing = 8
+            row("Google Account:", stack)
+        } else {
+            note("Sign in with Google to use the Gemini / Antigravity models in Assist without an API key.")
+            let signIn = cloudButton(service.isAuthenticating ? "Signing In…" : "Sign in with Google") { [weak self] in
+                self?.signInWithGoogle()
+            }
+            signIn.isEnabled = !service.isAuthenticating
+            let cli = cloudButton("Sign in via agy CLI") { [weak self] in self?.signInGoogleViaCLI() }
+            cli.isEnabled = !service.isAuthenticating
+            let stack = NSStackView(views: [signIn, cli])
+            stack.spacing = 8
+            row("Google Account:", stack)
+        }
+        if !service.hasClientSecret {
+            note(Self.googleMissingSecretNote)
+        }
+        // OAuth client configuration (Legacy's Assist settings
+        // fields): the id override and the secret. The secret field
+        // never shows a stored value — it only sets a new one.
+        let secretField = NSSecureTextField()
+        secretField.placeholderString = service.hasKeychainClientSecret
+            ? "Client secret saved in Keychain — enter a new one to replace it"
+            : "OAuth client secret"
+        let saveSecret = cloudButton("Save Client Secret") { [weak self] in
+            self?.saveGoogleClientSecret(secretField.stringValue)
+        }
+        let secretStack = NSStackView(views: [secretField, saveSecret])
+        secretStack.spacing = 8
+        row("Client Secret:", secretStack)
+        let idField = NSTextField()
+        idField.placeholderString = "Empty = SwiftCode's built-in client"
+        idField.stringValue = UserDefaults.standard.string(forKey: GoogleDefaultsKey.clientIDOverride) ?? ""
+        let saveID = cloudButton("Save Client ID") { [weak self] in
+            self?.saveGoogleClientIDOverride(idField.stringValue)
+        }
+        let idStack = NSStackView(views: [idField, saveID])
+        idStack.spacing = 8
+        row("Client ID Override:", idStack)
+        note("Only needed if you must use a different OAuth client than SwiftCode's built-in one. Applies to the next sign-in.")
+        if let error = service.authError {
+            let label = NSTextField(wrappingLabelWithString: error)
+            label.textColor = .systemRed
+            row("Last error:", label)
+        } else if let refreshError = service.lastTokenRefreshError {
+            note("The last token refresh failed: \(refreshError)")
+        }
+    }
+
+    /// Starts Google sign-in (the browser flow on macOS; fails
+    /// honestly with an error on Linux). State changes rebuild the
+    /// pane through `onStateChange`.
+    public func signInWithGoogle() {
+        googleAuthService.signIn()
+        if isViewLoaded { rebuild() }
+    }
+
+    /// Signs out of the Google account.
+    public func signOutGoogle() {
+        googleAuthService.signOut()
+        if isViewLoaded { rebuild() }
+    }
+
+    /// Re-authenticates with the full Assist scopes, keeping the
+    /// existing session until the new sign-in succeeds.
+    public func reAuthenticateGoogleForAssistScopes() {
+        googleAuthService.reAuthenticateForAssistScopes()
+        if isViewLoaded { rebuild() }
+    }
+
+    /// Signs in through the `agy` CLI (macOS Terminal).
+    public func signInGoogleViaCLI() {
+        googleAuthService.signInViaCLI()
+        if isViewLoaded { rebuild() }
+    }
+
+    /// Stores the OAuth client secret (empty clears it).
+    public func saveGoogleClientSecret(_ secret: String) {
+        googleAuthService.setClientSecret(secret)
+        if isViewLoaded { rebuild() }
+    }
+
+    /// Stores the OAuth client-id override (empty clears it).
+    public func saveGoogleClientIDOverride(_ id: String) {
+        googleAuthService.setClientIDOverride(id)
+        if isViewLoaded { rebuild() }
     }
 
     // MARK: Actions

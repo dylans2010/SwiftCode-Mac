@@ -126,7 +126,7 @@ public actor SDKAPIKeyStore {
         key.revokedAt = Date()
         try? persist(key)
         await SDKAuditLog.shared.record(.apiKeyRevoked, detail: "key \(id.uuidString)")
-        await SDKAssistService.shared.closeSessions(forKeyID: id)
+        _ = await SDKAssistService.shared.closeSessions(forKeyID: id)
     }
 
     // MARK: - Verify
@@ -213,28 +213,44 @@ public actor SDKAPIKeyStore {
         }
     }
 
-    /// Grants an entitlement to a key. A revoked key can never be granted.
-    public func grantEntitlement(_ entitlement: SDKEntitlement, toKeyID id: UUID) throws {
-        guard var key = try? readKey(id: id), !key.isRevoked else {
-            throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
-        }
-        key.entitlements.insert(entitlement)
-        try persist(key)
-        Task {
-            await SDKAuditLog.shared.record(.entitlementGranted, detail: "key \(id.uuidString) entitlement \(entitlement.rawValue)")
-        }
-    }
-
-    /// Revokes an entitlement from a key.
-    public func revokeEntitlement(_ entitlement: SDKEntitlement, fromKeyID id: UUID) throws {
+    /// Grants an entitlement to a key. A revoked key can never be granted
+    /// (`.apiKeyRevoked`, Legacy behaviour). Idempotent: granting an
+    /// entitlement the key already has is a no-op success.
+    public func grantEntitlement(_ entitlement: SDKEntitlement, toKeyID id: UUID) async throws {
         guard var key = try? readKey(id: id) else {
             throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
         }
+        guard !key.isRevoked else {
+            throw SDKError(
+                code: .apiKeyRevoked,
+                message: "This developer API key was revoked.",
+                suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
+            )
+        }
+        guard !key.entitlements.contains(entitlement) else { return }
+        key.entitlements.insert(entitlement)
+        try persist(key)
+        await SDKAuditLog.shared.record(.entitlementGranted, detail: "key \(id.uuidString) entitlement \(entitlement.rawValue)")
+    }
+
+    /// Revokes an entitlement from a key. Returns the number of in-flight
+    /// Assist sessions closed by the revocation hook (Legacy behaviour:
+    /// a revoked entitlement must not keep an open session alive).
+    /// Idempotent: revoking an entitlement the key does not have is a
+    /// no-op success that still closes nothing.
+    public func revokeEntitlement(_ entitlement: SDKEntitlement, fromKeyID id: UUID) async throws -> Int {
+        guard var key = try? readKey(id: id) else {
+            throw SDKError(code: .apiKeyInvalid, message: "The developer API key is invalid.")
+        }
+        guard key.entitlements.contains(entitlement) else { return 0 }
         key.entitlements.remove(entitlement)
         try persist(key)
-        Task {
-            await SDKAuditLog.shared.record(.entitlementRevoked, detail: "key \(id.uuidString) entitlement \(entitlement.rawValue)")
-        }
+        let closedSessions = await SDKAssistService.shared.closeSessions(forKeyID: id)
+        await SDKAuditLog.shared.record(
+            .entitlementRevoked,
+            detail: "key \(id.uuidString) entitlement \(entitlement.rawValue) closedSessions \(closedSessions)"
+        )
+        return closedSessions
     }
 
     // MARK: - Rate limiting

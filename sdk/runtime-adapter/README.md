@@ -1,8 +1,8 @@
 # @swiftcode/runtime-adapter
 
 Node runtime adapter that hosts TypeScript SwiftCode extensions as an
-out-of-process runtime (Docs/Intro-to-SDK.md §10 runtime responsibilities,
-§12.4 entry point contract).
+out-of-process runtime (specs/ide/sdk-platform.md §9, §13.2: runtime
+responsibilities and the entry point contract).
 
 This is what the Swift host's `SDKNodeLauncher` spawns — one process per
 extension:
@@ -22,7 +22,7 @@ handlers and reports `commands.executeResult` events back.
 
 | Flag           | Required | Description                                                        |
 |----------------|----------|--------------------------------------------------------------------|
-| `--entrypoint` | yes      | Path (absolute or cwd-relative) to the entry module. Its **default export** must be `{ id, activate, deactivate }` with function-valued `activate`/`deactivate` (§12.4). Anything else → stderr + exit 1 (activation contract failure, never a silent hang). |
+| `--entrypoint` | yes      | Path (absolute or cwd-relative) to the entry module. Its **default export** must be `{ id, activate, deactivate }` with function-valued `activate`/`deactivate` (§13.2). Anything else → stderr + exit 1 (activation contract failure, never a silent hang). |
 | `--manifest`   | no       | Path to `swiftcode.json`. Loaded with `JSON.parse`; on any read/parse failure → stderr + exit 1. Supplies `id`/`name`/`version`. |
 | `--id`         | no       | Identity override. Precedence: flag > manifest > module `id`.       |
 | `--name`       | no       | Display-name override. Precedence: flag > manifest > module `id`.   |
@@ -86,12 +86,12 @@ resolved inside the installed package) and `--manifest` (the package's
 2. Sends `commands.execute` events when the user invokes a contributed
    command, and `shutdown` when the extension is stopped.
 3. Treats child exit 0 as clean stop; non-zero exit or a signal as a
-   runtime crash (§10.5 failure states), marking the extension failed and
+   runtime crash (§9 failure states), marking the extension failed and
    removing its contributions.
 
 The adapter never receives unrestricted internal service objects, raw
 secret values, or unrestricted host filesystem access — it only sees the
-controlled `SwiftCodeContext` (§10.3).
+controlled `SwiftCodeContext` (§13.1).
 
 ## Build & verify
 

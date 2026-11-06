@@ -1,6 +1,6 @@
 # Assist Access — third-party Assist authorization
 
-**Status:** Part B of `Docs/Intro-to-SDK.md` (§9–§16) · **Branch:** `feature/swiftcode-sdk`
+**Status:** Part B of `specs/ide/sdk-platform.md` · **Branch:** `feature/swiftcode-sdk`
 
 How third-party apps get Assist access, what the two SDK variants unlock,
 how enforcement works, and how access is revoked. Assist is deny-by-default
@@ -10,15 +10,15 @@ opens it.
 ## 1. The application form
 
 Developers apply in SwiftCode Studio → Assist Access
-(`SwiftCode/SDK/Studio/Views/AssistAccessFormView.swift`). Every field is
+(`ycode/Sources/ycode-ide/SDKStudio/`). Every field is
 required and validated; the answers are stored verbatim with the request
-(`SDKAssistApplication` in `SwiftCode/SDK/Host/APIKeys/SDKAssistApplication.swift`).
+(`SDKAssistApplication` in `ycode/Sources/YcodeSDK/Host/APIKeys/SDKAssistApplication.swift`).
 
 | Field | Rule |
 |---|---|
 | App identity (extension ID + display name) | Both non-empty. The extension ID must match an installed/registered app — checked against `SDKExtensionRegistry` at submit time. |
 | Developer API key | Picker. The key the entitlements will be bound to; must exist, not be revoked or expired. |
-| SDK variant | Radio: `assistSDK.UI` or `assistSDK` (§2). |
+| SDK variant | Radio: `assistSDK.UI` or `assistSDK`. |
 | "How will Assist be used in your app?" | Free text, minimum 40 characters (measured trimmed), stored verbatim. |
 | "Do you have your own UI for Assist responses?" | Required yes/no choice; a description is required when yes. Informs the variant. |
 | "Will third-party models outside SwiftCode be used?" | Required yes/no; when yes, the providers/models must be listed. A "yes" answer makes approval also grant the cloud entitlement. |
@@ -46,7 +46,7 @@ same protection level as API-key metadata).
   `session.close`). The developer renders everything themselves. There is
   intentionally no view-opening path in this module.
 
-Neither variant works without the entitlement (§3): every call fails with
+Neither variant works without the entitlement: every call fails with
 the §5 error.
 
 ## 3. Entitlements (key-bound, never manifest-bound)
@@ -158,7 +158,7 @@ conversation content, never credentials.
 review queue in v1: approval is an explicit host action (Studio → Assist
 Access → Approve) that records the developer's answers as their attestation
 and grants the entitlements. Abuse after approval is handled by entitlement
-revocation (§6), which takes effect immediately at the authorization
+revocation, which takes effect immediately at the authorization
 boundary and is recorded in the audit log.
 
 ## 8. Known limitation — the recorded blocker (out of scope)
@@ -181,24 +181,23 @@ revocation) is implemented for real.
 
 ## 9. Tests
 
-- TypeScript (`SwiftCode/SDK/TypeScript/package/tests/`, run here):
+- TypeScript (`sdk/package/tests/`, run here):
   `assist-variants.test.mjs` pins the `assist.invoke` wire format for all
   six ops and the verbatim denial mapping on every public function;
   `cloudmodel.test.mjs` pins the `CLOUD_MODEL_DENIED` → verbatim-message
   mapping and that unrelated denials propagate untouched.
   `npm run build` (tsc clean) + `npm test` must stay green.
-- Swift (`SwiftCode/SDK/Host/APIKeys/SDKAssistApplicationTests.swift`,
-  `SDKAssistEnforcementTests.swift`): form validation, application store
+- Swift (`ycode/Tests/YcodeSDKTests/` — the `SDKAssistApplicationTests`
+  and `SDKAssistEnforcementTests` suites were NOT ported as suites; see
+  `specs/ide/sdk-platform.md` §18): form validation, application store
   (submit/approve→grant/deny→no grant), entitlement grant/revoke/require,
   enforcement routes (entitled vs not, wrong-key, forged manifest claim
-  ignored), the cloud gate, and revocation mid-session. Registered in the
-  xcodeproj as source references only (no XCTest target exists yet) —
-  statically verified here; run on Dylan's Mac with xcodebuild.
+  ignored), the cloud gate, and revocation mid-session.
 
 ## 10. Cross-references
 
-- Spec: `Docs/Intro-to-SDK.md` §9–§16.
-- Architecture: `SwiftCode/SDK/Documentation/SDK-Architecture.md`,
+- Spec: `specs/ide/sdk-platform.md`.
+- Architecture: `sdk/docs/SDK-Architecture.md`,
   `Capabilities-and-Permissions.md` (capability model),
   `Runtime-and-Security.md` (IPC + key verification),
   `Security-Keychain.md` (key/entitlement storage).

@@ -1,7 +1,7 @@
 # Runtime and Security
 
 **Status:** Phases 3–4 contracts, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
-**Spec:** `Docs/Intro-to-SDK.md` §§4, 8, 9, 10, 16, 17 · **ADR:** `SDK-Architecture.md` §§3, 4, 5, 9, 12
+**Spec:** `specs/ide/sdk-platform.md` · **ADR:** `SDK-Architecture.md` §§3, 4, 5, 9, 12
 
 ## Out-of-process node runtime
 
@@ -146,7 +146,7 @@ privileged call (`Capabilities-and-Permissions.md`):
   singletons, and the broker call precedes that touch.
 - The IPC dispatcher binds caller identity from the host-created
   `SDKRuntimeSessionInfo` (validated manifest ID + package digest) — an
-  extension-supplied identity field is never trusted (§10.4). A forged
+  extension-supplied identity field is never trusted. A forged
   identity in a payload cannot escalate because no identity field is read
   from the payload anywhere in the dispatcher.
 - Build handles minted by an authorized `build.run` are unguessable UUIDs in

@@ -1,4 +1,4 @@
-// Terminal sandbox contract tests for @swiftcode/sdk (Docs/Intro-to-SDK.md §19.1, §19.2).
+// Terminal sandbox contract tests for @swiftcode/sdk (specs/ide/sdk-platform.md).
 //
 // Loads the real compiled dist/index.js and builds the real context via
 // createContext over a scripted fake HostConnection. The tests assert the

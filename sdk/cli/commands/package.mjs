@@ -3,7 +3,7 @@
  *
  * Builds (if needed) and packages an extension or app into a deterministic
  * `.swiftcode-extension` zip archive (spec §17; format documented in
- * SwiftCode/SDK/Documentation/Package-Format.md):
+ * sdk/docs/Package-Format.md):
  *
  *   1. Validate the manifest + package checks first (validate.mjs).
  *      Any failure → exit 1, no package is produced.
@@ -57,7 +57,7 @@ export const definition = {
 
 Packages the extension or app in [dir] (default: current directory) into
 a deterministic .swiftcode-extension archive (spec §17; format details in
-SwiftCode/SDK/Documentation/Package-Format.md):
+sdk/docs/Package-Format.md):
 
   1. validates swiftcode.json + package checks (same as 'swiftcode validate');
      any failure aborts with exit 1 and no package is produced

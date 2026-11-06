@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import YcodeExtensions
+import YcodeSDK
 import YcodeSDKStudio
 
 // MARK: - Studio model tests
@@ -276,6 +277,21 @@ final class SDKStudioEditorTests: XCTestCase {
         XCTAssertFalse(state.diagnostics.isEmpty)
         XCTAssertTrue(state.diagnostics.allSatisfy { $0.severity == .error || $0.severity == .warning })
     }
+    func testManagedBuildFailsHonestlyWithoutGrant() async {
+        let state = SDKCodeEditorState(projectRootURL: tmp)
+        // Precondition: no grant for the `studio.editor` host identity
+        // exists — the host identity is never auto-granted (see the
+        // managed-build note in SDKStudioEditorModels). The managed
+        // build service authorizes `build.execute` BEFORE any engine
+        // runs, so the failure is engine-independent: it is reported as
+        // a PERMISSION_DENIED diagnostic, never a faked build.
+        await SDKCodeBuildRunner.shared.run(
+            SDKBuildRunRequest(projectRoot: tmp, kind: .xcodebuildSwift, schemeOrEntry: "MyScheme"),
+            into: state)
+        XCTAssertTrue(state.diagnostics.contains { $0.code == "PERMISSION_DENIED" })
+        XCTAssertTrue(state.diagnostics.allSatisfy { $0.severity == .error })
+        XCTAssertFalse(state.consoleEntries.isEmpty)
+    }
 }
 
 @MainActor
@@ -392,18 +408,129 @@ final class SDKStudioModelTests: XCTestCase {
 
     func testGrantStoreAdapter() async throws {
         let permissions = PermissionManager(grants: ["com.example.ext": [.workspaceRead, .network]])
-        let store = SDKPermissionManagerGrantStore(permissions: permissions)
+        // Injected temp record store: tombstones must not pollute the
+        // real grants file.
+        let records = SDKGrantStore(storeURL: tmp.appendingPathComponent("SDKGrants.json"))
+        let store = SDKPermissionManagerGrantStore(permissions: permissions, grantRecords: records)
         let grants = try await store.grants(for: "com.example.ext")
         XCTAssertFalse(grants.isEmpty)
         XCTAssertTrue(grants.allSatisfy { $0.isActive() })
         XCTAssertTrue(grants.contains { $0.capability == .workspaceRead })
         let first = grants[0]
+        let other: SDKCapabilityID = first.capability == .workspaceRead ? .network : .workspaceRead
         try await store.revoke(first)
         let remaining = try await store.grants(for: "com.example.ext")
-        XCTAssertFalse(remaining.contains { $0.capability == first.capability })
+        // Revoked grants stay as tombstones: the record keeps its
+        // revocation time and stops authorizing, instead of disappearing.
+        let revoked = remaining.first { $0.capability == first.capability }
+        XCTAssertNotNil(revoked)
+        XCTAssertNotNil(revoked?.revokedAt)
+        XCTAssertFalse(revoked?.isActive() ?? true)
+        // The other live grant is untouched.
+        XCTAssertTrue(remaining.contains { $0.capability == other && $0.isActive() })
         try await store.revokeAll(for: "com.example.ext")
-        XCTAssertTrue(try await store.grants(for: "com.example.ext").isEmpty)
+        let afterAll = try await store.grants(for: "com.example.ext")
+        XCTAssertFalse(afterAll.isEmpty, "revokeAll stamps tombstones; it does not delete records")
+        XCTAssertTrue(afterAll.allSatisfy { $0.revokedAt != nil })
+        XCTAssertTrue(afterAll.allSatisfy { !$0.isActive() })
         XCTAssertNil(await store.extensionName(for: "com.example.ext"))
+    }
+
+    func testGrantStoreAdapterTombstoneResolvesExtensionName() async throws {
+        // The tombstone carries the extension's name and package digest
+        // at revocation time, so the grant manager can show revoked
+        // history (S-2).
+        let extensionID = "com.swiftcode.sdk.test.tombstone-name"
+        let digest = String(repeating: "b", count: 64)
+        let manifest = SwiftCodeManifest(id: extensionID, name: "Tombstone Test App", version: "1.0.0-test")
+        let install = SDKInstalledExtension(
+            id: extensionID, name: "Tombstone Test App", version: "1.0.0-test",
+            packageDigest: digest,
+            installPath: tmp.appendingPathComponent("TombstoneApp"),
+            installedAt: Date(), updatedAt: Date(), enabled: true, manifest: manifest)
+        try await SDKExtensionRegistry.shared.recordInstall(install)
+        let permissions = PermissionManager(grants: [extensionID: [.workspaceRead]])
+        let records = SDKGrantStore(storeURL: tmp.appendingPathComponent("SDKGrants-tombstone.json"))
+        let store = SDKPermissionManagerGrantStore(permissions: permissions, grantRecords: records)
+        XCTAssertEqual(await store.extensionName(for: extensionID), "Tombstone Test App")
+        let grants = try await store.grants(for: extensionID)
+        guard let readGrant = grants.first(where: { $0.capability == .workspaceRead && $0.isActive() }) else {
+            return XCTFail("expected a live workspace.read grant")
+        }
+        try await store.revoke(readGrant)
+        let after = try await store.grants(for: extensionID)
+        let tombstone = after.first { $0.capability == .workspaceRead }
+        XCTAssertNotNil(tombstone)
+        XCTAssertNotNil(tombstone?.revokedAt)
+        XCTAssertFalse(tombstone?.isActive() ?? true)
+        XCTAssertEqual(tombstone?.packageDigest, digest)
+        XCTAssertEqual(await store.extensionName(for: extensionID), "Tombstone Test App")
+        try await SDKExtensionRegistry.shared.removeInstallRecord(extensionID: extensionID, version: "1.0.0-test")
+    }
+
+    func testAssistAccessMapping() {
+        // Default SDK variant matches the Legacy form default.
+        let app = SDKStudioAssistAccessApplication(
+            extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
+            usageDescription: "We use Assist to summarize code for the user.",
+            hasOwnUI: false, ownUIDescription: nil, usesThirdPartyModels: false, thirdPartyModels: nil,
+            dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
+        XCTAssertEqual(app.sdkVariant, .assistSDKUI)
+        // 40-character minimum, matching the Host Field rule.
+        let short = SDKStudioAssistAccessApplication(
+            extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
+            usageDescription: String(repeating: "x", count: 39),
+            hasOwnUI: false, ownUIDescription: nil, usesThirdPartyModels: false, thirdPartyModels: nil,
+            dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
+        XCTAssertNotNil(short.validationErrors()["usageDescription"])
+        let exact = SDKStudioAssistAccessApplication(
+            extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
+            usageDescription: String(repeating: "x", count: 40),
+            hasOwnUI: false, ownUIDescription: nil, usesThirdPartyModels: false, thirdPartyModels: nil,
+            dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
+        XCTAssertNil(exact.validationErrors()["usageDescription"])
+        // makeField splits comma-separated third-party models and
+        // carries the secret only as a parameter, never a stored
+        // property on the model.
+        let thirdParty = SDKStudioAssistAccessApplication(
+            extensionID: "com.example.app", displayName: "App", keyID: nil, variant: .newApplication,
+            usageDescription: "We use Assist to summarize code for the user.",
+            hasOwnUI: false, ownUIDescription: nil,
+            usesThirdPartyModels: true, thirdPartyModels: "openai/gpt-4o, anthropic/claude-sonnet",
+            dataLeavesDevice: false, dataDestination: nil, contactEmail: "dev@example.com")
+        let field = thirdParty.makeField(apiKeySecret: "sc_dev_test_secret")
+        XCTAssertEqual(field.apiKey, "sc_dev_test_secret")
+        XCTAssertEqual(field.sdkVariant, .assistSDKUI)
+        XCTAssertEqual(field.thirdPartyModels, ["openai/gpt-4o", "anthropic/claude-sonnet"])
+        XCTAssertEqual(field.contactEmail, "dev@example.com")
+    }
+
+    func testExampleManagerPreparesFromTemplate() throws {
+        // Repo root is four levels up from this file:
+        // ycode/Tests/YcodeSDKTests/SDKStudioTests.swift
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let templateURL = repoRoot.appendingPathComponent("sdk/templates/extension-typescript")
+        let projectsDir = tmp.appendingPathComponent("Projects")
+        let first = try SDKExampleManager.prepareExampleProject(
+            templateURL: templateURL, projectsDirectory: projectsDir)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: first.appendingPathComponent("swiftcode.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: first.appendingPathComponent("package.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: first.appendingPathComponent("src/index.ts").path))
+        let manifest = try JSONDecoder().decode(
+            SwiftCodeManifest.self, from: Data(contentsOf: first.appendingPathComponent("swiftcode.json")))
+        XCTAssertEqual(manifest.id, SDKExampleManager.exampleID)
+        XCTAssertEqual(manifest.id, "com.example.repository-build-extension")
+        // A second call reuses the prepared copy instead of re-copying.
+        let second = try SDKExampleManager.prepareExampleProject(
+            templateURL: templateURL, projectsDirectory: projectsDir)
+        XCTAssertEqual(first, second)
     }
 
     func testAPIKeyModel() {
