@@ -45,7 +45,7 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
     private let templates: DatabaseTemplateManager
     private let ai: DatabaseAIAssistant
     private let performance: DatabasePerformanceAnalyzer
-    private let dashboard: DatabaseDashboard
+    private let dashboard: SwiftCodeIDECore.DatabaseDashboard
     private let history = DatabaseHistoryService.shared
 
     /// Called after an action that changes the database file or its
@@ -77,7 +77,7 @@ public final class SQLiteExplorerSectionsController: NSWindowController {
         self.templates = DatabaseTemplateManager()
         self.ai = DatabaseAIAssistant(db: db)
         self.performance = DatabasePerformanceAnalyzer(db: db)
-        self.dashboard = DatabaseDashboard(db: db)
+        self.dashboard = SwiftCodeIDECore.DatabaseDashboard(db: db)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: NSSize(width: 760, height: 560)),
             styleMask: [.titled, .closable, .resizable],
