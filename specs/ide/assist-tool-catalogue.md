@@ -3846,7 +3846,7 @@ This part of the catalogue covers the 13 Wave 3 Git tools: the Git / source-cont
 | `recent_changes` | Recent Changes |
 | `version_control_operator` | Version Control Operator |
 
-**The read-only correction.** `git_pr_summary` is catalogued with the Git tools and is sometimes assumed to need the GitHub API. It does not: Legacy's description says it uses "only local git history. No network, no GitHub API", and its implementation is four local git commands. It is specified as a read-only local tool (`writes: false`). Only `github_repo` needs the GitHub API, and Ycode has no GitHub client yet — see §71.4.
+**The read-only correction.** `git_pr_summary` is catalogued with the Git tools and is sometimes assumed to need the GitHub API. It does not: Legacy's description says it uses "only local git history. No network, no GitHub API", and its implementation is four local git commands. It is specified as a read-only local tool (`writes: false`). Only `github_repo` needs the GitHub API, and Ycode had no GitHub client yet — see §71.4 (Wave 10 adds it; `github-service.md`).
 
 ## 71. Wave 3 conventions (extending §1 and §27)
 
@@ -3882,6 +3882,8 @@ Every `writes: true` tool is gated by `MCPServer.run()` and its handler-side sha
 
 `github_repo` is registered with its Legacy ID, title, description, and schema, but its handler always fails: Ycode's MCP host has no GitHub API client and no GitHub credential store, and this wave must not touch remotes or GitHub. The failure names the missing GitHub client/auth prerequisite; no GitHub data is fetched and none is faked. Remote/GitHub access is a later wave (the audit records that the GitHub remote layer needs a new target; `YcodeIDECore/SourceControl` is local-git only). This is the Wave 2 `code_refactor` precedent (registered but honestly failing).
 
+**Wave 10 note.** The prerequisite is now met: Wave 10 adds the `YcodeGitHub` target (api.github.com client, `SecretAccount.githubToken`, Settings ▸ Coding Assistant ▸ GitHub) and wires `github_repo` to it — all seven operations now read live repositories; see `specs/ide/github-service.md`. The honest-failure text above records the Wave 3 state and is kept for history.
+
 ### 71.5 Aliases — accepted, but never canonical
 
 The Legacy registry resolves these aliases to the canonical IDs in this wave. The Ycode port must accept them at `tools/call` time (through `MCPServer.toolAliases`, as Waves 1–2 did); the canonical ID is what is registered, listed, and returned in metadata:
@@ -3897,7 +3899,7 @@ No registry aliases exist for `conflict_marker_scan`, `git_bisect`, `git_branch_
 
 ### 71.6 The git runner
 
-All git operations run the `git` CLI as an argument vector — never a shell — with the workspace folder as the working directory, exactly as Legacy's `runGit` helpers do (`/usr/bin/git` there; the Flatpak-aware `HostTool` path here). The environment mirrors `GitRepository.environment`: inherited, minus the variables that could point git at another repository, plus the never-wait-for-a-person settings (`GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, `GIT_ASKPASS=true`, `GIT_OPTIONAL_LOCKS=0`). Nothing here touches a remote: there is no push/pull/fetch/clone and no GitHub API call. A workspace that is not a git repository fails with git's own "not a git repository" message — never invented log/blame/status output. See `assist-search-git-tools.md` for the full safety rules.
+All git operations run the `git` CLI as an argument vector — never a shell — with the workspace folder as the working directory, exactly as Legacy's `runGit` helpers do (`/usr/bin/git` there; the Flatpak-aware `HostTool` path here). The environment mirrors `GitRepository.environment`: inherited, minus the variables that could point git at another repository, plus the never-wait-for-a-person settings (`GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, `GIT_ASKPASS=true`, `GIT_OPTIONAL_LOCKS=0`). Nothing here touches a remote: there is no push/pull/fetch/clone and no GitHub API call. **Wave 10 note.** That was the Wave 3 state: Wave 10 adds real `git pull`/`push`/`clone` (Agentic tools) and `push`/`pull`/`fetch`/`clone` sub-ops on `version_control_operator`, plus the `YcodeGitHub` client — see `specs/ide/github-service.md`. A workspace that is not a git repository fails with git's own "not a git repository" message — never invented log/blame/status output. See `assist-search-git-tools.md` for the full safety rules.
 
 ## 72. `conflict_marker_scan` — Conflict Marker Scan
 
@@ -4315,9 +4317,11 @@ Structured data keys (all strings):
 }
 ```
 
-**Output.** This tool has no success output in Ycode: its handler always fails with an error naming the missing GitHub API client/auth prerequisite. No GitHub data is fetched and none is faked.
+**Output (Wave 10).** The handler now runs all seven operations against the live GitHub API via `YcodeGitHub` — see `specs/ide/github-service.md` §2.8 for the per-operation outputs. (Wave 3 state, kept for history: the handler always failed with an error naming the missing GitHub API client/auth prerequisite; no GitHub data was fetched and none was faked.)
 
 **Notes.** Legacy's tool reads live repositories over the GitHub API (public repos unauthenticated, private repos with the user's saved credential), with operations `repository_info`, `list_files`, `get_file`, `get_directory`, `get_tree`, `search_code`, `fetch_repository`; code search is client-side over fetched files, recursive trees are capped by the API, binary files are classified never decoded, and unauthenticated rate limits (60 requests/hour) are reported, never retried. None of that can be reproduced without a GitHub client, so the Ycode port keeps the ID, title, description, and schema (so callers and the catalogue stay aligned) and fails honestly. Remote/GitHub access is a later wave. See §71.4 and `assist-search-git-tools.md` ("Git tools").
+
+**Wave 10 note.** The client now exists (`YcodeGitHub`); the tool is wired to it with the deviations recorded in `github-service.md` §2.9 (server-side code search, `maxBytes` file cap, tree-truncation flag not surfaced, `repository_info` drops open-issues/license/size lines, sequential `fetch_repository`).
 
 ## 83. `recent_changes` — Recent Changes
 
@@ -4390,7 +4394,7 @@ Structured data keys (all strings):
 
 **Accepted aliases:** `git`, `git_status`, `git_diff`, `git_commit`, `git_branch`, `git_rollback`, `git_tool`, `version_control` resolve to this tool; see §71.5. (These aliases select the *tool*, not the action — the action still comes from the `action` argument.)
 
-**Notes.** Actions (case-insensitive; missing `action` defaults to `status` in Legacy, though the schema requires it): `status` → `git status --short`; `diff` → `git diff -- .`; `commit` → `git add -A` then `git commit -m <message>` (message defaults to `Assist automated commit`); `branch` → `git checkout -b <name>` (name defaults to `assist/automation`); `rollback` → `git reset --hard <ref>` (ref defaults to `HEAD~1`). Branch names and rollback refs must pass the strict allow-list validator (see `assist-search-git-tools.md` ("Git tools")). Gate: commit/branch/rollback require approval before git runs; status/diff do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. Failures: `Git commit failed: <output>`, `Git branch checkout failed: <output>`, `Git rollback failed: <output>`, `Git status failed: <output>` / `Git diff failed: <output>`. Remote actions (`push`, `pull`, `fetch`, `clone`) are **not** implemented in Legacy and are rejected here with an explicit error naming the later-wave prerequisite, instead of the generic unknown-action error. Any other unknown action fails with `Unknown git action '<action>': expected status, commit, branch, rollback, or diff.` Legacy's `#if os(macOS)` gate ("Version control operations require macOS runtime") is dropped: the git CLI exists on Linux too. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+**Notes.** Actions (case-insensitive; missing `action` defaults to `status` in Legacy, though the schema requires it): `status` → `git status --short`; `diff` → `git diff -- .`; `commit` → `git add -A` then `git commit -m <message>` (message defaults to `Assist automated commit`); `branch` → `git checkout -b <name>` (name defaults to `assist/automation`); `rollback` → `git reset --hard <ref>` (ref defaults to `HEAD~1`). Branch names and rollback refs must pass the strict allow-list validator (see `assist-search-git-tools.md` ("Git tools")). Gate: commit/branch/rollback require approval before git runs; status/diff do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. Failures: `Git commit failed: <output>`, `Git branch checkout failed: <output>`, `Git rollback failed: <output>`, `Git status failed: <output>` / `Git diff failed: <output>`. Remote actions (`push`, `pull`, `fetch`, `clone`) are **not** implemented in Legacy and are rejected here with an explicit error naming the later-wave prerequisite, instead of the generic unknown-action error. **Wave 10 note.** Wave 10 implements them: `push`/`pull`/`fetch`/`clone` now run real git (approval-gated), with optional `remote` (fetch), `url`/`destination` (clone) parameters — a Ycode addition, not a Legacy port (Legacy implements no remote sub-ops); see `specs/ide/github-service.md` §3.2. Any other unknown action fails with `Unknown git action '<action>': expected status, commit, branch, rollback, diff, push, pull, fetch, or clone.` (Wave 10 extends the list with the four remote actions.) Legacy's `#if os(macOS)` gate ("Version control operations require macOS runtime") is dropped: the git CLI exists on Linux too. See §71.3 and `assist-search-git-tools.md` ("Git tools").
 
 ## 85. Summary: capability / risk / permission / writes (Wave 3)
 
@@ -4410,7 +4414,7 @@ Structured data keys (all strings):
 | `recent_changes` | repositoryDiscovery | safeRead | none | yes | false |
 | `version_control_operator` | gitOperations | potentiallyDestructive | fileSystem | **no** | **true** |
 
-7 tools read; 6 tools write. The one `potentiallyDestructive` tool is `version_control_operator`; the one `execution` tool is `git_bisect`; `github_repo` is registered but honestly failing (§71.4).
+7 tools read; 6 tools write. The one `potentiallyDestructive` tool is `version_control_operator`; the one `execution` tool is `git_bisect`; `github_repo` is wired to the real GitHub API since Wave 10 (§71.4 note).
 
 ## Wave 4 — terminal / system tools
 

@@ -289,7 +289,8 @@ import YcodeAssistant
                                                            "run_formatter", "stop_running_process", "git_add",
                                                            "git_commit", "git_checkout", "git_merge",
                                                            "git_rebase", "git_reset", "git_stash", "git_revert",
-                                                           "git_worktree", "download_file", "upload_file",
+                                                           "git_worktree", "git_pull", "git_push", "git_clone",
+                                                           "download_file", "upload_file",
                                                            "http_request", "install_dependencies",
                                                            "update_dependencies", "remove_dependencies",
                                                            "cocoapods", "carthage", "android_build", "gradle",
@@ -301,7 +302,8 @@ import YcodeAssistant
                                                            "manage_secrets", "open_browser",
                                                            "browser_automation", "ai_context_memory",
                                                            "task_planner", "todo_manager", "checkpoint_creator",
-                                                           "rollback_changes", "checklist_plan"])
+                                                           "rollback_changes", "checklist_plan", "create_issue",
+                                                           "create_pull_request", "update_issue"])
     }
 }
 

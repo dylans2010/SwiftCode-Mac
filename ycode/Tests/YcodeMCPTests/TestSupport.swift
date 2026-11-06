@@ -81,3 +81,92 @@ let ycodeExecutable: String? = {
     let p = ycodeFolder.appendingPathComponent(".build/debug/ycode").path
     return FileManager.default.isExecutableFile(atPath: p) ? p : nil
 }()
+
+// MARK: - GitHub API stub (Wave 10, slice B)
+
+/// A URLProtocol stub for GitHub API tests (same shape as the
+/// `YcodeGitHubTests` stub): the handler answers every request from
+/// canned data, and every request the client made is recorded for
+/// assertions. No live network.
+final class StubGitHubProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?
+    nonisolated(unsafe) static var requests: [URLRequest] = []
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.requests.append(request)
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
+            return
+        }
+        let (status, headers, body) = handler(request)
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+/// Points the MCP host's GitHub client at a stub-backed session and
+/// installs `handler` as the stub. Callers reset the seams in
+/// `defer` with `resetGitHubStub()`.
+@MainActor
+func stubGitHub(_ handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)) {
+    StubGitHubProtocol.requests = []
+    StubGitHubProtocol.handler = handler
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [StubGitHubProtocol.self]
+    YcodeMCPHost.gitHubTestSession = URLSession(configuration: config)
+}
+
+/// Installs the stub transport plus a token store for the GitHub
+/// tools: `token` nil installs an empty store (no token anywhere,
+/// and no real keychain or config file is read). Reset with
+/// `resetGitHubStub()` in `defer`.
+@MainActor
+func installGitHubStub(token: String? = "test-token",
+                       handler: @escaping @Sendable (URLRequest) -> (status: Int, headers: [String: String], body: Data)) {
+    stubGitHub(handler)
+    YcodeMCPHost.gitHubTestSecretStore = MemorySecretStore()
+    if let token {
+        try? YcodeMCPHost.gitHubTestSecretStore?.write(Data(token.utf8), for: SecretAccount.githubToken)
+    }
+}
+
+/// Clears the stub transport, the recorded requests, and both GitHub
+/// test seams.
+@MainActor
+func resetGitHubStub() {
+    StubGitHubProtocol.handler = nil
+    StubGitHubProtocol.requests = []
+    YcodeMCPHost.gitHubTestSession = nil
+    YcodeMCPHost.gitHubTestSecretStore = nil
+}
+
+/// A 200 stub response with a JSON body.
+func gitHubStubOK(_ body: String) -> (status: Int, headers: [String: String], body: Data) {
+    (200, [:], Data(body.utf8))
+}
+
+/// A GitHub error stub response: `{"message": ...}`.
+func gitHubStubError(_ status: Int, _ message: String) -> (status: Int, headers: [String: String], body: Data) {
+    (status, [:], Data("{\"message\":\"\(message)\",\"documentation_url\":\"https://docs.github.com\"}".utf8))
+}
+
+/// The query items of a recorded request, by name.
+func requestQueryItems(of request: URLRequest) -> [String: String] {
+    guard let url = request.url,
+          let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+          let items = components.queryItems else { return [:] }
+    return Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
+}
+
+/// The decoded JSON body of a recorded request ({} when it has none).
+func requestJSONBody(of request: URLRequest) -> [String: Any] {
+    guard let data = request.httpBody,
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+}

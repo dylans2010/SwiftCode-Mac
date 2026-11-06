@@ -1,5 +1,6 @@
 import AppKit
 import YcodeAssistant
+import YcodeGitHub
 import YcodeIDECore
 import YcodeMCP
 
@@ -13,8 +14,12 @@ public final class CodingAssistantSettingsPane: SettingsPane {
     let services: CodingAssistantServices
     /// The last sign-in or key message (tests).
     public private(set) var accountMessage = ""
+    /// The last GitHub token validation message (tests).
+    public private(set) var githubMessage = ""
     /// The running sign-in (tests await it).
     public private(set) var signInTask: Task<Void, Never>?
+    /// The running GitHub token validation (tests await it).
+    public private(set) var githubValidationTask: Task<Void, Never>?
 
     public init(prefs: Preferences = .shared, services: CodingAssistantServices = .shared) {
         self.services = services
@@ -85,6 +90,11 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         heading("SwiftCode Cloud")
         row("SwiftCode Cloud address:", field(s.scCloudURL, width: 260, placeholder: "No endpoint configured") { [weak self] v in self?.settings.scCloudURL = v })
         note("SwiftCode's own cloud model. No endpoint is shipped — enter a real one. The device identity used for fair-use metering is generated automatically and kept in the keychain.")
+
+        heading("GitHub")
+        row("Personal access token:", secretRow(SecretAccount.githubToken, placeholder: "ghp_…"))
+        note("A personal access token for the GitHub tools (issues, pull requests, file reads). The token is kept in the keychain and is never shown again. Without a token, public repositories still work at GitHub's lower rate limit.")
+        row("Account:", githubValidationRow())
 
         heading("Agent Tools")
         note("Ycode runs these tools in the workspace folder with their own editing turned off; in agent mode (below) they change files through Ycode's tools, each change reviewed by you. Ycode never reads their sign-in or settings. Sign in to each tool once in Terminal.")
@@ -335,6 +345,39 @@ public final class CodingAssistantSettingsPane: SettingsPane {
             let revoked = await account.signOut()
             self?.accountMessage = revoked ? "Signed out." : "Signed out on this Mac. Ycode could not confirm the revocation; disconnect Ycode in ChatGPT settings."
             self?.settingsChangedExternally()
+            self?.rebuild()
+        }
+    }
+
+    /// The GitHub token check: a status line and a Validate button.
+    /// The token is never shown, only whether it works.
+    func githubValidationRow() -> NSView {
+        let status = NSTextField(labelWithString: githubMessage)
+        status.font = .systemFont(ofSize: 11)
+        status.textColor = .secondaryLabelColor
+        let button = ClosureButton(title: "Validate", target: nil, action: nil)
+        button.bezelStyle = .rounded
+        button.onChange = { [weak self] _ in self?.validateGitHubToken() }
+        let stack = NSStackView(views: [status, button])
+        stack.spacing = 8
+        return stack
+    }
+
+    /// Validates the saved GitHub token with `GET /user` and shows the
+    /// login or the error. The token is read once here and passed by
+    /// value; it is never displayed or logged.
+    public func validateGitHubToken() {
+        githubMessage = "Checking…"
+        rebuild()
+        let token = services.store.readString(SecretAccount.githubToken)
+        githubValidationTask = Task { [weak self] in
+            let client = GitHubClient(tokenProvider: { token })
+            do {
+                let user = try await client.getAuthenticatedUser()
+                self?.githubMessage = "Signed in as \(user.login)."
+            } catch {
+                self?.githubMessage = error.localizedDescription
+            }
             self?.rebuild()
         }
     }

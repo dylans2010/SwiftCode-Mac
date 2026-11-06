@@ -40,6 +40,9 @@ public enum SecretAccount {
     public static let llamaCppKey = "llamacpp.api-key"
     /// OpenRouter's API key (Wave 9: Legacy OpenRouter).
     public static let openRouterKey = "openrouter.api-key"
+    /// GitHub's personal access token (Wave 10: Legacy GitHubAuth /
+    /// GitCredentialProvider kept the PAT in the keychain).
+    public static let githubToken = "github.api-key"
     /// The SCCloud device fingerprint (`ssc_…`), generated once and
     /// stored (Wave 9: Legacy SCCloud has no API key — auth is this
     /// per-device fingerprint, never an `Authorization` header).

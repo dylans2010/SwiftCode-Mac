@@ -1,5 +1,6 @@
 import Foundation
 import YcodeAssistant
+import YcodeGitHub
 import YcodeIDECore
 import YcodeSubprocess
 
@@ -32,9 +33,15 @@ import YcodeSubprocess
 ///   Flatpak-aware `HostTool` path here). The environment mirrors
 ///   `GitRepository.environment`: inherited, minus the variables
 ///   that could point git at another repository, plus the
-///   never-wait-for-a-person settings. Nothing here touches a
-///   remote: there is no push/pull/fetch/clone, and no GitHub API
-///   call anywhere in this file.
+///   never-wait-for-a-person settings. Remote operations exist
+///   only in `version_control_operator` (Wave 10: push/pull/fetch/
+///   clone — Legacy implements no remote sub-operations at all, so
+///   those are a Ycode addition, not a port; the URL policy and
+///   GitHub credential seeding live in `YcodeTools+AgenticGit.swift`).
+///   `github_repo` is the one GitHub API call in this file (Wave
+///   10): it reads repositories through the shared `GitHubClient`
+///   (`YcodeGitHubHost.swift`), unauthenticated for public
+///   repositories, with the saved GitHub token when one is stored.
 /// * Workspace confinement: paths resolve with
 ///   `resolveFileReadingPath` (plain relative paths against the
 ///   session working directory; `..` past the workspace root is an
@@ -54,10 +61,12 @@ import YcodeSubprocess
 ///   but the tool is still registered `writes: true`, so
 ///   `MCPServer.run` refuses them in `readOnly` server mode — the
 ///   same treatment Wave 2 gives dry-run tools.
-/// * `github_repo` is registered but honestly failing: Ycode's MCP
-///   host has no GitHub API client and no GitHub credential, so its
-///   handler always fails naming that prerequisite. No GitHub data
-///   is faked. (Wave 2's `code_refactor` precedent.)
+/// * `github_repo` reads real GitHub repositories through the
+///   shared `GitHubClient` (Wave 10): public repositories work
+///   unauthenticated; private repositories use the user's saved
+///   GitHub token. It is read-only and needs no approval. (Wave 2's
+///   `code_refactor` precedent no longer applies — the client the
+///   honest failure was waiting for exists now.)
 ///
 /// Ycode's existing source-control seams, and why they are (mostly)
 /// not the implementation here:
@@ -123,10 +132,9 @@ import YcodeSubprocess
 ///   implementation is four local git commands.
 /// * `version_control_operator` has no remote sub-operations in
 ///   Legacy (only status/commit/branch/rollback/diff); the
-///   push/pull/fetch/clone actions named in the wave brief are
-///   rejected with an explicit error naming the later-wave
-///   prerequisite, rather than Legacy's generic unknown-action
-///   error.
+///   push/pull/fetch/clone actions are a Wave 10 Ycode addition,
+///   not a Legacy port — see the `version_control_operator` handler
+///   and `specs/ide/github-service.md` (Wave 10 draft).
 extension YcodeMCPHost {
     var gitTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -262,10 +270,13 @@ extension YcodeMCPHost {
             tool("version_control_operator", "Version Control Operator",
                  "Performs branch, commit, rollback, and diff operations using git.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "action": Schema.string("The git action to perform: status, commit, branch, rollback, or diff. Unknown actions are rejected."),
+                                       "action": Schema.string("The git action to perform: status, commit, branch, rollback, diff, push, pull, fetch, or clone. Unknown actions are rejected."),
                                        "message": Schema.string("The commit message (used for commit action)."),
                                        "name": Schema.string("The branch name (used for branch action)."),
-                                       "ref": Schema.string("The git ref to reset to (used for rollback action). Default: HEAD~1. Must match the strict ref pattern; shell metacharacters are rejected.")],
+                                       "ref": Schema.string("The git ref to reset to (used for rollback action). Default: HEAD~1. Must match the strict ref pattern; shell metacharacters are rejected."),
+                                       "remote": Schema.string("The remote name (used for fetch action). Default: origin."),
+                                       "url": Schema.string("The remote repository URL (used for clone action)."),
+                                       "destination": Schema.string("The destination path for the clone action, inside the workspace.")],
                                       required: ["action"]),
                  output: Schema.output(["output": Schema.str]),
                  annotations: destructive, writes: true) { h, call in
@@ -933,15 +944,364 @@ extension YcodeMCPHost {
     }
 
     func gitHubRepo(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Honestly failing: Ycode's MCP host has no GitHub API client
-        // and no GitHub credential store, and this wave must not touch
-        // remotes or GitHub. Legacy's tool reads live repositories
-        // over the GitHub API (public repos unauthenticated, private
-        // repos with the user's saved credential); none of that can
-        // be reproduced here, and no GitHub data is faked. Remote /
-        // GitHub access is a later wave.
+        // Wave 10: reads real GitHub repositories through the shared
+        // `GitHubClient` (public repositories unauthenticated,
+        // private ones with the saved GitHub token). Read-only: no
+        // approval gate. Legacy's behaviour is in
+        // `AssistGitHubRepoTool` (Dylan's own code, ported under
+        // MIT); where the client cannot express a Legacy behaviour
+        // it is recorded in the Wave 10 spec draft, not faked.
         _ = try session(for: call)
-        throw MCPToolError("github_repo needs a GitHub API client with authentication, which Ycode's MCP host does not have yet: no GitHub data was fetched. Remote and GitHub access is a later wave; use the workspace's local git tools (git_log_viewer, git_branch_compare, git_pr_summary) for local repository information.")
+        guard let operationRaw = call.string("operation") else {
+            throw MCPToolError("Missing required parameter: operation")
+        }
+        let operation = operationRaw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard Self.gitHubRepoOperations.contains(operation) else {
+            throw MCPToolError("Unsupported operation '\(operation)'. Supported: \(Self.gitHubRepoOperations.joined(separator: ", ")).")
+        }
+        let (owner, repo) = try resolveGitHubRepoReference(owner: call.string("owner"), repo: call.string("repo"),
+                                                           url: call.string("url"))
+        let ref = call.string("ref")
+        let path = call.string("path") ?? ""
+        let recursive = call.bool("recursive") ?? true
+        let includeContent = call.bool("includeContent") ?? false
+        let maxResults = max(1, call.int("maxResults") ?? Self.gitHubRepoDefaultMaxResults(for: operation))
+        let maxBytes = min(max(1, call.int("maxBytes") ?? 262_144), 2_097_152)
+        let query = call.string("query")
+        let client = gitHubClient()
+        do {
+            switch operation {
+            case "repository_info":
+                return try await gitHubRepoInfo(client: client, owner: owner, repo: repo)
+            case "list_files", "get_directory":
+                return try await gitHubRepoListFiles(client: client, owner: owner, repo: repo, operation: operation,
+                                                     ref: ref, path: path, recursive: recursive,
+                                                     includeContent: includeContent, maxResults: maxResults,
+                                                     maxBytes: maxBytes)
+            case "get_file":
+                guard !path.isEmpty else {
+                    throw MCPToolError("get_file requires 'path' (repository-relative file path).")
+                }
+                return try await gitHubRepoGetFile(client: client, owner: owner, repo: repo, ref: ref, path: path,
+                                                   maxBytes: maxBytes)
+            case "get_tree":
+                return try await gitHubRepoGetTree(client: client, owner: owner, repo: repo, ref: ref,
+                                                   recursive: recursive, maxResults: maxResults)
+            case "search_code":
+                guard let q = query, !q.isEmpty else {
+                    throw MCPToolError("search_code requires 'query'.")
+                }
+                return try await gitHubRepoSearchCode(client: client, owner: owner, repo: repo, query: q,
+                                                      maxResults: maxResults)
+            case "fetch_repository":
+                return try await gitHubRepoFetchRepository(client: client, owner: owner, repo: repo, ref: ref,
+                                                           query: query, maxResults: maxResults, maxBytes: maxBytes)
+            default:
+                throw MCPToolError("Unsupported operation '\(operation)'.")
+            }
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
+    }
+
+    /// The seven `github_repo` operations, in Legacy's order.
+    nonisolated static let gitHubRepoOperations = [
+        "repository_info", "list_files", "get_file", "get_directory",
+        "get_tree", "search_code", "fetch_repository",
+    ]
+
+    /// Legacy's per-operation `maxResults` defaults (schema §82).
+    nonisolated static func gitHubRepoDefaultMaxResults(for operation: String) -> Int {
+        switch operation {
+        case "get_tree": return 5000
+        case "search_code", "fetch_repository": return 50
+        default: return 100
+        }
+    }
+
+    /// Resolves a nil/empty `ref` to the repository's default branch
+    /// (Legacy's `resolveRef`); a given ref passes through
+    /// unchanged. The client defaults to "main", which is wrong for
+    /// repositories whose default branch is not `main`.
+    func gitHubRepoResolvedRef(client: GitHubClient, owner: String, repo: String, ref: String?) async throws -> String {
+        if let ref, !ref.isEmpty { return ref }
+        let info = try await client.getRepository(owner: owner, repo: repo)
+        return info.defaultBranch ?? "main"
+    }
+
+    // MARK: - `github_repo` operations
+
+    func gitHubRepoInfo(client: GitHubClient, owner: String, repo: String) async throws -> MCPToolResult {
+        let info = try await client.getRepository(owner: owner, repo: repo)
+        var lines = [
+            "# \(info.fullName)",
+            "Canonical URL: https://github.com/\(info.fullName)",
+            info.isPrivate ? "Visibility: private (accessed with the user's saved GitHub credential)" : "Visibility: public",
+            "Default branch: \(info.defaultBranch ?? "(unknown)")",
+            "Description: \(info.description ?? "(none)")",
+            "Primary language: \(info.language ?? "(unknown)")",
+            "Stars: \(info.stargazersCount)  Forks: \(info.forksCount)",
+        ]
+        if let pushed = info.pushedAt { lines.append("Last pushed: \(Self.gitISO8601(pushed))") }
+        lines.append("Contents retrieved from the live GitHub API; inspect files with list_files / get_tree / fetch_repository.")
+        return .structured(["content": .string(lines.joined(separator: "\n")), "truncated": .bool(false),
+                            "fullName": .string(info.fullName), "defaultBranch": .string(info.defaultBranch ?? ""),
+                            "private": .bool(info.isPrivate), "stars": .int(info.stargazersCount),
+                            "forks": .int(info.forksCount)],
+                           summary: "Retrieved repository metadata for \(info.fullName).")
+    }
+
+    func gitHubRepoListFiles(client: GitHubClient, owner: String, repo: String, operation: String, ref: String?,
+                             path: String, recursive: Bool, includeContent: Bool, maxResults: Int,
+                             maxBytes: Int) async throws -> MCPToolResult {
+        let resolvedRef = try await gitHubRepoResolvedRef(client: client, owner: owner, repo: repo, ref: ref)
+        // The tree API has no directory-listing call, so both the
+        // one-level listing (`get_directory`, or non-recursive
+        // `list_files`) and the recursive listing go through the
+        // recursive tree — the visible result is the same one level
+        // Legacy's Contents API returned.
+        let tree = try await client.getRepoTree(owner: owner, repo: repo, ref: resolvedRef, recursive: true)
+        let prefix = path.isEmpty ? "" : path + "/"
+        let entries: [GitHubTreeEntry]
+        if operation == "list_files", recursive {
+            entries = tree.filter { $0.type == "blob" && $0.path.hasPrefix(prefix) }
+        } else {
+            entries = tree.filter {
+                guard $0.path.hasPrefix(prefix) else { return false }
+                return !$0.path.dropFirst(prefix.count).contains("/")
+            }
+        }
+        let shown = Array(entries.prefix(maxResults))
+        var lines = ["# \(owner)/\(repo) — \(path.isEmpty ? "repository root" : path) @ \(resolvedRef)", ""]
+        var totalBytes = 0
+        let truncated = entries.count > maxResults
+        for entry in shown {
+            let sizeText = entry.size.map { " (\($0) bytes)" } ?? ""
+            if includeContent, entry.type == "blob", let size = entry.size, size <= 200_000, totalBytes < maxBytes,
+               let text = try? await client.getFileText(owner: owner, repo: repo, path: entry.path, ref: resolvedRef) {
+                lines.append("- \(entry.path)\(sizeText)")
+                lines.append("```")
+                lines.append(String(text.prefix(maxBytes - totalBytes)))
+                lines.append("```")
+                totalBytes += min(text.utf8.count, maxBytes - totalBytes)
+                continue
+            }
+            lines.append("- [\(entry.type == "tree" ? "dir" : "file")] \(entry.path)\(sizeText)")
+        }
+        if truncated {
+            lines.append("")
+            lines.append("[truncated: listing capped at \(maxResults) entries; narrow 'path' or raise 'maxResults']")
+        }
+        lines.append("")
+        lines.append("Use get_file with 'path' for full contents of a specific file.")
+        return .structured(["content": .string(lines.joined(separator: "\n")), "truncated": .bool(truncated),
+                            "count": .int(shown.count)],
+                           summary: "Listed \(shown.count) entr\(shown.count == 1 ? "y" : "ies") in \(owner)/\(repo).")
+    }
+
+    func gitHubRepoGetFile(client: GitHubClient, owner: String, repo: String, ref: String?, path: String,
+                           maxBytes: Int) async throws -> MCPToolResult {
+        // Legacy classifies binary files by extension and never
+        // decodes them; the client decodes base64 as UTF-8 and
+        // reports binary content only as a decoding failure, so
+        // check the extension first.
+        if Self.gitHubRepoIsBinaryPath(path) {
+            return .structured(["content": .string("Binary file: \(path) (binary file extension). Contents not retrieved."),
+                                "truncated": .bool(false), "path": .string(path)],
+                               summary: "'\(path)' is a binary file (binary file extension) and was not decoded as text.")
+        }
+        let resolvedRef = try await gitHubRepoResolvedRef(client: client, owner: owner, repo: repo, ref: ref)
+        let text = try await client.getFileText(owner: owner, repo: repo, path: path, ref: resolvedRef)
+        let capped = text.utf8.count > maxBytes
+        let shown = capped
+            ? String(decoding: text.utf8.prefix(maxBytes), as: UTF8.self)
+                + "\n[truncated: file content exceeded the \(maxBytes)-byte budget]"
+            : text
+        var lines = ["# \(path)", "Repository: \(owner)/\(repo) @ \(resolvedRef)", ""]
+        lines.append("```")
+        lines.append(shown)
+        lines.append("```")
+        return .structured(["content": .string(lines.joined(separator: "\n")), "truncated": .bool(capped),
+                            "path": .string(path)],
+                           summary: "Retrieved '\(path)' (\(text.utf8.count) bytes).")
+    }
+
+    func gitHubRepoGetTree(client: GitHubClient, owner: String, repo: String, ref: String?, recursive: Bool,
+                           maxResults: Int) async throws -> MCPToolResult {
+        let resolvedRef = try await gitHubRepoResolvedRef(client: client, owner: owner, repo: repo, ref: ref)
+        let entries = try await client.getRepoTree(owner: owner, repo: repo, ref: resolvedRef, recursive: recursive)
+        let shown = Array(entries.prefix(maxResults))
+        var lines = ["# \(owner)/\(repo) — file tree @ \(resolvedRef)",
+                     "Entries: \(entries.count)", ""]
+        for entry in shown {
+            let sizeText = entry.size.map { " \($0)" } ?? ""
+            lines.append("\(entry.type == "tree" ? "d" : "-") \(entry.path)\(sizeText)")
+        }
+        let truncated = entries.count > maxResults
+        if truncated {
+            lines.append("")
+            lines.append("[truncated: showing \(maxResults) of \(entries.count) entries; raise 'maxResults']")
+        }
+        return .structured(["content": .string(lines.joined(separator: "\n")), "truncated": .bool(truncated),
+                            "count": .int(entries.count)],
+                           summary: "Retrieved file tree for \(owner)/\(repo) (\(shown.count) shown).")
+    }
+
+    func gitHubRepoSearchCode(client: GitHubClient, owner: String, repo: String, query: String,
+                              maxResults: Int) async throws -> MCPToolResult {
+        // The GitHub Code Search API, unlike Legacy's client-side
+        // search over fetched files: it needs authentication, so an
+        // unauthenticated call fails with the client's unauthorized
+        // error, and it takes no ref (the ref is ignored here).
+        let result = try await client.searchCode(query: "repo:\(owner)/\(repo) \(query)", perPage: maxResults)
+        var lines = ["# Code search: \"\(query)\" in \(owner)/\(repo)",
+                     "Matches: \(result.totalCount)", ""]
+        if result.items.isEmpty {
+            lines.append("No matches found.")
+        } else {
+            for item in result.items {
+                lines.append("- \(item.path) (\(item.name))")
+            }
+        }
+        let truncated = result.items.count >= maxResults && result.totalCount > result.items.count
+        if truncated {
+            lines.append("")
+            lines.append("[truncated: showing \(maxResults) matches; raise 'maxResults' or narrow the query]")
+        }
+        return .structured(["content": .string(lines.joined(separator: "\n")), "truncated": .bool(truncated),
+                            "count": .int(result.items.count)],
+                           summary: "Found \(result.totalCount) match\(result.totalCount == 1 ? "" : "es") for \"\(query)\" (\(result.items.count) shown).")
+    }
+
+    func gitHubRepoFetchRepository(client: GitHubClient, owner: String, repo: String, ref: String?, query: String?,
+                                   maxResults: Int, maxBytes: Int) async throws -> MCPToolResult {
+        let resolvedRef = try await gitHubRepoResolvedRef(client: client, owner: owner, repo: repo, ref: ref)
+        let tree = try await client.getRepoTree(owner: owner, repo: repo, ref: resolvedRef, recursive: true)
+
+        // Classify every entry before fetching anything.
+        var textFiles: [GitHubTreeEntry] = []
+        var skippedBinary: [String] = []
+        var skippedOversize: [String] = []
+        var skippedDirs: [String] = []
+        for entry in tree {
+            guard entry.type == "blob" else { continue }
+            if Self.gitHubRepoIsSkippedDirectory(entry.path) { skippedDirs.append(entry.path); continue }
+            let size = entry.size ?? 0
+            if size > 200_000 { skippedOversize.append("\(entry.path) (\(size) bytes)"); continue }
+            if Self.gitHubRepoIsBinaryPath(entry.path) { skippedBinary.append(entry.path); continue }
+            textFiles.append(entry)
+        }
+
+        // Prioritize: query-relevant paths first, then project
+        // configuration, then smaller files (more signal per byte).
+        let queryTokens = (query ?? "").lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        textFiles.sort {
+            let aScore = Self.gitHubRepoPriorityScore(path: $0.path, queryTokens: queryTokens)
+            let bScore = Self.gitHubRepoPriorityScore(path: $1.path, queryTokens: queryTokens)
+            if aScore != bScore { return aScore > bScore }
+            return ($0.size ?? 0) < ($1.size ?? 0)
+        }
+        let selected = Array(textFiles.prefix(maxResults))
+
+        // Sequential fetches (Legacy fetched four at a time; the
+        // byte budget is exact either way, and sequential keeps the
+        // accounting — and the tests — deterministic). A file that
+        // does not fit the remaining budget is skipped, not
+        // truncated; a file that cannot be read is reported, not
+        // silently dropped.
+        var fetched: [(path: String, text: String)] = []
+        var bytesUsed = 0
+        var skippedUnreadable: [String] = []
+        for entry in selected {
+            guard bytesUsed < maxBytes else { break }
+            if let size = entry.size, bytesUsed + size > maxBytes { continue }
+            guard let text = try? await client.getFileText(owner: owner, repo: repo, path: entry.path,
+                                                           ref: resolvedRef) else {
+                skippedUnreadable.append(entry.path)
+                continue
+            }
+            guard bytesUsed + text.utf8.count <= maxBytes else { continue }
+            fetched.append((path: entry.path, text: text))
+            bytesUsed += text.utf8.count
+        }
+        fetched.sort { $0.path < $1.path }
+
+        var lines = ["# \(owner)/\(repo) @ \(resolvedRef) — repository retrieval",
+                     "Text files retrieved: \(fetched.count) (\(bytesUsed) bytes)", ""]
+        for f in fetched {
+            lines.append("## File: \(f.path)")
+            lines.append("```")
+            let cap = 30_000
+            lines.append(f.text.count > cap ? String(f.text.prefix(cap)) + "\n[truncated: file exceeds \(cap) characters]" : f.text)
+            lines.append("```")
+            lines.append("")
+        }
+        lines.append("---")
+        lines.append("Retrieval report (explicit — nothing omitted silently):")
+        lines.append("- tree entries seen: \(tree.count)")
+        lines.append("- text files retrieved: \(fetched.count)")
+        if !skippedBinary.isEmpty { lines.append("- skipped as binary (\(skippedBinary.count)): \(skippedBinary.prefix(20).joined(separator: ", "))\(skippedBinary.count > 20 ? "…" : "")") }
+        if !skippedOversize.isEmpty { lines.append("- skipped as oversize (\(skippedOversize.count)): \(skippedOversize.prefix(20).joined(separator: ", "))\(skippedOversize.count > 20 ? "…" : "")") }
+        if !skippedDirs.isEmpty { lines.append("- skipped directories (\(skippedDirs.count)): \(Array(Set(skippedDirs.map { ($0 as NSString).deletingLastPathComponent })).prefix(10).joined(separator: ", "))\(skippedDirs.count > 10 ? "…" : "")") }
+        if !skippedUnreadable.isEmpty { lines.append("- skipped as unreadable (\(skippedUnreadable.count)): \(skippedUnreadable.prefix(20).joined(separator: ", "))\(skippedUnreadable.count > 20 ? "…" : "")") }
+        let unselected = textFiles.count - selected.count
+        if unselected > 0 { lines.append("- not selected within maxResults (\(unselected) more text files); raise 'maxResults' or use get_file with an exact 'path'") }
+        if bytesUsed >= maxBytes { lines.append("- byte budget exhausted (\(maxBytes) bytes); raise 'maxBytes' or fetch specific files with get_file") }
+        lines.append("To continue: call get_file with any exact repository-relative 'path' above.")
+        let truncated = unselected > 0 || bytesUsed >= maxBytes
+
+        let output = lines.joined(separator: "\n")
+        let capped = output.count > 120_000
+        return .structured(["content": .string(capped ? String(output.prefix(120_000)) + "\n[truncated: combined output exceeded 120,000 characters; fetch individual files with get_file]" : output),
+                            "truncated": .bool(truncated || capped), "count": .int(fetched.count)],
+                           summary: "Retrieved \(fetched.count) files (\(bytesUsed) bytes) from \(owner)/\(repo).\(truncated ? " Result is PARTIAL — see the retrieval report." : "")")
+    }
+
+    // MARK: - `github_repo` path classification (Legacy, ported)
+
+    /// Extensions that are never useful as decoded text (Legacy
+    /// `AssistGitHubRepoTool.binaryExtensions`).
+    nonisolated static let gitHubRepoBinaryExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "icns", "tiff",
+        "pdf", "zip", "gz", "tar", "bz2", "xz", "7z", "dmg", "pkg",
+        "mp3", "mp4", "mov", "wav", "aiff", "m4a",
+        "o", "a", "so", "dylib", "framework",
+        "xcassets", "mlmodel", "mlmodelc", "bin", "dat", "sqlite", "db",
+        "ttf", "otf", "woff", "woff2", "eot",
+        "pyc", "pyo", "class", "jar", "war",
+        "xcarchive", "ipa", "appex",
+    ]
+
+    /// Directory prefixes excluded from full-repository retrieval
+    /// (build artifacts, vendored dependencies, VCS metadata).
+    nonisolated static let gitHubRepoSkippedDirectoryPrefixes = [
+        ".git/", "node_modules/", "Pods/", "Carthage/", "DerivedData/",
+        "build/", ".build/", "vendor/", "__pycache__/", ".venv/",
+    ]
+
+    nonisolated static func gitHubRepoIsBinaryPath(_ path: String) -> Bool {
+        let ext = (path as NSString).pathExtension.lowercased()
+        return !ext.isEmpty && gitHubRepoBinaryExtensions.contains(ext)
+    }
+
+    nonisolated static func gitHubRepoIsSkippedDirectory(_ path: String) -> Bool {
+        gitHubRepoSkippedDirectoryPrefixes.contains { path.hasPrefix($0) || path == String($0.dropLast()) }
+    }
+
+    /// Ranking for `fetch_repository`: query hits > project config >
+    /// docs > rest (Legacy's `priorityScore`).
+    nonisolated static func gitHubRepoPriorityScore(path: String, queryTokens: [String]) -> Int {
+        let lower = path.lowercased()
+        var score = 0
+        for token in queryTokens where !token.isEmpty {
+            if lower.contains(token) { score += 10 }
+        }
+        let name = (lower as NSString).lastPathComponent
+        if ["package.swift", "readme.md", ".xcodeproj", "project.pbxproj", "cartfile", "podfile", "makefile"]
+            .contains(where: { name == $0 || lower.hasSuffix("/" + $0) }) { score += 5 }
+        if lower.hasSuffix(".md") { score += 2 }
+        return score
     }
 
     func recentChanges(_ call: MCPToolCall) async throws -> MCPToolResult {
@@ -1017,14 +1377,51 @@ extension YcodeMCPHost {
                 throw MCPToolError("Git rollback failed: \(result.combined)")
             }
             return .structured(["output": .string(result.combined)], summary: "Git action executed: rollback")
-        case "push", "pull", "fetch", "clone":
-            // Legacy implements no remote sub-operations at all; this
-            // wave must not touch remotes. Rejected explicitly, naming
-            // the later-wave prerequisite, instead of Legacy's generic
-            // unknown-action error.
-            throw MCPToolError("Git \(action) needs remote access, which is out of scope for this wave (local operations only). Remote operations (push/pull/fetch/clone) are a later wave.")
+        case "push", "pull", "fetch":
+            // Wave 10 addition (Legacy implements no remote
+            // sub-operations at all): plain `git push` / `git pull`
+            // / `git fetch <remote>` in the workspace repository.
+            // HTTPS auth comes from the user's configured credential
+            // helper, plus a best-effort seed from the stored GitHub
+            // token when `origin` is a github.com HTTPS URL (see
+            // `seedGitHubCredentialForOrigin`).
+            var args = [action]
+            if action == "fetch" {
+                let remote = call.arguments["remote"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "origin"
+                guard !remote.isEmpty, Self.gitIsValidRefName(remote) else {
+                    throw MCPToolError("Invalid remote name: \(remote)")
+                }
+                args.append(remote)
+            }
+            try await gitApproveChange(tool: call.name, summary: "Git \(action)", in: s, call: call)
+            Self.seedGitHubCredentialForOrigin(in: root)
+            let result = try Self.runGit(args, in: root)
+            guard result.status == 0 else {
+                throw MCPToolError("Git \(action) failed: \(result.combined)")
+            }
+            return .structured(["output": .string(result.combined)], summary: "Git action executed: \(action)")
+        case "clone":
+            // Wave 10 addition (Legacy implements no remote
+            // sub-operations at all): `git clone <url>
+            // <destination>`, with the Wave 10 URL policy on the
+            // URL and the destination confined to the workspace.
+            guard let urlRaw = call.arguments["url"]?.string, !urlRaw.isEmpty else {
+                throw MCPToolError("Action 'clone' requires 'url'.")
+            }
+            guard let destRaw = call.arguments["destination"]?.string, !destRaw.isEmpty else {
+                throw MCPToolError("Action 'clone' requires 'destination'.")
+            }
+            let remote = try validateGitRemoteURL(urlRaw, in: s)
+            let destination = try resolveFileReadingPath(destRaw, in: s)
+            try await gitApproveChange(tool: call.name, summary: "Git clone \(urlRaw)", in: s, call: call)
+            Self.seedGitHubCredential(githubHTTPSPath: remote.githubHTTPSPath, in: root)
+            let cloneResult = try Self.runGit(["clone", remote.gitArgument, destination.path], in: root)
+            guard cloneResult.status == 0 else {
+                throw MCPToolError("Git clone failed: \(cloneResult.combined)")
+            }
+            return .structured(["output": .string(cloneResult.combined)], summary: "Git action executed: clone")
         default:
-            throw MCPToolError("Unknown git action '\(action)': expected status, commit, branch, rollback, or diff.")
+            throw MCPToolError("Unknown git action '\(action)': expected status, commit, branch, rollback, diff, push, pull, fetch, or clone.")
         }
     }
 }

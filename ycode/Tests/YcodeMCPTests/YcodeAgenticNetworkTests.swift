@@ -40,7 +40,10 @@ import YcodeAssistant
 /// `http_request` are covered up to the point where they would touch
 /// the network (argument validation, HTTPS allow-list, workspace
 /// confinement, approval gating); their live behaviour stays pending
-/// on Dylan's Mac.
+/// on Dylan's Mac. The seven GitHub tools run against a URLProtocol
+/// stub (`installGitHubStub` in TestSupport): fixture JSON, no live
+/// network; the missing-token and approval-refusal paths are covered
+/// without a token or an approval.
 @MainActor
 @Suite(.serialized) struct YcodeAgenticNetworkTests {
     /// The 19 Wave 8 slice D Agentic tool IDs, verified live from
@@ -146,15 +149,24 @@ import YcodeAssistant
         #expect(tools.first { $0.name == "fetch_url" }?.annotations.readOnly == true)
         #expect(tools.first { $0.name == "fetch_url" }?.annotations.openWorld == true)
         for name in ["download_file", "upload_file", "http_request", "install_dependencies",
-                     "update_dependencies", "remove_dependencies"] {
+                     "update_dependencies", "remove_dependencies",
+                     "create_pull_request", "create_issue", "update_issue"] {
             let tool = tools.first { $0.name == name }
             #expect(tool?.writes == true, "\(name) must be a gated write/execution tool")
             #expect(tool?.annotations.readOnly == false, "\(name) must not be read-only")
         }
         for name in ["web_search", "documentation_search", "api_reference_search", "package_search",
-                     "dependency_audit", "create_pull_request", "review_pull_request", "read_pull_request",
-                     "read_issues", "create_issue", "update_issue", "search_issues"] {
-            #expect(tools.first { $0.name == name }?.annotations.readOnly == true, "\(name) is honestly failing and must stay read-only")
+                     "dependency_audit", "review_pull_request", "read_pull_request",
+                     "read_issues", "search_issues"] {
+            #expect(tools.first { $0.name == name }?.annotations.readOnly == true, "\(name) is a read-only tool")
+        }
+        // The six GitHub tools that take a repository offer it as an
+        // optional parameter (`read_issues` already requires it);
+        // no required parameter changed in Wave 10.
+        for name in ["create_pull_request", "review_pull_request", "read_pull_request",
+                     "create_issue", "update_issue", "search_issues"] {
+            #expect(tools.first { $0.name == name }?.inputSchema["properties"]?["repository"] != nil,
+                    "\(name) must offer the optional repository parameter")
         }
     }
 
@@ -554,27 +566,304 @@ import YcodeAssistant
         #expect(YcodeMCPHost.agenticNetworkRemovePackage(named: "b", from: &manifest) == false)
     }
 
-    // MARK: - Honestly failing: GitHub tools
+    // MARK: - GitHub tools (Wave 10: wired to the real GitHub API)
 
-    @Test func gitHubToolsFailHonestly() async throws {
-        let host = bareHost()
-        let cases: [(String, [String: AnyJSON], String)] = [
-            ("create_pull_request",
-             ["title": .string("T"), "body": .string("B"), "head": .string("feature"), "base": .string("main")],
-             "create_pull_request needs a GitHub API client"),
-            ("review_pull_request", ["prNumber": .int(12)], "review_pull_request needs a GitHub API client"),
-            ("read_pull_request", ["prNumber": .int(12)], "read_pull_request needs a GitHub API client"),
-            ("read_issues", ["repository": .string("dylans2010/SwiftCode-Mac")], "read_issues needs a GitHub API client"),
-            ("create_issue", ["title": .string("T"), "body": .string("B")], "create_issue needs a GitHub API client"),
-            ("update_issue", ["issueNumber": .int(7)], "update_issue needs a GitHub API client"),
-            ("search_issues", ["query": .string("crash")], "search_issues needs a GitHub API client"),
-        ]
-        for (name, arguments, message) in cases {
-            let r = try await host.server.callTool(name, arguments)
-            #expect(r.isToolError, "\(name) must fail, not fake GitHub data")
-            #expect(r.firstText.contains(message), "\(name): \(r.firstText)")
-            #expect(r.firstText.contains("no GitHub data was read or written"), "\(name): \(r.firstText)")
+    /// Fixture JSON for the GitHub tools (sibling `YcodeGitHubTests`
+    /// shapes, synthetic data, no real token anywhere).
+    static let gitHubIssueJSON = """
+        {"number":42,"title":"Fix the crash","body":"Steps to reproduce","state":"open","user":{"login":"octocat"},"labels":[],"created_at":"2024-01-15T10:30:00Z","updated_at":"2024-01-16T10:30:00Z","html_url":"https://github.com/octocat/Hello-World/issues/42"}
+        """
+    static let gitHubIssueListJSON = """
+        [{"number":1,"title":"Found a bug","body":"Steps to reproduce","state":"open","user":{"login":"octocat"},"labels":[{"name":"bug"}],"created_at":"2024-01-15T10:30:00Z","updated_at":"2024-01-16T10:30:00Z","html_url":"https://github.com/octocat/Hello-World/issues/1"},
+         {"number":2,"title":"Fix the bug","body":null,"state":"open","user":{"login":"hubot"},"labels":[],"created_at":"2024-01-17T10:30:00Z","updated_at":"2024-01-17T10:30:00Z","html_url":"https://github.com/octocat/Hello-World/pull/2","pull_request":{"url":"https://api.github.com/repos/octocat/Hello-World/pulls/2"}}]
+        """
+    static let gitHubPullRequestJSON = """
+        {"number":2,"title":"Fix the bug","body":"This fixes it","state":"open","head":{"ref":"fix-bug","sha":"abc123"},"base":{"ref":"main","sha":"def456"},"user":{"login":"hubot"},"draft":false,"merged":false,"html_url":"https://github.com/octocat/Hello-World/pull/2","created_at":"2024-01-17T10:30:00Z","updated_at":"2024-01-18T10:30:00Z"}
+        """
+    static let gitHubPullRequestFilesJSON = """
+        [{"filename":"Sources/main.swift","status":"modified","additions":10,"deletions":2,"changes":12},
+         {"filename":"README.md","status":"modified","additions":1,"deletions":0,"changes":1}]
+        """
+    static let gitHubPullRequestReviewsJSON = """
+        [{"id":1,"user":{"login":"octocat"},"state":"APPROVED","body":"Looks good","submitted_at":"2024-01-18T10:30:00Z"},
+         {"id":2,"user":{"login":"hubot"},"state":"COMMENTED","body":"One nit","submitted_at":"2024-01-18T11:00:00Z"}]
+        """
+    static let gitHubSearchIssuesJSON = """
+        {"total_count":1,"incomplete_results":false,"items":[{"number":1,"title":"Found a bug","body":"Steps","state":"open","user":{"login":"octocat"},"labels":[],"created_at":"2024-01-15T10:30:00Z","updated_at":"2024-01-16T10:30:00Z","html_url":"https://github.com/octocat/Hello-World/issues/1"}]}
+        """
+
+    /// The stub's pull-request routes (PR + files + reviews) for
+    /// `read_pull_request` / `review_pull_request`. Nonisolated: it
+    /// is passed as the stub's `@Sendable` handler.
+    nonisolated static func gitHubPullRequestStub(_ request: URLRequest) -> (status: Int, headers: [String: String], body: Data) {
+        switch request.url?.path {
+        case "/repos/octocat/Hello-World/pulls/2": return gitHubStubOK(gitHubPullRequestJSON)
+        case "/repos/octocat/Hello-World/pulls/2/files": return gitHubStubOK(gitHubPullRequestFilesJSON)
+        case "/repos/octocat/Hello-World/pulls/2/reviews": return gitHubStubOK(gitHubPullRequestReviewsJSON)
+        default: return gitHubStubError(404, "Not Found")
         }
+    }
+
+    /// A Swift package folder whose git remote `origin` is `origin`
+    /// (no commits: only `git remote get-url origin` runs).
+    func makeGitHubRepo(origin: String) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-github-\(UUID().uuidString)")
+        let sources = dir.appendingPathComponent("Sources/App")
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        try "// swift-tools-version: 5.9\nimport PackageDescription\nlet package = Package(name: \"App\", targets: [.executableTarget(name: \"App\")])\n"
+            .write(to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "print(\"hi\")\n".write(to: sources.appendingPathComponent("main.swift"), atomically: true, encoding: .utf8)
+        for args in [["init", "-q", "-b", "main"], ["remote", "add", "origin", origin]] {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            p.arguments = ["-C", dir.path] + args
+            p.standardOutput = FileHandle.nullDevice
+            p.standardError = FileHandle.nullDevice
+            try p.run()
+            p.waitUntilExit()
+            #expect(p.terminationStatus == 0, "git \(args.joined(separator: " ")) failed")
+        }
+        return dir
+    }
+
+    /// Opens a plain folder (not a `TempSample`) and installs the
+    /// Agentic network tools on the server.
+    func openGitHubDir(_ dir: URL, policy: MCPWritePolicy = .allow) async throws -> YcodeMCPHost {
+        let host = YcodeMCPHost()
+        host.server.writePolicy = policy
+        let ported = Set(host.agenticNetworkTools.map(\.name))
+        host.server.tools = host.server.tools.filter { !ported.contains($0.name) } + host.agenticNetworkTools
+        let r = try await host.server.callTool("workspace_open", ["path": .string(dir.path)])
+        #expect(!r.isToolError, "\(r.resultText)")
+        return host
+    }
+
+    @Test func gitHubCreateIssueCreatesViaStubClient() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub { request in
+            guard request.url?.path == "/repos/octocat/Hello-World/issues", request.httpMethod == "POST" else {
+                return gitHubStubError(404, "Not Found")
+            }
+            return gitHubStubOK(Self.gitHubIssueJSON)
+        }
+        let r = try await host.server.callTool("create_issue", [
+            "repository": .string("octocat/Hello-World"),
+            "title": .string("Fix the crash"), "body": .string("Steps to reproduce"),
+        ])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Issue #42 created: Fix the crash"))
+        #expect(r.structured?["number"]?.int == 42)
+        #expect(r.structured?["htmlUrl"]?.string == "https://github.com/octocat/Hello-World/issues/42")
+        let request = try #require(StubGitHubProtocol.requests.first)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+        let body = requestJSONBody(of: request)
+        #expect(body["title"] as? String == "Fix the crash")
+        #expect(body["labels"] as? [String] == [])
+    }
+
+    @Test func gitHubCreateIssueRefusesWithoutApproval() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample, policy: .review { _ in false })
+        installGitHubStub { _ in gitHubStubOK(Self.gitHubIssueJSON) }
+        let r = try await host.server.callTool("create_issue", [
+            "repository": .string("octocat/Hello-World"),
+            "title": .string("Fix the crash"), "body": .string("Steps"),
+        ])
+        #expect(r.isToolError)
+        #expect(r.firstText.contains(MCPServer.rejectedMessage))
+        #expect(StubGitHubProtocol.requests.isEmpty, "a refused write must not reach GitHub")
+    }
+
+    @Test func gitHubCreateIssueNeedsToken() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil) { _ in gitHubStubOK(Self.gitHubIssueJSON) }
+        let r = try await host.server.callTool("create_issue", [
+            "repository": .string("octocat/Hello-World"),
+            "title": .string("Fix the crash"), "body": .string("Steps"),
+        ])
+        #expect(r.isToolError)
+        #expect(r.firstText.contains("No GitHub token saved"))
+        #expect(StubGitHubProtocol.requests.isEmpty, "a token-less write must not reach GitHub")
+    }
+
+    @Test func gitHubCreatePullRequestCreatesViaStubClient() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub { request in
+            guard request.url?.path == "/repos/octocat/Hello-World/pulls", request.httpMethod == "POST" else {
+                return gitHubStubError(404, "Not Found")
+            }
+            return gitHubStubOK(Self.gitHubPullRequestJSON)
+        }
+        let r = try await host.server.callTool("create_pull_request", [
+            "repository": .string("octocat/Hello-World"),
+            "title": .string("Fix the bug"), "body": .string("This fixes it"),
+            "head": .string("fix-bug"), "base": .string("main"),
+        ])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Pull request #2 created: Fix the bug"))
+        #expect(r.structured?["number"]?.int == 2)
+        let request = try #require(StubGitHubProtocol.requests.first)
+        #expect(request.httpMethod == "POST")
+        let body = requestJSONBody(of: request)
+        #expect(body["head"] as? String == "fix-bug")
+        #expect(body["base"] as? String == "main")
+        #expect(body["draft"] as? Bool == false)
+    }
+
+    @Test func gitHubUpdateIssueSendsOnlySuppliedFields() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub { request in
+            guard request.url?.path == "/repos/octocat/Hello-World/issues/42", request.httpMethod == "PATCH" else {
+                return gitHubStubError(404, "Not Found")
+            }
+            return gitHubStubOK(Self.gitHubIssueJSON)
+        }
+        let r = try await host.server.callTool("update_issue", [
+            "repository": .string("octocat/Hello-World"),
+            "issueNumber": .int(42), "title": .string("Fix the crash"),
+        ])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Issue #42 updated: Fix the crash"))
+        let request = try #require(StubGitHubProtocol.requests.first)
+        #expect(request.httpMethod == "PATCH")
+        let body = requestJSONBody(of: request)
+        #expect(body["title"] as? String == "Fix the crash")
+        #expect(body["body"] == nil, "only the supplied fields are sent")
+        #expect(body["state"] == nil, "state is not in the tool's schema and is never sent")
+    }
+
+    @Test func gitHubUpdateIssueNeedsAField() async throws {
+        let host = bareHost()
+        let r = try await host.server.callTool("update_issue", ["issueNumber": .int(42)])
+        #expect(r.isToolError)
+        #expect(r.firstText.contains("Nothing to update"))
+    }
+
+    @Test func gitHubReadIssuesListsViaStubClient() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil) { request in
+            guard request.url?.path == "/repos/octocat/Hello-World/issues" else {
+                return gitHubStubError(404, "Not Found")
+            }
+            return gitHubStubOK(Self.gitHubIssueListJSON)
+        }
+        let r = try await host.server.callTool("read_issues", ["repository": .string("octocat/Hello-World")])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Open issues in octocat/Hello-World (2):"))
+        #expect(r.firstText.contains("#1: Found a bug"))
+        #expect(r.structured?["count"]?.int == 2)
+        let request = try #require(StubGitHubProtocol.requests.first)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil, "a public read sends no token")
+    }
+
+    @Test func gitHubReadIssuesReportsNotFound() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil) { _ in gitHubStubError(404, "Not Found") }
+        let r = try await host.server.callTool("read_issues", ["repository": .string("octocat/NoSuchRepo")])
+        #expect(r.isToolError)
+        #expect(r.firstText.contains("Not found on GitHub"))
+    }
+
+    @Test func gitHubReadIssuesRejectsInvalidRepository() async throws {
+        resetGitHubStub()
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        let r = try await host.server.callTool("read_issues", ["repository": .string("not-a-repo")])
+        #expect(r.isToolError)
+        #expect(r.firstText.contains("Invalid repository"))
+        #expect(StubGitHubProtocol.requests.isEmpty, "an invalid repository must not reach GitHub")
+    }
+
+    @Test func gitHubReadPullRequestSummarisesPR() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil, handler: Self.gitHubPullRequestStub)
+        let r = try await host.server.callTool("read_pull_request", [
+            "repository": .string("octocat/Hello-World"), "prNumber": .int(2),
+        ])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Pull request #2: Fix the bug"))
+        #expect(r.firstText.contains("State: open — fix-bug → main"))
+        #expect(r.firstText.contains("Files changed (2, +11/-2):"))
+        #expect(r.firstText.contains("- Sources/main.swift (+10/-2)"))
+        #expect(r.firstText.contains("- octocat: APPROVED"))
+        #expect(r.structured?["filesChanged"]?.int == 2)
+        #expect(r.structured?["additions"]?.int == 11)
+        #expect(r.structured?["deletions"]?.int == 2)
+        #expect(StubGitHubProtocol.requests.count == 3, "PR + files + reviews")
+    }
+
+    @Test func gitHubReadPullRequestDerivesRepoFromRemoteOrigin() async throws {
+        let dir = try makeGitHubRepo(origin: "https://github.com/octocat/Hello-World.git")
+        defer { try? FileManager.default.removeItem(at: dir); resetGitHubStub() }
+        let host = try await openGitHubDir(dir)
+        installGitHubStub(token: nil, handler: Self.gitHubPullRequestStub)
+        let r = try await host.server.callTool("read_pull_request", ["prNumber": .int(2)])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Pull request #2: Fix the bug"))
+        #expect(r.firstText.contains("fix-bug → main"))
+    }
+
+    @Test func gitHubReviewPullRequestIsReadOnlySummary() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil, handler: Self.gitHubPullRequestStub)
+        let r = try await host.server.callTool("review_pull_request", [
+            "repository": .string("octocat/Hello-World"), "prNumber": .int(2),
+        ])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Review of pull request #2: Fix the bug"))
+        #expect(r.firstText.contains("no review was posted to GitHub"))
+        #expect(StubGitHubProtocol.requests.allSatisfy { $0.httpMethod == "GET" }, "review_pull_request must not POST")
+    }
+
+    @Test func gitHubSearchIssuesScopesQueryToRepo() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil) { request in
+            guard request.url?.path == "/search/issues" else { return gitHubStubError(404, "Not Found") }
+            return gitHubStubOK(Self.gitHubSearchIssuesJSON)
+        }
+        let r = try await host.server.callTool("search_issues", [
+            "repository": .string("octocat/Hello-World"), "query": .string("crash"),
+        ])
+        #expect(!r.isToolError, "\(r.resultText)")
+        #expect(r.firstText.contains("Issues matching \"crash\" (1 total):"))
+        #expect(r.firstText.contains("#1: Found a bug"))
+        #expect(r.structured?["totalCount"]?.int == 1)
+        let request = try #require(StubGitHubProtocol.requests.first)
+        #expect(requestQueryItems(of: request)["q"] == "repo:octocat/Hello-World crash")
+    }
+
+    @Test func gitHubSearchIssuesRunsUnscopedWithoutRepo() async throws {
+        let sample = try TempSample()
+        defer { sample.remove(); resetGitHubStub() }
+        let host = try await opened(sample)
+        installGitHubStub(token: nil) { request in
+            guard request.url?.path == "/search/issues" else { return gitHubStubError(404, "Not Found") }
+            return gitHubStubOK(Self.gitHubSearchIssuesJSON)
+        }
+        let r = try await host.server.callTool("search_issues", ["query": .string("crash")])
+        #expect(!r.isToolError, "\(r.resultText)")
+        let request = try #require(StubGitHubProtocol.requests.first)
+        #expect(requestQueryItems(of: request)["q"] == "crash")
     }
 
     @Test func gitHubToolsValidateArgumentsFirst() async throws {

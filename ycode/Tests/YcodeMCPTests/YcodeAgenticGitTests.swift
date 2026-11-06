@@ -121,6 +121,24 @@ import YcodeAssistant
         return dir
     }
 
+    /// A bare repository inside `workspace`, used as the "remote"
+    /// for pull/push/clone: a local path inside the workspace is an
+    /// allowed remote under the Wave 10 URL policy, so no network
+    /// is involved.
+    func makeBareRemote(in workspace: URL, name: String = "remote.git") throws -> URL {
+        _ = try Self.git(workspace, "init", "--bare", "-q", name)
+        return workspace.appendingPathComponent(name)
+    }
+
+    /// A second working copy cloned from `remote` into a fresh
+    /// temporary folder (test scaffolding only — the tools under
+    /// test never see a path outside the workspace).
+    func makeSecondCopy(_ name: String, from remote: URL) throws -> URL {
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("ycode-agentic-git-\(name)-\(UUID().uuidString)")
+        _ = try Self.git(FileManager.default.temporaryDirectory, "clone", "-q", remote.path, dest.path)
+        return dest
+    }
+
     /// Opens `dir` and installs the ported Agentic git tools on the
     /// server (same shape as Wave 3's `opened` — `installTools()`
     /// does not wire `agenticGitTools` yet; the coordinator owns that).
@@ -196,8 +214,7 @@ import YcodeAssistant
             #expect(required == expectedRequired[tool.name], "\(tool.name) required: \(required)")
             #expect(tool.outputSchema == nil, "\(tool.name) returns Legacy's plain string, so it has no output schema")
             switch tool.name {
-            case "git_status", "git_diff", "git_branch", "git_blame", "git_log", "git_show", "git_tag",
-                 "git_pull", "git_push", "git_clone":
+            case "git_status", "git_diff", "git_branch", "git_blame", "git_log", "git_show", "git_tag":
                 #expect(tool.annotations.readOnly && !tool.writes, "\(tool.name) must be read-only")
             case "git_reset":
                 #expect(!tool.annotations.readOnly && tool.annotations.destructive && tool.writes,
@@ -486,22 +503,141 @@ import YcodeAssistant
         #expect(r.isToolError && r.firstText.contains("outside the workspace"), "\(r.firstText)")
     }
 
-    // MARK: - Remote-only tools (honestly failing)
+    // MARK: - Remote tools (Wave 10: real remote operations)
 
-    @Test func remoteToolsFailHonestly() async throws {
-        let dir = try makeRepo("remote")
+    @Test func remotePullPushCloneRoundTripOverLocalBareRemote() async throws {
+        let dir = try makeRepo("remote-roundtrip")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let remote = try makeBareRemote(in: dir)
+        _ = try Self.git(dir, "remote", "add", "origin", remote.path)
+        _ = try Self.git(dir, "push", "-q", "-u", "origin", "main")
+        let host = try await opened(dir, policy: .allow)
+        // Push: a new commit in the workspace lands in the bare remote.
+        try writeFile(dir, "Sources/App/Pushed.swift", "let p = 1\n")
+        _ = try Self.git(dir, "add", "-A")
+        _ = try Self.git(dir, "commit", "-qm", "Pushed commit")
+        let pushed = try await callAgentic(host, "git_push")
+        #expect(!pushed.isToolError, "\(pushed.resultText)")
+        #expect(pushed.firstText.contains("Push successful"), "\(pushed.firstText)")
+        let remoteLog = try Self.git(remote, "log", "--oneline", "main")
+        #expect(remoteLog.contains("Pushed commit"), "\(remoteLog)")
+        // Pull: a commit made in a second copy arrives in the workspace.
+        let other = try makeSecondCopy("remote-other", from: remote)
+        defer { try? FileManager.default.removeItem(at: other) }
+        try writeFile(other, "Sources/App/Pulled.swift", "let q = 1\n")
+        _ = try Self.git(other, "add", "-A")
+        _ = try Self.git(other, "commit", "-qm", "Pulled commit")
+        _ = try Self.git(other, "push", "-q", "origin", "main")
+        let pulled = try await callAgentic(host, "git_pull")
+        #expect(!pulled.isToolError, "\(pulled.resultText)")
+        #expect(pulled.firstText.contains("Successfully pulled changes"), "\(pulled.firstText)")
+        #expect(readFile(dir, "Sources/App/Pulled.swift").contains("let q = 1"))
+        // Clone: the bare remote clones to a folder inside the workspace.
+        let cloned = try await callAgentic(host, "git_clone",
+                                           ["remoteURL": .string(remote.path),
+                                            "destinationPath": .string("cloned")])
+        #expect(!cloned.isToolError, "\(cloned.resultText)")
+        #expect(cloned.firstText.contains("Successfully cloned"), "\(cloned.firstText)")
+        #expect(cloned.structured?["output"]?.string?.contains("Cloning into") == true, "\(cloned.resultText)")
+        #expect(readFile(dir, "cloned/Sources/App/main.swift").contains("let a = 1"))
+    }
+
+    @Test func remoteURLPolicyRejectsOtherSchemesAndOutsidePaths() async throws {
+        let dir = try makeRepo("remote-policy")
         defer { try? FileManager.default.removeItem(at: dir) }
         let host = try await opened(dir, policy: .allow)
-        for name in ["git_pull", "git_push"] {
-            let r = try await callAgentic(host, name)
-            #expect(r.isToolError && r.firstText.contains("needs remote access"), "\(name): \(r.firstText)")
-            #expect(r.firstText.contains("later wave"), "\(name): \(r.firstText)")
+        for url in ["ftp://example.invalid/repo.git",
+                    "ssh://git@example.invalid/repo.git",
+                    "git://example.invalid/repo.git",
+                    "https://user:secret@example.invalid/repo.git"] {
+            let r = try await callAgentic(host, "git_clone",
+                                          ["remoteURL": .string(url),
+                                           "destinationPath": .string("clone-rejected")])
+            #expect(r.isToolError && r.firstText.contains("Unsupported remote URL"), "\(url): \(r.firstText)")
+            #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("clone-rejected").path),
+                    "a rejected clone must not create anything: \(url)")
         }
+        let outside = try await callAgentic(host, "git_clone",
+                                            ["remoteURL": .string("/tmp/ycode-outside-remote-\(UUID().uuidString).git"),
+                                             "destinationPath": .string("clone-outside")])
+        #expect(outside.isToolError && outside.firstText.contains("outside the workspace"), "\(outside.firstText)")
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("clone-outside").path))
+        // An SCP-like SSH remote passes the policy (so it fails
+        // with git's own error, not a policy error): the host does
+        // not resolve, so no connection is ever made.
+        let ssh = try await callAgentic(host, "git_clone",
+                                        ["remoteURL": .string("git@nonexistent.invalid:owner/repo.git"),
+                                         "destinationPath": .string("clone-ssh")])
+        #expect(ssh.isToolError && ssh.firstText.contains("Git clone failed"), "\(ssh.firstText)")
+        #expect(!ssh.firstText.contains("Unsupported remote URL"), "\(ssh.firstText)")
+    }
+
+    @Test func remoteToolsRespectApprovalAndReadOnlyMode() async throws {
+        let dir = try makeRepo("remote-approval")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let remote = try makeBareRemote(in: dir)
+        _ = try Self.git(dir, "remote", "add", "origin", remote.path)
+        _ = try Self.git(dir, "push", "-q", "-u", "origin", "main")
+        let reviews = Reviews()
+        let reviewHost = try await opened(dir, policy: .review { c in reviews.changes.append(c); return reviews.accept })
+        let refused = try await callAgentic(reviewHost, "git_push")
+        #expect(refused.isToolError && refused.firstText == MCPServer.rejectedMessage)
+        #expect(reviews.changes.first?.tool == "git_push")
+        let remoteLog = try Self.git(remote, "log", "--oneline", "main")
+        #expect(remoteLog.contains("Initial commit") && !remoteLog.contains("Pushed commit"), "\(remoteLog)")
+        reviews.accept = true
+        let pushed = try await callAgentic(reviewHost, "git_push")
+        #expect(!pushed.isToolError, "\(pushed.resultText)")
+        // Read-only mode refuses the remote writes outright.
+        let readOnlyHost = try await opened(dir)
+        let refusedPull = try await callAgentic(readOnlyHost, "git_pull")
+        #expect(refusedPull.isToolError && refusedPull.firstText.contains("read-only"), "\(refusedPull.firstText)")
+        let refusedClone = try await callAgentic(readOnlyHost, "git_clone",
+                                                 ["remoteURL": .string(remote.path),
+                                                  "destinationPath": .string("clone-ro")])
+        #expect(refusedClone.isToolError && refusedClone.firstText.contains("read-only"), "\(refusedClone.firstText)")
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("clone-ro").path))
+    }
+
+    @Test func remoteToolsFailHonestlyWithNoRemote() async throws {
+        let dir = try makeRepo("remote-noremote")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let host = try await opened(dir, policy: .allow)
+        let pull = try await callAgentic(host, "git_pull")
+        #expect(pull.isToolError && pull.firstText.contains("Git pull failed"), "\(pull.firstText)")
+        let push = try await callAgentic(host, "git_push")
+        #expect(push.isToolError && push.firstText.contains("Git push failed"), "\(push.firstText)")
+        // A local path that is not a repository fails with git's own message.
         let clone = try await callAgentic(host, "git_clone",
-                                          ["remoteURL": .string("https://example.invalid/repo.git"),
-                                           "destinationPath": .string("clone")])
-        #expect(clone.isToolError && clone.firstText.contains("needs remote access"), "\(clone.firstText)")
-        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("clone").path),
-                "an honestly-failing clone must not create anything")
+                                          ["remoteURL": .string("not-a-repo"),
+                                           "destinationPath": .string("clone-nope")])
+        #expect(clone.isToolError && clone.firstText.contains("Git clone failed"), "\(clone.firstText)")
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("clone-nope").path))
+    }
+
+    @Test func gitHubHTTPSPathAndCredentialSeedingTolerateNoHelper() async throws {
+        #expect(YcodeMCPHost.gitHubHTTPSPath("https://github.com/dylans2010/SwiftCode-Mac") == "dylans2010/SwiftCode-Mac")
+        #expect(YcodeMCPHost.gitHubHTTPSPath("https://github.com") == "")
+        #expect(YcodeMCPHost.gitHubHTTPSPath("https://GITHUB.COM/dylans2010/repo.git") == "dylans2010/repo.git")
+        #expect(YcodeMCPHost.gitHubHTTPSPath("git@github.com:dylans2010/SwiftCode-Mac") == nil)
+        #expect(YcodeMCPHost.gitHubHTTPSPath("https://user:token@github.com/dylans2010/repo.git") == nil)
+        #expect(YcodeMCPHost.gitHubHTTPSPath("https://example.com/dylans2010/repo.git") == nil)
+        // Seeding with a stored token must not break a local clone
+        // when no credential helper is configured: seeding failures
+        // are silent and the git command reports the real outcome.
+        YcodeMCPHost.agenticGitTestSecretStore = MemorySecretStore()
+        defer { YcodeMCPHost.agenticGitTestSecretStore = nil }
+        try YcodeMCPHost.agenticGitTestSecretStore?.write(Data("test-token".utf8), for: SecretAccount.githubToken)
+        let dir = try makeRepo("remote-seeding")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let remote = try makeBareRemote(in: dir)
+        _ = try Self.git(dir, "remote", "add", "origin", remote.path)
+        _ = try Self.git(dir, "push", "-q", "-u", "origin", "main")
+        let host = try await opened(dir, policy: .allow)
+        let cloned = try await callAgentic(host, "git_clone",
+                                           ["remoteURL": .string(remote.path),
+                                            "destinationPath": .string("cloned")])
+        #expect(!cloned.isToolError, "\(cloned.resultText)")
+        #expect(readFile(dir, "cloned/Sources/App/main.swift").contains("let a = 1"))
     }
 }

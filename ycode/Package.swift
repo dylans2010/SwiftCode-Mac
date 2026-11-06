@@ -23,6 +23,7 @@ let package = Package(
         .library(name: "YcodeSubprocess", targets: ["YcodeSubprocess"]),
         .library(name: "YcodeAssistant", targets: ["YcodeAssistant"]),
         .library(name: "YcodeCompletion", targets: ["YcodeCompletion"]),
+        .library(name: "YcodeGitHub", targets: ["YcodeGitHub"]),
         // Gauge, the profiler (specs/ide/profiler.md): trace format, analysis, Linux recording
         .library(name: "YcodeProfiler", targets: ["YcodeProfiler"]),
         // Gauge's in-process sampler for Linux processes (LD_PRELOAD; profiler.md §3.2)
@@ -78,6 +79,10 @@ let package = Package(
         // The coding assistant's model providers, conversations and prompts (specs/ide/coding-assistant.md)
         .target(name: "YcodeAssistant", dependencies: ["YcodeSubprocess"]),
         .testTarget(name: "YcodeAssistantTests", dependencies: ["YcodeAssistant", "YcodeSubprocess"]),
+        // GitHub: the api.github.com client shared by the assistant's
+        // GitHub tools and the settings pane.
+        .target(name: "YcodeGitHub"),
+        .testTarget(name: "YcodeGitHubTests", dependencies: ["YcodeGitHub"]),
         // Predictive code completion: context, backends (Ollama, llama-server, OpenAI-compatible), shaping, the editor session (specs/ide/predictive-completion.md)
         .target(name: "YcodeCompletion", dependencies: ["YcodeAssistant"]),
         .testTarget(name: "YcodeCompletionTests", dependencies: ["YcodeCompletion", "YcodeAssistant"]),
@@ -131,7 +136,7 @@ package.targets += [
     .target(name: "YcodeDeviceUI", dependencies: ["YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel"]),
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
-    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler"]),
+    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler"]),
     .executableTarget(name: "YcodeApp", dependencies: ["YcodeRelease", "YcodeUI"]),
     .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell"]),
 ]
@@ -283,7 +288,7 @@ package.targets += [
 package.products += [.library(name: "YcodeMCP", targets: ["YcodeMCP"])]
 package.targets += [
     .target(name: "YcodeMCP", dependencies: ["YcodeIDECore", "YcodeIDEShell", "YcodeAssistant", "YcodeCompletion", "YcodeBuild", "YcodePreviews",
-                                             "YcodeProject", "YcodeSettings", "YcodeWorkspace", "YcodeSubprocess", "YcodeMachO",
+                                             "YcodeProject", "YcodeSettings", "YcodeWorkspace", "YcodeSubprocess", "YcodeMachO", "YcodeGitHub",
                                              .product(name: "Crypto", package: "swift-crypto")]),
     .testTarget(name: "YcodeMCPTests", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeAssistant", "YcodeCompletion", "YcodeBuild", "ycode"]),
 ]

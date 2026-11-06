@@ -53,11 +53,17 @@ import YcodeSubprocess
 ///   root, relative path `"."`). The tools are registered
 ///   `writes: true`, so `MCPServer.run` refuses them in `readOnly`
 ///   server mode — the same treatment Wave 2 gives dry-run tools.
-/// * `git_pull`, `git_push` and `git_clone` are registered but
-///   honestly failing: they are remote-only, and this wave must not
-///   touch remotes. Their handlers always fail naming the later-wave
-///   prerequisite (the Wave 3 `github_repo` precedent). No remote
-///   data is fetched and none is faked.
+/// * `git_pull`, `git_push` and `git_clone` run real remote
+///   operations (Wave 10): plain `git pull` / `git push` in the
+///   resolved repository, `git clone <remoteURL>
+///   <destinationPath>` for a remote URL the Wave 10 URL policy
+///   accepts (see `validateGitRemoteURL`). All three are writes and
+///   gate through `gitApproveChange` before git runs. HTTPS auth
+///   comes from the user's configured git credential helper; when
+///   the remote is a github.com HTTPS URL and a token is stored
+///   under `SecretAccount.githubToken`, it is best-effort seeded
+///   via `git credential approve` on stdin first (see
+///   `seedGitHubCredential`).
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
@@ -185,13 +191,15 @@ extension YcodeMCPHost {
             tool("git_pull", "Git Pull",
                  "Pulls changes from a remote repository.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "repositoryPath": Schema.string("Repository path. Defaults to the workspace root when omitted; must stay inside the workspace.")])) { h, call in
+                                       "repositoryPath": Schema.string("Repository path. Defaults to the workspace root when omitted; must stay inside the workspace.")]),
+                 annotations: safeMutation, writes: true) { h, call in
                 try await h.agenticGitPull(call)
             },
             tool("git_push", "Git Push",
                  "Pushes committed changes to the remote repository.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "repositoryPath": Schema.string("Repository path. Defaults to the workspace root when omitted; must stay inside the workspace.")])) { h, call in
+                                       "repositoryPath": Schema.string("Repository path. Defaults to the workspace root when omitted; must stay inside the workspace.")]),
+                 annotations: safeMutation, writes: true) { h, call in
                 try await h.agenticGitPush(call)
             },
             tool("git_clone", "Git Clone",
@@ -199,7 +207,8 @@ extension YcodeMCPHost {
                  input: Schema.object(["workspace": Schema.workspace,
                                        "remoteURL": Schema.string("Remote repository URL to clone."),
                                        "destinationPath": Schema.string("Destination path for the clone.")],
-                                      required: ["remoteURL", "destinationPath"])) { h, call in
+                                      required: ["remoteURL", "destinationPath"]),
+                 annotations: safeMutation, writes: true) { h, call in
                 try await h.agenticGitClone(call)
             },
             tool("git_blame", "Git Blame",
@@ -332,6 +341,150 @@ extension YcodeMCPHost {
     /// own output — the shape every mutating handler below returns.
     nonisolated static func agenticGitSuccess(output: String, fallback: String) -> MCPToolResult {
         .text(output.isEmpty ? fallback : output)
+    }
+
+    // MARK: - Remote URLs and GitHub credential seeding (Wave 10)
+
+    /// Test seam for remote git auth: when set, the secret store
+    /// used instead of `defaultSecretStore()`. Tests set a
+    /// `MemorySecretStore` so no real keychain or config file is
+    /// touched; production never sets it. (Same shape as
+    /// `agenticDataTestSecretStore`.)
+    static var agenticGitTestSecretStore: SecretStore?
+
+    static func agenticGitSecretStore() -> SecretStore {
+        agenticGitTestSecretStore ?? defaultSecretStore()
+    }
+
+    /// A remote URL after the Wave 10 URL policy has accepted it.
+    struct ValidatedGitRemoteURL: Sendable {
+        /// The argument passed to git: the URL as given for
+        /// https/SSH remotes, the resolved absolute path for a
+        /// local path.
+        var gitArgument: String
+        /// The `path` field for `git credential approve`, when the
+        /// remote is a github.com HTTPS URL (`""` when the URL has
+        /// no repository path); `nil` for every other remote.
+        var githubHTTPSPath: String?
+    }
+
+    /// The repository path of a github.com HTTPS URL
+    /// (`dylans2010/repo.git` for
+    /// `https://github.com/dylans2010/repo.git`, `""` for bare
+    /// `https://github.com`), or `nil` when `raw` is not one.
+    /// URLs with embedded credentials are never one: a token must
+    /// come from the secret store, never from a URL.
+    nonisolated static func gitHubHTTPSPath(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("https://"), !trimmed.contains(" "),
+              let components = URLComponents(string: trimmed),
+              let host = components.host, host.lowercased() == "github.com",
+              components.user == nil, components.password == nil else { return nil }
+        let path = components.path
+        guard !path.isEmpty, path != "/" else { return "" }
+        return String(path.dropFirst())
+    }
+
+    /// Accepts a remote URL under the Wave 10 policy, or throws:
+    /// `https://` URLs, `git@host:` SCP-like SSH remotes, and local
+    /// paths resolving inside the workspace. Anything else (other
+    /// schemes, absolute paths outside the workspace, embedded
+    /// credentials, a leading `-`) is rejected with a clear error.
+    /// The URL itself is the only thing that may appear in an
+    /// error; a token never appears in one, because URLs carrying
+    /// credentials are rejected before they reach git.
+    func validateGitRemoteURL(_ raw: String, in s: WorkspaceSession) throws -> ValidatedGitRemoteURL {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw MCPToolError("Remote URL must not be empty.") }
+        guard !trimmed.hasPrefix("-") else { throw MCPToolError("Invalid remote URL: \(trimmed)") }
+        guard !trimmed.contains("\0"), !trimmed.contains("\n"), !trimmed.contains("\r") else {
+            throw MCPToolError("Invalid remote URL.")
+        }
+        if trimmed.contains("://") {
+            guard trimmed.hasPrefix("https://"), !trimmed.contains(" "),
+                  let components = URLComponents(string: trimmed),
+                  let host = components.host, !host.isEmpty,
+                  components.user == nil, components.password == nil else {
+                throw MCPToolError("Unsupported remote URL '\(trimmed)'. Only https:// URLs, git@host: SSH remotes, and local paths inside the workspace are allowed; URLs must not contain embedded credentials.")
+            }
+            return ValidatedGitRemoteURL(gitArgument: trimmed,
+                                         githubHTTPSPath: Self.gitHubHTTPSPath(trimmed))
+        }
+        // SCP-like SSH syntax (`git@github.com:owner/repo.git`):
+        // `user@host:path`, none of the three parts empty, no `/`
+        // or whitespace in the user/host, no whitespace in the
+        // path. A leading `/`, `.` or `~` is a local path, never SSH.
+        if !trimmed.hasPrefix("/"), !trimmed.hasPrefix("."), !trimmed.hasPrefix("~"),
+           let at = trimmed.firstIndex(of: "@"), let colon = trimmed.firstIndex(of: ":"),
+           at < colon {
+            let user = String(trimmed[..<at])
+            let host = String(trimmed[trimmed.index(after: at)..<colon])
+            let path = String(trimmed[trimmed.index(after: colon)...])
+            let plain = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
+            if !user.isEmpty, !host.isEmpty, !path.isEmpty,
+               user.unicodeScalars.allSatisfy({ plain.contains($0) }),
+               host.unicodeScalars.allSatisfy({ plain.contains($0) }),
+               !path.contains(" "), !path.contains("\t") {
+                return ValidatedGitRemoteURL(gitArgument: trimmed, githubHTTPSPath: nil)
+            }
+        }
+        // Otherwise a local path: it must resolve inside the workspace.
+        let url = try resolveFileReadingPath(trimmed, in: s)
+        return ValidatedGitRemoteURL(gitArgument: url.path, githubHTTPSPath: nil)
+    }
+
+    /// Best-effort GitHub credential seeding for one github.com
+    /// HTTPS remote: when a token is stored under
+    /// `SecretAccount.githubToken`, `git credential approve` is fed
+    /// `protocol` / `host` / `path` / `username` / `password` on
+    /// STDIN (the token as the password — never in argv, a URL, or
+    /// a log), so the following git command can authenticate from
+    /// the user's configured credential helper. Failures are ignored
+    /// silently; the git command itself reports auth failure
+    /// honestly if it still cannot authenticate. A `nil` path means
+    /// "not a github.com HTTPS remote": nothing is seeded. Nothing
+    /// is written to any file and git's config is untouched.
+    /// `Subprocess.run` cannot feed stdin (it uses /dev/null), so
+    /// this runs `git credential approve` with Foundation's
+    /// `Process` directly.
+    nonisolated static func seedGitHubCredential(githubHTTPSPath path: String?, in directory: URL) {
+        guard let path,
+              let token = agenticGitSecretStore().readString(SecretAccount.githubToken)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty else { return }
+        var lines = ["protocol=https", "host=github.com"]
+        if !path.isEmpty { lines.append("path=\(path)") }
+        lines.append("username=x-access-token")
+        lines.append("password=\(token)")
+        let input = lines.joined(separator: "\n") + "\n\n"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: HostTool.path("git"))
+        process.arguments = ["credential", "approve"]
+        process.environment = gitEnvironment()
+        process.currentDirectoryURL = directory
+        let stdin = Pipe()
+        process.standardInput = stdin
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            stdin.fileHandleForWriting.write(Data(input.utf8))
+            try stdin.fileHandleForWriting.close()
+            process.waitUntilExit()
+        } catch {
+            return
+        }
+    }
+
+    /// Best-effort seeding for the repository's `origin` remote:
+    /// reads it with `git remote get-url origin` and seeds only
+    /// when it is a github.com HTTPS URL. A missing or unreadable
+    /// origin, or a non-GitHub remote, seeds nothing — the git
+    /// command that follows reports the real outcome.
+    nonisolated static func seedGitHubCredentialForOrigin(in root: URL) {
+        guard let result = try? runGit(["remote", "get-url", "origin"], in: root), result.status == 0 else { return }
+        let url = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        seedGitHubCredential(githubHTTPSPath: gitHubHTTPSPath(url), in: root)
     }
 }
 
@@ -576,28 +729,48 @@ extension YcodeMCPHost {
         return Self.agenticGitSuccess(output: output, fallback: "Git worktree \(action) completed.")
     }
 
-    // MARK: - Agentic git handlers: remote-only (honestly failing)
+    // MARK: - Agentic git handlers: remote (Wave 10)
 
     func agenticGitPull(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Honestly failing: Legacy runs `git pull` against a remote,
-        // and this wave must not touch remotes. No remote data is
-        // fetched and none is faked. Remote operations
-        // (push/pull/fetch/clone) are a later wave.
-        _ = try session(for: call)
-        throw MCPToolError("git_pull needs remote access, which is out of scope for this wave (local operations only). Remote operations (push/pull/fetch/clone) are a later wave.")
+        // Wave 10: Legacy's plain `git pull` in the repository.
+        // HTTPS auth comes from the user's configured credential
+        // helper, plus a best-effort seed from the stored GitHub
+        // token when `origin` is a github.com HTTPS URL.
+        let s = try session(for: call)
+        let root = try agenticGitRepoDir(call, in: s)
+        try await gitApproveChange(tool: call.name, summary: "Git pull", in: s, call: call)
+        Self.seedGitHubCredentialForOrigin(in: root)
+        let output = try Self.agenticGitRun(["pull"], in: root, failure: "Git pull failed")
+        return .structured(["output": .string(output)], summary: "Successfully pulled changes")
     }
 
     func agenticGitPush(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Honestly failing: Legacy runs `git push` against a remote;
-        // see `agenticGitPull`.
-        _ = try session(for: call)
-        throw MCPToolError("git_push needs remote access, which is out of scope for this wave (local operations only). Remote operations (push/pull/fetch/clone) are a later wave.")
+        // Wave 10: Legacy's plain `git push` in the repository;
+        // auth seeding as in `agenticGitPull`.
+        let s = try session(for: call)
+        let root = try agenticGitRepoDir(call, in: s)
+        try await gitApproveChange(tool: call.name, summary: "Git push", in: s, call: call)
+        Self.seedGitHubCredentialForOrigin(in: root)
+        let output = try Self.agenticGitRun(["push"], in: root, failure: "Git push failed")
+        return .structured(["output": .string(output)], summary: "Push successful")
     }
 
     func agenticGitClone(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // Honestly failing: Legacy runs `git clone <remoteURL>
-        // <destinationPath>` against a remote; see `agenticGitPull`.
-        _ = try session(for: call)
-        throw MCPToolError("git_clone needs remote access, which is out of scope for this wave (local operations only). Remote operations (push/pull/fetch/clone) are a later wave.")
+        // Wave 10: Legacy's `git clone <remoteURL>
+        // <destinationPath>`, with the Wave 10 URL policy on the
+        // remote and the destination confined to the workspace.
+        let s = try session(for: call)
+        guard let remoteURL = call.string("remoteURL"),
+              let destinationRaw = call.string("destinationPath") else {
+            throw MCPToolError("Missing remoteURL or destinationPath")
+        }
+        let remote = try validateGitRemoteURL(remoteURL, in: s)
+        let destination = try resolveFileReadingPath(destinationRaw, in: s)
+        try await gitApproveChange(tool: call.name, summary: "Git clone \(remoteURL)", in: s, call: call)
+        Self.seedGitHubCredential(githubHTTPSPath: remote.githubHTTPSPath, in: Self.folder(of: s.model))
+        let output = try Self.agenticGitRun(["clone", remote.gitArgument, destination.path],
+                                            in: Self.folder(of: s.model), failure: "Git clone failed")
+        return .structured(["output": .string(output)],
+                           summary: "Successfully cloned \(remoteURL) to \(destinationRaw)")
     }
 }

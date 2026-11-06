@@ -3,6 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import YcodeAssistant
+import YcodeGitHub
 import YcodeIDECore
 
 /// The ported Legacy Agentic network / packages / GitHub tool family
@@ -42,12 +43,15 @@ import YcodeIDECore
 ///   root. `dependency_audit` is NOT a duplicate of
 ///   `package_dependency_audit`: the ported tool audits pins, the
 ///   Agentic tool claims a vulnerability audit.
-/// * HONESTLY-FAILING (12): `web_search`, `documentation_search`,
-///   `api_reference_search`, `package_search`, `dependency_audit`,
-///   and the seven GitHub tools. Each is registered with Legacy's
-///   ID, description, and schema, validates its inputs first, then
-///   fails naming the exact missing prerequisite. No behaviour, no
-///   endpoint, and no result is invented for any of them.
+/// * HONESTLY-FAILING (5): `web_search`, `documentation_search`,
+///   `api_reference_search`, `package_search`, `dependency_audit`.
+///   Each is registered with Legacy's ID, description, and schema,
+///   validates its inputs first, then fails naming the exact
+///   missing prerequisite. No behaviour, no endpoint, and no result
+///   is invented for any of them.
+/// * WIRED (Wave 10): the seven GitHub tools, via the shared
+///   `GitHubClient` (`YcodeGitHubHost.swift`). See the Wave 10
+///   deviation note below.
 /// * ALREADY-SERVED: none. DUPLICATE (aliasable): none.
 ///
 /// Deliberate deviations from Legacy, recorded here:
@@ -112,16 +116,34 @@ import YcodeIDECore
 /// * `http_request` method allow-list. Legacy passed any method
 ///   string through. The port accepts only GET, HEAD, OPTIONS,
 ///   POST, PUT, PATCH, DELETE.
-/// * The seven GitHub tools are honestly failing, the Wave 3
-///   `github_repo` precedent: Ycode's MCP host has no GitHub API
-///   client and no GitHub credential flow, so no GitHub data can
-///   be read or written. None of the seven can be implemented
-///   purely on local git data — pull requests and issues live on
-///   GitHub, not in the local checkout (the local `git_pr_summary`
-///   tool only summarises already-fetched local refs) — so all
-///   seven fail naming that prerequisite instead of faking a PR
-///   or an issue the way Legacy's stubs did ("PR created: …" /
-///   "Issue created: …" with no API call behind them).
+/// * The seven GitHub tools are wired to the real GitHub API
+///   (Wave 10), the Wave 3 `github_repo` precedent resolved: the
+///   host now has a GitHub API client (`GitHubClient`, with the
+///   token read fresh from `SecretAccount.githubToken`) and a
+///   credential flow. The four reads need no approval and no
+///   token for public repositories; the three writes
+///   (`create_pull_request`, `create_issue`, `update_issue`) fail
+///   fast with the client's `missingToken` error when no token is
+///   stored, then go through the Wave 2 approval gate
+///   (`gitApproveChange`) before calling the client, and are
+///   registered `writes: true` so the gate can ever pass (the
+///   server wires `approve` to always-false for `writes: false`
+///   tools) and so a read-only server refuses them. Legacy's
+///   canned return strings ("PR created: …" / "Issue created: …"
+///   with no API call behind them) are stubs, not behaviour: the
+///   real API results replace them. Each tool gains an optional
+///   `repository` argument ("owner/repo", defaulting to the
+///   workspace's git remote origin) except `read_issues`, whose
+///   `repository` was already required; no ID, description, or
+///   required parameter changed. `review_pull_request` is a
+///   READ-ONLY review summary: Legacy's schema has no body/event
+///   parameter, so posting a review is not expressible and no
+///   post path is invented. `update_issue` sends only the
+///   supplied fields (`title`/`body`; `state` is not in Legacy's
+///   schema and is never added). `search_issues` prepends
+///   `repo:owner/repo` to the query when a repository resolves,
+///   and otherwise searches unscoped, as Legacy's
+///   repository-less schema did.
 /// * Subprocess shape. `install_dependencies` /
 ///   `update_dependencies` run `/usr/bin/swift package resolve` /
 ///   `update` through `terminalRunFixed` (argument vector, never a
@@ -244,16 +266,19 @@ extension YcodeMCPHost {
             tool("create_pull_request", "Create Pull Request",
                  "Creates a pull request.",
                  input: Schema.object(["workspace": Schema.workspace,
+                                       "repository": Schema.string("owner/repo; defaults to the workspace's git remote origin."),
                                        "title": Schema.string("Pull request title."),
                                        "body": Schema.string("Pull request body."),
                                        "head": Schema.string("Head branch of the pull request."),
                                        "base": Schema.string("Base branch of the pull request.")],
-                                      required: ["title", "body", "head", "base"])) { h, call in
+                                      required: ["title", "body", "head", "base"]),
+                 annotations: external, writes: true) { h, call in
                 try await h.agenticNetworkCreatePullRequest(call)
             },
             tool("review_pull_request", "Review Pull Request",
                  "Reviews a pull request.",
                  input: Schema.object(["workspace": Schema.workspace,
+                                       "repository": Schema.string("owner/repo; defaults to the workspace's git remote origin."),
                                        "prNumber": Schema.integer("Pull request number to review.")],
                                       required: ["prNumber"])) { h, call in
                 try await h.agenticNetworkReviewPullRequest(call)
@@ -261,6 +286,7 @@ extension YcodeMCPHost {
             tool("read_pull_request", "Read Pull Request",
                  "Reads content of a pull request.",
                  input: Schema.object(["workspace": Schema.workspace,
+                                       "repository": Schema.string("owner/repo; defaults to the workspace's git remote origin."),
                                        "prNumber": Schema.integer("Pull request number to read.")],
                                       required: ["prNumber"])) { h, call in
                 try await h.agenticNetworkReadPullRequest(call)
@@ -275,23 +301,28 @@ extension YcodeMCPHost {
             tool("create_issue", "Create Issue",
                  "Creates an issue.",
                  input: Schema.object(["workspace": Schema.workspace,
+                                       "repository": Schema.string("owner/repo; defaults to the workspace's git remote origin."),
                                        "title": Schema.string("Issue title."),
                                        "body": Schema.string("Issue body.")],
-                                      required: ["title", "body"])) { h, call in
+                                      required: ["title", "body"]),
+                 annotations: external, writes: true) { h, call in
                 try await h.agenticNetworkCreateIssue(call)
             },
             tool("update_issue", "Update Issue",
                  "Updates an issue.",
                  input: Schema.object(["workspace": Schema.workspace,
+                                       "repository": Schema.string("owner/repo; defaults to the workspace's git remote origin."),
                                        "issueNumber": Schema.integer("Issue number to update."),
                                        "title": Schema.string("New issue title (optional)."),
                                        "body": Schema.string("New issue body (optional).")],
-                                      required: ["issueNumber"])) { h, call in
+                                      required: ["issueNumber"]),
+                 annotations: external, writes: true) { h, call in
                 try await h.agenticNetworkUpdateIssue(call)
             },
             tool("search_issues", "Search Issues",
                  "Searches for issues.",
                  input: Schema.object(["workspace": Schema.workspace,
+                                       "repository": Schema.string("owner/repo; defaults to the workspace's git remote origin."),
                                        "query": Schema.string("Issue search query.")],
                                       required: ["query"])) { h, call in
                 try await h.agenticNetworkSearchIssues(call)
@@ -627,65 +658,242 @@ extension YcodeMCPHost {
                            summary: "Package \(trimmedName) removed from Package.swift at \(projectPath)")
     }
 
-    // MARK: - Honestly failing: GitHub tools (the `github_repo` precedent)
+    // MARK: - GitHub tools (Wave 10: wired to the real GitHub API)
 
-    /// The shared prerequisite failure for all seven GitHub tools:
-    /// Ycode's MCP host has no GitHub API client and no GitHub
-    /// credential flow, and none of the seven can be implemented
-    /// purely on local git data — pull requests and issues live on
-    /// GitHub, not in the local checkout.
-    nonisolated static func agenticNetworkGitHubUnavailable(tool: String) -> MCPToolError {
-        MCPToolError("\(tool) needs a GitHub API client with authentication, which Ycode's MCP host does not have yet: no GitHub data was read or written. Remote and GitHub access is a later wave; use the workspace's local git tools (git_log_viewer, git_branch_compare, git_pr_summary) for local repository information.")
+    /// Fetches a pull request with its changed files and its
+    /// reviews: the shared read for `read_pull_request` and the
+    /// read-only `review_pull_request` (both render from the same
+    /// data). GitHub failures become the tool error the model sees
+    /// (the client's own message); anything else propagates.
+    func agenticNetworkFetchPullRequest(_ client: GitHubClient, owner: String, repo: String, number: Int) async throws
+    -> (GitHubPullRequest, [GitHubPullRequestFile], [GitHubReview]) {
+        do {
+            let pr = try await client.getPullRequest(owner: owner, repo: repo, number: number)
+            let files = try await client.listPullRequestFiles(owner: owner, repo: repo, number: number)
+            let reviews = try await client.listPullRequestReviews(owner: owner, repo: repo, number: number)
+            return (pr, files, reviews)
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
+    }
+
+    /// The shared pull-request summary lines: number, title, state,
+    /// head → base, files changed with additions/deletions, and
+    /// existing review states. `asReview` frames it as a review
+    /// summary (see `agenticNetworkReviewPullRequest`).
+    nonisolated static func agenticNetworkPullRequestLines(pr: GitHubPullRequest, files: [GitHubPullRequestFile],
+                                                           reviews: [GitHubReview], asReview: Bool) -> [String] {
+        let additions = files.reduce(0) { $0 + $1.additions }
+        let deletions = files.reduce(0) { $0 + $1.deletions }
+        var lines = [asReview ? "Review of pull request #\(pr.number): \(pr.title)" : "Pull request #\(pr.number): \(pr.title)",
+                     "State: \(pr.state) — \(pr.headRef) → \(pr.baseRef)",
+                     "URL: \(pr.htmlUrl)",
+                     "",
+                     "Files changed (\(files.count), +\(additions)/-\(deletions)):"]
+        if files.isEmpty {
+            lines.append("No files changed.")
+        } else {
+            for file in files {
+                lines.append("- \(file.filename) (+\(file.additions)/-\(file.deletions))")
+            }
+        }
+        lines.append("")
+        if reviews.isEmpty {
+            lines.append("No reviews yet.")
+        } else {
+            lines.append("Reviews (\(reviews.count)):")
+            for review in reviews {
+                lines.append("- \(review.userLogin): \(review.state)")
+            }
+        }
+        if asReview {
+            lines.append("")
+            lines.append("This is a read-only review summary: review_pull_request has no body/event parameter, so no review was posted to GitHub.")
+        }
+        return lines
+    }
+
+    /// The shared pull-request structured result.
+    nonisolated static func agenticNetworkPullRequestJSON(pr: GitHubPullRequest, files: [GitHubPullRequestFile],
+                                                          reviews: [GitHubReview]) -> AnyJSON {
+        ["number": .int(pr.number), "title": .string(pr.title), "state": .string(pr.state),
+         "head": .string(pr.headRef), "base": .string(pr.baseRef), "htmlUrl": .string(pr.htmlUrl),
+         "filesChanged": .int(files.count),
+         "additions": .int(files.reduce(0) { $0 + $1.additions }),
+         "deletions": .int(files.reduce(0) { $0 + $1.deletions }),
+         "files": .array(files.map { ["filename": .string($0.filename), "additions": .int($0.additions),
+                                      "deletions": .int($0.deletions)] }),
+         "reviews": .array(reviews.map { ["user": .string($0.userLogin), "state": .string($0.state)] })]
+    }
+
+    /// One issue as a structured entry (shared by `read_issues` and
+    /// `search_issues`).
+    nonisolated static func agenticNetworkIssueJSON(_ issue: GitHubIssue) -> AnyJSON {
+        ["number": .int(issue.number), "title": .string(issue.title), "state": .string(issue.state),
+         "url": .string(issue.htmlUrl)]
+    }
+
+    /// One issue as a summary line (shared by `read_issues` and
+    /// `search_issues`).
+    nonisolated static func agenticNetworkIssueLine(_ issue: GitHubIssue) -> String {
+        "- #\(issue.number): \(issue.title) [\(issue.state)] \(issue.htmlUrl)"
     }
 
     func agenticNetworkCreatePullRequest(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("title") != nil, call.string("body") != nil,
-              call.string("head") != nil, call.string("base") != nil else {
+        guard let title = call.string("title"), let body = call.string("body"),
+              let head = call.string("head"), let base = call.string("base") else {
             throw MCPToolError("Missing title, body, head, or base")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let s = try session(for: call)
+        let repo = try resolveGitHubRepo(call, s)
+        do {
+            // Fail fast without a token, then the approval gate,
+            // then the client — in that order.
+            try requireGitHubToken()
+            try await gitApproveChange(tool: call.name,
+                                       summary: "Create pull request \"\(title)\" in \(repo.owner)/\(repo.repo) (\(head) → \(base))",
+                                       in: s, call: call)
+            let pr = try await gitHubClient().createPullRequest(owner: repo.owner, repo: repo.repo, title: title,
+                                                                body: body, head: head, base: base, draft: false)
+            return .structured(["number": .int(pr.number), "title": .string(pr.title), "htmlUrl": .string(pr.htmlUrl)],
+                               summary: "Pull request #\(pr.number) created: \(pr.title)")
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
     }
 
     func agenticNetworkReviewPullRequest(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.int("prNumber") != nil else {
+        guard let prNumber = call.int("prNumber") else {
             throw MCPToolError("Missing prNumber")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let s = try session(for: call)
+        let repo = try resolveGitHubRepo(call, s)
+        // READ-ONLY review summary: Legacy's schema has no body/event
+        // parameter, so posting a review is not expressible and no
+        // post path is invented. Reads need no approval and no token
+        // for public repositories.
+        let (pr, files, reviews) = try await agenticNetworkFetchPullRequest(gitHubClient(), owner: repo.owner,
+                                                                            repo: repo.repo, number: prNumber)
+        let lines = Self.agenticNetworkPullRequestLines(pr: pr, files: files, reviews: reviews, asReview: true)
+        return .structured(Self.agenticNetworkPullRequestJSON(pr: pr, files: files, reviews: reviews),
+                           summary: lines.joined(separator: "\n"))
     }
 
     func agenticNetworkReadPullRequest(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.int("prNumber") != nil else {
+        guard let prNumber = call.int("prNumber") else {
             throw MCPToolError("Missing prNumber")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let s = try session(for: call)
+        let repo = try resolveGitHubRepo(call, s)
+        let (pr, files, reviews) = try await agenticNetworkFetchPullRequest(gitHubClient(), owner: repo.owner,
+                                                                            repo: repo.repo, number: prNumber)
+        let lines = Self.agenticNetworkPullRequestLines(pr: pr, files: files, reviews: reviews, asReview: false)
+        return .structured(Self.agenticNetworkPullRequestJSON(pr: pr, files: files, reviews: reviews),
+                           summary: lines.joined(separator: "\n"))
     }
 
     func agenticNetworkReadIssues(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard call.string("repository") != nil else {
             throw MCPToolError("Missing repository")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let s = try session(for: call)
+        let repo = try resolveGitHubRepo(call, s)
+        let issues: [GitHubIssue]
+        do {
+            issues = try await gitHubClient().listIssues(owner: repo.owner, repo: repo.repo)
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
+        if issues.isEmpty {
+            return .structured(["count": .int(0), "issues": .array([])],
+                               summary: "No open issues in \(repo.owner)/\(repo.repo).")
+        }
+        var lines = ["Open issues in \(repo.owner)/\(repo.repo) (\(issues.count)):"]
+        lines += issues.map(Self.agenticNetworkIssueLine)
+        return .structured(["count": .int(issues.count), "issues": .array(issues.map(Self.agenticNetworkIssueJSON))],
+                           summary: lines.joined(separator: "\n"))
     }
 
     func agenticNetworkCreateIssue(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("title") != nil, call.string("body") != nil else {
+        guard let title = call.string("title"), let body = call.string("body") else {
             throw MCPToolError("Missing title or body")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let s = try session(for: call)
+        let repo = try resolveGitHubRepo(call, s)
+        do {
+            try requireGitHubToken()
+            try await gitApproveChange(tool: call.name,
+                                       summary: "Create issue \"\(title)\" in \(repo.owner)/\(repo.repo)",
+                                       in: s, call: call)
+            let issue = try await gitHubClient().createIssue(owner: repo.owner, repo: repo.repo, title: title, body: body)
+            return .structured(["number": .int(issue.number), "title": .string(issue.title), "htmlUrl": .string(issue.htmlUrl)],
+                               summary: "Issue #\(issue.number) created: \(issue.title)")
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
     }
 
     func agenticNetworkUpdateIssue(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.int("issueNumber") != nil else {
+        guard let issueNumber = call.int("issueNumber") else {
             throw MCPToolError("Missing issueNumber")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let title = call.string("title")
+        let body = call.string("body")
+        guard title != nil || body != nil else {
+            throw MCPToolError("Nothing to update: pass 'title' and/or 'body'.")
+        }
+        let s = try session(for: call)
+        let repo = try resolveGitHubRepo(call, s)
+        do {
+            try requireGitHubToken()
+            try await gitApproveChange(tool: call.name,
+                                       summary: "Update issue #\(issueNumber) in \(repo.owner)/\(repo.repo)",
+                                       in: s, call: call)
+            // Only the supplied fields are sent (`state` is not in
+            // Legacy's schema and is never sent); the client omits
+            // nil fields from the PATCH body.
+            let issue = try await gitHubClient().updateIssue(owner: repo.owner, repo: repo.repo, number: issueNumber,
+                                                             title: title, body: body, state: nil)
+            return .structured(["number": .int(issue.number), "title": .string(issue.title), "htmlUrl": .string(issue.htmlUrl)],
+                               summary: "Issue #\(issue.number) updated: \(issue.title)")
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
     }
 
     func agenticNetworkSearchIssues(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("query") != nil else {
+        guard let query = call.string("query") else {
             throw MCPToolError("Missing query")
         }
-        throw Self.agenticNetworkGitHubUnavailable(tool: call.name)
+        let s = try session(for: call)
+        // An explicit `repository` scopes the query; otherwise the
+        // workspace's github.com origin scopes it when there is one.
+        // With neither, the query runs unscoped, as Legacy's
+        // repository-less schema did.
+        let scoped: String
+        if call.string("repository") != nil {
+            let repo = try resolveGitHubRepo(call, s)
+            scoped = "repo:\(repo.owner)/\(repo.repo) \(query)"
+        } else if let repo = try? resolveGitHubRepo(call, s) {
+            scoped = "repo:\(repo.owner)/\(repo.repo) \(query)"
+        } else {
+            scoped = query
+        }
+        let result: GitHubSearchResult<GitHubIssue>
+        do {
+            result = try await gitHubClient().searchIssues(query: scoped)
+        } catch let error as GitHubError {
+            throw Self.gitHubToolError(error)
+        }
+        if result.items.isEmpty {
+            return .structured(["totalCount": .int(result.totalCount), "count": .int(0), "issues": .array([])],
+                               summary: "No issues matching \"\(query)\".")
+        }
+        var lines = ["Issues matching \"\(query)\" (\(result.totalCount) total):"]
+        lines += result.items.map(Self.agenticNetworkIssueLine)
+        return .structured(["totalCount": .int(result.totalCount), "count": .int(result.items.count),
+                            "issues": .array(result.items.map(Self.agenticNetworkIssueJSON))],
+                           summary: lines.joined(separator: "\n"))
     }
 }
 

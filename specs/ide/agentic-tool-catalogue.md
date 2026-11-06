@@ -105,10 +105,10 @@ validation before the handler runs.
 Exactly one disposition per tool:
 
 - **PORTED** — registered as a new MCP tool in the Wave 8
-  implementation (90 tools).
+  implementation (90 tools; 100 after Wave 10).
 - **HONESTLY-FAILING** — registered, but the handler honestly fails
   with a named prerequisite; the prerequisite is given in the section
-  (27 tools).
+  (27 tools; 17 after Wave 10).
 - **DUPLICATE-OF** — exact-ID duplicate of an already-registered
   tool; no second registration. The target ID is given in the
   section (6 tools).
@@ -117,8 +117,10 @@ Exactly one disposition per tool:
   given in the section, with whether the alias pre-existed or was
   added in Wave 8 (18 tools).
 
-Counts: PORTED 90 + HONESTLY-FAILING 27 + DUPLICATE-OF 6 +
-ALREADY-SERVED 18 = 141. Registered (PORTED + HONESTLY-FAILING) =
+Counts: PORTED 100 + HONESTLY-FAILING 17 + DUPLICATE-OF 6 +
+ALREADY-SERVED 18 = 141. (Wave 10: the 7 GitHub tools §§65–71 plus
+git_pull/git_push/git_clone §§43–45 moved from HONESTLY-FAILING to
+PORTED; see the Wave 10 notes in those sections.) Registered (PORTED + HONESTLY-FAILING) =
 117, verified live by counting `tool("…")` calls in the eight
 `YcodeTools+Agentic*.swift` files (Files 6, Execution 9, Git 19,
 Network 19, CLI 21, Code 16, Data 19, Planning 8).
@@ -169,9 +171,9 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 | 40 | `git_rebase` | `GitRebaseTool` | PORTED | — |
 | 41 | `git_reset` | `GitResetTool` | PORTED | — |
 | 42 | `git_stash` | `GitStashTool` | PORTED | — |
-| 43 | `git_pull` | `GitPullTool` | HONESTLY-FAILING | Remote access (remote-only; no remote service client) |
-| 44 | `git_push` | `GitPushTool` | HONESTLY-FAILING | Remote access (remote-only; no remote service client) |
-| 45 | `git_clone` | `GitCloneTool` | HONESTLY-FAILING | Remote access (remote-only; no remote service client) |
+| 43 | `git_pull` | `GitPullTool` | PORTED | Wave 10: real `git pull`, approval-gated (see §43) |
+| 44 | `git_push` | `GitPushTool` | PORTED | Wave 10: real `git push`, approval-gated (see §44) |
+| 45 | `git_clone` | `GitCloneTool` | PORTED | Wave 10: real `git clone`, URL policy, approval-gated (see §45) |
 | 46 | `git_blame` | `GitBlameTool` | PORTED | — |
 | 47 | `git_log` | `GitLogTool` | PORTED | — |
 | 48 | `git_show` | `GitShowTool` | PORTED | — |
@@ -191,13 +193,13 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 | 62 | `install_dependencies` | `InstallDependenciesTool` | PORTED | — |
 | 63 | `update_dependencies` | `UpdateDependenciesTool` | PORTED | — |
 | 64 | `remove_dependencies` | `RemoveDependenciesTool` | PORTED | — |
-| 65 | `create_pull_request` | `CreatePullRequestTool` | HONESTLY-FAILING | GitHub API client + credential flow |
-| 66 | `review_pull_request` | `ReviewPullRequestTool` | HONESTLY-FAILING | GitHub API client + credential flow |
-| 67 | `read_pull_request` | `ReadPullRequestTool` | HONESTLY-FAILING | GitHub API client + credential flow |
-| 68 | `read_issues` | `ReadIssuesTool` | HONESTLY-FAILING | GitHub API client + credential flow |
-| 69 | `create_issue` | `CreateIssueTool` | HONESTLY-FAILING | GitHub API client + credential flow |
-| 70 | `update_issue` | `UpdateIssueTool` | HONESTLY-FAILING | GitHub API client + credential flow |
-| 71 | `search_issues` | `SearchIssuesTool` | HONESTLY-FAILING | GitHub API client + credential flow |
+| 65 | `create_pull_request` | `CreatePullRequestTool` | PORTED | Wave 10: real `POST /pulls` via YcodeGitHub (see §65) |
+| 66 | `review_pull_request` | `ReviewPullRequestTool` | PORTED | Wave 10: real PR + reviews read via YcodeGitHub (see §66) |
+| 67 | `read_pull_request` | `ReadPullRequestTool` | PORTED | Wave 10: real PR + files read via YcodeGitHub (see §67) |
+| 68 | `read_issues` | `ReadIssuesTool` | PORTED | Wave 10: real `GET /issues` via YcodeGitHub (see §68) |
+| 69 | `create_issue` | `CreateIssueTool` | PORTED | Wave 10: real `POST /issues` via YcodeGitHub (see §69) |
+| 70 | `update_issue` | `UpdateIssueTool` | PORTED | Wave 10: real `PATCH /issues` via YcodeGitHub (see §70) |
+| 71 | `search_issues` | `SearchIssuesTool` | PORTED | Wave 10: real `GET /search/issues` via YcodeGitHub (see §71) |
 | 72 | `cocoapods` | `CocoaPodsTool` | PORTED | — |
 | 73 | `carthage` | `CarthageTool` | PORTED | — |
 | 74 | `android_build` | `AndroidBuildTool` | PORTED | — |
@@ -893,6 +895,8 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Notes.** Legacy behaviour: `git pull` in `repositoryPath`; non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully pulled changes".
 
+**Wave 10 note.** Now real: `git pull` in `repositoryPath` (default `.`), approval-gated, registered `writes: true` with `annotations: safeMutation`. Success keeps Legacy's message, `Successfully pulled changes`; failure is `git_pull: git pull failed: <stderr>`. Authentication is the configured credential helper plus best-effort stdin-only PAT seeding for github.com HTTPS remotes (see `github-service.md` §3).
+
 ## 44. `git_push` — Git Push
 
 - **Legacy class:** `GitPushTool`.
@@ -906,6 +910,8 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Notes.** Legacy behaviour: `git push` in `repositoryPath`; non-zero exit throws stderr; success returns "Push successful".
 
+**Wave 10 note.** Now real: `git push` in `repositoryPath` (default `.`), approval-gated, registered `writes: true` with `annotations: safeMutation`. Success keeps Legacy's message, `Push successful`; failure is `git_push: git push failed: <stderr>`. Same credential seeding as `git_pull` (`github-service.md` §3).
+
 ## 45. `git_clone` — Git Clone
 
 - **Legacy class:** `GitCloneTool`.
@@ -918,6 +924,8 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 ```
 
 **Notes.** Legacy behaviour: `git clone <remoteURL> <destinationPath>` (no working directory); non-zero exit throws `AppError.gitError(stderr)`; success returns "Successfully cloned \(remoteURL) to \(destinationPath)". `git_clone` has no `repositoryPath` in Legacy and keeps both of its params required (unlike the other git tools, whose `repositoryPath` is optional in the Ycode schema).
+
+**Wave 10 note.** Now real: `git clone <remoteURL> <destinationPath>` (no working directory), URL-checked by the §3.3 policy (https://, SCP-like SSH, or a local path inside the workspace; other schemes, embedded credentials, and leading `-` rejected), approval-gated, registered `writes: true` with `annotations: safeMutation`. Success keeps Legacy's message; failure is `git_clone: git clone failed: <stderr>`. Same credential seeding as `git_pull` (`github-service.md` §3).
 
 ## 46. `git_blame` — Git Blame
 
@@ -1215,7 +1223,9 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
 
-**Notes.** Legacy behaviour: a stub. Returns `"PR created: \(title)"` with no API call behind it. Note: Legacy's schema carries no owner/repo — the tool could not have addressed a repository even if it had called an API. Why honestly failing: the Wave 3 `github_repo` precedent — Ycode's MCP host has no GitHub API client and no GitHub credential flow. This cannot be implemented purely on local git data: creating a PR is a GitHub-side write. Failure message: "<tool> needs a GitHub API client with authentication, which Ycode's MCP host does not have yet: no GitHub data was read or written. Remote and GitHub access is a later wave; use the workspace's local git tools (git_log_viewer, git_branch_compare, git_pr_summary) for local repository information."
+**Notes.** Legacy behaviour: a stub. Returns `"PR created: \(title)"` with no API call behind it. Note: Legacy's schema carries no owner/repo — the tool could not have addressed a repository even if it had called an API. Why honestly failing: the Wave 3 `github_repo` precedent — Ycode's MCP host has no GitHub API client and no GitHub credential flow. This cannot be implemented purely on local git data: creating a PR is a GitHub-side write. Failure message: "<tool> needs a GitHub API client with authentication, which Ycode's MCP host does not have yet: no GitHub data was read or written. Remote and GitHub access is a later wave; use the workspace's local git tools (git_log_viewer, git_branch_compare, git_pr_summary) for local repository information."for local repository information."
+
+**Wave 10 note.** Now real: `POST /repos/{owner}/{repo}/pulls` via `YcodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote (Legacy had no repo parameter at all). Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Success: `PR #<number> created: <title> (<html_url>)`. See `github-service.md` §2.1.
 
 ## 66. `review_pull_request` — Review Pull Request
 
@@ -1230,7 +1240,9 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
 
-**Notes.** Legacy behaviour: a stub. Returns `"Reviewing PR #\(prNumber)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Reviewing a PR needs the PR's diff and review API, which live on GitHub, not in the local checkout. (The local `git_pr_summary` tool only summarises already-fetched local refs.)
+**Notes.** Legacy behaviour: a stub. Returns `"Reviewing PR #\(prNumber)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Reviewing a PR needs the PR's diff and review API, which live on GitHub, not in the local checkout. (The local `git_pr_summary` tool only summarises already-fetched local refs.)(The local `git_pr_summary` tool only summarises already-fetched local refs.)
+
+**Wave 10 note.** Now real as a read-only summary: the PR plus its reviews, via `YcodeGitHub`; no token required for a public repo. Legacy has no `body`/`event` parameter, so there is no submit-a-review path — no parameter was invented. See `github-service.md` §2.2.
 
 ## 67. `read_pull_request` — Read Pull Request
 
@@ -1245,7 +1257,9 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
 
-**Notes.** Legacy behaviour: a stub. Returns `"Content of PR #\(prNumber)"` with no API call behind it. Why honestly failing: same prerequisite as §65. PR content lives on GitHub; it is not in local git data (unless the `refs/pull/…` ref was explicitly fetched, which the tool cannot assume and which Legacy never did).
+**Notes.** Legacy behaviour: a stub. Returns `"Content of PR #\(prNumber)"` with no API call behind it. Why honestly failing: same prerequisite as §65. PR content lives on GitHub; it is not in local git data (unless the `refs/pull/…` ref was explicitly fetched, which the tool cannot assume and which Legacy never did).which Legacy never did).
+
+**Wave 10 note.** Now real: the PR plus its changed files, via `YcodeGitHub`; no token required for a public repo. The file list is capped at 30 entries. See `github-service.md` §2.3.
 
 ## 68. `read_issues` — Read Issues
 
@@ -1260,7 +1274,9 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
 
-**Notes.** Legacy behaviour: a stub. Returns `"List of issues for \(repository)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Issues live on GitHub, not in the local checkout.
+**Notes.** Legacy behaviour: a stub. Returns `"List of issues for \(repository)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Issues live on GitHub, not in the local checkout.Issues live on GitHub, not in the local checkout.
+
+**Wave 10 note.** Now real: `GET /repos/{owner}/{repo}/issues?state=open`, PRs excluded, via `YcodeGitHub`; no token required for a public repo. See `github-service.md` §2.4.
 
 ## 69. `create_issue` — Create Issue
 
@@ -1275,7 +1291,9 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
 
-**Notes.** Legacy behaviour: a stub. Returns `"Issue created: \(title)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Creating an issue is a GitHub-side write.
+**Notes.** Legacy behaviour: a stub. Returns `"Issue created: \(title)"` with no API call behind it. Why honestly failing: same prerequisite as §65. Creating an issue is a GitHub-side write.Creating an issue is a GitHub-side write.
+
+**Wave 10 note.** Now real: `POST /repos/{owner}/{repo}/issues` via `YcodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote. Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Success: `Issue #<number> created: <title> (<html_url>)`. See `github-service.md` §2.5.
 
 ## 70. `update_issue` — Update Issue
 
@@ -1292,6 +1310,8 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 
 **Notes.** Legacy behaviour: a stub. Returns `"Issue #\(issueNumber) updated"` with no API call behind it. `title`/`body` are optional (only `issueNumber` is required). Why honestly failing: same prerequisite as §65.
 
+**Wave 10 note.** Now real: `PATCH /repos/{owner}/{repo}/issues/{number}` via `YcodeGitHub`, with the repository from the new optional `repository` argument or the workspace remote. Requires a token; registered `writes: true` with `annotations: external`; approval-gated before the API call. Fails when neither `title` nor `body` is supplied instead of sending an empty PATCH. See `github-service.md` §2.6.
+
 ## 71. `search_issues` — Search Issues
 
 - **Legacy class:** `SearchIssuesTool` (`SearchIssues.swift`).
@@ -1306,6 +1326,8 @@ Network 19, CLI 21, Code 16, Data 19, Planning 8).
 **Missing prerequisite (exact).** GitHub API client + credential flow in Ycode MCP.
 
 **Notes.** Legacy behaviour: a stub. Returns `"Search results for issues: \(query)"` with no API call behind it. Why honestly failing: same prerequisite as §65. GitHub issue search is a GitHub API operation, not local data.
+
+**Wave 10 note.** Now real: `GET /search/issues` via `YcodeGitHub`; no token required for a public search. The new optional `repository` argument appends `repo:<owner>/<repo>` to the query (Legacy's schema has no `repository` argument). See `github-service.md` §2.7.
 
 ## 72. `cocoapods` — CocoaPods
 
