@@ -326,6 +326,38 @@ public final class MCPServer: @unchecked Sendable {
         "git_branches": "git_branch_manager",
         "git_log": "git_log_viewer",
         "git_conflict": "git_conflict_resolver",
+        // Wave 4 Terminal aliases (Legacy registry). `bash` / `sh` / `zsh`
+        // resolve to `use_terminal`, exactly as in Legacy; they select the
+        // tool, never a shell — the tool itself tokenizes to argv.
+        "run_command": "use_terminal",
+        "terminal_command": "use_terminal",
+        "execute_command": "use_terminal",
+        "bash": "use_terminal",
+        "sh": "use_terminal",
+        "zsh": "use_terminal",
+        "useworkers": "use_workers",
+        "workflow": "use_workers",
+        "env_manager": "environment_variable_manager",
+        "clipboard": "clipboard_manager_tool",
+        "process_monitor": "process_monitor_tool",
+        "disk_space": "disk_space_analyzer",
+        "system_notification": "system_notification_tool",
+        // Wave 4 Memory aliases (Legacy registry).
+        "memory_save": "save_to_memory",
+        "save_memory": "save_to_memory",
+        "memory_view": "view_memory",
+        "memory_manage": "manage_memory",
+        "conversation_context": "conversation_context_manager",
+        // Wave 4 Planning aliases (Legacy registry). `plan-AskUser` keeps
+        // its hyphenated ID (the documented intentional exception);
+        // `report_to_user` maps to itself, so it needs no entry.
+        "plan_askuser": "plan-AskUser",
+        "plan_ask_user": "plan-AskUser",
+        "ask_user": "plan-AskUser",
+        "planaskuser": "plan-AskUser",
+        "reporttouser": "report_to_user",
+        "task_complete": "report_to_user",
+        "task_completion": "report_to_user",
     ]
 
     public static let modernVersion = "2026-07-28"

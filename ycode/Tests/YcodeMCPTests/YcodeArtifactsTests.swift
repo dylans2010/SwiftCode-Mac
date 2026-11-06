@@ -213,7 +213,7 @@ import YcodeAssistant
         let reviews = Reviews()
         let host = try await opened(sample, policy: .review { c in reviews.changes.append(c); return reviews.accept })
         let rejected = try await host.server.callTool("create_artifact", ["name": .string("reviewed"), "content": .string("Hi.\n")])
-        #expect(rejected.isToolError && rejected.resultText == MCPServer.rejectedMessage)
+        #expect(rejected.isToolError && rejected.firstText == MCPServer.rejectedMessage)
         #expect(!FileManager.default.fileExists(atPath: sample.path(".assist_temp/artifacts/reviewed.md")))
         let change = try #require(reviews.changes.first)
         #expect(change.tool == "create_artifact" && change.relativePath == ".assist_temp/artifacts/reviewed.md"
@@ -223,11 +223,11 @@ import YcodeAssistant
         #expect(!created.isToolError, "\(created.resultText)")
         reviews.accept = false
         let deleteRejected = try await host.server.callTool("delete_artifact", ["name": .string("reviewed"), "confirm": .bool(true)])
-        #expect(deleteRejected.isToolError && deleteRejected.resultText == MCPServer.rejectedMessage)
+        #expect(deleteRejected.isToolError && deleteRejected.firstText == MCPServer.rejectedMessage)
         #expect(FileManager.default.fileExists(atPath: sample.path(".assist_temp/artifacts/reviewed.md")))
         #expect(reviews.changes.last?.tool == "delete_artifact")
         let backupRejected = try await host.server.callTool("file_backup", ["path": .string("Package.swift")])
-        #expect(backupRejected.isToolError && backupRejected.resultText == MCPServer.rejectedMessage)
+        #expect(backupRejected.isToolError && backupRejected.firstText == MCPServer.rejectedMessage)
         #expect(!FileManager.default.fileExists(atPath: sample.path(".assist_temp/backups")))
     }
 

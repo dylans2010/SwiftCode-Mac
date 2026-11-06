@@ -112,7 +112,7 @@ import YcodeIDECore
         let results = found.structured?["results"]?.string ?? ""
         #expect(results.hasPrefix("Sources/Greeter/Greeter.swift:\n4:     public var salutation: String\n6:     public init(salutation: String = \"Hello\") {\n7:         self.salutation = salutation\n12:         \"\\(salutation), \\(name)!\""))
         #expect(results.contains("Tests/GreeterTests/GreeterTests.swift:\n10:"))
-        #expect(found.resultText == "Search results for 'salutation':")
+        #expect(found.firstText == "Search results for 'salutation':")
         let upper = try await host.server.callTool("search_text", ["pattern": .string("SALUTATION")])
         #expect(upper.structured?["results"] == found.structured?["results"])
         let none = try await host.server.callTool("search_text", ["pattern": .string("zzzz-no-such-text")])
@@ -130,7 +130,7 @@ import YcodeIDECore
         #expect(results.contains("Sources/greet/main.swift:4:"))
         #expect(results.contains("Tests/GreeterTests/GreeterTests.swift:6:"))
         #expect(results.contains("Tests/GreeterTests/GreeterTests.swift:10:"))
-        #expect(found.resultText == "Regex search completed for 'greeting\\(for'")
+        #expect(found.firstText == "Regex search completed for 'greeting\\(for'")
         let bad = try await host.server.callTool("search_regex", ["pattern": .string("[")])
         #expect(bad.isToolError && bad.resultText.contains("Regex search failed"))
     }
@@ -144,7 +144,7 @@ import YcodeIDECore
         #expect(greeter.structured?["results"] == "Sources/Greeter/Greeter.swift:2: public struct Greeter {")
         let greeting = try await host.server.callTool("search_symbol", ["symbol": .string("greeting")])
         #expect(greeting.structured?["results"] == "Sources/Greeter/Greeter.swift:11:     public func greeting(for name: String) -> String {")
-        #expect(greeting.resultText == "Symbol search completed for 'greeting'")
+        #expect(greeting.firstText == "Symbol search completed for 'greeting'")
     }
 
     @Test func extractCodeSymbolsListsDeclarations() async throws {
@@ -171,7 +171,7 @@ import YcodeIDECore
         let file = try await host.server.callTool("code_summary", ["path": .string("Sources/Greeter/Greeter.swift")])
         #expect(!file.isToolError, "\(file.resultText)")
         #expect(file.structured?["summary"] == "File Sources/Greeter/Greeter.swift: 15 lines (12 non-empty), 3 comment lines")
-        #expect(file.resultText == "Summary for Sources/Greeter/Greeter.swift")
+        #expect(file.firstText == "Summary for Sources/Greeter/Greeter.swift")
         let dir = try await host.server.callTool("code_summary", ["path": .string(".")])
         #expect(dir.structured?["summary"] == "Directory .: 6 files, 5 code files")
         let missing = try await host.server.callTool("code_summary", ["path": .string("Nope")])
@@ -188,7 +188,7 @@ import YcodeIDECore
         #expect(graph.structured?["edge_count"] == 4)
         #expect((graph.structured?["nodes"]?.string ?? "").contains("PackageDescription"))
         #expect((graph.structured?["edges"]?.string ?? "").contains("Sources/greet/main.swift -> Greeter"))
-        #expect(graph.resultText == "Dependency graph generated for 5 files.")
+        #expect(graph.firstText == "Dependency graph generated for 5 files.")
     }
 
     @Test func importGraphByModuleAndOverall() async throws {
@@ -217,7 +217,7 @@ import YcodeIDECore
         #expect(view.resultText.contains("GreetingView — Previews/GreetingView.swift:4"))
         let none = try await host.server.callTool("protocol_conformance_list", ["protocol": .string("Sequence")])
         #expect(none.structured?["count"] == 0)
-        #expect(none.resultText == "No conformances to protocol 'Sequence' found.")
+        #expect(none.firstText == "No conformances to protocol 'Sequence' found.")
         let missing = try await host.server.callTool("protocol_conformance_list", [:])
         #expect(missing.isToolError && missing.resultText.contains("Missing required parameter: protocol"))
     }
@@ -256,7 +256,7 @@ import YcodeIDECore
         #expect(found.resultText.contains("Callers (0):"))
         #expect(found.resultText.contains("Callees (0 distinct):"))
         let none = try await host.server.callTool("call_hierarchy", ["function": .string("nonexistent")])
-        #expect(none.resultText == "No definition or callers found for function 'nonexistent'.")
+        #expect(none.firstText == "No definition or callers found for function 'nonexistent'.")
         #expect(none.structured?["definitionCount"] == 0 && none.structured?["callerCount"] == 0)
         let missing = try await host.server.callTool("call_hierarchy", ["function": .string("  ")])
         #expect(missing.isToolError && missing.resultText.contains("Missing required parameter: function"))
@@ -273,7 +273,7 @@ import YcodeIDECore
         #expect(graph.resultText.contains("- `Sources/Greeter/Greeter.swift:4` → `public var salutation: String`"))
         #expect(graph.resultText.contains("- `Tests/GreeterTests/GreeterTests.swift:10` → `XCTAssertEqual(Greeter(salutation: \"Hi\").greeting(for: \"Bo\"), \"Hi, Bo!\")`"))
         let none = try await host.server.callTool("symbol_reference_graph", ["symbol": .string("zzzz")])
-        #expect(none.resultText == "No references found for symbol 'zzzz' in workspace.")
+        #expect(none.firstText == "No references found for symbol 'zzzz' in workspace.")
         let capped = try await host.server.callTool("symbol_reference_graph", ["symbol": .string("salutation"), "maxResults": .int(2)])
         #expect(capped.resultText.contains("(2 sites found)"))
     }
@@ -288,7 +288,7 @@ import YcodeIDECore
         #expect(graph.structured?["imports"] == "Greeter,PackageDescription,SwiftUI,XCTest")
         #expect((graph.structured?["node_count"]?.int ?? 0) > 5)
         #expect((graph.structured?["relationship_count"]?.int ?? 0) > 0)
-        #expect(graph.resultText == "Built source graph for 5 Swift files.")
+        #expect(graph.firstText == "Built source graph for 5 Swift files.")
         let missing = try await host.server.callTool("source_graph_builder", ["path": .string("Nope")])
         #expect(missing.isToolError && missing.resultText.contains("Path does not exist:"))
     }
@@ -299,12 +299,12 @@ import YcodeIDECore
         let host = try await opened(sample)
         let found = try await host.server.callTool("semantic_query_engine", ["query": .string("view")])
         #expect(!found.isToolError, "\(found.resultText)")
-        #expect(found.resultText == "Semantic query returned 7 matches.")
+        #expect(found.firstText == "Semantic query returned 7 matches.")
         let matches = found.structured?["matches"]?.string ?? ""
         #expect(matches.contains("Previews/GreetingView.swift::4::"))
         #expect(matches.contains("Previews/GreetingView.swift::6::"))
         let none = try await host.server.callTool("semantic_query_engine", ["query": .string("zzzz-no-such-word")])
-        #expect(none.resultText == "Semantic query returned 0 matches.")
+        #expect(none.firstText == "Semantic query returned 0 matches.")
         #expect(none.structured?["matches"] == "")
     }
 
@@ -384,7 +384,7 @@ import YcodeIDECore
         #expect(moved.structured?["symbol"] == "greeting")
         #expect(moved.structured?["kind"] == "func")
         #expect(moved.structured?["movedLines"] == 3)
-        #expect(moved.resultText == "Moved symbol 'greeting' (func, 3 line(s)) from Sources/Greeter/Greeter.swift to Previews/GreetingView.swift.")
+        #expect(moved.firstText == "Moved symbol 'greeting' (func, 3 line(s)) from Sources/Greeter/Greeter.swift to Previews/GreetingView.swift.")
         #expect(!sample.read("Sources/Greeter/Greeter.swift").contains("func greeting"))
         #expect(sample.read("Previews/GreetingView.swift").contains("public func greeting(for name: String) -> String {"))
 

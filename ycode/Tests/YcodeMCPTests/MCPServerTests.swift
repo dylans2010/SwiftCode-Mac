@@ -82,13 +82,13 @@ import YcodeAssistant
         let ro = try await Self.server(policy: .readOnly).callTool("write")
         #expect(ro.isToolError && ro.resultText.contains("read-only") && ro.resultText.contains("--allow-writes"))
         let allowed = try await Self.server(policy: .allow).callTool("write")
-        #expect(allowed.resultText == "written")
+        #expect(allowed.firstText == "written")
         final class Seen: @unchecked Sendable { var changes: [MCPChange] = [] }
         let seen = Seen()
         let approved = try await Self.server(policy: .review { c in seen.changes.append(c); return true }).callTool("write")
-        #expect(approved.resultText == "written" && seen.changes.first?.summary == "Create a")
+        #expect(approved.firstText == "written" && seen.changes.first?.summary == "Create a")
         let rejected = try await Self.server(policy: .review { _ in false }).callTool("write")
-        #expect(rejected.isToolError && rejected.resultText == MCPServer.rejectedMessage)
+        #expect(rejected.isToolError && rejected.firstText == MCPServer.rejectedMessage)
     }
 
     @Test func promptsAndMissingResources() async throws {
@@ -132,7 +132,17 @@ import YcodeAssistant
                         "conflict_marker_scan", "git_bisect", "git_blame_inspector", "git_branch_compare",
                         "git_branch_manager", "git_cherry_pick", "git_conflict_resolver", "git_log_viewer",
                         "git_pr_summary", "git_stash_operator", "github_repo", "recent_changes",
-                        "version_control_operator"]
+                        "version_control_operator",
+                        "use_terminal", "task_runner", "env_capture_logs", "env_info", "use_mcp",
+                        "use_extension", "use_composio", "use_workers", "environment_variable_manager",
+                        "clipboard_manager_tool", "process_monitor_tool", "disk_space_analyzer",
+                        "system_notification_tool", "use_system", "take_screenshot", "take_screenrecord",
+                        "use_app",
+                        "mem_store", "mem_retrieve", "mem_clear", "mem_context_snapshot",
+                        "context_persistence_store", "save_to_memory", "view_memory", "manage_memory",
+                        "conversation_context_manager",
+                        "execution_plan", "intel_plan_task", "intel_breakdown_task", "intel_autofix",
+                        "intel_explain_code", "intel_generate_tests", "plan-AskUser", "report_to_user"]
         #expect(tools.map(\.name) == expected)
         for t in tools {
             let l = t.listing
@@ -140,7 +150,9 @@ import YcodeAssistant
             let props = l["inputSchema"]?["properties"]?.object ?? [:]
             for r in l["inputSchema"]?["required"]?.array?.compactMap(\.string) ?? [] { #expect(props[r] != nil, "\(t.name).\(r)") }
             for (k, v) in props { #expect(v["type"] != nil && v["description"]?.string?.isEmpty == false, "\(t.name).\(k)") }
-            #expect(t.name.range(of: "^[a-z_]+$", options: .regularExpression) != nil)
+            // `plan-AskUser` is the one documented exception to snake_case:
+            // Legacy's registry keeps the hyphenated ID by design.
+            #expect(t.name == "plan-AskUser" || t.name.range(of: "^[a-z_]+$", options: .regularExpression) != nil)
             #expect(!t.description.isEmpty && !t.title.isEmpty)
             if let o = l["outputSchema"] { #expect(o["type"] == "object", "\(t.name)") }
             #expect(l["annotations"]?["readOnlyHint"] == .bool(!t.writes && t.annotations.readOnly))
@@ -150,7 +162,16 @@ import YcodeAssistant
                                                            "file_delete", "dir_create", "dir_delete", "code_replace", "code_insert",
                                                            "code_multi_edit", "code_refactor", "code_format", "code_generate", "format_json_file",
                                                            "csv_to_json", "json_to_csv", "plist_to_json", "json_to_plist", "batch_rename_files",
-                                                           "plist_edit", "regex_replace_in_files"])
+                                                           "plist_edit", "regex_replace_in_files",
+                                                           "symbol_move_file", "symbol_rename_project",
+                                                           "git_bisect", "git_branch_manager", "git_cherry_pick", "git_conflict_resolver",
+                                                           "git_stash_operator", "version_control_operator",
+                                                           "use_terminal", "task_runner", "use_mcp", "use_extension", "use_composio",
+                                                           "use_workers", "environment_variable_manager", "clipboard_manager_tool",
+                                                           "use_system", "take_screenshot", "use_app",
+                                                           "mem_store", "mem_clear", "mem_context_snapshot", "context_persistence_store",
+                                                           "save_to_memory", "manage_memory", "conversation_context_manager",
+                                                           "execution_plan", "intel_autofix", "intel_generate_tests"])
     }
 }
 

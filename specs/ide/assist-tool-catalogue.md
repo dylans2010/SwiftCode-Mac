@@ -4412,6 +4412,1966 @@ Structured data keys (all strings):
 
 7 tools read; 6 tools write. The one `potentiallyDestructive` tool is `version_control_operator`; the one `execution` tool is `git_bisect`; `github_repo` is registered but honestly failing (§71.4).
 
+## Wave 4 — terminal / system tools
+
+## 86. Wave 4 conventions (extending §1 and §27)
+
+- **Argument vectors, never a shell.** `use_terminal` tokenizes its
+  `command` into an argv vector; any shell metacharacter (`| & ; < > \`
+  $ ( ) { } * ? ~ # !`, newline) is rejected. Legacy ran
+  `/bin/zsh -c`; the port never runs a shell. Every other local command
+  in this wave runs a fixed binary with fixed argv (`terminalRunFixed`).
+- **Approval on every `use_terminal` run.** There is no allow-list, no
+  Full Access, and no Autopilot bypass in Ycode, although the
+  `use_terminal` description (kept verbatim) still mentions them.
+  `use_system`'s single mutation needs both Legacy's `confirm: true`
+  and the approval gate. All other writes go through `commit()` exactly
+  like the Wave 2 file-writing tools.
+- **The environment never waits for a person.** Subprocess environments
+  carry `GIT_TERMINAL_PROMPT=0`; stdin is closed; timeouts apply
+  (`use_terminal` 300 s).
+- **Honestly-failing tools** are registered with their Legacy ID and
+  schema, validate inputs first with Legacy-exact messages, then fail
+  naming the exact prerequisite: `env_capture_logs`, `use_extension`,
+  `use_composio`, `use_workers`, `take_screenrecord` (fully),
+  `use_mcp` and `use_app` (partially).
+- **Annotations** follow §1.3, extended: `safeRead` → `readOnly: true,
+  idempotent: true`, `writes: false`; `safeMutation` → `readOnly:
+  false, idempotent: true`, `writes: true`; `execution` →
+  `readOnly: false, idempotent: false`, `writes: true`;
+  `externalSideEffect` → `readOnly: false, idempotent: false,
+  openWorld: true`, `writes: true`. New in this wave: `externalRead`
+  (`readOnly: true, idempotent: true, openWorld: true`, `writes:
+  false`) for `system_notification_tool` and `take_screenrecord`.
+  `take_screenshot` is the one deliberate deviation: Legacy declares
+  it `safeRead`, but the port saves a PNG artifact, so it is
+  `readOnly: false, idempotent: true, openWorld: true`, `writes: true`.
+- **Permissions** follow §1.2: `take_screenshot` / `take_screenrecord`
+  → `screenRecording`; `use_app` → `accessibility`; `use_terminal` →
+  `terminalExecution`; any mutating tool → `fileSystem`; else `none`.
+- Every tool accepts the Wave 1 `workspace` parameter; tools that do
+  not touch a workspace accept it and ignore it. See
+  `assist-terminal-memory-planning-tools.md` ("Terminal tools") for
+  behaviour, error cases, and safety rules.
+
+## 87. `use_terminal` — Use Terminal
+
+- **Description (verbatim):** "Executes terminal commands on the user's machine. Commands on the user's allow-list (Assist Settings > Terminal Command Approvals), or any command when Full Access is enabled, run without an approval prompt; all other commands require explicit user approval."
+- **Capability:** `systemExecution`. **Risk:** `execution`. **Required permission:** `terminalExecution`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Executes terminal commands on the user's machine. Commands on the user's allow-list (Assist Settings > Terminal Command Approvals), or any command when Full Access is enabled, run without an approval prompt; all other commands require explicit user approval.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "command": {
+      "type": "string",
+      "description": "The full shell command to run (e.g., 'git status' or 'swift test')"
+    },
+    "workingDirectory": {
+      "type": "string",
+      "description": "The relative path from project root where command should run (optional)"
+    },
+    "explanation": {
+      "type": "string",
+      "description": "A concise explanation of why this terminal execution is required (optional)"
+    },
+    "estimatedImpact": {
+      "type": "string",
+      "description": "The estimated impact on the repository (optional)"
+    },
+    "modifiesRepo": {
+      "type": "string",
+      "description": "Whether the command modifies repository state ('true' or 'false', optional)"
+    }
+  },
+  "required": ["command"]
+}
+```
+
+**Output (success).** Exit 0: `Terminal command executed successfully (exit code 0 in <duration>):\n<stdout or "(No stdout output)">`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `command` | The command string as given. |
+| `workingDirectory` | The absolute working directory actually used. |
+| `stdout` | Last 3000 chars of stdout, with a truncation marker when cut. |
+| `stderr` | Last 2000 chars of stderr, with a truncation marker when cut. |
+| `stdoutTruncated` | Boolean. |
+| `stderrTruncated` | Boolean. |
+| `exitCode` | The child's exit code. |
+| `duration` | Elapsed time, e.g. `"1.23s"`. |
+
+**Notes.** Tokenize → resolve → approve → run, 300 s timeout. Empty
+`workingDirectory` means the session working directory (see `dir_cd`),
+not the workspace root; a missing or non-directory value fails.
+`modifiesRepo` accepts a boolean as well as Legacy's string. Non-zero
+exit is an error result carrying the same data. The description is
+Legacy's verbatim; the behaviour is stricter — there is no allow-list
+and every run is approved. See
+`assist-terminal-memory-planning-tools.md` ("`use_terminal`").
+
+## 88. `task_runner` — Run Task
+
+- **Description (verbatim):** "Executes a registered internal Swift task within the sandbox."
+- **Capability:** `systemExecution`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Executes a registered internal Swift task within the sandbox.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "task_id": {
+      "type": "string",
+      "description": "Identifier of the registered task to execute."
+    }
+  },
+  "required": ["task_id"]
+}
+```
+
+**Output (success).** Message: `Task '<task_id>' executed successfully.` Structured data keys:
+
+| Key | Value |
+|---|---|
+| `output` | The task's report text. |
+
+**Notes.** The four registered tasks are `project_indexing` (counts
+filesystem entries under the workspace root), `dependency_analysis`
+(reports SPM / CocoaPods / Carthage presence from `Package.swift` /
+`Podfile` / `Cartfile`), `lint_project` (Legacy's
+`collectSwiftFindings`: tab indentation, lines over 140 characters,
+trailing whitespace, in every Swift file; at most 20 findings listed),
+and `project_test` (Swift files whose path contains "test",
+case-insensitive, sorted; 5 sampled). An unknown `task_id` fails with
+`Task '<task_id>' failed: Task '<task_id>' not found in registry.`
+See `assist-terminal-memory-planning-tools.md` ("`task_runner`").
+
+## 89. `env_capture_logs` — Capture Logs
+
+- **Description (verbatim):** "Captures logs from the execution environment."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Captures logs from the execution environment.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "memoryKey": {
+      "type": "string",
+      "description": "Optional memory key whose stored value is included as context. Default: \"\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** None: the tool is registered but honestly
+failing (see Notes). No structured data.
+
+**Notes.** The tool needs the Assist snapshot history
+(`AssistSnapshotFunctions`) and the Assist memory store, neither of
+which exists in Ycode's MCP host. It always fails with
+`env_capture_logs needs the Assist snapshot history
+(AssistSnapshotFunctions) and the Assist memory store, neither of which
+exists in Ycode's MCP host; no logs were captured.` The `memoryKey`
+argument is read and ignored. See
+`assist-terminal-memory-planning-tools.md`
+("`env_capture_logs`").
+
+## 90. `env_info` — Environment Info
+
+- **Description (verbatim):** "Provides information about the runtime environment (OS, Swift version, etc.)."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Provides information about the runtime environment (OS, Swift version, etc.).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message: `Environment info retrieved`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `os` | The server process's OS version string (the real OS). |
+| `locale` | The server process's locale identifier. |
+| `timezone` | The server process's time-zone identifier. |
+| `cpu_count` | Processor count. |
+| `physical_memory_bytes` | Physical memory in bytes. |
+| `workspace_root` | The workspace root's absolute path. |
+
+**Notes.** This schema is declared in Ycode; Legacy declares no
+`parametersSchema` for this tool. See
+`assist-terminal-memory-planning-tools.md` ("`env_info`").
+
+## 91. `use_mcp` — Execute MCP Tool
+
+- **Description (verbatim):** "Enumerate configured MCP servers, discover capabilities, and execute external tools (e.g. GitHub, databases, developer services). Pass toolName: 'list_tools' to discover available tools."
+- **Capability:** `general`. **Risk:** `externalSideEffect`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Enumerate configured MCP servers, discover capabilities, and execute external tools (e.g. GitHub, databases, developer services). Pass toolName: 'list_tools' to discover available tools.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "serverName": {
+      "type": "string",
+      "description": "The display name of the configured MCP server (or 'list' to enumerate all servers)."
+    },
+    "toolName": {
+      "type": "string",
+      "description": "The name of the tool to execute on the selected MCP server (or 'list_tools' to inspect available tools)."
+    },
+    "arguments": {
+      "type": "string",
+      "description": "A JSON-serialized object string containing the arguments to pass to the MCP tool (pass '{}' for list_tools)."
+    }
+  },
+  "required": ["serverName", "toolName", "arguments"]
+}
+```
+
+**Output (success).** The list branch only: `No MCP servers are currently configured in Ycode.` (plain text, no structured data).
+
+**Notes.** Partial: `serverName` `"list"` (case-insensitive) or
+`toolName` `"list_servers"` is answered honestly with the empty list.
+Any other call fails naming the missing external MCP client
+prerequisite; no external tool is called. Ycode itself is the MCP
+server here; its own tools are listed by `tools/list`. See
+`assist-terminal-memory-planning-tools.md` ("`use_mcp`").
+
+## 92. `use_extension` — Use Extension
+
+- **Description (verbatim):** "Interact with installed SwiftCode extensions: list, inspect, activate, and execute VS Code extension commands through the real extension host, and run Xcode-compatible source-editor commands against real workspace files. Actions: list, details, list_commands, list_xcode_commands, activate, deactivate, execute, run_xcode_command, enable, disable, diagnostics. Mutating actions (activate, execute, run_xcode_command, enable, disable) require confirm: true. Extension ids are stable publisher.name ids; Xcode command ids look like com.swiftcode.xcode.sortLines."
+- **Capability:** `general`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Interact with installed SwiftCode extensions: list, inspect, activate, and execute VS Code extension commands through the real extension host, and run Xcode-compatible source-editor commands against real workspace files. Actions: list, details, list_commands, list_xcode_commands, activate, deactivate, execute, run_xcode_command, enable, disable, diagnostics. Mutating actions (activate, execute, run_xcode_command, enable, disable) require confirm: true. Extension ids are stable publisher.name ids; Xcode command ids look like com.swiftcode.xcode.sortLines.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "One of: list, details, list_commands, list_xcode_commands, activate, deactivate, execute, run_xcode_command, enable, disable, diagnostics."
+    },
+    "extensionId": {
+      "type": "string",
+      "description": "Stable publisher.name id of the extension. Required for every action except list and list_xcode_commands."
+    },
+    "command": {
+      "type": "string",
+      "description": "Command id for execute (a VS Code / native contributed command) or run_xcode_command (an Xcode command identifier, e.g. com.swiftcode.xcode.sortLines)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Workspace-relative path for run_xcode_command. Absolute paths and paths escaping the workspace are rejected."
+    },
+    "selection": {
+      "type": "object",
+      "properties": {
+        "startLine": {
+          "type": "integer",
+          "description": "First line of the selection."
+        },
+        "startColumn": {
+          "type": "integer",
+          "description": "First column of the selection."
+        },
+        "endLine": {
+          "type": "integer",
+          "description": "Last line of the selection."
+        },
+        "endColumn": {
+          "type": "integer",
+          "description": "Last column of the selection."
+        }
+      },
+      "required": []
+    },
+    "args": {
+      "type": "object"
+    },
+    "confirm": {
+      "type": "boolean",
+      "description": "Required true for activate, execute, run_xcode_command, enable, and disable; the model must explicitly confirm the consequential action."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Max rows for list and diagnostics (default 50, capped at 200)."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** None: the tool is registered but honestly
+failing (see Notes). No structured data.
+
+**Notes.** The tool needs the Extensions v2 platform (`ExtV2Manager`
++ extension host with Node.js), which Ycode's MCP host does not have
+yet. An unknown or missing `action` fails first with `Unknown or
+missing action. Use one of: list, details, list_commands,
+list_xcode_commands, activate, deactivate, execute, run_xcode_command,
+enable, disable, diagnostics.` A known action then fails naming the
+Extensions v2 prerequisite; no extension was listed, activated, or
+executed. See `assist-terminal-memory-planning-tools.md`
+("`use_extension`").
+
+## 93. `use_composio` — Execute Composio Tool
+
+- **Description (verbatim):** "Execute external connected tools (GitHub, Slack, Google Calendar, Jira, Linear, Gmail, etc.) via Composio Platform or CLI."
+- **Capability:** `general`. **Risk:** `externalSideEffect`. **Required permission:** `none`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false, openWorld: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Execute external connected tools (GitHub, Slack, Google Calendar, Jira, Linear, Gmail, etc.) via Composio Platform or CLI.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "toolSlug": {
+      "type": "string",
+      "description": "The slug of the Composio tool to execute (e.g. 'GITHUB_GET_THE_AUTHENTICATED_USER', 'GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER', 'GITHUB_CREATE_AN_ISSUE', 'SLACK_SEND_A_MESSAGE_TO_A_SLACK_CHANNEL')."
+    },
+    "arguments": {
+      "type": "string",
+      "description": "A JSON-serialized object string containing the arguments to pass to the tool."
+    }
+  },
+  "required": ["toolSlug", "arguments"]
+}
+```
+
+**Output (success).** None: the tool is registered but honestly
+failing (see Notes). No structured data.
+
+**Notes.** The tool needs the Composio service (`ComposioService`
+with a Composio API key and connected integrations), which Ycode's MCP
+host does not have yet. It always fails naming that prerequisite and
+the requested `toolSlug`; no external tool is executed. See
+`assist-terminal-memory-planning-tools.md` ("`use_composio`").
+
+## 94. `use_workers` — Create and Coordinate Assist Workers
+
+- **Description (verbatim):** "Decomposes and schedules parallel or sequenced autonomous Workers for sub-tasks.\nEach worker must have a distinct name, non-overlapping scope, and concise task (under 500 characters).\nWorkers execute real work through the Assist tool suite; results are verified against the filesystem."
+- **Capability:** `planning`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Decomposes and schedules parallel or sequenced autonomous Workers for sub-tasks.\nEach worker must have a distinct name, non-overlapping scope, and concise task (under 500 characters).\nWorkers execute real work through the Assist tool suite; results are verified against the filesystem.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "workers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "List of distinct worker assignments. Each element is an object with:\n- name (string, required): unique worker name.\n- scope (string, required): explicit area of responsibility (module or directory). Must not overlap with other workers' scopes.\n- task (string, required): concrete task description, max 500 characters.\n- role (string, optional): e.g. \"General Engineer\", \"Systems Architect\".\n- dependencies (array of strings, optional): names of other workers in this batch that must complete first.\n- targetFiles (array of strings, optional): specific files this worker may modify. Must not overlap with other workers' target files."
+    }
+  },
+  "required": ["workers"]
+}
+```
+
+**Output (success).** None: the tool is registered but honestly
+failing after validation (see Notes). No structured data.
+
+**Notes.** Legacy's validation runs in Legacy's order, then the tool
+fails: each worker needs a non-empty `task` (also read from
+`description`); duplicate names are suffixed (`<name>-<n>`);
+dependencies must name workers in the same batch; at least one worker
+assignment is required. No worker is created or run — the tool needs
+the Assist worker runtime (`WorkerScheduler` +
+`WorkerPersistenceStore` + subagent execution), which Ycode's MCP host
+does not have yet. See `assist-terminal-memory-planning-tools.md`
+("`use_workers`").
+
+## 95. `environment_variable_manager` — Environment Variable Manager
+
+- **Description (verbatim):** "Inspects, checks, or updates workspace .env configuration files and environment keys."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects, checks, or updates workspace .env configuration files and environment keys.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'list_keys', 'get', 'set'."
+    },
+    "key": {
+      "type": "string",
+      "description": "Variable name when action is 'get' or 'set'."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value to write when action is 'set'."
+    },
+    "envFilePath": {
+      "type": "string",
+      "description": "Optional path to .env file. Defaults to '.env'."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Plain text, no structured data: list →
+`Found <n> environment keys in \`<file>\`:` plus one `- \`<key>\``
+line per key; get → the `KEY=value` line; set → `` Successfully set
+`<key>` in `<file>`. ``
+
+**Notes.** `list_keys` (also `list`) lists `KEY` names from
+`KEY=value` lines, skipping blanks and `#` comments; a missing file
+for list is success (`No <file> file found in workspace.`), for get
+it is an error. `set` replaces the first matching line or appends
+`KEY=value`, then writes through `commit()`. Legacy's exact line logic
+is reproduced: an empty or missing file splits to one empty line, so a
+brand-new file gets a leading blank line before the new `KEY=value`
+line. `envFilePath` must stay inside the workspace. See
+`assist-terminal-memory-planning-tools.md`
+("`environment_variable_manager`").
+
+## 96. `clipboard_manager_tool` — Clipboard Manager
+
+- **Description (verbatim):** "Reads text from or copies content to the macOS system clipboard (NSPasteboard)."
+- **Capability:** `general`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads text from or copies content to the macOS system clipboard (NSPasteboard).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'read' (read current clipboard) or 'copy' (write content to clipboard)."
+    },
+    "content": {
+      "type": "string",
+      "description": "Text content to copy when action is 'copy'."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Plain text, no structured data: read →
+`Current Clipboard Content (<n> chars):` plus the first 500 chars in
+a code block (or `Clipboard is currently empty.`); copy →
+`Successfully copied <n> characters to the system clipboard.`
+
+**Notes.** macOS only (`NSPasteboard`); on any other platform the
+tool fails with `<tool> is only available on macOS.` `read` also
+accepts `get`; `copy` also accepts `write` / `set`. A `copy` is a
+clipboard write, so the tool is `writes: true` and refused in
+`readOnly` server mode. See
+`assist-terminal-memory-planning-tools.md`
+("`clipboard_manager_tool`").
+
+## 97. `process_monitor_tool` — Process Monitor
+
+- **Description (verbatim):** "Monitors active build, compiler, simulator, and child processes on macOS."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Monitors active build, compiler, simulator, and child processes on macOS.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "filter": {
+      "type": "string",
+      "description": "Optional process name filter (e.g. 'xcodebuild', 'swift', 'Simulator')."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Plain text, no structured data: a Markdown
+table `### Active Developer Processes (<n> running):` with `PID |
+%CPU | %MEM | Command` rows (at most 25). No match → `No active
+processes matching developer tools or filter '<filter or
+Xcode/Swift>'.`
+
+**Notes.** Runs fixed `/bin/ps -eo pid,%cpu,%mem,comm` (15 s timeout).
+Without a filter it reports lines whose command contains `xcode`,
+`swift`, `clang`, `simctl`, `lldb`, `git`, `xcrun`, or `Simulator`
+(case-insensitive); with a filter it reports lines containing the
+filter text. See `assist-terminal-memory-planning-tools.md`
+("`process_monitor_tool`").
+
+## 98. `disk_space_analyzer` — Disk Space Analyzer
+
+- **Description (verbatim):** "Calculates disk consumption across DerivedData, project build outputs, and caches."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Calculates disk consumption across DerivedData, project build outputs, and caches.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional specific directory path to inspect. Defaults to workspace root and DerivedData."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Plain text, no structured data: `### Disk Space
+Analysis:` with the target scope size and the Xcode DerivedData cache
+size, plus a `#### Major Directory Breakdown:` list (top 10
+subdirectories by size) when the target has subdirectories.
+
+**Notes.** Sums file sizes under the target directory (hidden files
+skipped) and under `~/Library/Developer/Xcode/DerivedData`; sizes are
+formatted with `ByteCountFormatter` (`.file` style). A missing
+DerivedData folder sizes as zero, never an error. A `path` outside the
+workspace fails with the workspace-containment error. See
+`assist-terminal-memory-planning-tools.md`
+("`disk_space_analyzer`").
+
+## 99. `system_notification_tool` — Post macOS System Notification
+
+- **Description (verbatim):** "Posts a genuine macOS system notification banner or alert with custom title, subtitle, sound, and message body for build status, task completions, or developer alerts."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true, openWorld: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Posts a genuine macOS system notification banner or alert with custom title, subtitle, sound, and message body for build status, task completions, or developer alerts.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "title": {
+      "type": "string",
+      "description": "Notification title. Defaults to \"Ycode Assist\"."
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Notification subtitle."
+    },
+    "message": {
+      "type": "string",
+      "description": "Notification message body. Defaults to \"Task completed.\"."
+    },
+    "body": {
+      "type": "string",
+      "description": "Alias for message: notification message body."
+    },
+    "sound": {
+      "type": "string",
+      "description": "Sound name: \"default\", \"none\", or a sound file name. Defaults to \"default\"."
+    },
+    "critical": {
+      "type": "boolean",
+      "description": "Whether the notification sound is critical. Defaults to false."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Plain text, no structured data: the delivery
+summary. Delivery failure is an error result carrying the same summary
+text.
+
+**Notes.** Posts a genuine macOS notification
+(`UNUserNotificationCenter` with an `osascript` fallback). The default
+title is `"Ycode Assist"` where Legacy's is `"SwiftCode Assist"` (the
+product posting the notification). `critical` requests the critical
+sound; without the critical-alerts entitlement the notification still
+posts, silently without the critical sound. This schema is declared in
+Ycode; Legacy declares no `parametersSchema` for this tool. See
+`assist-terminal-memory-planning-tools.md`
+("`system_notification_tool`").
+
+## 100. `use_system` — System Diagnostics
+
+- **Description (verbatim):** "macOS system diagnostics and one authorized user-level configuration op. Diagnostics: system_info, dev_environment, process_list, network_interfaces, listening_sockets, connectivity, disk_info, system_log, service_status, config_read (sysctl allowlist). Mutation: user_defaults_write (requires confirm: true; verified by read-back). Fixed-argv subprocesses only; privileged actions are refused, never escalated."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "macOS system diagnostics and one authorized user-level configuration op. Diagnostics: system_info, dev_environment, process_list, network_interfaces, listening_sockets, connectivity, disk_info, system_log, service_status, config_read (sysctl allowlist). Mutation: user_defaults_write (requires confirm: true; verified by read-back). Fixed-argv subprocesses only; privileged actions are refused, never escalated.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "operation": {
+      "type": "string",
+      "description": "One of: system_info, dev_environment, process_list, network_interfaces, listening_sockets, connectivity, disk_info, system_log, service_status, config_read, user_defaults_write."
+    },
+    "target": {
+      "type": "string",
+      "description": "Operation-dependent: process name filter (process_list), interface name (network_interfaces), hostname (connectivity), sysctl name (config_read, must be on the allowlist), defaults domain (user_defaults_write)."
+    },
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "description": "TCP port for connectivity (1-65535, required)."
+        },
+        "timeoutSeconds": {
+          "type": "number",
+          "description": "Timeout for connectivity in seconds (default 5, max 30)."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max rows for process_list (default 50, capped at 200)."
+        },
+        "filter": {
+          "type": "string",
+          "description": "Name filter for process_list (also accepted via target)."
+        },
+        "predicate": {
+          "type": "string",
+          "description": "NSPredicate string for system_log (e.g. 'process == \"kernel\"')."
+        },
+        "minutes": {
+          "type": "integer",
+          "description": "Lookback window for system_log in minutes (1-60, default 15)."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Defaults domain for user_defaults_write (also accepted via target)."
+        },
+        "key": {
+          "type": "string",
+          "description": "Defaults key for user_defaults_write (required)."
+        },
+        "value": {
+          "description": "Value for user_defaults_write (string, number, or boolean; required)."
+        }
+      },
+      "required": []
+    },
+    "confirm": {
+      "type": "boolean",
+      "description": "Required true for user_defaults_write; the model must explicitly confirm the mutation."
+    }
+  },
+  "required": ["operation"]
+}
+```
+
+**Output (success).** Structured data keys vary by operation (every
+operation returns `operation` plus its own keys; see Notes). The
+summary is the operation's report text.
+
+| Key | Value |
+|---|---|
+| `operation` | The operation actually run. |
+| `content` | The operation's report text (all operations). |
+| `osVersion` / `osBuild` / `arch` / `hostname` / `cpuCount` / `physicalMemoryBytes` / `uptimeSeconds` | `system_info` only. |
+| `tools` | `dev_environment` only (`"xcodebuild,swift,xcrun"`). |
+| `filter` / `count` / `truncated` | `process_list` only. |
+| `interface` / `truncated` | `network_interfaces` only. |
+| `count` / `truncated` | `listening_sockets`, `system_log`, `service_status`. |
+| `host` / `port` / `reachable` / `latencyMs` | `connectivity` only. |
+| `path` / `totalBytes` / `availableBytes` / `usedBytes` / `usedPercent` | `disk_info` only. |
+| `predicate` / `minutes` | `system_log` only. |
+| `sysctlName` / `value` | `config_read` only. |
+| `domain` / `key` / `previousValue` / `newValue` / `verified` | `user_defaults_write` only. |
+
+**Notes.** Diagnostics: `system_info` (real OS, `uname -m -r`),
+`dev_environment` (probes `xcodebuild -version`, `swift --version`,
+`xcrun --find swift`; a missing tool is reported, never fabricated),
+`process_list` (`/bin/ps`, limit clamped 1…200), `network_interfaces`
+(`/sbin/ifconfig`, macOS only), `listening_sockets` (`lsof` resolved
+on `PATH`; empty output is success), `connectivity` (TCP connect +
+poll, port required 1–65535, timeout clamped 1…30 s), `disk_info`
+(volume `/`), `system_log` (`/usr/bin/log`, macOS only, minutes
+clamped 1…60), `service_status` (`/bin/launchctl list`, macOS only),
+`config_read` (sysctl allowlist only: `kern.ostype`, `kern.osrelease`,
+`kern.osrevision`, `kern.version`, `kern.hostname`, `kern.maxproc`,
+`hw.model`, `hw.machine`, `hw.ncpu`, `hw.physicalmem`, `hw.memsize`,
+`hw.memsize_usable`, `hw.cpufrequency`,
+`machdep.cpu.brand_string`; macOS only). Mutation:
+`user_defaults_write` needs `confirm: true` **and** the approval gate,
+runs `/usr/bin/defaults write`, and verifies by read-back; the domain
+must match `^[A-Za-z0-9.-]+$` (no `..`), `NSGlobalDomain` is blocked,
+the key must match `^[A-Za-z0-9._-]+$`, and the value must be a string,
+number, or boolean. `parameters.value` is declared without a JSON type
+(Legacy declares it a string but accepts bool / number). See
+`assist-terminal-memory-planning-tools.md` ("`use_system`").
+
+## 101. `take_screenshot` — take_screenshot
+
+- **Description (verbatim):** "Captures the user's entire screen or a user-selected screen region, produces a valid PNG image, and makes the resulting image available to the active AI model for visual analysis."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `screenRecording`. **Read-only:** yes (Legacy). **MCP annotations:** `readOnly: false, idempotent: true, openWorld: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Captures the user's entire screen or a user-selected screen region, produces a valid PNG image, and makes the resulting image available to the active AI model for visual analysis.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "capture_mode": {
+      "type": "string",
+      "description": "Screen capture mode: 'fullscreen' for entire screen, or 'region' for an interactive user-selected region. Defaults to 'fullscreen'."
+    },
+    "display_id": {
+      "type": "integer",
+      "description": "Optional display identifier when multiple displays are connected."
+    },
+    "include_cursor": {
+      "type": "boolean",
+      "description": "Whether to include the mouse cursor in the capture. Defaults to true."
+    },
+    "image_format": {
+      "type": "string",
+      "description": "Image output format. Must be 'png'. Defaults to 'png'."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Optional explanation of what Assist needs to inspect in the screenshot."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message: `Captured fullscreen screenshot
+(<w>×<h> px) on display <id>. Artifact saved to '<rel>'.` The result
+carries an image block, the message, and the JSON below. Structured
+data keys:
+
+| Key | Value |
+|---|---|
+| `path` | The artifact's workspace-relative path. |
+| `width` / `height` | Capture dimensions in pixels. |
+| `display_id` | The display captured. |
+| `capture_mode` | Always `"fullscreen"`. |
+| `artifact_id` | The artifact index entry's UUID. |
+| `base64` | The full PNG, base64-encoded (a large payload). |
+| `format` | Always `"png"`. |
+| `size_bytes` | PNG byte count. |
+| `purpose` | Only when given. |
+
+**Notes.** Fullscreen capture only, via ScreenCaptureKit (macOS
+only). The PNG is saved as a Wave 1 artifact
+(`.assist_temp/artifacts/screenshot_<epoch>_<8 hex>.png`, plus the
+`image.png` latest-copy mirror) under a single approval. `capture_mode
+"region"` fails naming the missing interactive region-selection
+overlay. Legacy risk is `safeRead`, but the port is `writes: true`
+because it saves a file — the one deliberate annotation deviation in
+this wave (§86). See `assist-terminal-memory-planning-tools.md`
+("`take_screenshot`").
+
+## 102. `take_screenrecord` — take_screenrecord
+
+- **Description (verbatim):** "Records the screen of a specifically identified application, subject to macOS privacy permissions and recording restrictions, and produces a usable recording artifact."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `screenRecording`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true, openWorld: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Records the screen of a specifically identified application, subject to macOS privacy permissions and recording restrictions, and produces a usable recording artifact.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "app_identifier": {
+      "type": "string",
+      "description": "Target application bundle identifier (e.g. 'com.apple.dt.Xcode') or application name (e.g. 'Xcode'). Preferred: bundle identifier."
+    },
+    "recording_duration": {
+      "type": "number",
+      "description": "Requested recording duration in seconds (between 1 and 60). Defaults to 10 seconds."
+    },
+    "capture_mode": {
+      "type": "string",
+      "description": "Capture scope: 'window' for the application's primary on-screen window, or 'application_display'. Defaults to 'window'."
+    },
+    "include_audio": {
+      "type": "boolean",
+      "description": "Whether to capture application audio when supported. Defaults to false."
+    },
+    "output_format": {
+      "type": "string",
+      "description": "Video container format. Supported: 'mov', 'mp4'. Defaults to 'mov'."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Optional natural-language explanation of why Assist is recording this application."
+    }
+  },
+  "required": ["app_identifier"]
+}
+```
+
+**Output (success).** None: the tool is registered but honestly
+failing (see Notes). No structured data.
+
+**Notes.** The tool needs a ScreenCaptureKit stream-recording engine
+(`SCStream` + video writer), which Ycode's MCP host does not have yet.
+A missing `app_identifier` and an out-of-range duration (1–60 s) fail
+first with Legacy-exact messages; otherwise the failure names the
+missing engine and the Screen Recording permission requirement. No
+recording is made in any case. See
+`assist-terminal-memory-planning-tools.md`
+("`take_screenrecord`").
+
+## 103. `use_app` — use_app
+
+- **Description (verbatim):** "Enables Assist to operate native macOS applications through real Accessibility APIs, CoreGraphics synthetic events, ScreenCaptureKit visual perception, and window management."
+- **Capability:** `systemExecution`. **Risk:** `safeMutation`. **Required permission:** `accessibility`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true, openWorld: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Enables Assist to operate native macOS applications through real Accessibility APIs, CoreGraphics synthetic events, ScreenCaptureKit visual perception, and window management.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "app_identifier": {
+      "type": "string",
+      "description": "Target application bundle identifier (e.g. 'com.apple.finder'), app name (e.g. 'Finder', 'Calculator'), process ID, or session ID."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action to perform: 'launch', 'activate', 'list_applications', 'inspect_application', 'list_windows', 'select_window', 'close_application', 'inspect_ui', 'get_accessibility_tree', 'get_focused_element', 'take_screenshot', 'inspect_window', 'click', 'double_click', 'right_click', 'move_pointer', 'drag', 'scroll', 'type_text', 'press_key', 'press_shortcut', 'select_all', 'copy', 'paste', 'activate_element', 'set_element_value', 'select_menu', 'wait_for_element', 'wait_for_window', 'verify'."
+    },
+    "target": {
+      "type": "string",
+      "description": "Target UI element session ID (e.g. 'elem_1'), title, accessibility identifier, label, or menu path (e.g. 'File > Save')."
+    },
+    "value": {
+      "type": "string",
+      "description": "Text input to type, shortcut name (e.g. 'Cmd+S'), key name (e.g. 'Return'), or expected value for verification."
+    },
+    "coordinates": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "X coordinate."
+        },
+        "y": {
+          "type": "number",
+          "description": "Y coordinate."
+        },
+        "coordinate_space": {
+          "type": "string",
+          "description": "Coordinate space: 'screen', 'window', or 'screenshot_pixel'. Defaults to 'screen'."
+        }
+      },
+      "required": []
+    },
+    "drag_destination": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "Destination X coordinate."
+        },
+        "y": {
+          "type": "number",
+          "description": "Destination Y coordinate."
+        }
+      },
+      "required": []
+    },
+    "scroll_delta": {
+      "type": "object",
+      "properties": {
+        "dx": {
+          "type": "integer",
+          "description": "Horizontal scroll delta in pixels."
+        },
+        "dy": {
+          "type": "integer",
+          "description": "Vertical scroll delta in pixels."
+        }
+      },
+      "required": []
+    },
+    "window_id": {
+      "type": "string",
+      "description": "Optional target window identifier (e.g. 'window_1')."
+    },
+    "modifiers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional key modifier list (e.g. ['command', 'shift'])."
+    },
+    "timeout": {
+      "type": "number",
+      "description": "Timeout in seconds for wait operations (1-60, default 5)."
+    },
+    "verification": {
+      "type": "boolean",
+      "description": "Whether to re-inspect and verify resulting application state after action. Defaults to true."
+    },
+    "confirm": {
+      "type": "boolean",
+      "description": "Explicit user authorization required for consequential actions such as 'close_application'."
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Natural-language explanation of the intended workflow or interaction purpose."
+    }
+  },
+  "required": ["app_identifier", "action"]
+}
+```
+
+**Output (success).** Structured data keys vary by action (see
+Notes); the summary is the action's report text. Implemented actions
+return `action` plus: `list_applications` → `count`, `status`;
+`launch` / `activate` → `app_identifier`, `app_name`, `pid`,
+`window_count`, `status: "active"`; `close_application` →
+`app_identifier`, `app_name`, `status: "terminated"`;
+`list_windows` → `app_identifier`, `app_name`, `window_count`,
+`status` (when windows exist).
+
+**Notes.** macOS only. Implemented on public macOS APIs:
+`list_applications` (running apps only — Legacy lists installed apps
+too; at most 35 lines), `launch` / `activate`, `close_application`
+(requires `confirm: true` **and** the approval gate),
+`list_windows` (CoreGraphics window list). Every Accessibility /
+interaction action (`inspect_ui`, `get_accessibility_tree`,
+`get_focused_element`, `inspect_application`, `inspect_window`,
+`take_screenshot`, `select_window`, `click`, `double_click`,
+`right_click`, `move_pointer`, `drag`, `scroll`, `type_text`,
+`set_value`, `press_key`, `press_shortcut`, `select_all`, `copy`,
+`paste`, `activate_element`, `set_element_value`, `select_menu`,
+`wait_for_element`, `wait_for_window`, `verify`,
+`verify_element_state`) fails per-action naming the missing macOS
+Accessibility / app-interaction engine (`AssistAppInteractionEngine`);
+no application is operated. See
+`assist-terminal-memory-planning-tools.md` ("`use_app`").
+
+## 104. Summary: capability / risk / permission / writes (Wave 4 terminal)
+
+| ID | Capability | Risk | Permission | Read-only | `writes` |
+|---|---|---|---|---|---|
+| `use_terminal` | systemExecution | execution | terminalExecution | **no** | **true** |
+| `task_runner` | systemExecution | execution | none | **no** | **true** |
+| `env_capture_logs` | diagnostics | safeRead | none | yes | false |
+| `env_info` | diagnostics | safeRead | none | yes | false |
+| `use_mcp` | general | externalSideEffect | none | **no** | **true** |
+| `use_extension` | general | safeMutation | fileSystem | **no** | **true** |
+| `use_composio` | general | externalSideEffect | none | **no** | **true** |
+| `use_workers` | planning | safeMutation | fileSystem | **no** | **true** |
+| `environment_variable_manager` | diagnostics | safeMutation | fileSystem | **no** | **true** |
+| `clipboard_manager_tool` | general | safeMutation | fileSystem | **no** | **true** |
+| `process_monitor_tool` | diagnostics | safeRead | none | yes | false |
+| `disk_space_analyzer` | diagnostics | safeRead | none | yes | false |
+| `system_notification_tool` | diagnostics | safeRead | none | yes | false |
+| `use_system` | diagnostics | safeMutation | fileSystem | **no** | **true** |
+| `take_screenshot` | diagnostics | safeRead | screenRecording | yes (Legacy) | **true** |
+| `take_screenrecord` | diagnostics | safeRead | screenRecording | yes | false |
+| `use_app` | systemExecution | safeMutation | accessibility | **no** | **true** |
+
+11 tools write; 6 tools read. Honestly failing, fully: `env_capture_logs`, `use_extension`, `use_composio`, `use_workers`, `take_screenrecord`. Partial: `use_mcp` (list only), `use_app` (4 of 30 actions). The one `safeRead` tool that writes is `take_screenshot` (§86, §101).
+
+## Wave 4 — memory tools
+
+## 105. Wave 4 memory conventions (extending §1 and §27)
+
+- **Four stores, all per-workspace.** (A) The session memory graph:
+  an in-memory `NSLock` dictionary (`YcodeMemoryGraphStore`), one graph
+  per workspace root path, process-lifetime, never persisted — exactly
+  like Legacy's `AssistMemoryGraph`. "Long-term" in the Legacy
+  descriptions means this graph, not disk. (B) Durable user memory:
+  `<workspace>/.assist_temp/memory/UserMemory.md`, Legacy's exact
+  Markdown format. (C) The persistent context store:
+  `<workspace>/.assist_context_store.json`, JSON `[String: String]`,
+  pretty-printed with sorted keys — Legacy's exact path and writer.
+  (D) Conversation context: one file per workspace,
+  `<workspace>/.assist_temp/memory/conversation_context.md`, Legacy's
+  exact append format.
+- **Deliberate store changes.** Legacy's durable user memory is
+  app-global (`~/Library/Application Support/SwiftCode/UserMemory.md`)
+  and would leak one workspace's memory into another's, so it is **not**
+  reused; the per-workspace file above replaces it, in the same format,
+  with no SwiftCode default seed and no `enableUserMemory` gate (the
+  approval path gates instead). Legacy's conversation context is one
+  `<uuid>.context.md` per conversation under Application Support; the
+  MCP host has no conversation identity, so one file per workspace
+  replaces it. No new database layer was invented.
+- **Approval gating.** The four file-writing handlers
+  (`context_persistence_store` set/delete, `save_to_memory`,
+  `manage_memory` add/edit/delete/clear, `conversation_context_manager`
+  `update_summary`) write through `commit()` exactly like the Wave 2
+  file-writing tools. The three in-memory-only tools (`mem_store`,
+  `mem_clear`, `mem_context_snapshot`) register `writes: true` so the
+  server-level gate still refuses them when read-only, but they call
+  neither `commit()` nor `approve()`: there is no file change to
+  propose, and fabricating an `MCPChange` would show the IDE reviewer
+  a fake file proposal. This matches `dir_cd`'s session-state
+  precedent. The read-only actions of the mixed tools
+  (`context_persistence_store` get, `conversation_context_manager`
+  read) request no approval, but the tools are still registered
+  `writes: true`, so `MCPServer.run` refuses them in `readOnly` server
+  mode — the same treatment Wave 3 gives its mixed git tools.
+- **Annotations.** `safeRead` → `.read`, `writes: false`;
+  `safeMutation` → `readOnly: false, idempotent: true`, `writes: true`;
+  `potentiallyDestructive` (`mem_clear`) → `readOnly: false,
+  destructive: true`, `writes: true`. Two behaviour-driven exceptions:
+  `mem_context_snapshot` mints a fresh snapshot key on every call, so
+  it is not idempotent; `conversation_context_manager`'s
+  `update_summary` appends, so it is not idempotent either.
+- All nine tools declare Legacy `capability: memory`. See
+  `assist-terminal-memory-planning-tools.md` ("Memory tools") for
+  behaviour, error cases, and the store formats.
+
+## 106. `mem_store` — Store Memory
+
+- **Description (verbatim):** "Stores information in the long-term memory graph."
+- **Capability:** `memory`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Stores information in the long-term memory graph.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "key": {
+      "type": "string",
+      "description": "Memory key to store under."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value to store."
+    }
+  },
+  "required": ["key", "value"]
+}
+```
+
+**Output (success).** Message: `Stored in memory: <key>`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `key` | The key stored under. |
+
+**Notes.** Stores the value under the key in the calling workspace's
+session graph (store A), overwriting any existing entry. In-memory
+only: the entry does not survive a server restart. Empty `key` /
+`value` fail with `Missing required parameter: key` / `Missing
+required parameter: value`. See
+`assist-terminal-memory-planning-tools.md` ("`mem_store`").
+
+## 107. `mem_retrieve` — Retrieve Memory
+
+- **Description (verbatim):** "Retrieves information from the long-term memory graph."
+- **Capability:** `memory`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Retrieves information from the long-term memory graph.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "key": {
+      "type": "string",
+      "description": "Memory key to look up."
+    }
+  },
+  "required": ["key"]
+}
+```
+
+**Output (success).** Message: `Retrieved from memory: <key>`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `key` | The key looked up. |
+| `value` | The stored value. |
+
+**Notes.** Reads the calling workspace's session graph (store A). An
+unknown key fails with `Key not found in memory: <key>`. See
+`assist-terminal-memory-planning-tools.md` ("`mem_retrieve`").
+
+## 108. `mem_clear` — Clear Memory
+
+- **Description (verbatim):** "Clears all stored information in the memory graph."
+- **Capability:** `memory`. **Risk:** `potentiallyDestructive`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, destructive: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Clears all stored information in the memory graph.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message: `Memory cleared.` Structured data keys:
+
+| Key | Value |
+|---|---|
+| `cleared` | Boolean, always true. |
+| `entriesCleared` | How many entries the workspace's graph held (a Ycode addition; Legacy returns no data). |
+
+**Notes.** Clears only the calling workspace's session graph (store
+A). Other workspaces' graphs are untouched. No confirmation parameter:
+the destructive annotation plus the `writes: true` gate is the
+protection, as in Legacy (which takes no `confirm` either). See
+`assist-terminal-memory-planning-tools.md` ("`mem_clear`").
+
+## 109. `mem_context_snapshot` — Context Snapshot
+
+- **Description (verbatim):** "Captures a snapshot of the current environment and open files for future reference."
+- **Capability:** `memory`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Captures a snapshot of the current environment and open files for future reference.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message: `Context snapshot captured`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `snapshot_key` | `context_snapshot:<uuid>`, freshly minted per call. |
+| `latest_snapshot` | Always `"none"`. |
+
+**Notes.** Stores a payload in the calling workspace's session graph
+(store A) under `context_snapshot:<uuid>`: three lines,
+`session=<session-uuid>`, `workspace=<workspace-root-path>`,
+`latest_snapshot=none`. The session UUID is minted once per workspace
+per process. `latest_snapshot` is always `"none"`: Legacy reads it
+from `AssistSnapshotFunctions.listSnapshots()`, and Ycode has no
+snapshot store, so there is never a latest snapshot to name. The
+stored marker is a real graph entry, retrievable with `mem_retrieve`;
+nothing is faked. Open files are not captured: the MCP host has no
+open-file list. Not idempotent (fresh key per call). See
+`assist-terminal-memory-planning-tools.md`
+("`mem_context_snapshot`").
+
+## 110. `context_persistence_store` — Persistent Context Store
+
+- **Description (verbatim):** "Stores and retrieves persistent key-value context across Assist sessions."
+- **Capability:** `memory`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Stores and retrieves persistent key-value context across Assist sessions.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "key": {
+      "type": "string",
+      "description": "Context key."
+    },
+    "action": {
+      "type": "string",
+      "description": "One of 'set', 'get', or 'delete'. Default: \"get\"."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value to store. Required when action is 'set'."
+    }
+  },
+  "required": ["key"]
+}
+```
+
+**Output (success).** Set → `Stored context for key <key>`; delete →
+`Deleted key <key>`; get (and any other action string — Legacy's
+`default` case) → `Retrieved context for key <key>`. Structured data
+keys:
+
+| Key | Value |
+|---|---|
+| `key` | The context key. |
+| `action` | The action actually performed: `set`, `delete`, or `get`. |
+| `value` | The stored value (`""` when the key is absent on get, `""` on delete). |
+
+**Notes.** Reads and writes `<workspace>/.assist_context_store.json`
+(store C), re-reading the file on every call like Legacy. `action` is
+lowercased; absent defaults to `get`. `set` and `delete` write through
+`commit()`; a delete of an absent key is a no-op that still rewrites
+the file, like Legacy. Errors: `Missing key` (absent or empty key);
+`Missing value` (`set` without a value). See
+`assist-terminal-memory-planning-tools.md`
+("`context_persistence_store`").
+
+## 111. `save_to_memory` — Save to Memory
+
+- **Description (verbatim):** "Saves high-value architectural decisions, preferences, guidelines, and context to UserMemory.md."
+- **Capability:** `memory`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Saves high-value architectural decisions, preferences, guidelines, and context to UserMemory.md.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "key": {
+      "type": "string",
+      "description": "Short, descriptive unique key (e.g. ArchitectureStyle, DesignTokens, ConcurrencyRule)."
+    },
+    "value": {
+      "type": "string",
+      "description": "The content, guideline, or instruction to remember permanently."
+    },
+    "category": {
+      "type": "string",
+      "description": "Category name (e.g. Preferences, Architecture, Decisions, Rules, Project Context). Defaults to General."
+    }
+  },
+  "required": ["key", "value"]
+}
+```
+
+**Output (success).** Message: `Saved to memory [<category>]:
+**<key>** = <value>` followed by `Persisted to
+.assist_temp/memory/UserMemory.md`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `key` | The key saved. |
+| `value` | The value saved. |
+| `category` | The category (default `General`). |
+
+**Notes.** Upserts the entry in the workspace's `UserMemory.md`
+(store B) — key and value trimmed, category trimmed and defaulting to
+`General` when absent or blank, key match case-insensitive, timestamp
+refreshed on update. The write goes through `commit()`. The file is
+created (header only, no seed) when it does not exist yet. The success
+message names the real workspace file instead of Legacy's app-global
+path — the one deliberate wording change in this family. Legacy's
+failure branch ("Memory recording is currently disabled in Assist
+Settings, or storage failed.") has no Ycode equivalent: there is no
+enable/disable setting. See
+`assist-terminal-memory-planning-tools.md` ("`save_to_memory`").
+
+## 112. `view_memory` — View Memory
+
+- **Description (verbatim):** "Reads and retrieves stored context, preferences, and architectural decisions from UserMemory.md."
+- **Capability:** `memory`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads and retrieves stored context, preferences, and architectural decisions from UserMemory.md.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "query": {
+      "type": "string",
+      "description": "Optional search query to filter memory entries by key or content."
+    },
+    "category": {
+      "type": "string",
+      "description": "Optional category filter (e.g. Preferences, Architecture, Rules)."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Entries found → `### Active User Memories (<n>
+items):` plus one `- [<category>] **<key>**: <value>` line per entry.
+No entries and an empty/missing file → `No memories are currently
+stored in UserMemory.md.` No entries but a non-empty file → `No memory
+items matched the filter. Full UserMemory.md:\n\n<full document>`.
+Structured data keys:
+
+| Key | Value |
+|---|---|
+| `entries` | Array of `key` / `value` / `category` / `updatedAt` (ISO-8601) objects. |
+| `count` | Number of entries after filtering. |
+| `report` | The same text as the message. |
+
+**Notes.** Reads the workspace's `UserMemory.md` (store B) and filters
+by category (case-insensitive), then by query (case-insensitive
+substring of key or value). After a `manage_memory` clear the file
+holds only the header, so `view_memory` returns the full-document
+fallback, not "No memories" — Legacy's actual behaviour. See
+`assist-terminal-memory-planning-tools.md` ("`view_memory`").
+
+## 113. `manage_memory` — Manage Memory
+
+- **Description (verbatim):** "Allows Assist to edit, delete, or reorganize memories in UserMemory.md."
+- **Capability:** `memory`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Allows Assist to edit, delete, or reorganize memories in UserMemory.md.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action to perform: 'add', 'edit', 'delete', or 'clear'."
+    },
+    "key": {
+      "type": "string",
+      "description": "The memory key to add, edit, or delete."
+    },
+    "value": {
+      "type": "string",
+      "description": "The new value when adding or editing a memory."
+    },
+    "category": {
+      "type": "string",
+      "description": "Category name when adding or editing."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Add/edit → `Memory '<key>' successfully updated
+in UserMemory.md.`; delete → `Memory entry '<key>' deleted from
+UserMemory.md.`; clear → `All memories cleared from UserMemory.md.`
+Structured data keys:
+
+| Key | Value |
+|---|---|
+| `action` | The action performed, lowercased. |
+| `key` | The key acted on (`""` on clear). |
+| `category` | The category (`""` on delete/clear). |
+
+**Notes.** `add` / `edit` (also `save`) upsert like
+`save_to_memory`; `delete` (also `remove`) removes the entry;
+`clear` replaces the file with the header only. Every branch writes
+through `commit()`. Errors: `Missing required parameter: action
+('add', 'edit', 'delete', 'clear')`; `Actions 'add' and 'edit'
+require both 'key' and 'value.'`; `Action 'delete' requires 'key.'`;
+`Memory entry '<key>' was not found in UserMemory.md.`; `Unknown
+action '<action>'. Supported actions: add, edit, delete, clear.` See
+`assist-terminal-memory-planning-tools.md` ("`manage_memory`").
+
+## 114. `conversation_context_manager` — Conversation Context Manager
+
+- **Description (verbatim):** "Reads, updates, or checks the active conversation's dedicated context file (<conversation_id>.context.md)."
+- **Capability:** `memory`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Reads, updates, or checks the active conversation's dedicated context file (<conversation_id>.context.md).",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "action": {
+      "type": "string",
+      "description": "Action to perform: 'read' or 'update_summary'."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Updated notes or context to append when action is 'update_summary'."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Read with a file → `Conversation
+Context:\n\n<file>`; read without a file → `No custom context file
+found yet for the active conversation.`; update → `Successfully
+updated conversation context file at: <absolute path>`. Structured
+data keys:
+
+| Key | Value |
+|---|---|
+| `action` | The action performed (`"read"` or `"update_summary"`). |
+| `context` | The file text on read (`""` otherwise). |
+| `path` | The absolute file path on update (`""` otherwise). |
+
+**Notes.** `read` (also `view`) returns the workspace's conversation
+context file (store D); `update_summary` (also `update`, `append`)
+appends `\n### Additional Model Context (Updated <ISO-8601>):\n
+<notes>\n` through `commit()`. The file is created with the `#
+Conversation Context` header when it does not exist. Not idempotent
+(the update appends). The description names Legacy's
+`<conversation_id>.context.md` file; the port uses one file per
+workspace (§105). See `assist-terminal-memory-planning-tools.md`
+("`conversation_context_manager`").
+
+## 115. Summary: capability / risk / permission / writes (Wave 4 memory)
+
+| ID | Capability | Risk | Permission | Read-only | `writes` |
+|---|---|---|---|---|---|
+| `mem_store` | memory | safeMutation | fileSystem | **no** | **true** |
+| `mem_retrieve` | memory | safeRead | none | yes | false |
+| `mem_clear` | memory | potentiallyDestructive | fileSystem | **no** | **true** |
+| `mem_context_snapshot` | memory | safeMutation | fileSystem | **no** | **true** |
+| `context_persistence_store` | memory | safeMutation | fileSystem | **no** | **true** |
+| `save_to_memory` | memory | safeMutation | fileSystem | **no** | **true** |
+| `view_memory` | memory | safeRead | none | yes | false |
+| `manage_memory` | memory | safeMutation | fileSystem | **no** | **true** |
+| `conversation_context_manager` | memory | safeMutation | fileSystem | **no** | **true** |
+
+7 tools write; 2 tools read. The one `potentiallyDestructive` tool is
+`mem_clear`; `mem_context_snapshot` and `conversation_context_manager`
+are the two non-idempotent mutations. All 9 are implemented for real —
+none honestly failing, none BLOCKED.
+
+## Wave 4 — planning tools
+
+## 116. Wave 4 planning conventions (extending §1 and §27)
+
+- **Plans are produced, never executed.** No tool in this family runs a
+  plan, invokes another tool, or spawns workers. Execution stays with
+  the caller, through the normal approval gate. There is no Autopilot
+  anywhere in this family: Legacy's `ExecutionMode` (`"Plan"` /
+  `"Autopilot"`) survives only as a label on the plan document, and it
+  never changes any gating.
+- **Plan storage is in-memory.** `intel_plan_task` /
+  `intel_breakdown_task` store plans in a process-wide in-memory store
+  (`PlanningPlanStore`, keys `plan:<uuid>` /
+  `plan_breakdown:<uuid>`). Legacy stores them in the session's
+  `AssistContext.memory`; Ycode's MCP host has no session memory store.
+  Plan IDs are UUIDs, so plans from different workspaces cannot
+  collide; plans do not survive a server restart.
+- **Path resolution** uses the session-aware `resolveFileReadingPath`
+  (plain relative paths resolve against the `dir_cd` working directory;
+  `..` that stays inside the workspace is allowed; no path may escape
+  the workspace), the same resolver the file tools use.
+  `execution_plan`'s own repository inspection is deliberately
+  separate: it enumerates the workspace root directly (never the
+  session working directory), as Legacy does.
+- **Approval gating.** The two writing handlers (`execution_plan`,
+  which writes `agent_notes.md`, and `intel_generate_tests`, which
+  writes the generated test file) gate **before** touching disk,
+  through `commit()` — exactly like the Wave 2 file-writing tools.
+- **Legacy parameter-name aliases are NOT supported.** Ycode's argument
+  validation rejects unknown arguments before the handler runs. Legacy
+  registry aliases (`plan_askuser` / `plan_ask_user` / `ask_user` →
+  `plan-AskUser`, `task_complete` / `task_completion` →
+  `report_to_user`) live in `MCPServer.toolAliases`.
+- **`plan-AskUser` keeps its hyphenated ID** — the documented
+  intentional exception to snake_case (Legacy
+  `Tools/validate_tools.py`). See
+  `assist-terminal-memory-planning-tools.md` ("Planning tools") for
+  behaviour, the plan-file format, error cases, and safety rules.
+
+## 117. `execution_plan` — Generate Execution Plan
+
+- **Description (verbatim):** "Analyzes the actual repository state, reads relevant files, discovers instructions and skills, and generates a task-specific Execution Plan. This tool MUST be called before any codebase modification. The plan is written to agent_notes.md and contains objective, findings, steps, dependencies, verification requirements, and completion criteria — all grounded in actual repository state."
+- **Capability:** `planning`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Analyzes the actual repository state, reads relevant files, discovers instructions and skills, and generates a task-specific Execution Plan. This tool MUST be called before any codebase modification. The plan is written to agent_notes.md and contains objective, findings, steps, dependencies, verification requirements, and completion criteria — all grounded in actual repository state.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "objective": {
+      "type": "string",
+      "description": "The user's task objective."
+    },
+    "mode": {
+      "type": "string",
+      "description": "Execution mode: 'plan' or 'autopilot'."
+    },
+    "relevantFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional list of file paths already known to be relevant."
+    }
+  },
+  "required": ["objective", "mode"]
+}
+```
+
+**Output (success).** Message: `Execution Plan generated for:
+<objective>\nMode: <mode>\nFiles inspected: <n> total, <m> Swift\n
+Relevant files identified: <n>\nExecution steps: <n>\nWorkers needed:
+<n>\nPlan written to: agent_notes.md`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `planFile` | Always `"agent_notes.md"`. |
+| `stepCount` | Number of execution steps. |
+| `relevantFileCount` | Number of relevant files identified. |
+| `workerCount` | Number of worker assignments. |
+| `mode` | The canonical mode string. |
+
+**Notes.** Inspects the actual repository state — file tree, build
+configuration, `AGENTS.md` / instruction files, workspace skills —
+identifies relevant files by keyword match against the objective
+(Legacy's keyword match also matches directories by name, e.g.
+`Sources/Greeter`, reproduced as-is), reads the relevant files, builds
+the plan, renders it as Markdown, and writes it to `agent_notes.md`
+at the workspace root through `commit()`. The mode is accepted
+case-insensitively: Legacy's schema documents lowercase `"plan"` /
+`"autopilot"` but its `ExecutionMode(rawValue:)` init only matches the
+capitalised `"Plan"` / `"Autopilot"`, so a literal `"plan"` silently
+became Autopilot; the port honours the documented values. The mode
+only labels the plan document. There is no "Plan Generation
+Instructions" section: Legacy renders it only when the instruction
+text is non-empty, and Ycode has no `WriteExecutionPlan.md` bundle
+resource to load it from. Worker assignments appear only when more
+than 8 relevant files are found. A refused write fails instead of
+writing: Legacy writes the file directly and still returns success
+when the write fails. See
+`assist-terminal-memory-planning-tools.md` ("`execution_plan`",
+"Plan-file format").
+
+## 118. `intel_plan_task` — Plan Task
+
+- **Description (verbatim):** "Generates a high-level execution plan for a complex task."
+- **Capability:** `planning`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a high-level execution plan for a complex task.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "task": {
+      "type": "string",
+      "description": "Natural-language description of the task to plan."
+    }
+  },
+  "required": ["task"]
+}
+```
+
+**Output (success).** Message: `Plan generated for task: <task>`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `planId` | Fresh UUID. |
+| `steps` | The numbered steps, newline-joined. |
+
+**Notes.** Splits the task text on `,`, `.`, `;`, newlines into clauses
+and numbers them as steps; an empty task (no clauses) yields the four
+default steps (`Analyze requirements`, `Implement changes`, `Validate
+with tests`, `Summarize outputs`). The plan is stored in the in-memory
+plan store under the returned UUID and is retrievable by
+`intel_breakdown_task`. See
+`assist-terminal-memory-planning-tools.md` ("`intel_plan_task`").
+
+## 119. `intel_breakdown_task` — Breakdown Task
+
+- **Description (verbatim):** "Breaks down a plan into granular, actionable steps."
+- **Capability:** `planning`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Breaks down a plan into granular, actionable steps.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "planId": {
+      "type": "string",
+      "description": "Plan identifier previously returned by intel_plan_task."
+    }
+  },
+  "required": ["planId"]
+}
+```
+
+**Output (success).** Message: `Task breakdown completed for plan
+<planId>`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `breakdown` | The expanded steps, newline-joined. |
+
+**Notes.** Loads the stored plan and expands every step line into
+three lines: the step itself, `Define acceptance criteria for:
+<step>`, and `Implement and self-review: <step>`. The breakdown is
+stored under `plan_breakdown:<planId>`. An unknown `planId` fails with
+`No stored plan found for planId: <planId>`. See
+`assist-terminal-memory-planning-tools.md`
+("`intel_breakdown_task`").
+
+## 120. `intel_autofix` — Auto-Fix Errors
+
+- **Description (verbatim):** "Attempts to automatically fix detected compilation or linting errors."
+- **Capability:** `diagnostics`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Attempts to automatically fix detected compilation or linting errors.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative file or directory to auto-fix. Defaults to the workspace root. Default: \".\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** None: the tool is registered but honestly
+failing (see Notes). No output schema, no structured data.
+
+**Notes.** Legacy runs `lint_project` and then asks an OpenAI LLM
+(stored API key) to rewrite the file, and Ycode's MCP host has neither
+a lint engine nor an LLM provider wired for this tool. The handler
+always fails with `intel_autofix needs an LLM provider and lint
+diagnostics: Legacy runs lint_project and then asks an OpenAI LLM
+(stored API key) to rewrite the file, and Ycode's MCP host has neither
+a lint engine nor an LLM provider wired for this tool. No file was
+changed; use the build tool's issues and file_edit to fix errors.` No
+file is touched. (Wave 2 `code_refactor` / Wave 3 `github_repo`
+precedent.) See `assist-terminal-memory-planning-tools.md`
+("`intel_autofix`").
+
+## 121. `intel_explain_code` — Explain Code
+
+- **Description (verbatim):** "Provides a detailed explanation of the code at a path."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Provides a detailed explanation of the code at a path.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to explain."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message: `Static analysis for <path>`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `explanation` | The static explanation of the file. |
+
+**Notes.** Honest static analysis, not an LLM call. Legacy tries an
+OpenAI LLM first and falls back to a one-line static summary when the
+LLM fails; Ycode's MCP host has no LLM provider wired for this tool,
+so the port always takes the static path — and says so in the result.
+The explanation is grounded in the file itself (line count, imports,
+declared types, functions); nothing is invented and no LLM output is
+claimed. An unreadable file fails with `Failed to explain <path>:
+<reason>`. See `assist-terminal-memory-planning-tools.md`
+("`intel_explain_code`").
+
+## 122. `intel_generate_tests` — Generate Tests
+
+- **Description (verbatim):** "Generates unit test stubs for Swift types with proper setup and teardown."
+- **Capability:** `testing`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates unit test stubs for Swift types with proper setup and teardown.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the source file to generate tests for."
+    },
+    "testPath": {
+      "type": "string",
+      "description": "Workspace-relative output path for the generated test file. Default: \"Tests/<SourceName>Tests.swift\"."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message: `Tests generated for <path> with <n>
+test methods`. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `test_path` | The requested output path, as given. |
+| `test_count` | Number of test methods (at least 1). |
+| `types_count` | Number of types extracted. |
+| `functions_count` | Number of functions extracted. |
+
+**Notes.** Extracts types and function names from the source with
+Legacy's deterministic regex, renders Legacy's verbatim XCTest stub
+template (setup / teardown, one test method per type / function), and
+writes it through `commit()`. The `@testable import` module is derived
+from the source path (`Sources/<Module>/…`, else the source file's
+parent directory name, else `App`); Legacy hardcodes `@testable import
+SwiftCode`. An unreadable source file fails with `Failed generating
+tests for <path>: <reason>`. See
+`assist-terminal-memory-planning-tools.md`
+("`intel_generate_tests`").
+
+## 123. `plan-AskUser` — Ask User for Decision
+
+- **Description (verbatim):** "Presents a structured question to the user during Plan mode execution. The question is rendered as a native macOS UI (PlanUserAskView) and execution suspends until the user provides an answer. The answer becomes persistent session data. This tool is ONLY available in Plan mode and is blocked at the runtime registry layer in Autopilot mode."
+- **Capability:** `planning`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Presents a structured question to the user during Plan mode execution. The question is rendered as a native macOS UI (PlanUserAskView) and execution suspends until the user provides an answer. The answer becomes persistent session data. This tool is ONLY available in Plan mode and is blocked at the runtime registry layer in Autopilot mode.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "question": {
+      "type": "string",
+      "description": "The decision question to present to the user."
+    },
+    "allowsMultipleAnswers": {
+      "type": "boolean",
+      "description": "Whether multiple choices may be selected."
+    },
+    "choices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "choice": {
+            "type": "string",
+            "description": "The choice text."
+          },
+          "assistRecommended": {
+            "type": "boolean",
+            "description": "Whether the assistant recommends this choice."
+          }
+        },
+        "required": ["choice"]
+      },
+      "description": "Available choices for the user. Each choice must have 'choice' (string) and 'assistRecommended' (boolean) fields."
+    },
+    "userSpecification": {
+      "type": "boolean",
+      "description": "Whether the user may provide a free-form response."
+    }
+  },
+  "required": ["question", "allowsMultipleAnswers", "choices"]
+}
+```
+
+**Output (success).** Message: `Question for the user (pending —
+present this question to the user; this tool does not wait for an
+answer): <question>` plus a `Choices: <a> | <b> (recommended)` line
+when choices exist and a `The user may also give a free-form answer.`
+line when `userSpecification` is true. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `questionId` | Fresh UUID. |
+| `question` | The question as given. |
+| `status` | Always `"pending"`. |
+| `allowsMultipleAnswers` | As given (default false). |
+| `userSpecification` | As given (default false). |
+| `choices` | The choices as presented (`choice` / `assistRecommended` each). |
+
+**Notes.** The ID is hyphenated by design — the documented
+intentional exception to snake_case (Legacy
+`Tools/validate_tools.py`); `MCPServerTests` allows exactly this one
+ID outside `^[a-z_]+$`. The tool returns the question as a structured
+handoff payload and returns immediately — it never blocks. Legacy
+presents a native macOS question UI and suspends execution for up to
+300 seconds waiting for the user's answer, and is available only in
+Plan mode. Ycode's MCP host is non-interactive and has no Plan /
+Autopilot execution mode, so the Legacy Plan-mode-only gate is
+unenforceable here and is not a failure case. The caller must present
+the question to the user and feed the answer back. The description is
+Legacy's verbatim (it describes the native UI and the Plan-mode
+restriction); the behaviour is the handoff. Choice items declare
+`choice` / `assistRecommended` properties; Legacy's items schema has
+none (validation does not descend into array items, so no behaviour
+change). See `assist-terminal-memory-planning-tools.md`
+("`plan-AskUser`").
+
+## 124. `report_to_user` — Report Task Completion to User
+
+- **Description (verbatim):** "Delivers the authoritative task completion report to the user once all task work, builds, tests, and audits are fully finished. Must be called at all times when Assist finishes doing task work. Not for conversational Q&A. Cleans and renders polished Markdown."
+- **Capability:** `general`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Delivers the authoritative task completion report to the user once all task work, builds, tests, and audits are fully finished. Must be called at all times when Assist finishes doing task work. Not for conversational Q&A. Cleans and renders polished Markdown.",
+  "properties": {
+    "workspace": {
+      "type": "string",
+      "description": "Optional: the workspace to use (its path); opened when it is not the open one."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Structured, concise completion report summarizing work done, files modified, and build/test verification results. Clean Markdown formatted."
+    },
+    "status": {
+      "type": "string",
+      "description": "Task outcome status (e.g. 'completed', 'verified', 'partially_completed')."
+    },
+    "filesModified": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of files that were created, updated, or audited during this task execution."
+    },
+    "verification": {
+      "type": "string",
+      "description": "Build, compiler diagnostic, and automated test execution results proving correctness."
+    }
+  },
+  "required": ["summary"]
+}
+```
+
+**Output (success).** The rendered report is the message. Structured data keys:
+
+| Key | Value |
+|---|---|
+| `status` | The outcome status (default `"completed"`). |
+| `filesCount` | Number of files listed. |
+| `renderedLength` | Character count of the rendered report. |
+
+**Notes.** Normalises and renders the report as polished Markdown
+(Legacy's `normalizeAndRenderMarkdown`); appends a `**Modified
+Files:**` section when files are listed and not already mentioned, and
+a `**Verification:**` section when verification text is given and not
+already mentioned. There is no `AssistManager` to broadcast to —
+Legacy posts the rendered report as the assistant's last message; in
+Ycode the tool result text **is** the report. There is no side effect.
+The handler also reads `message` / `report` / `text` as fallbacks for
+`summary` (not in the schema). A missing `summary` defaults to `Task
+execution completed.` in the handler, but the schema still requires
+it, so Ycode's argument validation rejects a missing `summary` first.
+See `assist-terminal-memory-planning-tools.md`
+("`report_to_user`").
+
+## 125. Summary: capability / risk / permission / writes (Wave 4 planning)
+
+| ID | Capability | Risk | Permission | Read-only | `writes` |
+|---|---|---|---|---|---|
+| `execution_plan` | planning | safeMutation | fileSystem | **no** | **true** |
+| `intel_plan_task` | planning | safeRead | none | yes | false |
+| `intel_breakdown_task` | planning | safeRead | none | yes | false |
+| `intel_autofix` | diagnostics | safeMutation | fileSystem | **no** | **true** |
+| `intel_explain_code` | diagnostics | safeRead | none | yes | false |
+| `intel_generate_tests` | testing | safeMutation | fileSystem | **no** | **true** |
+| `plan-AskUser` | planning | safeRead | none | yes | false |
+| `report_to_user` | general | safeRead | none | yes | false |
+
+3 tools write; 5 tools read. `intel_autofix` is registered but honestly
+failing (§120); `intel_explain_code` is honest static analysis, not an
+LLM call (§121); `plan-AskUser` never blocks (§123). No Autopilot
+anywhere in this family.
+
 ## Evidence
 
 | Claim | Level | Source |
@@ -4441,3 +6401,10 @@ Structured data keys (all strings):
 | Wave 3: scan rules (1 MB cap, binary extensions, skipped dirs, 300 KB / 800 KB caps) and the clamping vs strict path resolvers | 1 | Legacy `Functions/AssistSearchFunctions.swift`, `Tools/AssistToolSharedHelpers.swift` (`AssistWorkspaceScan`), `Tools/AssistToolingSupport.swift`, read directly |
 | Wave 3 (Git): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `git_pr_summary` is local-only, `github_repo` honestly failing | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistConflictMarkerScanTool.swift`, `AssistGitBisectTool.swift`, `AssistGitBlameTool.swift`, `AssistGitBranchCompareTool.swift`, `AssistGitBranchManagerTool.swift`, `AssistGitCherryPickTool.swift`, `AssistGitConflictResolverTool.swift`, `AssistGitLogViewerTool.swift`, `AssistGitPRSummaryTool.swift`, `AssistGitStashTool.swift`, `AssistGitHubRepoTool.swift`, `AssistRecentChangesTool.swift`, `AssistVersionControlOperator.swift`, `AssistTool.swift` (capability/risk/permission defaults), `AssistToolRegistry.swift` (register lines 163, 177–180, 262–265, 389, 399; alias table lines 431–438, 505, 518–521), read directly |
 | Wave 3 (Git): `git_bisect` `.execution` risk (rank 2, between safeMutation and potentiallyDestructive); `git_pr_summary` local-only; `github_repo` GitHub API + credential | 1 | Legacy `AssistGitBisectTool.swift:11`, `AssistToolRouter.swift:19–31`; `AssistGitPRSummaryTool.swift:6` and its `execute()` (four local git commands, no network); `AssistGitHubRepoTool.swift:37–44, 105+`, read directly |
+| Wave 4 (Terminal): all 17 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `env_capture_logs`, `use_extension`, `use_composio`, `use_workers`, `take_screenrecord` honestly failing; `use_mcp` / `use_app` partial | 1 | Legacy `SwiftCode/Backend/Assist/Tools/UseTermFunction.swift`, `AssistTaskRunnerTool.swift`, `AssistLogCaptureTool.swift`, `AssistEnvironmentInfoTool.swift`, `UseMCP.swift`, `UseExtensionTool.swift`, `AssistComposioTool.swift`, `Subagents/Tools/UseWorkersTool.swift`, `AssistEnvironmentVariableManagerTool.swift`, `AssistClipboardManagerTool.swift`, `AssistProcessMonitorTool.swift`, `AssistDiskSpaceAnalyzerTool.swift`, `AssistSystemNotificationTool.swift`, `AssistSystemTool.swift`, `AssistTakeScreenshotTool.swift`, `AssistTakeScreenrecordTool.swift`, `AssistUseAppTool.swift`, `AssistToolRegistry.swift` (register lines 104, 108–113, 141, 207–211, 349, 393–395; alias table lines 430–556), read directly |
+| Wave 4 (Terminal): `use_terminal` tokenize-to-argv, shell-metacharacter rejection, approval on every run, no allow-list / Full Access / Autopilot; `take_screenshot` writes despite Legacy `safeRead`; `use_system` sysctl allowlist, blocked global domain, read-back verification | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Terminal.swift`, `YcodeTools+TerminalSupport.swift`; Legacy `UseTermFunction.swift`, `AgentTerminalService`, `AssistSystemTool.swift`, read directly |
+| Wave 4 (Memory): all 9 IDs, titles, descriptions, capabilities, risk levels, and input schemas; per-workspace stores (in-memory graph, `UserMemory.md`, `.assist_context_store.json`, conversation file) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistStoreMemoryTool.swift`, `AssistRetrieveMemoryTool.swift`, `AssistClearMemoryTool.swift`, `AssistContextSnapshotTool.swift`, `AssistContextPersistenceStore.swift`, `AssistSaveToMemoryTool.swift`, `AssistViewMemoryTool.swift`, `AssistManageMemoryTool.swift`, `AssistConversationContextTool.swift`, `AssistToolRegistry.swift` (register lines 122–125, 135, 167–170; alias table lines 507–511), read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Memory.swift`, `YcodeTools+MemorySupport.swift` |
+| Wave 4 (Memory): Legacy's durable user memory is app-global and would leak across workspaces, so the port uses a per-workspace file in the same format; `mem_context_snapshot` latest snapshot is always `"none"` (no snapshot store) | 1 | Legacy `AssistMemoryGraph.swift`, `UserMemoryManager.swift` (`~/Library/Application Support/SwiftCode/UserMemory.md`), `AssistConversationHistory.swift`, `AssistSnapshotFunctions.swift`, read directly; Ycode `CodingAssistantModel.archiveURL(forWorkspace:)` (conversation archive, considered and rejected for memory) |
+| Wave 4 (Planning): all 8 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `intel_autofix` honestly failing; `plan-AskUser` handoff, never blocking | 1 | Legacy `SwiftCode/Backend/Assist/Tools/ExecutionPlanTool.swift`, `AssistPlanTaskTool.swift`, `AssistBreakdownTaskTool.swift`, `AssistAutoFixErrorsTool.swift`, `AssistExplainCodeTool.swift`, `AssistGenerateTestsTool.swift`, `PlanAskUserTool.swift`, `ReportToUserTool.swift`, `AssistToolRegistry.swift` (register lines 116–120, 142–143, 147; alias table lines 484–491), `Functions/System Assets/ExecutionPlans.md`, `Resources/WriteExecutionPlan.md`, read directly |
+| Wave 4 (Planning): `plan-AskUser` hyphenated ID is the documented intentional exception to snake_case; `execution_plan` honours documented lowercase `"plan"` / `"autopilot"` (Legacy's `rawValue` init only matches capitalised forms) | 1 | Legacy `SwiftCode/Backend/Assist/Tools/validate_tools.py`; `AgentSessionState.swift:4-6` (`ExecutionMode` raw values `"Plan"` / `"Autopilot"`); `ExecutionPlanTool.swift:28-32` |
+| Wave 4: registry aliases for this wave (terminal / memory / planning) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table lines 430–556, read directly; Ycode `ycode/Sources/YcodeMCP/MCPServer.swift` (`toolAliases`) |

@@ -62,7 +62,9 @@ final class MCPProcessClient: @unchecked Sendable {
         #expect(initialized["protocolVersion"] == "2025-11-25" && initialized["serverInfo"]?["name"] == "ycode")
         client.peer.notify("notifications/initialized")
         let tools = try await client.peer.request("tools/list")
-        #expect(tools["tools"]?.array?.count == 29)
+        // Catalogue size: 29 Ycode tools + 23 Wave 1 + 23 Wave 2 + 29 Wave 3
+        // + 34 Wave 4 = 138. (This count was stale at 29 since Wave 1.)
+        #expect(tools["tools"]?.array?.count == 138)
 
         // The workspace in the current folder is open already; open it by path anyway.
         let open = try await client.tool("workspace_open", ["path": .string(sample.url.path)])

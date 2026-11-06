@@ -124,7 +124,7 @@ import YcodeIDECore
         let reviews = Reviews()
         let reviewed = try await opened(sample, policy: .review { c in reviews.changes.append(c); return reviews.accept })
         let rejected = try await reviewed.server.callTool("file_edit", ["path": "Sources/Greeter/Greeter.swift", "oldText": "\"Hello\"", "newText": "\"Hi\""])
-        #expect(rejected.isToolError && rejected.resultText == MCPServer.rejectedMessage)
+        #expect(rejected.isToolError && rejected.firstText == MCPServer.rejectedMessage)
         #expect(sample.read("Sources/Greeter/Greeter.swift").contains("\"Hello\""))
         let change = try #require(reviews.changes.first)
         #expect(change.relativePath == "Sources/Greeter/Greeter.swift" && change.original?.contains("\"Hello\"") == true && change.proposed.contains("\"Hi\""))

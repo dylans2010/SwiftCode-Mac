@@ -138,13 +138,13 @@ import YcodeAssistant
         let created = try await host.server.callTool("file_write", ["path": .string("WritingTests/hello.txt"),
                                                                     "content": .string("Hello\nWorld\n")])
         #expect(!created.isToolError, "\(created.resultText)")
-        #expect(created.resultText == "Created new file: WritingTests/hello.txt (3 lines)")
+        #expect(created.firstText == "Created new file: WritingTests/hello.txt (3 lines)")
         #expect(sample.read("WritingTests/hello.txt") == "Hello\nWorld\n")
 
         let updated = try await host.server.callTool("file_write", ["path": .string("WritingTests/hello.txt"),
                                                                     "content": .string("Hello again\n")])
         #expect(!updated.isToolError, "\(updated.resultText)")
-        #expect(updated.resultText == "Updated existing file: WritingTests/hello.txt (2 lines)")
+        #expect(updated.firstText == "Updated existing file: WritingTests/hello.txt (2 lines)")
         #expect(sample.read("WritingTests/hello.txt") == "Hello again\n")
 
         // Legacy's writeFile creates missing parent directories.
@@ -162,12 +162,12 @@ import YcodeAssistant
         let created = try await host.server.callTool("file_create", ["path": .string("WritingTests/New/Dir/created.txt"),
                                                                      "content": .string("A\nB\n")])
         #expect(!created.isToolError, "\(created.resultText)")
-        #expect(created.resultText == "Created file at WritingTests/New/Dir/created.txt (3 lines)")
+        #expect(created.firstText == "Created file at WritingTests/New/Dir/created.txt (3 lines)")
         #expect(sample.read("WritingTests/New/Dir/created.txt") == "A\nB\n")
 
         let again = try await host.server.callTool("file_create", ["path": .string("WritingTests/New/Dir/created.txt"),
                                                                    "content": .string("Other\n")])
-        #expect(again.isToolError && again.resultText == "File already exists at WritingTests/New/Dir/created.txt. Set overwrite=true to replace it.")
+        #expect(again.isToolError && again.firstText == "File already exists at WritingTests/New/Dir/created.txt. Set overwrite=true to replace it.")
         #expect(sample.read("WritingTests/New/Dir/created.txt") == "A\nB\n")
 
         let replaced = try await host.server.callTool("file_create", ["path": .string("WritingTests/New/Dir/created.txt"),
@@ -189,7 +189,7 @@ import YcodeAssistant
         let appended = try await host.server.callTool("file_append", ["path": .string("WritingTests/log.txt"),
                                                                       "content": .string("two\n")])
         #expect(!appended.isToolError, "\(appended.resultText)")
-        #expect(appended.resultText == "Successfully appended to file: WritingTests/log.txt")
+        #expect(appended.firstText == "Successfully appended to file: WritingTests/log.txt")
         // Appended verbatim: no separator or newline is added.
         #expect(sample.read("WritingTests/log.txt") == "one\ntwo\n")
 
@@ -211,21 +211,21 @@ import YcodeAssistant
 
         let deleted = try await host.server.callTool("file_delete", ["path": .string("WritingTests/doomed.txt")])
         #expect(!deleted.isToolError, "\(deleted.resultText)")
-        #expect(deleted.resultText == "Successfully deleted file: WritingTests/doomed.txt")
+        #expect(deleted.firstText == "Successfully deleted file: WritingTests/doomed.txt")
         #expect(!exists(sample, "WritingTests/doomed.txt"))
 
         // Missing files are a failure, not a silent success.
         let missing = try await host.server.callTool("file_delete", ["path": .string("WritingTests/doomed.txt")])
-        #expect(missing.isToolError && missing.resultText == "No file at WritingTests/doomed.txt — nothing to delete.")
+        #expect(missing.isToolError && missing.firstText == "No file at WritingTests/doomed.txt — nothing to delete.")
 
         // A non-empty directory is deleted with all its contents.
         let dirDeleted = try await host.server.callTool("dir_delete", ["path": .string("WritingTests/Dir")])
         #expect(!dirDeleted.isToolError, "\(dirDeleted.resultText)")
-        #expect(dirDeleted.resultText == "Successfully deleted directory: WritingTests/Dir")
+        #expect(dirDeleted.firstText == "Successfully deleted directory: WritingTests/Dir")
         #expect(!exists(sample, "WritingTests/Dir"))
 
         let dirMissing = try await host.server.callTool("dir_delete", ["path": .string("WritingTests/Dir")])
-        #expect(dirMissing.isToolError && dirMissing.resultText == "No directory at WritingTests/Dir — nothing to delete.")
+        #expect(dirMissing.isToolError && dirMissing.firstText == "No directory at WritingTests/Dir — nothing to delete.")
     }
 
     @Test func dirCreateNestedIsIdempotent() async throws {
@@ -234,7 +234,7 @@ import YcodeAssistant
         let host = try await opened(sample, policy: .allow)
         let created = try await host.server.callTool("dir_create", ["path": .string("WritingTests/A/B/C")])
         #expect(!created.isToolError, "\(created.resultText)")
-        #expect(created.resultText == "Successfully created directory: WritingTests/A/B/C")
+        #expect(created.firstText == "Successfully created directory: WritingTests/A/B/C")
         var isDir: ObjCBool = false
         #expect(FileManager.default.fileExists(atPath: sample.path("WritingTests/A/B/C"), isDirectory: &isDir) && isDir.boolValue)
         // Creating an existing directory succeeds (no error).
@@ -250,7 +250,7 @@ import YcodeAssistant
 
         let rejected = try await host.server.callTool("file_write", ["path": .string("WritingTests/reviewed.txt"),
                                                                      "content": .string("Hello review.\n")])
-        #expect(rejected.isToolError && rejected.resultText == MCPServer.rejectedMessage)
+        #expect(rejected.isToolError && rejected.firstText == MCPServer.rejectedMessage)
         #expect(!exists(sample, "WritingTests/reviewed.txt"))
         let change = try #require(reviews.changes.first)
         #expect(change.tool == "file_write" && change.relativePath == "WritingTests/reviewed.txt"
@@ -264,7 +264,7 @@ import YcodeAssistant
 
         reviews.accept = false
         let deleteRejected = try await host.server.callTool("file_delete", ["path": .string("WritingTests/reviewed.txt")])
-        #expect(deleteRejected.isToolError && deleteRejected.resultText == MCPServer.rejectedMessage)
+        #expect(deleteRejected.isToolError && deleteRejected.firstText == MCPServer.rejectedMessage)
         #expect(exists(sample, "WritingTests/reviewed.txt"))
         #expect(reviews.changes.last?.tool == "file_delete")
     }
@@ -300,7 +300,7 @@ import YcodeAssistant
         let copied = try await host.server.callTool("file_copy", ["source": .string("WritingTests/orig.txt"),
                                                                   "destination": .string("WritingTests/copy.txt")])
         #expect(!copied.isToolError, "\(copied.resultText)")
-        #expect(copied.resultText == "Successfully copied file from WritingTests/orig.txt to WritingTests/copy.txt")
+        #expect(copied.firstText == "Successfully copied file from WritingTests/orig.txt to WritingTests/copy.txt")
         #expect(sample.read("WritingTests/copy.txt") == "original\n")
         #expect(sample.read("WritingTests/orig.txt") == "original\n")
 
@@ -313,7 +313,7 @@ import YcodeAssistant
         let moved = try await host.server.callTool("file_move", ["source": .string("WritingTests/copy.txt"),
                                                                  "destination": .string("WritingTests/moved.txt")])
         #expect(!moved.isToolError, "\(moved.resultText)")
-        #expect(moved.resultText == "Successfully moved file from WritingTests/copy.txt to WritingTests/moved.txt")
+        #expect(moved.firstText == "Successfully moved file from WritingTests/copy.txt to WritingTests/moved.txt")
         #expect(!exists(sample, "WritingTests/copy.txt") && sample.read("WritingTests/moved.txt") == "original\n")
 
         let moveClash = try await host.server.callTool("file_move", ["source": .string("WritingTests/moved.txt"),
@@ -324,18 +324,18 @@ import YcodeAssistant
         let renamed = try await host.server.callTool("file_rename", ["oldPath": .string("WritingTests/moved.txt"),
                                                                      "newName": .string("renamed.txt")])
         #expect(!renamed.isToolError, "\(renamed.resultText)")
-        #expect(renamed.resultText == "Successfully renamed file to: renamed.txt")
+        #expect(renamed.firstText == "Successfully renamed file to: renamed.txt")
         #expect(!exists(sample, "WritingTests/moved.txt") && sample.read("WritingTests/renamed.txt") == "original\n")
 
         // newName must be a single file name, not a path.
         let badName = try await host.server.callTool("file_rename", ["oldPath": .string("WritingTests/renamed.txt"),
                                                                      "newName": .string("../evil.txt")])
-        #expect(badName.isToolError && badName.resultText == "Invalid newName '../evil.txt': must be a single file name, not a path.")
+        #expect(badName.isToolError && badName.firstText == "Invalid newName '../evil.txt': must be a single file name, not a path.")
         #expect(exists(sample, "WritingTests/renamed.txt"))
 
         let noop = try await host.server.callTool("file_rename", ["oldPath": .string("WritingTests/renamed.txt"),
                                                                   "newName": .string("renamed.txt")])
-        #expect(noop.isToolError && noop.resultText == "Rename is a no-op: newName matches the current file name.")
+        #expect(noop.isToolError && noop.firstText == "Rename is a no-op: newName matches the current file name.")
     }
 
     @Test func fileCopyToMissingParentFails() async throws {
@@ -388,14 +388,14 @@ import YcodeAssistant
         let missing = try await host.server.callTool("code_replace", ["path": .string("WritingTests/replace.swift"),
                                                                       "target": .string("let q = 9"), "replacement": .string("let q = 0")])
         #expect(missing.isToolError
-                && missing.resultText == "Target snippet not found in 'WritingTests/replace.swift'. Please re-read the file with 'file_read' to inspect the exact existing lines before attempting replacement. Target snippet was: 'let q = 9'")
+                && missing.firstText == "Target snippet not found in 'WritingTests/replace.swift'. Please re-read the file with 'file_read' to inspect the exact existing lines before attempting replacement. Target snippet was: 'let q = 9'")
         #expect(sample.read("WritingTests/replace.swift") == "let x = 1\nlet y = 1\nlet z = 3\n")
 
         // "1" occurs twice: ambiguous without allowMultiple.
         let ambiguous = try await host.server.callTool("code_replace", ["path": .string("WritingTests/replace.swift"),
                                                                         "target": .string("1"), "replacement": .string("9")])
         #expect(ambiguous.isToolError
-                && ambiguous.resultText == "Target snippet matched 2 times in 'WritingTests/replace.swift'. Provide more surrounding lines to uniquely identify the location, or pass 'allowMultiple: true'. Snippet was: '1'")
+                && ambiguous.firstText == "Target snippet matched 2 times in 'WritingTests/replace.swift'. Provide more surrounding lines to uniquely identify the location, or pass 'allowMultiple: true'. Snippet was: '1'")
         #expect(sample.read("WritingTests/replace.swift") == "let x = 1\nlet y = 1\nlet z = 3\n")
 
         let multi = try await host.server.callTool("code_replace", ["path": .string("WritingTests/replace.swift"),
@@ -415,7 +415,7 @@ import YcodeAssistant
                                                                     "code": .string("INSERTED"), "mode": .string("line"),
                                                                     "line": .int(2)])
         #expect(!byLine.isToolError, "\(byLine.resultText)")
-        #expect(byLine.resultText == "Code block inserted into WritingTests/insert.swift")
+        #expect(byLine.firstText == "Code block inserted into WritingTests/insert.swift")
         #expect(sample.read("WritingTests/insert.swift") == "alpha\nINSERTED\nbeta\ngamma")
 
         // "after" inserts directly after the first pattern occurrence.
@@ -435,12 +435,12 @@ import YcodeAssistant
         let miss = try await host.server.callTool("code_insert", ["path": .string("WritingTests/insert.swift"),
                                                                   "code": .string("NOPE"), "mode": .string("after"),
                                                                   "pattern": .string("missing-pattern")])
-        #expect(miss.isToolError && miss.resultText == "Pattern not found in WritingTests/insert.swift: 'missing-pattern'. No changes made.")
+        #expect(miss.isToolError && miss.firstText == "Pattern not found in WritingTests/insert.swift: 'missing-pattern'. No changes made.")
         #expect(sample.read("WritingTests/insert.swift") == "alpha\nINSERTED\nbeta\nAFTER\nBEFORE\ngamma")
 
         let badMode = try await host.server.callTool("code_insert", ["path": .string("WritingTests/insert.swift"),
                                                                      "code": .string("NOPE"), "mode": .string("sideways")])
-        #expect(badMode.isToolError && badMode.resultText == "Unknown mode 'sideways': expected 'line', 'before', or 'after'.")
+        #expect(badMode.isToolError && badMode.firstText == "Unknown mode 'sideways': expected 'line', 'before', or 'after'.")
     }
 
     @Test func codeMultiEditAcrossFiles() async throws {
@@ -455,7 +455,7 @@ import YcodeAssistant
             .object(["path": .string("WritingTests/multi-b.txt"), "search": .string("old"), "replace": .string("new")]),
         ])])
         #expect(!edited.isToolError, "\(edited.resultText)")
-        #expect(edited.resultText == "Multi-file edit completed for 2 files")
+        #expect(edited.firstText == "Multi-file edit completed for 2 files")
         #expect(sample.read("WritingTests/multi-a.txt") == "whole new\n")
         #expect(sample.read("WritingTests/multi-b.txt") == "new value\n")
 
@@ -466,7 +466,7 @@ import YcodeAssistant
             .object(["path": .string("WritingTests/multi-b.txt"), "search": .string("not-there"), "replace": .string("x")]),
         ])])
         #expect(partial.isToolError
-                && partial.resultText == "Search text not found in WritingTests/multi-b.txt. Edits already applied: WritingTests/multi-a.txt.")
+                && partial.firstText == "Search text not found in WritingTests/multi-b.txt. Edits already applied: WritingTests/multi-a.txt.")
         #expect(sample.read("WritingTests/multi-a.txt") == "v2\n")
         #expect(sample.read("WritingTests/multi-b.txt") == "new value\n")
     }
@@ -489,7 +489,7 @@ import YcodeAssistant
         #expect(sums.resultText.contains("- SHA-256: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"))
 
         let missing = try await host.server.callTool("generate_file_checksum", ["path": .string("WritingTests/ghost.txt")])
-        #expect(missing.isToolError && missing.resultText == "File not found at: WritingTests/ghost.txt")
+        #expect(missing.isToolError && missing.firstText == "File not found at: WritingTests/ghost.txt")
     }
 
     @Test func plistRoundTripAndEdit() async throws {
@@ -520,11 +520,11 @@ import YcodeAssistant
                                                                 "action": .string("set"), "key": .string("name"),
                                                                 "value": .string("Renamed")])
         #expect(!set.isToolError, "\(set.resultText)")
-        #expect(set.resultText == "Set key 'name' in 'WritingTests/app.plist'.")
+        #expect(set.firstText == "Set key 'name' in 'WritingTests/app.plist'.")
         let get = try await host.server.callTool("plist_edit", ["path": .string("WritingTests/app.plist"),
                                                                 "action": .string("get"), "key": .string("name")])
         #expect(!get.isToolError, "\(get.resultText)")
-        #expect(get.resultText == "Key 'name' = Renamed in 'WritingTests/app.plist'.")
+        #expect(get.firstText == "Key 'name' = Renamed in 'WritingTests/app.plist'.")
         // The edit landed on disk: converting again shows the new value.
         let back2 = try await host.server.callTool("plist_to_json", ["path": .string("WritingTests/app.plist"),
                                                                      "destination": .string("WritingTests/app-roundtrip2.json")])
@@ -533,7 +533,7 @@ import YcodeAssistant
 
         let missingKey = try await host.server.callTool("plist_edit", ["path": .string("WritingTests/app.plist"),
                                                                        "action": .string("get"), "key": .string("nope")])
-        #expect(missingKey.isToolError && missingKey.resultText == "Key 'nope' not found in 'WritingTests/app.plist'.")
+        #expect(missingKey.isToolError && missingKey.firstText == "Key 'nope' not found in 'WritingTests/app.plist'.")
     }
 
     @Test func csvJsonRoundTrip() async throws {
@@ -545,7 +545,7 @@ import YcodeAssistant
         // Default destination: <path>.json next to the CSV.
         let toJson = try await host.server.callTool("csv_to_json", ["path": .string("WritingTests/people.csv")])
         #expect(!toJson.isToolError, "\(toJson.resultText)")
-        #expect(toJson.resultText == "Successfully converted CSV `WritingTests/people.csv` to JSON at `WritingTests/people.json` (2 records parsed).")
+        #expect(toJson.firstText == "Successfully converted CSV `WritingTests/people.csv` to JSON at `WritingTests/people.json` (2 records parsed).")
         let records = try #require(jsonObject(sample, "WritingTests/people.json") as? [[String: Any]])
         #expect(records.count == 2)
         #expect(records[0]["name"] as? String == "Ada" && records[0]["age"] as? String == "36")
@@ -554,14 +554,14 @@ import YcodeAssistant
         let toCsv = try await host.server.callTool("json_to_csv", ["path": .string("WritingTests/people.json"),
                                                                    "destination": .string("WritingTests/people-out.csv")])
         #expect(!toCsv.isToolError, "\(toCsv.resultText)")
-        #expect(toCsv.resultText == "Successfully converted JSON `WritingTests/people.json` to CSV at `WritingTests/people-out.csv` (2 rows, 2 columns).")
+        #expect(toCsv.firstText == "Successfully converted JSON `WritingTests/people.json` to CSV at `WritingTests/people-out.csv` (2 rows, 2 columns).")
         // Headers are the sorted union of keys; every value is quoted.
         #expect(sample.read("WritingTests/people-out.csv") == "\"age\",\"name\"\n\"36\",\"Ada\"\n\"31\",\"Grace\"\n")
 
         // A JSON object (not an array) cannot become CSV.
         try writeFixture(sample, "WritingTests/not-array.json", "{\"a\":1}")
         let notArray = try await host.server.callTool("json_to_csv", ["path": .string("WritingTests/not-array.json")])
-        #expect(notArray.isToolError && notArray.resultText == "JSON root must be a non-empty array of objects to convert to CSV.")
+        #expect(notArray.isToolError && notArray.firstText == "JSON root must be a non-empty array of objects to convert to CSV.")
     }
 
     @Test func regexReplaceAcrossFiles() async throws {
@@ -589,7 +589,7 @@ import YcodeAssistant
 
         let badRegex = try await host.server.callTool("regex_replace_in_files", ["pattern": .string("["),
                                                                                 "replacement": .string("x")])
-        #expect(badRegex.isToolError && badRegex.resultText == "Invalid regular expression pattern: [")
+        #expect(badRegex.isToolError && badRegex.firstText == "Invalid regular expression pattern: [")
     }
 
     @Test func formatJsonFile() async throws {
@@ -623,11 +623,11 @@ import YcodeAssistant
         let host = try await opened(sample, policy: .allow)
         let formatted = try await host.server.callTool("code_format", ["path": .string("WritingTests/messy.swift")])
         #expect(!formatted.isToolError, "\(formatted.resultText)")
-        #expect(formatted.resultText == "Code formatting completed at WritingTests/messy.swift")
+        #expect(formatted.firstText == "Code formatting completed at WritingTests/messy.swift")
         #expect(sample.read("WritingTests/messy.swift") == "func f() {\n    let x = 1\n\n    return x\n}\n")
 
         let missing = try await host.server.callTool("code_format", ["path": .string("WritingTests/nope.swift")])
-        #expect(missing.isToolError && missing.resultText == "Path does not exist: WritingTests/nope.swift")
+        #expect(missing.isToolError && missing.firstText == "Path does not exist: WritingTests/nope.swift")
     }
 
     @Test func codeGenerateTemplates() async throws {
@@ -638,7 +638,7 @@ import YcodeAssistant
         let strukt = try await host.server.callTool("code_generate", ["path": .string("WritingTests/Generated/Widget.swift"),
                                                                       "template": .string("swift_struct")])
         #expect(!strukt.isToolError, "\(strukt.resultText)")
-        #expect(strukt.resultText == "Generated file WritingTests/Generated/Widget.swift using template 'swift_struct'")
+        #expect(strukt.firstText == "Generated file WritingTests/Generated/Widget.swift using template 'swift_struct'")
         #expect(sample.read("WritingTests/Generated/Widget.swift") == "import Foundation\n\npublic struct Widget {\n    public init() {}\n}\n")
 
         let klass = try await host.server.callTool("code_generate", ["path": .string("WritingTests/Generated/Gizmo.swift"),
@@ -665,10 +665,10 @@ import YcodeAssistant
         // Refuses to overwrite, and unknown templates are a failure.
         let existing = try await host.server.callTool("code_generate", ["path": .string("WritingTests/Generated/Widget.swift"),
                                                                         "template": .string("swift_struct")])
-        #expect(existing.isToolError && existing.resultText == "Target file already exists: WritingTests/Generated/Widget.swift")
+        #expect(existing.isToolError && existing.firstText == "Target file already exists: WritingTests/Generated/Widget.swift")
         let unknown = try await host.server.callTool("code_generate", ["path": .string("WritingTests/Generated/What.swift"),
                                                                        "template": .string("widget")])
-        #expect(unknown.isToolError && unknown.resultText == "Unknown template 'widget': expected swift_struct, swift_class, swiftui_view, or test.")
+        #expect(unknown.isToolError && unknown.firstText == "Unknown template 'widget': expected swift_struct, swift_class, swiftui_view, or test.")
         #expect(!exists(sample, "WritingTests/Generated/What.swift"))
     }
 
@@ -713,11 +713,11 @@ import YcodeAssistant
         let none = try await host.server.callTool("batch_rename_files", ["directory": .string("WritingTests/Rename"),
                                                                          "search": .string("zzz"), "replacement": .string("yyy")])
         #expect(!none.isToolError, "\(none.resultText)")
-        #expect(none.resultText == "No files in `WritingTests/Rename` matched search pattern 'zzz'.")
+        #expect(none.firstText == "No files in `WritingTests/Rename` matched search pattern 'zzz'.")
 
         let missingDir = try await host.server.callTool("batch_rename_files", ["directory": .string("WritingTests/Nope"),
                                                                                "search": .string("a"), "replacement": .string("b")])
-        #expect(missingDir.isToolError && missingDir.resultText == "Directory not found at: WritingTests/Nope")
+        #expect(missingDir.isToolError && missingDir.firstText == "Directory not found at: WritingTests/Nope")
     }
 
     @Test func fileWriteThenFileBackupRoundTrip() async throws {

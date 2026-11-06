@@ -45,6 +45,12 @@ extension MCPServer {
 extension AnyJSON {
     /// The text of every text block of a tool result.
     var resultText: String { (self["content"]?.array ?? []).compactMap { $0["text"]?.string }.joined(separator: "\n") }
+    /// The first text block of a tool result. `MCPToolResult.structured(_:summary:)`
+    /// emits two blocks (the summary, then the JSON mirror), so an exact
+    /// comparison against the human-readable message must use this, not
+    /// `resultText` (which joins both blocks). For single-block `.text` /
+    /// `.error` results the two are identical.
+    var firstText: String { (self["content"]?.array ?? []).compactMap { $0["text"]?.string }.first ?? "" }
     var isToolError: Bool { self["isError"]?.bool == true }
     var structured: AnyJSON? { self["structuredContent"] }
 }

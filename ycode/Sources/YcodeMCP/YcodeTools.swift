@@ -53,6 +53,7 @@ extension YcodeMCPHost {
         server.tools = workspaceTools + buildTools + runTools + contentTools + completionTools
             + fileReadingTools + fileInspectionTools + artifactTools + fileWritingTools
             + searchTools + gitTools
+            + terminalTools + memoryTools + planningTools
     }
 
     /// A tool whose handler runs on the main actor.

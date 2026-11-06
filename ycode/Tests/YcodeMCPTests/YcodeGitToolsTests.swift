@@ -294,7 +294,7 @@ import YcodeAssistant
         let reviews = Reviews()
         let reviewHost = try await opened(dir, policy: .review { c in reviews.changes.append(c); return reviews.accept })
         let rejected = try await reviewHost.server.callTool("git_branch_manager", ["action": .string("delete"), "branchName": .string("doomed")])
-        #expect(rejected.isToolError && rejected.resultText == MCPServer.rejectedMessage)
+        #expect(rejected.isToolError && rejected.firstText == MCPServer.rejectedMessage)
         #expect(reviews.changes.first?.tool == "git_branch_manager")
         let list = try await allowHost.server.callTool("git_branch_manager", ["action": .string("list")])
         #expect(list.resultText.contains("doomed"), "rejected delete must leave the branch in place")
@@ -411,7 +411,7 @@ import YcodeAssistant
         host.server.writePolicy = .review { c in reviews.changes.append(c); return reviews.accept }
         let rejected = try await host.server.callTool("version_control_operator",
                                                       ["action": .string("rollback"), "ref": .string("HEAD~1")])
-        #expect(rejected.isToolError && rejected.resultText == MCPServer.rejectedMessage)
+        #expect(rejected.isToolError && rejected.firstText == MCPServer.rejectedMessage)
         let stillThere = try await host.server.callTool("git_log_viewer", ["maxCount": .int(1)])
         #expect(stillThere.resultText.contains("Test commit"))
     }
