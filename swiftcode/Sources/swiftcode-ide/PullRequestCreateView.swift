@@ -8,7 +8,7 @@ import SwiftCodeGitHub
 // `SwiftCode/Views/Collaboration/PRCreateView.swift`,
 // `CollaborationPullRequestView.swift`, and
 // `SwiftCode/Views/AI/AI New/Codex UIs/CodexPullRequestView.swift` onto
-// SwiftCode's GitHub client (`SwiftCodeGitHub/GitHubClient.swift`,
+// SwiftCode's GitHub client (`SwiftCodeGitHub/Client/GitHubClient.swift`,
 // `createPullRequest(owner:repo:title:body:head:base:draft:)`).
 // The token is read from the secret store on each request (never
 // stored in this view, never displayed); creating a PR without a

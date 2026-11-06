@@ -4,7 +4,7 @@
 // (when there is one), or attaches with `vAttach`/`vAttachName`/`vAttachWait`.
 // The protocol is SwiftCodeDebug's GDBRemoteServer; this file is the simulator
 // side: threads, registers and memory of a guest image, and the kernel's
-// debug hooks (SwiftCodeDarwinKernel/DebugHooks.swift).
+// debug hooks (SwiftCodeDarwinKernel/Kernel/DebugHooks.swift).
 
 import Foundation
 import SwiftCodeDebug

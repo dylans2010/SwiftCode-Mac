@@ -2,7 +2,7 @@
 // (specs/ide/device-hub.md §4.3, "SwiftCode implementation"): each device
 // type's panels (pixels, scale, pixel density, corner radii) and family.
 // The values are SwiftCode's own device data, the same as swiftcode-simd's device
-// types (`Sources/swiftcode-simd/DeviceTypes.swift`); no artwork is involved:
+// types (`Sources/swiftcode-simd/Device/DeviceTypes.swift`); no artwork is involved:
 // SwiftCode draws its frames from these numbers.
 
 import Foundation
