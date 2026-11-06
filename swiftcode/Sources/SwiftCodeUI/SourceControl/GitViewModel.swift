@@ -1,0 +1,121 @@
+// Ported from SwiftCode-Legacy `SwiftCode/ViewModels/GitViewModel.swift` (Dylan's own code; direct port authorised under MIT).
+// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
+// Adaptation: Placed in SwiftCodeUI/SourceControl (not IDECore/Model): SwiftCodeIDECore has no SwiftCodeSDK dependency, so the view model lives with its views.
+// Adaptation: GitFileStatus.path is String in the destination model (URL in Legacy): wrapped with URL(fileURLWithPath:) at the three call sites.
+import Foundation
+import Observation
+import SwiftCodeIDECore
+import SwiftCodeSDK
+
+@Observable
+@MainActor
+public class GitViewModel {
+    public var status: GitStatusSnapshot?
+    public var history: [GitCommit] = []
+    public var branches: [GitBranch] = []
+    public var isScanning = false
+    public var isGitInstalled = false
+    public var repositoryURL: URL?
+
+    public init() {}
+
+    public func refreshInstallationStatus() async {
+        isGitInstalled = await GitService.shared.isGitInstalled()
+    }
+
+    public func refreshStatus() async {
+        guard let url = repositoryURL else { return }
+        isScanning = true
+        do {
+            status = try await GitService.shared.getStatus(for: url)
+            history = try await GitService.shared.getLog(repositoryURL: url)
+            branches = try await GitService.shared.getBranches(repositoryURL: url)
+        } catch {
+            LoggingTool.error("Git status failed: \(error)")
+        }
+        isScanning = false
+    }
+
+    public func stage(_ file: GitFileStatus) async {
+        guard let url = repositoryURL else { return }
+        try? await GitService.shared.stage(path: URL(fileURLWithPath: file.path), repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func unstage(_ file: GitFileStatus) async {
+        guard let url = repositoryURL else { return }
+        try? await GitService.shared.unstage(path: URL(fileURLWithPath: file.path), repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func discardChanges(_ file: GitFileStatus) async {
+        guard let url = repositoryURL else { return }
+        try? await GitService.shared.discardChanges(path: URL(fileURLWithPath: file.path), repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func commit(message: String) async {
+        guard let url = repositoryURL else { return }
+        try? await GitService.shared.commit(message: message, repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func refreshBranches() {
+        Task {
+            await refreshStatus()
+        }
+    }
+
+    public func createBranch(named name: String) {
+        guard let url = repositoryURL else { return }
+        Task {
+            do {
+                try await GitService.shared.createBranch(name: name, repositoryURL: url)
+                await refreshStatus()
+            } catch {
+                LoggingTool.error("Git branch creation failed: \(error)")
+            }
+        }
+    }
+
+    public func checkout(_ branch: GitBranch) {
+        guard let url = repositoryURL else { return }
+        Task {
+            do {
+                try await GitService.shared.checkout(branch: branch.name, repositoryURL: url)
+                await refreshStatus()
+            } catch {
+                LoggingTool.error("Git checkout failed: \(error)")
+            }
+        }
+    }
+
+    public func deleteBranch(_ branch: GitBranch) {
+        guard let url = repositoryURL else { return }
+        Task {
+            do {
+                try await GitService.shared.deleteBranch(name: branch.name, repositoryURL: url)
+                await refreshStatus()
+            } catch {
+                LoggingTool.error("Git branch deletion failed: \(error)")
+            }
+        }
+    }
+
+    public func getDiff() async -> [GitDiffHunk] {
+        guard let url = repositoryURL else { return [] }
+        return (try? await GitService.shared.getDiff(repositoryURL: url)) ?? []
+    }
+
+    public func rollback(to sha: String) async throws {
+        guard let url = repositoryURL else { return }
+        try await GitService.shared.rollback(to: sha, repositoryURL: url)
+        await refreshStatus()
+    }
+
+    public func forcePush(branch: String) async throws {
+        guard let url = repositoryURL else { return }
+        try await GitService.shared.forcePush(branch: branch, repositoryURL: url)
+        await refreshStatus()
+    }
+}

@@ -1,0 +1,278 @@
+// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
+//   SwiftCode/Features/AdvancedTools/Views/DocumentationAIScanView.swift
+//
+// Adapted for SwiftCode: Legacy asked `LLMService.shared` (which
+// does not exist here) with a hardcoded model path. The question
+// now goes through the injected `AssistantProvider` — the same
+// `ChatRequest` / `send(_:)` seam `DocumentationAnalyzer` uses —
+// with the provider's default model unless `model` is given.
+// The system prompt, the on-device fallback text and the rest of
+// the view are verbatim. `MarkdownBlockListView` /
+// `MarkdownParser` / `.liquidGlass` already exist here.
+
+import AppKit
+import SwiftCodeAssistant
+import SwiftUI
+
+public struct LocalChatMsg: Identifiable, Sendable, Hashable {
+    public let id: UUID
+    public let isUser: Bool
+    public let content: String
+    public let timestamp: Date
+
+    public init(id: UUID = UUID(), isUser: Bool, content: String, timestamp: Date = Date()) {
+        self.id = id
+        self.isUser = isUser
+        self.content = content
+        self.timestamp = timestamp
+    }
+}
+
+@MainActor
+public struct DocumentationAIScanView: View {
+    public let documentTitle: String
+    public let scannedContent: String
+    /// Injected: the assistant back end to ask (Legacy used the
+    /// missing `LLMService.shared`).
+    public let provider: AssistantProvider
+    /// Model id, or nil for the provider's default.
+    public let model: String?
+
+    public init(documentTitle: String, scannedContent: String, provider: AssistantProvider, model: String? = nil) {
+        self.documentTitle = documentTitle
+        self.scannedContent = scannedContent
+        self.provider = provider
+        self.model = model
+    }
+
+    @State private var chatHistory: [LocalChatMsg] = []
+    @State private var questionText = ""
+    @State private var isProcessing = false
+    @State private var errorMessage: String? = nil
+    @State private var isScanning = true
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isScanning {
+                    VStack(spacing: 16) {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .padding(.bottom, 8)
+                        Text("Scanning Page Content...")
+                            .font(.headline)
+                        Text("Extracting text references, framework signatures, and indexing layout for the AI Scanned Document Assistant...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                } else {
+                    VStack(spacing: 0) {
+                        // Chat History / Initial Prompt
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                VStack(spacing: 16) {
+                                    if chatHistory.isEmpty {
+                                        VStack(spacing: 12) {
+                                            Spacer().frame(height: 40)
+                                            Image(systemName: "apple.intelligence")
+                                                .font(.system(size: 40))
+                                                .foregroundStyle(.orange)
+                                            Text("Ask me anything about \(documentTitle)")
+                                                .font(.title3.bold())
+                                            Text("I have scanned and indexed the entire document. Ask about its parameters, platform support, code samples, or how to integrate it into your project.")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                                .multilineTextAlignment(.center)
+                                                .padding(.horizontal, 40)
+                                            Spacer()
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    } else {
+                                        ForEach(chatHistory) { msg in
+                                            HStack(alignment: .top, spacing: 12) {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(msg.isUser ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                                                        .frame(width: 30, height: 30)
+                                                    Image(systemName: msg.isUser ? "person.fill" : "sparkles")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(msg.isUser ? .blue : .orange)
+                                                }
+
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(msg.isUser ? "You" : "Apple Expert AI")
+                                                        .font(.caption.bold())
+                                                        .foregroundStyle(.secondary)
+
+                                                    if msg.isUser {
+                                                        Text(msg.content)
+                                                            .font(.body)
+                                                            .textSelection(.enabled)
+                                                            .lineSpacing(4)
+                                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                                    } else {
+                                                        MarkdownBlockListView(blocks: MarkdownParser.shared.parse(msg.content))
+                                                    }
+                                                }
+                                            }
+                                            .padding(12)
+                                            .background(msg.isUser ? Color.blue.opacity(0.04) : Color.orange.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                                            .id(msg.id)
+                                        }
+                                    }
+
+                            if isProcessing {
+                                HStack(spacing: 8) {
+                                    ProgressView().controlSize(.small)
+                                    Text("Analyzing document and writing answer...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id("processing")
+                            }
+
+                            if let error = errorMessage {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(16)
+                    }
+                    .onChange(of: chatHistory.count) { _, _ in
+                        if let last = chatHistory.last {
+                            withAnimation {
+                                proxy.scrollTo(last.id, anchor: .bottom)
+                            }
+                        }
+                    }
+                    .onChange(of: isProcessing) { _, newValue in
+                        if newValue {
+                            withAnimation {
+                                proxy.scrollTo("processing", anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Input Bar
+                HStack(spacing: 12) {
+                    TextField("Ask anything about this document...", text: $questionText)
+                        .textFieldStyle(.plain)
+                        .padding(10)
+                        .liquidGlass(style: .standard, cornerRadius: 8)
+                        .onSubmit {
+                            askQuestion()
+                        }
+                        .disabled(isProcessing)
+
+                    Button(action: askQuestion) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing ? .secondary : .orange)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+                }
+                .padding(14)
+                .background(Color(NSColor.windowBackgroundColor))
+            }
+        }
+        }
+        .navigationTitle("Document Scan Analyst")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") {
+                    dismiss()
+                }
+            }
+        }
+        .onAppear {
+            Task {
+                try? await Task.sleep(nanoseconds: 1_800_000_000)
+                withAnimation {
+                    isScanning = false
+                }
+            }
+        }
+        }
+        .frame(width: 650, height: 500)
+    }
+
+    private func askQuestion() {
+        let question = questionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty && !isProcessing else { return }
+
+        questionText = ""
+        errorMessage = nil
+        chatHistory.append(LocalChatMsg(isUser: true, content: question))
+        isProcessing = true
+
+        let systemPrompt = """
+You are a world-class senior iOS and macOS software engineer and an absolute expert in Swift, SwiftUI, Combine, and Foundation APIs. Below is the scanned documentation of a specific component/webpage. The user has questions about this documentation. Analyze the scanned documentation carefully, and answer their questions with complete clarity, providing fully-commented, premium production-ready Swift code examples, and direct answers to any technical queries. Here is the scanned document:
+
+[START SCANNED DOCUMENT]
+\(scannedContent)
+[END SCANNED DOCUMENT]
+
+Answer the user's questions based on this document and your expert Apple SDK knowledge.
+"""
+
+        let provider = self.provider
+        let model = self.model
+        Task {
+            do {
+                let request = ChatRequest(
+                    model: model,
+                    instructions: systemPrompt,
+                    messages: [ChatMessage(.user, question)]
+                )
+                var response = ""
+                for try await event in provider.send(request) {
+                    if case .text(let chunk) = event {
+                        response += chunk
+                    }
+                }
+                isProcessing = false
+                chatHistory.append(LocalChatMsg(isUser: false, content: response))
+            } catch {
+                // Offline on-device analysis fallback
+                let fallback = """
+### On-Device Document Analysis
+**Query:** \(question)
+
+Based on the local documentation for **\(documentTitle)**:
+- **Core Summary:** The document defines type signatures, declarations, and availability for on-device Apple platforms.
+- **Local Context:**
+```swift
+// Synthesized local snippet for \(documentTitle)
+import SwiftUI
+
+// Reference implementation based on on-device assets
+print("\(documentTitle) is indexed locally")
+```
+"""
+                isProcessing = false
+                chatHistory.append(LocalChatMsg(isUser: false, content: fallback))
+            }
+        }
+    }
+}

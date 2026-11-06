@@ -1,0 +1,77 @@
+// Ported from SwiftCode-Legacy `SwiftCode/Views/GitHub/Legacy/GitHistoryView.swift` (Dylan's own code; direct port authorised under MIT).
+// V10 (independent verification): confirmed genuinely missing from production at bc28f653.
+// Adaptation: Destination GitCommit fields: author -> authorName, id -> shortHash; not Identifiable: ForEach uses id: \.hash.
+import SwiftUI
+import SwiftCodeSDK
+
+@MainActor
+struct GitHistoryView: View {
+    let commits: [GitCommit]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Label("Commit Logs History", systemImage: "clock.arrow.circlepath")
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                Spacer()
+            }
+            .padding(.bottom, 16)
+
+            // Scrollable Content
+            ScrollView {
+                VStack(spacing: 20) {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if commits.isEmpty {
+                                ContentUnavailableView(
+                                    "No Commits Found",
+                                    systemImage: "clock.arrow.circlepath",
+                                    description: Text("There is no commit history on this branch yet.")
+                                )
+                                .frame(height: 150)
+                            } else {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    ForEach(commits, id: \.hash) { commit in
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text(commit.message)
+                                                .font(.headline)
+                                                .lineLimit(1)
+
+                                            HStack {
+                                                Label(commit.authorName, systemImage: "person.circle")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+
+                                                Spacer()
+
+                                                Text(commit.shortHash)
+                                                    .font(.system(.caption2, design: .monospaced))
+                                                    .foregroundStyle(.blue)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.blue.opacity(0.1))
+                                                    .cornerRadius(4)
+
+                                                Text(commit.date, style: .date)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .padding(8)
+                                        .background(Color.secondary.opacity(0.04))
+                                        .cornerRadius(6)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+                }
+            }
+        }
+        .sourceControlEmbedded()
+    }
+}
