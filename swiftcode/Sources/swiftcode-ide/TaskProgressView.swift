@@ -1,0 +1,122 @@
+// STAGED PORT — SwiftCode-Legacy `SwiftCode/Views/Assist/TaskProgressView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
+// Staged by migration subagent A3 (Assist systems / tools / execution) — NOT yet landed in the repo.
+// Target: swiftcode-ide (`swiftcode/Sources/swiftcode-ide/TaskProgressView.swift`).
+// Body is Legacy verbatim unless noted under ADAPTATIONS below. No Swift toolchain exists
+// in this environment: static checks only — never claim a build passed.
+// Audit gap this port closes (claimed-covered-audit):
+//   - task-objectives checklist with per-step icons and status badges
+// ADAPTATIONS:
+//   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
+// UNRESOLVED DEPENDENCIES: none found by static scan (SwiftUI/Foundation/Apple-framework names excluded).
+// WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land.
+
+import SwiftUI
+import SwiftCodeAssistant
+
+@MainActor
+public struct TaskProgressView: View {
+    let agentSession: AssistAgentSession
+
+    public init(agentSession: AssistAgentSession) {
+        self.agentSession = agentSession
+    }
+
+    public var body: some View {
+        let plan = agentSession.state.plan
+        if plan.isEmpty {
+            EmptyView()
+        } else {
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Image(systemName: "list.bullet.clipboard")
+                            .foregroundStyle(.orange)
+                        Text("Task Objectives")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        statusBadge(agentSession.state.status)
+                    }
+
+                    Text("Goal: \(agentSession.state.objective)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 4)
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(plan) { step in
+                            HStack(alignment: .top, spacing: 8) {
+                                stepIcon(for: step)
+                                Text(step.description)
+                                    .font(.system(.footnote, design: .monospaced))
+                                    .foregroundStyle(stepStyle(for: step))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .padding(4)
+            }
+            .groupBoxStyle(ModernGroupBoxStyle())
+            .padding(.horizontal, 12)
+        }
+    }
+
+    private func stepIcon(for step: PlanStep) -> some View {
+        // Find if this step is completed (is it in completedActions?)
+        let isCompleted = agentSession.state.completedActions.contains(step.description)
+        return Group {
+            if isCompleted {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if agentSession.state.status == .executingTool && agentSession.state.events.last?.summary.contains(step.toolId) == true {
+                ProgressView()
+                    .scaleEffect(0.5)
+            } else {
+                Image(systemName: "circle")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.footnote)
+        .frame(width: 12, height: 12)
+    }
+
+    private func stepStyle(for step: PlanStep) -> Color {
+        let isCompleted = agentSession.state.completedActions.contains(step.description)
+        return isCompleted ? .secondary : .primary
+    }
+
+    private func statusBadge(_ status: AgentSessionStatus) -> some View {
+        Text(status.rawValue.uppercased())
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(badgeColor(status).opacity(0.12))
+            .foregroundStyle(badgeColor(status))
+            .cornerRadius(4)
+    }
+
+    private func badgeColor(_ status: AgentSessionStatus) -> Color {
+        switch status {
+        case .idle, .cancelled, .terminated:
+            return .gray
+        case .planning, .planningReview, .selectingTools, .executingTools, .selectingTool, .executingTool, .inspectingResult, .executingStrategy, .updatingRepository, .gatheringContext, .collectingContext, .analyzingRepository, .receivingRequest, .generatingSummary, .completing, .understandingRequest:
+            return .orange
+        case .validating, .reviewing, .initializing:
+            return .purple
+        case .finished, .completed:
+            return .green
+        case .failed, .reviewFailed, .recovering, .stalled:
+            return .red
+        case .awaitingApproval, .waitingForUserApproval:
+            return .blue
+        case .evaluatingGoalExpansion:
+            return .purple
+        case .transitioningToNextGoal:
+            return .teal
+        default:
+            return .gray
+        }
+    }
+}
