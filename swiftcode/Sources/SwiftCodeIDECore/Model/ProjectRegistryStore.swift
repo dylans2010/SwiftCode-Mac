@@ -43,6 +43,23 @@ public actor ProjectRegistryStore {
             .appendingPathComponent("ProjectRegistry.json")
     }
 
+    /// Records a project root as most recently opened: an existing
+    /// entry keeps its id and `sourceControlEnabled` and moves to the
+    /// front with a fresh `lastOpenedAt`; a new root is inserted at
+    /// the front. Called from `RecentProjects.note(_:)` (fire-and-
+    /// forget); a persistence failure there is ignored.
+    public func note(rootURL: URL, name: String, kind: ProjectKind) async throws {
+        var entries = (try? load()) ?? []
+        if let index = entries.firstIndex(where: { $0.rootURL == rootURL }) {
+            entries[index].lastOpenedAt = Date()
+            let updated = entries.remove(at: index)
+            entries.insert(updated, at: 0)
+        } else {
+            entries.insert(ProjectRegistryEntry(name: name, rootURL: rootURL, kind: kind), at: 0)
+        }
+        try save(entries)
+    }
+
     public func load() throws -> [ProjectRegistryEntry] {
         let url = try registryURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }

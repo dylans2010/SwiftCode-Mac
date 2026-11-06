@@ -110,7 +110,7 @@ let package = Package(
         .target(name: "SwiftCodeSubprocess"),
         .testTarget(name: "SwiftCodeSubprocessTests", dependencies: ["SwiftCodeSubprocess"]),
         // The coding assistant's model providers, conversations and prompts (specs/ide/coding-assistant.md)
-        .target(name: "SwiftCodeAssistant", dependencies: ["SwiftCodeSubprocess"]),
+        .target(name: "SwiftCodeAssistant", dependencies: ["SwiftCodeSubprocess"], resources: [.copy("Resources/System Assets")]),
         .testTarget(name: "SwiftCodeAssistantTests", dependencies: ["SwiftCodeAssistant", "SwiftCodeSubprocess"]),
         // GitHub: the api.github.com client shared by the assistant's
         // GitHub tools and the settings pane.

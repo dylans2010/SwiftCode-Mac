@@ -6,10 +6,11 @@ import SwiftCodeIDECore
 
 /// The gap-closure LLM wiring through `tools/call` on a Greeter workspace
 /// copy, with the host test seam set to a stub provider: no live network,
-/// no real credentials. The `code_refactor` / `intel_autofix` tests are
-/// `.disabled` — they can only pass once the coordinator applies the
-/// patches for `SwiftCodeTools+FileWriting.swift` / `SwiftCodeTools+Planning.swift`
-/// (see `specs/ide/gap-closure-llm.md` §3.3/§3.4); enable them then.
+/// no real credentials. The `code_refactor` / `intel_autofix` tests were
+/// `.disabled` until the coordinator-applied patches for
+/// `SwiftCodeTools+FileWriting.swift` / `SwiftCodeTools+Planning.swift`
+/// (see `specs/ide/gap-closure-llm.md` §3.3/§3.4) landed; they are enabled
+/// now that the patches are in the tree (Wave 19 slice F).
 @MainActor
 @Suite(.serialized) struct LLMWiringGapTests {
     /// A stub provider that answers with canned text.
@@ -176,7 +177,7 @@ import SwiftCodeIDECore
         #expect(review.firstText.contains("task_ready"))
     }
 
-    @Test(.disabled("Needs the coordinator-applied code_refactor patch in SwiftCodeTools+FileWriting.swift (spec §3.3)."))
+    @Test
     func codeRefactorAppliesStubRefactoring() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -195,7 +196,7 @@ import SwiftCodeIDECore
         #expect(sample.read("Sources/Greeter/Greeter.swift") == refactored)
     }
 
-    @Test(.disabled("Needs the coordinator-applied intel_autofix patch in SwiftCodeTools+Planning.swift (spec §3.4)."))
+    @Test
     func intelAutofixReportsNoIssues() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
@@ -209,7 +210,7 @@ import SwiftCodeIDECore
         #expect(r.firstText.contains("No lint issues to fix in ."))
     }
 
-    @Test(.disabled("Needs the coordinator-applied intel_autofix patch in SwiftCodeTools+Planning.swift (spec §3.4)."))
+    @Test
     func intelAutofixFixesTrailingWhitespace() async throws {
         let sample = try TempSample()
         defer { sample.remove() }

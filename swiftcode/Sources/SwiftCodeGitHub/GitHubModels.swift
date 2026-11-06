@@ -347,6 +347,79 @@ public struct GitHubWorkflowRun: Sendable, Equatable, Decodable {
     }
 }
 
+/// One workflow (`GET /repos/{owner}/{repo}/actions/workflows`).
+/// Ported from Legacy's `GitHubService.GitHubWorkflow` (the slice
+/// that listed runs but never listed the workflows themselves).
+public struct GitHubWorkflow: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var name: String
+    public var path: String
+    public var state: String
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var htmlUrl: String
+    public var badgeUrl: String
+
+    /// `true` when GitHub will run this workflow (`state == "active"`).
+    public var isActive: Bool { state == "active" }
+}
+
+/// A repository's GitHub Pages configuration
+/// (`GET /repos/{owner}/{repo}/pages`). The `source` branch/path
+/// pair only applies to legacy (branch-based) builds; workflow
+/// builds report `buildType == "workflow"` and no source.
+public struct GitHubPagesInfo: Sendable, Equatable, Decodable {
+    public var url: String
+    public var status: String?
+    public var cname: String?
+    public var custom404: Bool?
+    public var htmlUrl: String?
+    public var source: GitHubPagesSource?
+    public var isPublic: Bool?
+    public var httpsEnforced: Bool?
+    public var buildType: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case url, status, cname, source, htmlUrl, buildType
+        case custom404 = "custom404"
+        case isPublic = "public"
+        case httpsEnforced = "httpsEnforced"
+    }
+
+    /// `true` when Pages serves this site over HTTPS only.
+    public var isLive: Bool { status == "built" }
+}
+
+/// The branch/path pair a legacy Pages site builds from.
+public struct GitHubPagesSource: Sendable, Equatable, Decodable {
+    public var branch: String
+    public var path: String
+}
+
+/// One Pages deployment (`GET /repos/{owner}/{repo}/pages/deployments`).
+/// `latestStatus` carries the most recent build state; a deployment
+/// that never built has no status.
+public struct GitHubPagesDeployment: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var statusUrl: String?
+    public var environment: String?
+    public var latestStatus: GitHubPagesDeploymentStatus?
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var description: String?
+}
+
+/// The latest build state of one Pages deployment.
+public struct GitHubPagesDeploymentStatus: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var status: String
+    public var deploymentId: Int?
+    public var environmentUrl: String?
+    public var createdAt: Date?
+    public var updatedAt: Date?
+    public var description: String?
+}
+
 /// One job of a workflow run
 /// (`/repos/{owner}/{repo}/actions/runs/{run_id}/jobs`). Ported
 /// from Legacy's `GitHubService.WorkflowJob`.

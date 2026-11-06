@@ -282,23 +282,26 @@ The full gap list is in [docs/PARITY.md](docs/PARITY.md) and the longer view in 
 | Project files | The JSON `.xcproj` project format that Xcode 27.2 adds as an opt-in, read and written alongside `.pbxproj` | Planned |
 | Platforms | Opening, building and templating projects for the HomeView platform in Xcode 27.2 | Investigating |
 | App Intents | App skills for Siri (`.skillsbundle`): the template, validation of each `SKILL.md`, and the built output | Planned; the API is a developer preview |
-| Device Hub | Shake, memory pressure, slow animations and Standby | Planned |
+| Device Hub | Shake, memory pressure, slow animations and Standby | Partial: device discovery, pairing and remote services landed; Shake, memory pressure, slow animations and Standby not yet implemented |
 | Editor | Rendered Markdown with formatting tools; `#Playground` | Planned |
 | Icons | Icon Composer 2.0 documents, and an `.icon` viewer | Partial: `.icon` files build into app icons today |
-| Command line | `simctl`-style verbs for SwiftCode's simulators, including reboot | Partial |
-| Coding assistant | Edit history, and the newer agent and plug-in workflows | Partial: chat, proposals, `swiftcode mcp` |
+| Command line | `simctl`-style verbs for SwiftCode's simulators, including reboot | Partial: simctl-style verbs landed (list, boot, shutdown, create, delete, erase, install, uninstall, launch, terminate); reboot still missing |
+| Coding assistant | Edit history, and the newer agent and plug-in workflows | Partial: agent and plug-in workflows landed (Agentic registry, Extensions v2, MetaAssist bridge, 433 MCP tools); edit history still missing |
 
 ### Further out
 
-- **Signing, distribution and physical devices,** so an app can go from SwiftCode to a device and a store.
+- **Signing, distribution and physical devices,** so an app can go from SwiftCode to a device and a store. (Partial: signing model and device discovery/pairing landed; distribution output tree deliberately not ported; store submission still out.)
 - **Simulators:** speed and fidelity first, then tvOS, visionOS input, and wearing the visionOS simulator in a
-  headset (an OpenXR viewer exists and is experimental).
+  headset (an OpenXR viewer exists and is experimental). (Partial: simctl verbs and VM console over a real KVM probe landed; tvOS/visionOS input and headset wearing still out.)
 - **AR on the simulator:** a virtual iPhone inside a room, giving ARKit and RealityKit apps camera, depth and
   pose data.
 - **Interface Builder** connections and Auto Layout, and the Core Data model editor.
 - **Profiling** of Mac processes, with allocations and leaks.
 - **Scene Composer:** an editor window for USD scenes on top of today's command-line core.
 - **More open frameworks** for code that targets Apple's APIs on Linux.
+
+The per-item evidence for the Version 2 states is in [ROADMAP_V2_PARITY.md](ROADMAP_V2_PARITY.md), and the per-file migration ledger is in [MIGRATION_FEATURE_PARITY.md](MIGRATION_FEATURE_PARITY.md).
+
 
 Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 

@@ -146,6 +146,29 @@ public struct GitHubClient: Sendable {
 
     // MARK: - Workflow runs, jobs, artifacts
 
+    /// `GET /repos/{owner}/{repo}/actions/workflows`. Public
+    /// repositories are readable without a token; private ones need
+    /// `actions: read` (fine-grained) or the classic `repo` scope.
+    public func listWorkflows(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubWorkflow] {
+        try validateRepo(owner: owner, repo: repo)
+        let response: WorkflowsResponse = try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/actions/workflows",
+            query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
+        return response.workflows
+    }
+
+    /// `POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun`:
+    /// re-runs a failed run. Answers 201 with no body, so the
+    /// response is validated for status only. Needs `actions: write`
+    /// (fine-grained) or the classic `repo` scope.
+    public func rerunWorkflow(owner: String, repo: String, runID: Int) async throws {
+        try validateRepo(owner: owner, repo: repo)
+        let (data, http) = try await performRaw(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)/rerun",
+            method: "POST"))
+        try validate(http, data: data)
+    }
+
     /// `GET /repos/{owner}/{repo}/actions/runs`. Public
     /// repositories are readable without a token; private ones need
     /// `actions: read` (fine-grained) or the classic `repo` scope.
@@ -215,6 +238,42 @@ public struct GitHubClient: Sendable {
         let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/artifacts/\(artifactID)/zip"))
         try validate(http, data: data)
         return data
+    }
+
+    // MARK: - GitHub Pages
+
+    /// `GET /repos/{owner}/{repo}/pages`: the repository's Pages
+    /// configuration. Answers 404 when Pages is not enabled for the
+    /// repository — the caller treats that as "not enabled", not as
+    /// an error in the request. Needs `pages: read` (fine-grained)
+    /// or the classic `repo` scope on private repositories.
+    public func getPagesInfo(owner: String, repo: String) async throws -> GitHubPagesInfo {
+        try validateRepo(owner: owner, repo: repo)
+        return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/pages"))
+    }
+
+    /// `POST /repos/{owner}/{repo}/pages`: enables Pages with a
+    /// workflow build (`build_type: "workflow"` — the site is
+    /// deployed by a GitHub Actions workflow, as the Deploy window
+    /// sets up). Returns the new Pages configuration. Needs
+    /// `pages: write` (fine-grained) or the classic `repo` scope.
+    public func enablePages(owner: String, repo: String) async throws -> GitHubPagesInfo {
+        try validateRepo(owner: owner, repo: repo)
+        let payload = try jsonBody(EnablePagesBody(buildType: "workflow"))
+        return try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/pages",
+            method: "POST", body: payload))
+    }
+
+    /// `GET /repos/{owner}/{repo}/pages/deployments`: the Pages
+    /// deployments, newest first. Needs `pages: read`
+    /// (fine-grained) or the classic `repo` scope on private
+    /// repositories.
+    public func listPagesDeployments(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubPagesDeployment] {
+        try validateRepo(owner: owner, repo: repo)
+        return try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/pages/deployments",
+            query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
     }
 
     // MARK: - Releases
@@ -589,4 +648,21 @@ private struct WorkflowJobsResponse: Decodable {
 /// wraps the artifacts in `artifacts`.
 private struct GitHubArtifactsResponse: Decodable {
     var artifacts: [GitHubArtifact]
+}
+
+/// `GET /repos/{owner}/{repo}/actions/workflows` wraps the
+/// workflows in `workflows`.
+private struct WorkflowsResponse: Decodable {
+    var workflows: [GitHubWorkflow]
+}
+
+/// `POST /repos/{owner}/{repo}/pages`. Only the workflow build
+/// type is supported: the Deploy window's Pages flow always
+/// deploys through Actions.
+private struct EnablePagesBody: Encodable {
+    var buildType: String
+
+    private enum CodingKeys: String, CodingKey {
+        case buildType = "build_type"
+    }
 }

@@ -19,6 +19,11 @@ import SwiftCodeSDK
 // offline cache, `specs/ide/wave19-docs.md`). The fake gained
 // `showDocumentationBrowser`, the working-cases table gained the
 // docs.search row, and the unavailable table lost it (4 remain).
+//
+// Wave 19, Slice F (gap closure P4): the four remaining honestly-
+// unavailable windows (`deployConsole.view`, `ci.VisualWF`,
+// `virtualization.view`, `sandbox.view`) now route to their surfaces;
+// the unavailable set is empty and all 12 built-in view IDs work.
 
 @MainActor
 final class SwiftCodeSDKViewHostTests: XCTestCase {
@@ -44,6 +49,10 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
         func showCodingDictionary() throws { try record("showCodingDictionary") }
         func showDatabaseExplorer() throws { try record("showDatabaseExplorer") }
         func showDocumentationBrowser() throws { try record("showDocumentationBrowser") }
+        func showDeployConsole() async throws { try record("showDeployConsole") }
+        func showCIDashboard() async throws { try record("showCIDashboard") }
+        func showVirtualizationConsole() throws { try record("showVirtualizationConsole") }
+        func showSandboxTerminal() async throws { try record("showSandboxTerminal") }
     }
 
     // MARK: - Helpers
@@ -86,6 +95,10 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
             ("dictionary.open", "showCodingDictionary"),
             ("db.ExploreView", "showDatabaseExplorer"),
             ("docs.search", "showDocumentationBrowser"),
+            ("deployConsole.view", "showDeployConsole"),
+            ("ci.VisualWF", "showCIDashboard"),
+            ("virtualization.view", "showVirtualizationConsole"),
+            ("sandbox.view", "showSandboxTerminal"),
         ]
         for (viewID, surface) in cases {
             let (host, actions) = makeHost()
@@ -97,12 +110,12 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
     // MARK: - Honestly-unavailable windows
 
     func testUnavailableWindowsThrowWithReason() async {
-        let cases: [(viewID: String, reason: String)] = [
-            ("sandbox.view", "no integrated terminal"),
-            ("deployConsole.view", "no deployments console"),
-            ("ci.VisualWF", "no visual-workflow"),
-            ("virtualization.view", "no virtualization console"),
-        ]
+        // Wave 19 Slice F: the unavailable set is currently empty —
+        // every built-in view ID routes to a surface. The cases list
+        // stays as the guard: if a view goes honestly-unavailable
+        // again, its row belongs here and the set-equality assertion
+        // below fails until it is added.
+        let cases: [(viewID: String, reason: String)] = []
         XCTAssertEqual(Set(cases.map(\.viewID)), Set(SwiftCodeSDKViewHost.unavailableReasons.keys))
         for (viewID, reason) in cases {
             let (host, actions) = makeHost()
@@ -118,6 +131,8 @@ final class SwiftCodeSDKViewHostTests: XCTestCase {
             "deviceconnect.open", "simulator.view", "uibuilder.open",
             "symbols.browse", "preview.live",
             "dictionary.open", "db.ExploreView", "docs.search",
+            "deployConsole.view", "ci.VisualWF",
+            "virtualization.view", "sandbox.view",
         ]
         let unavailable = Set(SwiftCodeSDKViewHost.unavailableReasons.keys)
         XCTAssertTrue(working.isDisjoint(with: unavailable))

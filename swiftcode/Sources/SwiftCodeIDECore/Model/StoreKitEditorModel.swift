@@ -254,6 +254,7 @@ public final class StoreKitEditorModel {
         configuration = document.configuration
         trailingNewline = document.trailingNewline
         simulation = StoreKitSimulationSession(cacheDirectory: simulationCacheDirectory)
+        simulation.installConfiguration(configuration)
     }
 
     /// A new empty configuration (the framework's template: default
@@ -263,6 +264,7 @@ public final class StoreKitEditorModel {
         configuration = StoreConfiguration.template()
         trailingNewline = false
         simulation = StoreKitSimulationSession(cacheDirectory: simulationCacheDirectory)
+        simulation.installConfiguration(configuration)
     }
 
     /// An in-memory document over an existing configuration (tests).
@@ -273,6 +275,7 @@ public final class StoreKitEditorModel {
         self.configuration = configuration
         trailingNewline = false
         simulation = StoreKitSimulationSession(cacheDirectory: simulationCacheDirectory)
+        simulation.installConfiguration(configuration)
     }
 
     /// A synchronized file (App Store Connect keys present) is read-only
@@ -324,6 +327,7 @@ public final class StoreKitEditorModel {
         pushUndo()
         edit(&configuration)
         isDirty = true
+        simulation.installConfiguration(configuration)
     }
 
     private func pushUndo() {

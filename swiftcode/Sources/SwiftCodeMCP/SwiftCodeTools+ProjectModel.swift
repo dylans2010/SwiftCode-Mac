@@ -67,12 +67,19 @@ import SwiftCodeProject
 ///   store is outside the workspace, so `commit()` does not
 ///   apply). `project_restore` is `potentiallyDestructive`.
 ///   There is no Autopilot bypass.
-/// * `generate_xcodeproj` never installs xcodegen: Legacy
-///   installed it via Homebrew without a prompt when missing;
-///   this port fails with Legacy's message instead. It is also
-///   `writes: true` (Legacy marked it `execution`) because
-///   `xcodegen generate` writes a `.xcodeproj` bundle into the
-///   workspace, so a read-only server must refuse it.
+/// * `generate_xcodeproj` uses SwiftCode's native generator
+///   (`XcodeGenNativeGenerator`, gap closure): it reads the same
+///   `project.yml` and builds the `.xcodeproj` from SwiftCode's
+///   own project model, so no xcodegen install is needed. Legacy
+///   installed xcodegen via Homebrew without a prompt when
+///   missing; this port never installs anything. The generated
+///   files are committed one change per file through the normal
+///   write policy (like `create_new_app`). A spec that needs
+///   something outside the generator's subset fails honestly,
+///   naming the key, and suggests running xcodegen manually.
+///   It is `writes: true` (Legacy marked it `execution`) because
+///   generation writes a `.xcodeproj` bundle into the workspace,
+///   so a read-only server must refuse it.
 /// * Snapshots live in Application Support `SwiftCodeSnapshots/`
 ///   (Legacy's `AssistSnapshots/` layout, renamed for SwiftCode).
 ///   `project_snapshot` is `writes: true` although Legacy marked
@@ -114,7 +121,7 @@ extension SwiftCodeMCPHost {
                 try await h.projectModelCreateNewApp(call)
             },
             tool("generate_xcodeproj", "Generate Xcode Project",
-                 "Generates .xcodeproj files from an XcodeGen project.yml spec. Installs XcodeGen automatically if missing. Runs in the background without a terminal approval prompt.",
+                 "Generates .xcodeproj files from an XcodeGen project.yml spec with SwiftCode's native generator — no xcodegen install needed. Each generated file is written through the normal write policy. The 'useCache' parameter is accepted for XcodeGen compatibility and ignored. Specs that need something outside the generator's subset fail honestly, naming the key.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "spec": Schema.string("Workspace-relative path to the XcodeGen spec file. Default is 'project.yml'."),
                                        "useCache": Schema.string("'true' to pass --use-cache to xcodegen. Default is 'false'.")]),
@@ -989,7 +996,6 @@ extension SwiftCodeMCPHost {
 
     func projectModelGenerateXcodeproj(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
-        let root = Self.folder(of: s.model)
         let spec = call.string("spec") ?? "project.yml"
         let useCache = (call.string("useCache") ?? "false").lowercased() == "true"
         let specURL = try resolveFileReadingPath(spec, in: s)
@@ -999,52 +1005,46 @@ extension SwiftCodeMCPHost {
         guard let specText = try? String(contentsOf: specURL, encoding: .utf8) else {
             throw MCPToolError("XcodeGen spec not found at '\(spec)' (resolved to \(specURL.path)). Create a project.yml first or pass the spec parameter.")
         }
-        var projectName: String?
-        for line in specText.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix("name:") else { continue }
-            var value = trimmed.dropFirst("name:".count).trimmingCharacters(in: .whitespaces)
-            if value.hasPrefix("\"") && value.hasSuffix("\"") && value.count >= 2 {
-                value = String(value.dropFirst().dropLast())
-            }
-            if !value.isEmpty { projectName = String(value) }
-            break
-        }
-        guard let projectName else {
-            throw MCPToolError("Could not determine the project name from '\(spec)'; xcodegen output cannot be approved as a change.")
-        }
-        let bundleURL = root.appendingPathComponent("\(projectName).xcodeproj")
-        let change = MCPChange(tool: call.name, path: bundleURL.path, relativePath: "\(projectName).xcodeproj", original: nil, proposed: "",
-                               summary: "Generate \(projectName).xcodeproj from \(spec) with xcodegen")
-        guard await call.approve(change) else {
-            throw MCPToolError(MCPServer.rejectedMessage)
-        }
-        guard let xcodegen = await Self.projectModelFindXcodegen() else {
-            throw MCPToolError("xcodegen is not installed and Homebrew was not found. Install Homebrew (https://brew.sh), then run this tool again — it will install xcodegen automatically.")
-        }
+        let specDirectory = specURL.deletingLastPathComponent()
         let startTime = Date()
-        var arguments = ["generate", "--spec", specURL.path]
-        if useCache { arguments.append("--use-cache") }
-        let run = await Task.detached {
-            Self.terminalRunFixed(xcodegen, arguments, workingDirectory: root, timeout: 300)
-        }.value
-        guard let run else {
-            throw MCPToolError("xcodegen execution failed: could not start xcodegen.")
+        let generated: XcodeGenGeneratedProject
+        do {
+            generated = try XcodeGenNativeGenerator.generate(specText: specText, specDirectory: specDirectory)
+        } catch let error as XcodeGenSpecError {
+            // The spec needs something the native generator cannot
+            // make: fail honestly, naming the key, and point at a
+            // manual xcodegen run (which is the only way to build
+            // this spec).
+            let xcodegen = await Self.projectModelFindXcodegen()
+            let hint = xcodegen.map {
+                "xcodegen is available at \($0); run `\($0) generate --spec \(specURL.path)` in the workspace to generate this spec."
+            } ?? "Install xcodegen (https://github.com/yonaskolb/XcodeGen) and run `xcodegen generate --spec \(specURL.path)` to generate this spec."
+            throw MCPToolError("\(error.localizedDescription)\n\(hint)")
         }
-        if run.timedOut {
-            throw MCPToolError("xcodegen timed out after 300s.")
+        for (relPath, content) in generated.files {
+            let url = specDirectory.appendingPathComponent(relPath)
+            let rel = relative(url.path, in: s)
+            let original = text(of: url)
+            try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: content,
+                                       summary: original == nil ? "Create \(rel)" : "Replace \(rel)"), call: call, session: s)
         }
         let duration = Date().timeIntervalSince(startTime)
         let durationText = String(format: "%.2fs", duration)
-        let produced = ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? [])
-            .filter { $0.pathExtension == "xcodeproj" }.map { $0.lastPathComponent }.sorted()
-        if run.exitCode == 0, !produced.isEmpty {
-            return .structured(["spec": .string(spec), "projects": .string(produced.joined(separator: ",")),
-                                "duration": .string(durationText)],
-                               summary: "XcodeGen succeeded (\(durationText)). Generated: \(produced.joined(separator: ", "))\n\(run.stdout.suffix(1200))")
+        var summary = "Generated \(generated.projectName).xcodeproj from \(spec) with SwiftCode's native generator (\(durationText)). Files: \(generated.files.map(\.relativePath).joined(separator: ", "))"
+        if useCache {
+            summary += "\nNote: 'useCache' is accepted for XcodeGen compatibility and ignored — the native generator has no xcodegen cache to reuse."
         }
-        let combined = run.stdout + "\n" + run.stderr
-        throw MCPToolError("XcodeGen failed (exit \(run.exitCode), \(durationText)):\n\(combined.suffix(1500))")
+        if !generated.ignoredKeys.isEmpty {
+            summary += "\nIgnored keys (organisation/metadata only): \(generated.ignoredKeys.joined(separator: ", "))"
+        }
+        if !generated.warnings.isEmpty {
+            summary += "\nWarnings:\n" + generated.warnings.map { "- \($0)" }.joined(separator: "\n")
+        }
+        return .structured(["spec": .string(spec), "projects": .string("\(generated.projectName).xcodeproj"),
+                            "duration": .string(durationText),
+                            "ignoredKeys": .string(generated.ignoredKeys.joined(separator: ", ")),
+                            "warnings": .string(generated.warnings.joined(separator: "\n"))],
+                           summary: summary)
     }
 
     /// Locates `xcodegen` at the known Homebrew paths or on `PATH`.

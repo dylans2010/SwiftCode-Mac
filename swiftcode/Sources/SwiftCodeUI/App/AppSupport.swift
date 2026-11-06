@@ -488,6 +488,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
         // Install the SDK host seams (view host, Assist backend
         // attachment; Wave 16 Slice C). Idempotent; no-ops on repeat.
         Task { await SwiftCodeSDKInstaller.installIfNeeded() }
+        // Install the password-reset sheet: Appwrite recovery links
+        // post `.appwriteRecoveryLinkReceived`, and this controller
+        // asks for the new password (gap closure).
+        PasswordResetWindowController.installIfNeeded()
         SwiftCodeDocumentController.showWelcome = { [weak self] in self?.showWelcomeWindow(nil) }
         if case .open(let all) = LaunchAction.decide(arguments: Array(CommandLine.arguments.dropFirst()), openDocumentCount: 0) {
             // Gauge traces open in a profiler window (specs/ide/profiler.md §6).
@@ -551,7 +555,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
     /// standalone recovery link is announced on
     /// `.appwriteRecoveryLinkReceived` with `userId` / `secret` in
     /// `userInfo`: completing a reset needs a new password from the
-    /// user, and no reset sheet exists yet to ask for it (see
+    /// user, and `PasswordResetWindowController` (installed at
+    /// launch) asks for it (see
     /// `specs/ide/gap-closure-cloud-github.md` §1).
     @discardableResult
     public static func handleOpenedURL(_ url: URL) -> Bool {

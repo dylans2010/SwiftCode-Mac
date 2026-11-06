@@ -36,6 +36,11 @@ public final class ConversationView: NSView {
     let chips = NSStackView()
     /// Attachments for the next message.
     public private(set) var pendingAttachments: [Attachment] = []
+    /// The slash-command popup, while open (gap closure §1.4).
+    private var slashPopup: SlashCommandPopupController?
+    /// Set while a slash commit writes into the composer, so the
+    /// resulting text change does not reopen the popup.
+    private var isApplyingSlashCommit = false
     private var renderedID: UUID?
     private var renderedCount = 0
     private var lastTitle: String?
@@ -89,6 +94,8 @@ public final class ConversationView: NSView {
         messageView.isRichText = false
         messageView.font = .systemFont(ofSize: NSFont.systemFontSize)
         messageView.onSubmit = { [weak self] in self?.sendClicked() }
+        messageView.onTextChange = { [weak self] in self?.slashTextChanged() }
+        messageView.onKeyDown = { [weak self] event in self?.slashKeyDown(event) ?? false }
         messageView.setAccessibilityLabel("Message")
         messageView.textContainerInset = NSSize(width: 4, height: 4)
         let messageScroll = ComposerScrollView()
@@ -310,6 +317,61 @@ public final class ConversationView: NSView {
         messageView.needsDisplay = true
     }
 
+    // MARK: Slash-command popup (gap closure §1.4)
+
+    /// The popup only opens for Assist with Meta as the active
+    /// provider and `useMetaSlashCommands` on; otherwise "/" is
+    /// just text.
+    private var slashCommandsEnabled: Bool {
+        model.providerKind == .metaAssist && model.settings.useMetaSlashCommands
+    }
+
+    /// The query after the `/` of the composer's last
+    /// whitespace-delimited token, when that token starts with
+    /// `/`. Empty when the token is just "/" (show all commands);
+    /// nil when no slash token is being typed.
+    private var slashQuery: String? {
+        guard let token = messageView.string.split(whereSeparator: \.isWhitespace).last,
+              token.hasPrefix("/") else { return nil }
+        return String(token.dropFirst())
+    }
+
+    /// The composer text changed: show, refresh, or hide the
+    /// slash-command popup for the token being typed.
+    private func slashTextChanged() {
+        guard !isApplyingSlashCommit, slashCommandsEnabled,
+              let query = slashQuery else {
+            slashPopup?.hide()
+            return
+        }
+        if let popup = slashPopup, popup.isVisible {
+            popup.update(query: query)
+        } else {
+            let popup = SlashCommandPopupController(model: model, anchorView: messageView)
+            popup.onCommit = { [weak self] text, send in self?.slashCommit(text: text, sendImmediately: send) }
+            popup.onDismiss = { [weak self] in self?.slashPopup = nil }
+            slashPopup = popup
+            popup.show(query: query)
+        }
+    }
+
+    /// A key event for the popup while it is open: ↑↓ move,
+    /// Return commits, Escape dismisses. False when the popup is
+    /// closed (the composer handles the key normally).
+    private func slashKeyDown(_ event: NSEvent) -> Bool {
+        slashPopup?.handleKeyDown(event) ?? false
+    }
+
+    /// A slash command was committed: the full command text goes
+    /// into the composer; effect commands are sent immediately,
+    /// anything else stays in the input for editing.
+    private func slashCommit(text: String, sendImmediately: Bool) {
+        isApplyingSlashCommit = true
+        messageView.string = text
+        isApplyingSlashCommit = false
+        if sendImmediately { sendClicked() }
+    }
+
     @objc public func sendClicked() {
         if let id = conversationID, model.isRunning(id) {
             model.stop(id)
@@ -443,6 +505,13 @@ public final class ComposerTextView: NSTextView {
     var onSubmit: (() -> Void)?
     /// Escape (the prompt popover closes).
     var onCancel: (() -> Void)?
+    /// The text changed (typing, paste, or a programmatic set).
+    /// The slash-command popup listens here.
+    var onTextChange: (() -> Void)?
+    /// A key event before the composer handles it. Return true
+    /// when the event is consumed (the slash-command popup owns
+    /// ↑↓, Return, and Escape while it is open).
+    var onKeyDown: ((NSEvent) -> Bool)?
     var placeholder = "" { didSet { needsDisplay = true } }
 
     public override func cancelOperation(_ sender: Any?) {
@@ -451,6 +520,7 @@ public final class ComposerTextView: NSTextView {
     }
 
     public override func keyDown(with event: NSEvent) {
+        if let onKeyDown, onKeyDown(event) { return }
         let isReturn = event.keyCode == 36 || event.keyCode == 76
         if isReturn && event.modifierFlags.isDisjoint(with: [.shift, .option]) && !hasMarkedText() {
             onSubmit?()
@@ -469,6 +539,7 @@ public final class ComposerTextView: NSTextView {
     public override func didChangeText() {
         super.didChangeText()
         needsDisplay = true
+        onTextChange?()
     }
 }
 

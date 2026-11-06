@@ -47,13 +47,18 @@ import SwiftCodeSDK
 //                             fetched live once from the public DocC
 //                             endpoints and served offline; see
 //                             `specs/ide/wave19-docs.md`)
-//   Honestly unavailable (no hostable surface in SwiftCode):
-//   - `sandbox.view`        → no integrated terminal (the debug
-//                             console is output-only)
-//   - `deployConsole.view`  → no deployments console / providers
-//   - `ci.VisualWF`         → no visual-workflow / CI dashboard
-//   - `virtualization.view` → no virtualization console UI (the
-//                             hypervisor engine has no console surface)
+//   - `deployConsole.view`  → Deployments console window (Wave 19,
+//                             Slice F / gap closure: `DeploymentWindowManager`)
+//   - `ci.VisualWF`         → CI dashboard window (Wave 19, Slice F /
+//                             gap closure: `CIWindowManager`)
+//   - `virtualization.view` → Virtualization console window (Wave 19,
+//                             Slice F / gap closure:
+//                             `VirtualizationWindowManager`)
+//   - `sandbox.view`        → Sandboxed terminal window (Wave 19,
+//                             Slice F / gap closure:
+//                             `SandboxTerminalWindowManager`)
+//   Honestly unavailable (no hostable surface in SwiftCode): none —
+//   every built-in view ID currently routes to a surface.
 //
 // Every workspace-anchored surface needs the key workspace window;
 // with none open, opens throw `.serviceUnavailable` ("No workspace
@@ -95,6 +100,21 @@ public protocol SDKViewSurfaceActions: AnyObject {
     func showDatabaseExplorer() throws
     /// Shows the Documentation Browser window (Wave 19, Slice A).
     func showDocumentationBrowser() throws
+    /// Shows the Deployments console window for the key workspace
+    /// (Wave 19, Slice F / gap closure). `.serviceUnavailable` when no workspace
+    /// window is open.
+    func showDeployConsole() async throws
+    /// Shows the CI dashboard window for the key workspace
+    /// (Wave 19, Slice F / gap closure). `.serviceUnavailable` when no workspace
+    /// window is open.
+    func showCIDashboard() async throws
+    /// Shows the virtualization console window (Wave 19, Slice F / gap closure).
+    /// Needs no project.
+    func showVirtualizationConsole() throws
+    /// Shows the sandboxed terminal window for the key workspace
+    /// (Wave 19, Slice F / gap closure). `.serviceUnavailable` when no workspace
+    /// window is open.
+    func showSandboxTerminal() async throws
 }
 
 /// The live surface actions: the key workspace window's own
@@ -176,6 +196,31 @@ public final class WorkspaceSDKViewSurfaceActions: SDKViewSurfaceActions {
         DocumentationBrowserWindowManager.shared.showWindow()
     }
 
+    /// Deploy / CI / sandbox are workspace-anchored like Devices:
+    /// the folder comes from the key workspace window, and with
+    /// none open the open fails honestly. The window managers
+    /// create their default service when none is passed (a live
+    /// `DeploymentService` / `GitHubActionsService` over the
+    /// default secret store). Virtualization needs no project.
+    public func showDeployConsole() async throws {
+        let wc = try workspace()
+        DeploymentWindowManager.shared.showWindow(workspaceFolder: wc.workspaceFolder)
+    }
+
+    public func showCIDashboard() async throws {
+        let wc = try workspace()
+        CIWindowManager.shared.showWindow(workspaceFolder: wc.workspaceFolder)
+    }
+
+    public func showVirtualizationConsole() throws {
+        VirtualizationWindowManager.shared.showWindow()
+    }
+
+    public func showSandboxTerminal() async throws {
+        let wc = try workspace()
+        SandboxTerminalWindowManager.shared.showWindow(workspaceFolder: wc.workspaceFolder)
+    }
+
     /// The active project's first .storyboard/.xib, deterministically
     /// by path. Build outputs and dependency trees are not descended
     /// into; at most 64 candidates are collected. `nil` when the
@@ -211,12 +256,10 @@ public final class SwiftCodeSDKViewHost: SDKViewHost, @unchecked Sendable {
     /// The windows with no hostable surface in SwiftCode, with the exact
     /// reason each one cannot be opened. The single source of truth
     /// for the honestly-unavailable set (mirrored in the slice spec).
-    public static let unavailableReasons: [String: String] = [
-        "sandbox.view": "SwiftCode has no integrated terminal. The debug console is output-only; opening it as a shell would misrepresent it.",
-        "deployConsole.view": "SwiftCode has no deployments console. No Netlify, Vercel, or GitHub Pages deployment surface exists in the IDE.",
-        "ci.VisualWF": "SwiftCode has no visual-workflow or CI dashboard. Builds run through the build system; no workflow canvas exists.",
-        "virtualization.view": "SwiftCode has no virtualization console. The hypervisor engine exists but has no console UI; it is driven by the simulator internals only.",
-    ]
+    /// Currently empty: every built-in view ID routes to a surface
+    /// (docs.search landed in Wave 19 Slice A; deployConsole.view,
+    /// ci.VisualWF, virtualization.view and sandbox.view in Slice F).
+    public static let unavailableReasons: [String: String] = [:]
 
     private let actions: any SDKViewSurfaceActions
 
@@ -226,11 +269,16 @@ public final class SwiftCodeSDKViewHost: SDKViewHost, @unchecked Sendable {
 
     public func open(viewID: String) async throws {
         switch viewID {
-        case "sandbox.view",
-             "deployConsole.view", "ci.VisualWF", "virtualization.view":
-            throw Self.unavailableError(viewID: viewID)
         case "docs.search":
             try await actions.showDocumentationBrowser()
+        case "deployConsole.view":
+            try await actions.showDeployConsole()
+        case "ci.VisualWF":
+            try await actions.showCIDashboard()
+        case "virtualization.view":
+            try await actions.showVirtualizationConsole()
+        case "sandbox.view":
+            try await actions.showSandboxTerminal()
         case "db.ExploreView":
             try await actions.showDatabaseExplorer()
         case "dictionary.open":

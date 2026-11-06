@@ -374,7 +374,36 @@ public final class ExtensionsPanelViewController: NSViewController, NSTableViewD
             diagScroll.bottomAnchor.constraint(equalTo: detail.bottomAnchor),
         ])
         view = root
+        // Capability approval UI (gap closure): present the pending
+        // request as an Allow/Deny sheet instead of letting it fall
+        // through to the headless deny. The anchor is this panel's
+        // root view, so the sheet attaches to the panel's window.
+        ExtensionPermissionApprovalCenter.shared.hasPresenter = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(approvalRequestChanged),
+            name: ExtensionPermissionApprovalCenter.pendingRequestDidChangeNotification,
+            object: nil)
         Task { await viewModel.load(); refreshAll() }
+    }
+
+    /// Shows the pending capability request as an Allow/Deny sheet
+    /// on this panel's window (gap closure, specs/ide/
+    /// gap-closure-misc.md §5). Runs on the main actor; with no
+    /// window to attach to, the request stays pending (the
+    /// SwiftUI host is the other presenter).
+    @objc private func approvalRequestChanged() {
+        guard let request = ExtensionPermissionApprovalCenter.shared.pendingRequest,
+              let window = view.window else { return }
+        let alert = NSAlert()
+        alert.messageText = "Extension \(request.extensionId) wants permission"
+        alert.informativeText = "Capability: \(request.capability.displayName) (\(request.capability.riskLevel) risk)\n\n\(request.reason)"
+        alert.addButton(withTitle: "Allow")
+        alert.addButton(withTitle: "Deny")
+        alert.beginSheetModal(for: window) { response in
+            ExtensionPermissionApprovalCenter.shared.answer(
+                id: request.id, approved: response == .alertFirstButtonReturn)
+        }
     }
 
     static func sectionLabel(_ text: String) -> NSTextField {

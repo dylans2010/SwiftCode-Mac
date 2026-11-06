@@ -44,6 +44,23 @@ public final class RecentProjects {
         defaults.set(Array(list.prefix(Self.limit)), forKey: Self.defaultsKey)
         persist()
         NotificationCenter.default.post(name: Self.didChange, object: self)
+        // Record the root in the project registry too, so the
+        // registry's last-opened order tracks recents. Kind comes
+        // from the root itself: an .xcodeproj bundle, a directory
+        // containing Package.swift, or a plain folder.
+        let rootURL = Self.containerURL(url)
+        let name = rootURL.deletingPathExtension().lastPathComponent
+        let ext = rootURL.pathExtension.lowercased()
+        let kind: ProjectKind
+        if ext == "xcodeproj" {
+            kind = .xcodeProject
+        } else if FileManager.default.fileExists(
+            atPath: rootURL.appendingPathComponent("Package.swift").path) {
+            kind = .swiftPackage
+        } else {
+            kind = .folder
+        }
+        Task { try? await ProjectRegistryStore.shared.note(rootURL: rootURL, name: name, kind: kind) }
     }
 
     /// File ▸ Open Recent ▸ Clear Menu.

@@ -348,7 +348,12 @@ import SwiftCodeAssistant
         let noConfirm = try await host.server.callTool("use_app", ["app_identifier": .string("Finder"), "action": .string("close_application")])
         #expect(noConfirm.isToolError && noConfirm.resultText.contains("Pass 'confirm: true' to authorize."))
         let click = try await host.server.callTool("use_app", ["app_identifier": .string("Finder"), "action": .string("click")])
-        #expect(click.isToolError && click.resultText.contains("Accessibility"))
+        // Gap closure: the click now reaches the real AX path, and
+        // its failure depends on Accessibility trust — untrusted
+        // fails naming Accessibility, trusted fails naming the
+        // missing target/coordinates (neither was passed).
+        #expect(click.isToolError && (click.firstText.contains("Accessibility")
+            || click.firstText.contains("Action requires either 'target' UI element or 'coordinates'.")))
     }
 #endif
 
@@ -440,25 +445,42 @@ import SwiftCodeAssistant
 
     // MARK: - Honestly-failing tools
 
-    @Test func envCaptureLogsFailsNamingItsPrerequisites() async throws {
+    @Test func envCaptureLogsReturnsEnvironmentAndSnapshotState() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
         let r = try await host.server.callTool("env_capture_logs")
-        #expect(r.isToolError && r.resultText.contains("snapshot history"))
+        // Gap closure: the tool now succeeds with the real process
+        // environment and the snapshot history (it used to fail
+        // naming its prerequisites).
+        #expect(!r.isToolError, "\(r.firstText)")
+        #expect(r.firstText.contains("Environment:") && r.firstText.contains("Workspace:"))
+        let snapshotCount = r.structured?["snapshotCount"]?.int ?? -1
+        #expect(snapshotCount >= 0)
+        // Snapshot history is global Application Support state, not
+        // workspace-scoped: the no-logs line appears only when it
+        // happens to be empty on this machine.
+        if snapshotCount == 0 {
+            #expect(r.firstText.contains("No logs found in snapshot history."))
+        }
     }
 
-    @Test func useMCPListsNothingAndExecutesNothing() async throws {
+    @Test func useMCPListsNothingAndExecFailsWithoutServers() async throws {
         let sample = try TempSample()
         defer { sample.remove() }
         let host = try await opened(sample)
-        let list = try await host.server.callTool("use_mcp", ["serverName": .string("list"), "toolName": .string("list_tools"),
+        // Gap closure: the list verb is `list_servers` (the old
+        // `list_tools` call no longer hits the list path).
+        let list = try await host.server.callTool("use_mcp", ["serverName": .string("list"), "toolName": .string("list_servers"),
                                                               "arguments": .string("{}")])
-        #expect(!list.isToolError, "\(list.resultText)")
-        #expect(list.resultText.contains("No MCP servers are currently configured"))
+        #expect(!list.isToolError, "\(list.firstText)")
+        #expect(list.firstText.contains("No MCP servers are currently configured"))
+        // Gap closure: executing against a server now fails with the
+        // same no-servers message (it used to fail naming the
+        // external MCP client).
         let exec = try await host.server.callTool("use_mcp", ["serverName": .string("github"), "toolName": .string("list_repos"),
                                                              "arguments": .string("{}")])
-        #expect(exec.isToolError && exec.resultText.contains("external MCP client"))
+        #expect(exec.isToolError && exec.firstText.contains("No MCP servers are currently configured"))
     }
 
     @Test func useExtensionFailsNamingItsPrerequisite() async throws {
