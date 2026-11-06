@@ -197,16 +197,33 @@ package.products += [.executable(name: "YcodeApp", targets: ["YcodeApp"]),
                      .executable(name: "ycode-sim-viewer", targets: ["ycode-sim-viewer"]),
                      // The agent ycodebuild inserts into a test host app (specs/ide/testing.md, "Ycode implementation").
                      // SimGuestAgents/build-test-agent.sh builds the same sources for the iOS simulator.
-                     .library(name: "YcodeTestAgent", type: .dynamic, targets: ["YcodeTestAgent", "CYcodeTestAgentLoader"])]
+                     .library(name: "YcodeTestAgent", type: .dynamic, targets: ["YcodeTestAgent", "CYcodeTestAgentLoader"]),
+                     // Bulk wave: Legacy's Connect (Bonjour/Network) and
+                     // Collaboration (MultipeerConnectivity) families.
+                     // macOS-only (Network, MultipeerConnectivity).
+                     .library(name: "YcodeConnect", targets: ["YcodeConnect"]),
+                     .library(name: "YcodeCollaboration", targets: ["YcodeCollaboration"])]
 package.targets += [
     .target(name: "CYcodeTestAgentLoader"),
     .target(name: "YcodeTestAgent"),
+    // Bulk wave: Legacy's Connect family (Bonjour/Network, iOS<->Mac
+    // pairing over the local network). macOS-only.
+    .target(name: "YcodeConnect", dependencies: ["YcodeAssistant"]),
+    .testTarget(name: "YcodeConnectTests", dependencies: ["YcodeConnect"]),
+    // Bulk wave: Legacy's Collaboration family (MultipeerConnectivity
+    // sessions, shared workspaces, transfers). macOS-only. Imports
+    // CryptoKit directly; no swift-crypto dep (that product is for
+    // Linux-portable targets importing `Crypto`).
+    .target(name: "YcodeCollaboration"),
+    .testTarget(name: "YcodeCollaborationTests", dependencies: ["YcodeCollaboration"]),
     // The simulator viewer (display-stream.md; scripts/ycode-sim-try)
     // The device windows (compact window, canvas, frame, controls; specs/ide/device-hub.md), shared by the viewer and the IDE
     .target(name: "YcodeDeviceUI", dependencies: ["YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel"]),
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
     .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodeGoogleAuth", "YcodePaywall", "YcodeSDK", "YcodeHealthStore",
+                                             // Bulk wave: Connect + Collaboration families.
+                                             "YcodeConnect", "YcodeCollaboration",
                                              // Gap-closure: the VM console (VirtualMachineRegistry)
                                              // probes KVM through YcodeHypervisor.
                                              "YcodeHypervisor",
@@ -413,6 +430,8 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
     package.targets += [
         .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
                                                           "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio", "YcodePaywall",
+                                                          // Bulk wave (Views-D): backups + PR views.
+                                                          "YcodeCloud", "YcodeGitHub",
                                                           .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
                                                           .product(name: "SwiftUI", package: "swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftui"),
@@ -424,6 +443,8 @@ package.products += [.executable(name: "ycode-ide", targets: ["ycode-ide"])]
 package.targets += [
     .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
                                                       "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio", "YcodePaywall",
+                                                      // Bulk wave (Views-D): backups + PR views.
+                                                      "YcodeCloud", "YcodeGitHub",
                                                       .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
 ]
 #endif

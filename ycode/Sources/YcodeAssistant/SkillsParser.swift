@@ -1,0 +1,76 @@
+// Adapted from SwiftCode-Legacy SwiftCode/Core/AI/Agent/Skills/SkillsParser.swift (Dylan's own code;
+// direct port authorised under MIT). See bulk/core-dispositions.tsv.
+import Foundation
+
+public struct SkillsParser: Sendable {
+    public init() {}
+
+    public func parse(content: String, url: URL? = nil) throws -> Skill {
+        let lines = content.components(separatedBy: .newlines)
+
+        // Extract Name from first H1
+        let name = lines.first(where: { $0.hasPrefix("# ") })?
+            .dropFirst(2)
+            .trimmingCharacters(in: .whitespaces) ?? "Unknown Skill"
+
+        // Extract Description/Summary from first non-empty line after title
+        var summary = "No description"
+        if let titleIndex = lines.firstIndex(where: { $0.hasPrefix("# ") }) {
+            for i in (titleIndex + 1)..<lines.count {
+                let line = lines[i].trimmingCharacters(in: .whitespaces)
+                if !line.isEmpty && !line.hasPrefix("#") {
+                    summary = line
+                    break
+                }
+            }
+        }
+
+        // Extract Metadata (YAML-like block at top if exists)
+        var metadata: [String: String] = [:]
+        if content.hasPrefix("---") {
+            let parts = content.components(separatedBy: "---")
+            if parts.count >= 3 {
+                let yamlLines = parts[1].components(separatedBy: .newlines)
+                for line in yamlLines {
+                    let kv = line.components(separatedBy: ":")
+                    if kv.count == 2 {
+                        let key = kv[0].trimmingCharacters(in: .whitespaces)
+                        let value = kv[1].trimmingCharacters(in: .whitespaces)
+                        metadata[key] = value
+                    }
+                }
+            }
+        }
+
+        // Use a consistent UUID if provided in metadata, otherwise generate new
+        let id = metadata["id"].flatMap { UUID(uuidString: $0) } ?? UUID()
+
+        let author = metadata["author"] ?? "SwiftCode"
+        let version = metadata["version"] ?? "1.0.0"
+        let tags = metadata["tags"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+        let recommendedTools = metadata["recommendedTools"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+        let guidance = metadata["guidance"]?.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+
+        let scheme = SkillScheme(
+            name: String(name),
+            summary: summary,
+            version: version,
+            author: author,
+            tags: tags,
+            recommendedTools: recommendedTools,
+            guidance: guidance
+        )
+
+        return Skill(
+            id: id,
+            name: String(name),
+            description: summary,
+            isEnabled: true,
+            content: content,
+            metadata: metadata,
+            url: url,
+            scheme: scheme,
+            swiftCodeAssistCapable: false
+        )
+    }
+}
