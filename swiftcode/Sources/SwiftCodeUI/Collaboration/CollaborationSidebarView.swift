@@ -1,0 +1,128 @@
+// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
+//   SwiftCode/Views/Collaboration/CollaborationSidebarView.swift
+// Adapted for SwiftCode: tab selection drives the CollaborationMainView's
+// selected tab; the Active Now panel reads the real
+// CollaborationManager.activeUsers. Legacy's white text becomes
+// system-adaptive. CollaborationTab is ported in this file, as in Legacy.
+// (Marked @MainActor: the view holds a @MainActor CollaborationManager.)
+
+import SwiftUI
+import SwiftCodeCollaboration
+
+@MainActor
+public struct CollaborationSidebarView: View {
+    @Binding var selectedTab: CollaborationTab
+    let manager: CollaborationManager
+
+    public init(selectedTab: Binding<CollaborationTab>, manager: CollaborationManager) {
+        self._selectedTab = selectedTab
+        self.manager = manager
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Collaboration")
+                .font(.title2.bold())
+                .padding(.horizontal)
+                .padding(.top, 40)
+
+            VStack(spacing: 4) {
+                ForEach(CollaborationTab.allCases) { tab in
+                    SidebarItem(tab: tab, isSelected: selectedTab == tab) {
+                        selectedTab = tab
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+
+            Spacer()
+
+            // Active Users Mini Panel
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Active Now")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if manager.activeUsers.isEmpty {
+                            Text("No collaborators active.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(manager.activeUsers) { user in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 8, height: 8)
+                                Text(user.id)
+                                    .font(.caption)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .frame(maxHeight: 120)
+            }
+            .padding(.bottom, 20)
+        }
+        .frame(width: 240)
+        .background(.ultraThinMaterial)
+    }
+}
+
+struct SidebarItem: View {
+    let tab: CollaborationTab
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: tab.icon)
+                    .font(.subheadline)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .frame(width: 24)
+
+                Text(tab.title)
+                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(isSelected ? Color.blue.opacity(0.2) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+public enum CollaborationTab: String, CaseIterable, Identifiable {
+    case overview, branches, commits, pullRequests, reviews, chat, sync, people, activity, conflicts, files
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .pullRequests: return "Pull Requests"
+        default: return rawValue.capitalized
+        }
+    }
+    public var icon: String {
+        switch self {
+        case .overview: return "square.grid.2x2"
+        case .branches: return "arrow.triangle.branch"
+        case .commits: return "shippingbox"
+        case .pullRequests: return "tray.full"
+        case .reviews: return "text.badge.checkmark"
+        case .chat: return "bubble.left.and.bubble.right"
+        case .sync: return "arrow.up.arrow.down"
+        case .people: return "person.3"
+        case .activity: return "clock"
+        case .conflicts: return "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+        case .files: return "lock.doc"
+        }
+    }
+}
