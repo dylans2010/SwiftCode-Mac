@@ -1,5 +1,5 @@
 import Foundation
 import YcodeAssistant
 
-public typealias GitDiffHunk = SwiftCodeAssistant.GitDiffHunk
+public typealias GitDiffHunk = YcodeAssistant.GitDiffHunk
 

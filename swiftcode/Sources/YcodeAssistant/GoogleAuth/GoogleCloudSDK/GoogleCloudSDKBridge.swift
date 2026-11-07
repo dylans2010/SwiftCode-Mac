@@ -108,6 +108,21 @@ public actor GoogleCloudSDKBridge {
         return try await transport.sendRequest(method: "session.create", paramsData: data, timeout: 60.0)
     }
 
+    public func createSession(sessionId: String, config: GoogleCloudSDKConfiguration) async throws -> GoogleCloudSDKResponse {
+        let providerKind: ProviderKind = (config.provider == "anthropic" || config.provider == "claude") ? .anthropic : .gemini
+        let sessionConfig = SDKSessionConfiguration(
+            model: config.model,
+            provider: providerKind,
+            thinkingLevel: config.thinkingLevel,
+            enableSubagents: config.enableSubagents,
+            executionMode: config.executionMode,
+            hasAPIKey: config.apiKey != nil && !(config.apiKey?.isEmpty ?? true),
+            isOAuthAuthenticated: config.oauthToken != nil && !(config.oauthToken?.isEmpty ?? true),
+            baseURL: config.baseURL
+        )
+        return try await createSession(sessionId: sessionId, config: sessionConfig)
+    }
+
     public func resumeSession(sessionId: String, config: SDKSessionConfiguration) async throws -> GoogleCloudSDKResponse {
         try await start()
         let data = await sessionParamsData(sessionId: sessionId, config: config)

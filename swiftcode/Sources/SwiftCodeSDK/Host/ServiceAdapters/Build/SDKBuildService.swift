@@ -98,7 +98,7 @@ public actor SDKBuildService {
         var retainedOutput = ""
         var retainedBytes = 0
         var streamedEvents = 0
-        var engineResult: SwiftCodeBuild.BuildResult?
+        var engineResult: YcodeBuild.BuildResult?
         let timeoutTask = Task {
             try? await Task.sleep(for: .seconds(Self.buildTimeout))
             await handle.markTimedOut()
@@ -129,7 +129,7 @@ public actor SDKBuildService {
                 engineResult = result
             }
         }
-        let result = engineResult ?? SwiftCodeBuild.BuildResult(status: .cancelled, exitCode: -1, issues: [])
+        let result = engineResult ?? YcodeBuild.BuildResult(status: .cancelled, exitCode: -1, issues: [])
         let parsed = SDKBuildOutputParser.parse(retainedOutput, maxDiagnostics: Self.maxResultDiagnostics)
         let timedOut = await handle.isTimedOut
         let status: SDKBuildStatus

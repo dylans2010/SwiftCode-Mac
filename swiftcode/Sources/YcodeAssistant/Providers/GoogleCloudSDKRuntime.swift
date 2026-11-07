@@ -134,6 +134,21 @@ public final class GoogleCloudSDKRuntime: Sendable {
         return session
     }
 
+    public func createSession(id: String = UUID().uuidString, config: GoogleCloudSDKConfiguration) async throws -> GoogleCloudSDKSession {
+        let providerKind: ProviderKind = (config.provider == "anthropic" || config.provider == "claude") ? .anthropic : .gemini
+        let sessionConfig = SDKSessionConfiguration(
+            model: config.model,
+            provider: providerKind,
+            thinkingLevel: config.thinkingLevel,
+            enableSubagents: config.enableSubagents,
+            executionMode: config.executionMode,
+            hasAPIKey: config.apiKey != nil && !(config.apiKey?.isEmpty ?? true),
+            isOAuthAuthenticated: config.oauthToken != nil && !(config.oauthToken?.isEmpty ?? true),
+            baseURL: config.baseURL
+        )
+        return try await createSession(id: id, config: sessionConfig)
+    }
+
     public func getSession(id: String) -> GoogleCloudSDKSession? {
         activeSessions[id]
     }

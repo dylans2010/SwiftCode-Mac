@@ -226,7 +226,7 @@ public final class NavigatorAreaController: NSViewController, NSOutlineViewDataS
     private var reportScopeTop: NSLayoutConstraint!
     private var scrollTop: NSLayoutConstraint!
     private var reportScopeHeight: NSLayoutConstraint!
-    public typealias FindScope = SwiftCodeIDECore.FindScope
+    public typealias FindScope = YcodeIDECore.FindScope
     public private(set) var findScopeValue: FindScope = .workspace
     var lastResultFiles: [String] = []
     public var containingGroups: (() -> [(name: String, path: String)])?

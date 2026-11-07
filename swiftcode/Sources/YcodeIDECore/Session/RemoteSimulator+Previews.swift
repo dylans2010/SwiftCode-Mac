@@ -18,10 +18,10 @@ extension RemoteSimulator {
         return r
     }
 
-    public var previewDirectory: String { "\(remoteDevicePath)/\(SwiftCodePreviews.PreviewHost.deviceRelativeDirectory)" }
+    public var previewDirectory: String { "\(remoteDevicePath)/\(YcodePreviews.PreviewHost.deviceRelativeDirectory)" }
 
     public func remotePreviewHostPath(platform: PreviewPlatform) -> String {
-        "\(settings.dataDirectory)/apps/previews-\(platform.rawValue)/\(SwiftCodePreviews.PreviewHost.appName)"
+        "\(settings.dataDirectory)/apps/previews-\(platform.rawValue)/\(YcodePreviews.PreviewHost.appName)"
     }
 
     public func previewCommand(platform: PreviewPlatform) -> String {
@@ -31,7 +31,7 @@ extension RemoteSimulator {
             + ": > \(q(previewDirectory + "/host.log")); echo SWIFTCODE-REMOTE-PID $$; exec env SWIFTCODE_WARM_BOOT=1 \(lean)\(q(settings.simdPath))"
             + " --device \(q(remoteDevicePath)) --runtime-root \(q(runtimeRoot))"
             + (target?.deviceTypeArguments ?? []).map { " " + q($0) }.joined()
-            + " --install-app \(q(remotePreviewHostPath(platform: platform))) --launch \(q(SwiftCodePreviews.PreviewHost.bundleIdentifier))"
+            + " --install-app \(q(remotePreviewHostPath(platform: platform))) --launch \(q(YcodePreviews.PreviewHost.bundleIdentifier))"
             + displayServerArguments.map { " " + q($0) }.joined()
             + Self.words(settings.additionalArguments).map { " " + q($0) }.joined()
             + cameraArguments.map { " " + q($0) }.joined()

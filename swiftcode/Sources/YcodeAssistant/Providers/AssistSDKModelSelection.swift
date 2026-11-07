@@ -29,6 +29,14 @@ public struct SDKSessionConfiguration: Sendable, Equatable {
         self.isOAuthAuthenticated = isOAuthAuthenticated
         self.baseURL = baseURL
     }
+
+    public func canReuseSession(for config: GoogleCloudSDKConfiguration) -> Bool {
+        return self.model == config.model
+    }
+
+    public func canReuseSession(for config: SDKSessionConfiguration) -> Bool {
+        return self.model == config.model && self.provider == config.provider
+    }
 }
 
 public enum SDKSessionConfigurationBuilder {
@@ -86,12 +94,8 @@ extension AssistModelRouter {
         alternativeKeysEnabled: Bool = false
     ) async -> (model: AssistCandidateModel, config: SDKSessionConfiguration) {
         if useCloudModel, SCCloudProvider.isCloudModelID(preferredID) {
-            let cloudModel = Self.syntheticCloudModel(
-                forCloudModelID: preferredID,
-                remainingToday: cloudRemainingToday,
-                isConfigured: cloudConfigured,
-                firstDiscoveredEndpointName: cloudModels.first?.modelIdentifier
-            )
+            let availableCloud = self.createSyntheticCloudModel(forCloudModelID: preferredID)
+            let cloudModel = AssistCandidateModel(availableModel: availableCloud)
             let config = SDKSessionConfigurationBuilder.build(
                 for: cloudModel,
                 objective: objective,
@@ -141,14 +145,8 @@ extension AssistModelRouter {
             } else if let first = candidates.first {
                 targetModel = first
             } else {
-                targetModel = Self.resolveDefaultModel(
-                    preferredID: preferredID,
-                    discovered: candidates,
-                    useCloudModel: useCloudModel,
-                    cloudConfigured: cloudConfigured,
-                    cloudRemainingToday: cloudRemainingToday,
-                    cloudModels: cloudModels
-                )
+                let resolved = await self.resolveDefaultModel()
+                targetModel = AssistCandidateModel(availableModel: resolved)
             }
         }
 
@@ -175,7 +173,7 @@ extension AssistModelRouter {
         alternativeKeysEnabled: Bool,
         isGoogleOAuthAuthenticated: Bool = false
     ) async -> (nextModel: AssistCandidateModel, continuationPrompt: String, keyRotated: Bool, config: SDKSessionConfiguration)? {
-        let failureClass = Self.classify(error: error)
+        let failureClass = classify(error: error)
         if alternativeKeysEnabled, let rotation = keyRotation,
            failureClass == .rateLimited || failureClass == .quotaExhausted {
             if let activeId = await rotation.activeKeyId {
@@ -200,24 +198,23 @@ extension AssistModelRouter {
             }
         }
 
-        guard let result = handleTurnFailure(
-            failedModel: failedModel,
+        guard let result = await handleTurnFailure(
+            failedModel: AssistAvailableModel(candidate: failedModel),
             error: error,
             completedTurnContent: completedTurnContent,
             executedToolsCount: executedToolsCount,
-            objective: objective,
-            automaticallySwitchModels: automaticallySwitchModels,
-            eligibleCandidates: eligibleCandidates
+            objective: objective
         ) else {
             return nil
         }
-        let config = SDKSessionConfigurationBuilder.build(
-            for: result.nextModel,
+        let nextCandidate = AssistCandidateModel(availableModel: result.nextModel)
+        let nextConfig = SDKSessionConfigurationBuilder.build(
+            for: nextCandidate,
             objective: objective,
             isGoogleOAuthAuthenticated: isGoogleOAuthAuthenticated,
             alternativeKeysEnabled: alternativeKeysEnabled,
             isAntigravityCatalogModel: false
         )
-        return (result.nextModel, result.continuationPrompt, false, config)
+        return (nextCandidate, result.continuationPrompt, false, nextConfig)
     }
 }

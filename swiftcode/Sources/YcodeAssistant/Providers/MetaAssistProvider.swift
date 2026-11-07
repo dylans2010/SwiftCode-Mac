@@ -45,6 +45,8 @@ public final class MetaAssistProvider: Sendable {
     public static let providerID = "meta_assist"
     public static let providerName = "Assist with Meta"
     public static let defaultModelID = "muse-wonder-1.0"
+    public static let notInstalledHint = "The muse CLI is not installed."
+    public static let notSignedInHint = "Assist with Meta is installed but not signed in. Run `muse` once in Terminal and sign in, then try again."
 
     private var activeSessionID: String?
     private var activeWorkspaceRoot: String?

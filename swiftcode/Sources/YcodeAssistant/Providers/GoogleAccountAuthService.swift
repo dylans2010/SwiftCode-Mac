@@ -68,6 +68,28 @@ public final class GoogleAccountAuthService: NSObject {
         }
     }
 
+    public static let requiredScopes: [String] = [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/generative-language.retriever",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "openid"
+    ]
+
+    public static let swiftCodeClientID = "1074744318790-25m937v7u4c7f041k925v8v2h8j370s6.apps.googleusercontent.com"
+
+    public static func actionableSignInError(for error: Error) -> String {
+        let msg = error.localizedDescription
+        if msg.localizedCaseInsensitiveContains("client_secret is missing") || msg.localizedCaseInsensitiveContains("client secret") {
+            return "A Google OAuth client secret is required for token exchange. Please configure it in Settings or save it in Keychain."
+        }
+        return msg
+    }
+
+    public func fetchAntigravityCredentialsFromKeychain() -> GoogleAmbientCredentials.AntigravityCredentials? {
+        antigravityFetcher()
+    }
+
     public var clientID: String {
         if let env = environment["GOOGLE_CLIENT_ID"], !env.isEmpty { return env }
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty { return info }
@@ -523,6 +545,13 @@ public final class GoogleAccountAuthService: NSObject {
         #else
         throw GoogleAuthError.cliSignInUnavailable
         #endif
+    }
+
+    public var currentAccessToken: String? {
+        if let token = store.readString(GoogleSecretAccount.accessToken), !token.isEmpty {
+            return token
+        }
+        return nil
     }
 
     public func getValidAccessToken() async -> String? {

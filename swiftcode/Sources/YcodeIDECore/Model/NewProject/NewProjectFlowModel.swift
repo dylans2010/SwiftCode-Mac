@@ -227,7 +227,7 @@ public enum NewProjectCreator {
         if container.pathExtension == "xcworkspace" {
             guard let ws = try? Workspace(contentsOf: container.path) else { return [] }
             var out = [NewProjectGroupChoice(title: container.deletingPathExtension().lastPathComponent, depth: 0, key: nil)]
-            func walk(_ nodes: [SwiftCodeWorkspace.XMLNode], _ depth: Int, _ prefix: String) {
+            func walk(_ nodes: [YcodeWorkspace.XMLNode], _ depth: Int, _ prefix: String) {
                 for n in nodes where n.name == "Group" {
                     let loc = n["location"] ?? ""
                     let key = prefix.isEmpty ? loc : prefix + "|" + loc
@@ -323,8 +323,8 @@ public enum NewProjectCreator {
                     nodes = nodes[i].children
                 }
             }
-            let ref = SwiftCodeWorkspace.XMLNode("FileRef", attributes: [("location", "group:" + relativePath(item.standardizedFileURL.path, from: groupDir))])
-            func insert(_ node: inout SwiftCodeWorkspace.XMLNode, _ rest: ArraySlice<Int>) {
+            let ref = YcodeWorkspace.XMLNode("FileRef", attributes: [("location", "group:" + relativePath(item.standardizedFileURL.path, from: groupDir))])
+            func insert(_ node: inout YcodeWorkspace.XMLNode, _ rest: ArraySlice<Int>) {
                 guard let i = rest.first else { node.children.append(ref); return }
                 insert(&node.children[i], rest.dropFirst())
             }

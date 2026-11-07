@@ -703,7 +703,7 @@ public final class AssistModelRouter: Sendable {
 
         if isOAuthAuthenticated {
             apiKey = nil
-            oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+            oauthToken = GoogleAccountAuthService.shared.currentAccessToken
             executionMode = "antigravity"
         } else if isGoogleProvider && AppSettings.shared.alternativeKeysEnabled {
             apiKey = AlternativeKeyManager.shared.getActiveOrNextKey()?.key

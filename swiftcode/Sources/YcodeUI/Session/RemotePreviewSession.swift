@@ -27,7 +27,7 @@ public final class RemotePreviewSession {
     private var process: StreamingProcess?
     private var reports: StreamingProcess?
     private var remotePID: Int?
-    private var waiters: [Int: CheckedContinuation<SwiftCodePreviews.PreviewHost.Report, Never>] = [:]
+    private var waiters: [Int: CheckedContinuation<YcodePreviews.PreviewHost.Report, Never>] = [:]
     private var startWaiters: [CheckedContinuation<Bool, Never>] = []
     private let controlPath: String
     public let deploymentTarget: String
@@ -115,11 +115,11 @@ public final class RemotePreviewSession {
             else if line.contains("cold boot") { phase = .starting("Booting the preview device"); onChange?() }
             else if line.contains("home screen at") { phase = .starting("Launching the preview host"); onChange?() }
         }
-        if line.contains("ylaunch: launched \(SwiftCodePreviews.PreviewHost.bundleIdentifier)") { host.running = true }
+        if line.contains("ylaunch: launched \(YcodePreviews.PreviewHost.bundleIdentifier)") { host.running = true }
     }
 
     private func report(_ line: String) {
-        guard let r = SwiftCodePreviews.PreviewHost.parseReport(line) else { return }
+        guard let r = YcodePreviews.PreviewHost.parseReport(line) else { return }
         switch r {
         case .started:
             host = PreviewHostState(running: true)
@@ -163,7 +163,7 @@ public final class RemotePreviewSession {
         generation += 1
         let g = generation
         let payloadName = payload.map { _ in "payload-\(g).dylib" }
-        let guestPayload = payloadName.map { "\(SwiftCodePreviews.PreviewHost.guestDirectory)/\($0)" } ?? lastPlan?.payload ?? ""
+        let guestPayload = payloadName.map { "\(YcodePreviews.PreviewHost.guestDirectory)/\($0)" } ?? lastPlan?.payload ?? ""
         let plan = PreviewPlan(generation: g, payload: guestPayload, regions: regions)
         let cmd = remote.previewDeliverCommand(payloadName: payloadName, plan: plan.json(), keep: PreviewUpdatePlanner.maximumLoads)
         let args = ssh(cmd), sshPath = remote.settings.ssh
@@ -184,7 +184,7 @@ public final class RemotePreviewSession {
         guard status == 0 else { throw .host("Could not send the preview to the device (ssh status \(status))") }
         lastPlan = plan
         if payload != nil { host.loads += 1 }
-        let r: SwiftCodePreviews.PreviewHost.Report = await withCheckedContinuation { c in
+        let r: YcodePreviews.PreviewHost.Report = await withCheckedContinuation { c in
             if readyGeneration >= g { c.resume(returning: .ready(generation: g, milliseconds: 0)); return }
             waiters[g] = c
             Task { @MainActor [weak self] in

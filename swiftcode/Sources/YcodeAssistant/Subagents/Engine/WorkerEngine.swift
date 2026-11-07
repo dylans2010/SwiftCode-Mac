@@ -63,16 +63,12 @@ public struct MetaAssistTurnRunner: WorkerTurnRunner, Sendable {
         modelID: String,
         workspaceRoot: URL
     ) async throws -> WorkerTurnOutput {
-        let provider = MetaAssistProvider(
-            reasoningEffort: reasoningEffort,
-            turnTimeoutSeconds: turnTimeoutSeconds,
-            attachment: attachment,
-            proxyBaseURL: proxyBaseURL
-        )
-        guard let executable = provider.executableURL() else {
+        guard let exePath = MuseCodeCLIHelper.shared.discoverExecutablePath() else {
             throw AssistantError.failed(MetaAssistProvider.notInstalledHint)
         }
-        guard provider.hasCredentials() || provider.proxyBaseURL != nil else {
+        let executable = URL(fileURLWithPath: exePath)
+        let hasCredentials = await MuseCodeCLIHelper.shared.checkCredentials()
+        guard hasCredentials || proxyBaseURL != nil else {
             throw AssistantError.notSignedIn(hint: MetaAssistProvider.notSignedInHint)
         }
 
@@ -86,9 +82,9 @@ public struct MetaAssistTurnRunner: WorkerTurnRunner, Sendable {
             reasoningEffort: reasoningEffort,
             workspaceRoot: workspaceRoot.path,
             executable: executable,
-            hasCredentials: provider.hasCredentials(),
-            proxyBaseURL: provider.proxyBaseURL,
-            attachment: provider.attachment,
+            hasCredentials: hasCredentials,
+            proxyBaseURL: proxyBaseURL,
+            attachment: attachment,
             turnTimeoutSeconds: turnTimeoutSeconds,
             onEvent: { event in
                 switch event {

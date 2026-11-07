@@ -10,6 +10,9 @@ public enum ModelSource: String, Codable, Sendable, CaseIterable {
     case openRouter = "OpenRouter"
 
     public static let appleFoundationModels = ModelSource.appleFoundation
+    public static let provider = ModelSource.gemini
+    public static let cloud = ModelSource.gemini
+    public static let foundation = ModelSource.appleFoundation
 
     public var iconName: String {
         switch self {
@@ -43,6 +46,7 @@ public struct AssistAvailableModel: Identifiable, Sendable, Codable, Hashable {
 
     public let capabilities: ModelCapabilities
     public let source: ModelSource
+    public var nativeProvider: ModelSource { source }
     public let isConfigured: Bool
     public var isAvailable: Bool
 
@@ -107,6 +111,31 @@ public struct AssistAvailableModel: Identifiable, Sendable, Codable, Hashable {
         self.lastFailureReason = lastFailureReason
         self.contextWindow = contextWindow
         self.endpointURL = endpointURL
+    }
+
+    public init(candidate: AssistCandidateModel) {
+        self.id = candidate.id
+        self.displayName = candidate.displayName
+        self.providerID = candidate.provider.rawValue
+        self.providerName = candidate.provider.displayName
+        self.modelIdentifier = candidate.modelIdentifier
+        self.capabilities = candidate.capabilities
+        self.source = candidate.source
+        self.isConfigured = candidate.isConfigured
+        self.isAvailable = true
+        self.supportsStreaming = candidate.supportsStreaming
+        self.supportsToolCalling = candidate.supportsToolCalling
+        self.supportsVision = candidate.supportsVision
+        self.supportsStructuredOutput = candidate.supportsStructuredOutput
+        self.supportsAgenticUse = candidate.supportsAgenticUse
+        self.supportsSubagents = candidate.supportsSubagents
+        self.priority = candidate.priority
+        self.statusDescription = candidate.statusDescription
+        self.status = .available
+        self.rateLimitedUntil = nil
+        self.lastFailureReason = nil
+        self.contextWindow = candidate.contextWindow
+        self.endpointURL = candidate.endpointURL
     }
 
     public var isCurrentlyRateLimited: Bool {

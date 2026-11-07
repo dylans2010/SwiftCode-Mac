@@ -23,15 +23,10 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
         isMonitoring = true
         logger.info("Starting Google Cloud SDK background lifecycle manager...")
 
-        AppSettings.shared.$assistSystemID
-            .removeDuplicates()
-            .sink { [weak self] systemID in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    await self.handleAssistSystemChange(systemID: systemID)
-                }
-            }
-            .store(in: &cancellables)
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            await self.handleAssistSystemChange(systemID: AppSettings.shared.assistSystemID)
+        }
 
         Task { @MainActor in
             await self.ensureRunning()

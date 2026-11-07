@@ -131,7 +131,8 @@ public enum AssistProviderSelection {
         case .codex: return .codex
         case .ollama: return .openAI
         case .foundationModels, .scCloud: return .openRouter
-        case .llamaCpp, .claudeCode, .antigravity, .acpAgent, .metaAssist: return .openRouter
+        case .llamaCpp, .claudeCode, .antigravity, .acpAgent, .metaAssist, .gemini, .mistral: return .openRouter
+        @unknown default: return .openRouter
         }
     }
 

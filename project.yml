@@ -1,0 +1,691 @@
+name: SwiftCode
+
+options:
+  bundleIdPrefix: com.swiftcode
+  defaultConfig: Release
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    SWIFT_ENABLE_EXPLICIT_MODULES: "NO"
+    SWIFT_INCLUDE_PATHS:
+      - "$(BUILD_ROOT)/SourcePackages/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include"
+      - "$(SRCROOT)/build/DerivedData/SourcePackages/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include"
+    HEADER_SEARCH_PATHS:
+      - "$(BUILD_ROOT)/SourcePackages/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include"
+      - "$(SRCROOT)/build/DerivedData/SourcePackages/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include"
+    OTHER_SWIFT_FLAGS:
+      - "$(inherited)"
+      - "-package-name"
+      - "SwiftCode"
+
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: 0.9.0
+  Splash:
+    url: https://github.com/JohnSundell/Splash.git
+    from: 0.16.0
+  SwiftMarkdown:
+    url: https://github.com/apple/swift-markdown.git
+    from: 0.5.0
+  SwiftCrypto:
+    url: https://github.com/apple/swift-crypto.git
+    exactVersion: 4.5.2
+  SwiftSyntax:
+    url: https://github.com/swiftlang/swift-syntax.git
+    exactVersion: 604.0.0
+  StoreKit:
+    path: frameworks/storekit
+
+targets:
+  YcodeRelease:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeRelease
+
+  YcodePlist:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodePlist
+
+  YcodeMachO:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeMachO
+
+  YcodeDarwinABI:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeDarwinABI
+
+  YcodeDarwinKernel:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeDarwinKernel
+    dependencies:
+      - target: YcodeDarwinABI
+
+  YcodeXPC:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeXPC
+
+  YcodeSimFeatures:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeSimFeatures
+
+  YcodeDisplayStream:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeDisplayStream
+
+  YcodeDeviceModel:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeDeviceModel
+
+  YcodeDeviceUI:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeDeviceUI
+    dependencies:
+      - target: YcodeDeviceModel
+      - target: YcodeSimFeatures
+      - target: YcodeDisplayStream
+
+  YcodeIcon:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeIcon
+
+  YcodeAssetCatalog:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeAssetCatalog
+    dependencies:
+      - target: YcodeIcon
+
+  YcodeSigning:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeSigning
+
+  YcodeSubprocess:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeSubprocess
+
+  YcodeProject:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeProject
+    dependencies:
+      - target: YcodePlist
+
+  YcodeWorkspace:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeWorkspace
+    dependencies:
+      - target: YcodeProject
+
+  YcodeSettings:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeSettings
+    dependencies:
+      - target: YcodeProject
+
+  YcodeBuild:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeBuild
+    dependencies:
+      - target: YcodeProject
+      - target: YcodePlist
+      - target: YcodeWorkspace
+      - target: YcodeSubprocess
+
+  YcodeDebug:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeDebug
+    dependencies:
+      - target: YcodeSubprocess
+
+  YcodeLanguage:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeLanguage
+    dependencies:
+      - target: YcodeDebug
+      - target: YcodeSubprocess
+
+  YcodePreviews:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodePreviews
+    dependencies:
+      - target: YcodeBuild
+      - target: YcodeSubprocess
+
+  YcodeProfiler:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeProfiler
+    dependencies:
+      - target: YcodeMachO
+
+  YcodeSyntax:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeSyntax
+    dependencies:
+      - package: SwiftSyntax
+        product: SwiftSyntax
+      - package: SwiftSyntax
+        product: SwiftParser
+
+  YcodeStrings:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeStrings
+    dependencies:
+      - package: SwiftSyntax
+        product: SwiftSyntax
+      - package: SwiftSyntax
+        product: SwiftParser
+
+  YcodeEditorKit:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeEditorKit
+    dependencies:
+      - target: YcodeSyntax
+
+  YcodeHealthStore:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeHealthStore
+    dependencies:
+      - target: YcodeSimFeatures
+
+  YcodeSimLink:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeSimLink
+    dependencies:
+      - target: YcodeDisplayStream
+      - package: SwiftCrypto
+        product: Crypto
+
+  YcodeTestAgent:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeTestAgent
+    dependencies:
+      - target: YcodeRelease
+
+  SwiftCodeGitHub:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeGitHub
+
+  SwiftCodeExtensions:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeExtensions
+        excludes:
+          - "Resources/**"
+    dependencies:
+      - target: YcodeSubprocess
+      - target: YcodeLanguage
+      - target: YcodeDebug
+
+  YcodeAssistant:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeAssistant
+        excludes:
+          - "Tools/validate_tools.py"
+          - "Resources/**"
+          - "System Assets/**"
+          - "Reverse/ReverseBridge.mjs"
+    dependencies:
+      - target: YcodeSubprocess
+      - target: YcodeBuild
+      - target: SwiftCodeExtensions
+      - package: SwiftCrypto
+        product: Crypto
+
+  YcodeCompletion:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeCompletion
+    dependencies:
+      - target: YcodeAssistant
+
+  SwiftCodeCloud:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeCloud
+    dependencies:
+      - target: YcodeAssistant
+
+  SwiftCodePaywall:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodePaywall
+
+  SwiftCodeConnect:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeConnect
+    dependencies:
+      - target: YcodeAssistant
+
+  SwiftCodeCollaboration:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeCollaboration
+
+  YcodeXcodebuild:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeXcodebuild
+        excludes:
+          - "Fixtures/**"
+    dependencies:
+      - target: YcodeRelease
+      - target: YcodeProject
+      - target: YcodeWorkspace
+      - target: YcodeSettings
+      - target: YcodePlist
+      - target: YcodeBuild
+      - target: YcodeSubprocess
+      - target: YcodeSigning
+
+  YcodeBuildServer:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeBuildServer
+    dependencies:
+      - target: YcodeXcodebuild
+      - target: YcodeBuild
+      - target: YcodeProject
+      - target: YcodeWorkspace
+      - target: YcodeSettings
+      - target: YcodeDebug
+      - target: YcodeSubprocess
+
+  YcodeIDECore:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeIDECore
+        excludes:
+          - "Fixtures/**"
+          - "Resources/**"
+    dependencies:
+      - target: SwiftCodeCollaboration
+      - target: YcodeRelease
+      - target: YcodeSyntax
+      - target: YcodeProject
+      - target: YcodeWorkspace
+      - target: YcodeSettings
+      - target: YcodePlist
+      - target: YcodeBuild
+      - target: YcodeDebug
+      - target: YcodeLanguage
+      - target: YcodeXcodebuild
+      - target: YcodeSubprocess
+      - target: YcodeAssistant
+      - target: YcodeCompletion
+      - target: YcodeProfiler
+      - target: YcodePreviews
+      - target: YcodeDeviceModel
+      - target: YcodeSimFeatures
+      - target: YcodeStrings
+      - target: YcodeSigning
+      - target: YcodeHealthStore
+      - package: StoreKit
+        product: StoreKitConfiguration
+      - package: StoreKit
+        product: StoreKitEngine
+      - package: SwiftCrypto
+        product: Crypto
+
+  SwiftCodeSDK:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeSDK
+        excludes:
+          - "Resources/**"
+    dependencies:
+      - target: SwiftCodeExtensions
+      - target: YcodeSubprocess
+      - target: YcodeAssistant
+      - target: YcodeBuild
+      - target: YcodeIDECore
+      - package: SwiftCrypto
+        product: Crypto
+
+  SwiftCodeSDKStudio:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/SwiftCodeSDKStudio
+    dependencies:
+      - target: SwiftCodeSDK
+      - target: SwiftCodeExtensions
+
+  YcodeIDEShell:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeIDEShell
+    dependencies:
+      - target: YcodeIDECore
+      - target: YcodeSyntax
+      - target: YcodeBuild
+      - target: YcodeXcodebuild
+      - target: YcodeSimLink
+      - target: YcodeEditorKit
+      - target: YcodeDebug
+      - target: YcodeAssistant
+      - target: YcodePreviews
+      - target: YcodeDeviceModel
+      - target: YcodeDisplayStream
+      - target: YcodeLanguage
+      - target: YcodePlist
+      - target: YcodeProject
+      - target: YcodeSubprocess
+
+  YcodeMCP:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeMCP
+        excludes:
+          - "Resources/**"
+    dependencies:
+      - target: YcodeIDECore
+      - target: YcodeIDEShell
+      - target: YcodeAssistant
+      - target: YcodeCompletion
+      - target: YcodeBuild
+      - target: YcodePreviews
+      - target: YcodeProject
+      - target: YcodePlist
+      - target: YcodeSettings
+      - target: YcodeWorkspace
+      - target: YcodeSubprocess
+      - target: YcodeMachO
+      - target: SwiftCodeGitHub
+      - target: SwiftCodeExtensions
+      - package: SwiftSyntax
+        product: SwiftSyntax
+      - package: SwiftSyntax
+        product: SwiftParser
+      - package: SwiftCrypto
+        product: Crypto
+
+  YcodeUI:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/YcodeUI
+    dependencies:
+      - target: YcodeDisplayStream
+      - target: YcodeEditorKit
+      - target: YcodeIcon
+      - target: YcodeMCP
+      - target: YcodeIDECore
+      - target: YcodeCompletion
+      - target: YcodePreviews
+      - target: YcodeProject
+      - target: YcodeWorkspace
+      - target: YcodeSettings
+      - target: YcodeBuild
+      - target: YcodeDebug
+      - target: YcodeLanguage
+      - target: YcodeXcodebuild
+      - target: YcodeSubprocess
+      - target: YcodeAssistant
+      - target: SwiftCodeGitHub
+      - target: SwiftCodeExtensions
+      - target: YcodeSimFeatures
+      - target: YcodeDeviceModel
+      - target: YcodeDeviceUI
+      - target: YcodeProfiler
+      - target: SwiftCodeCloud
+      - target: SwiftCodePaywall
+      - target: SwiftCodeSDK
+      - target: YcodeHealthStore
+      - target: YcodeIDEShell
+      - target: SwiftCodeConnect
+      - target: SwiftCodeCollaboration
+
+  SwiftCode:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.swiftcode.SwiftCode
+        PRODUCT_NAME: SwiftCode
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
+        COMBINE_HIDPI_IMAGES: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+    sources:
+      - path: swiftcode/Sources/ycode-ide
+      - path: swiftcode/Sources/YcodeAssistant/System Assets
+      - path: swiftcode/Sources/SwiftCodeExtensions/Resources
+      - path: swiftcode/Sources/SwiftCodeSDK/Resources
+      - path: swiftcode/Sources/YcodeIDECore/Resources
+      - path: swiftcode/Sources/YcodeMCP/Resources
+      - path: packaging/icon/SwiftCode.icns
+      - path: Info.plist
+    dependencies:
+      - framework: AppKit.framework
+      - framework: SwiftUI.framework
+      - framework: Combine.framework
+      - framework: UniformTypeIdentifiers.framework
+      - framework: Security.framework
+      - framework: AVFoundation.framework
+      - framework: ScreenCaptureKit.framework
+      - framework: CoreGraphics.framework
+      - framework: Network.framework
+      - framework: CryptoKit.framework
+      - framework: WebKit.framework
+      - framework: StoreKit.framework
+      - framework: Metal.framework
+      - framework: MetalKit.framework
+      - package: ZIPFoundation
+        product: ZIPFoundation
+      - package: Splash
+        product: Splash
+      - package: SwiftMarkdown
+        product: Markdown
+      - package: SwiftCrypto
+        product: Crypto
+      - package: SwiftSyntax
+        product: SwiftSyntax
+      - package: SwiftSyntax
+        product: SwiftParser
+      - package: SwiftSyntax
+        product: SwiftIDEUtils
+      - package: StoreKit
+        product: StoreKitConfiguration
+      - package: StoreKit
+        product: StoreKitEngine
+      - target: YcodeRelease
+      - target: YcodeIDEShell
+      - target: YcodeIDECore
+      - target: YcodeSyntax
+      - target: YcodeBuild
+      - target: YcodeEditorKit
+      - target: YcodeCompletion
+      - target: YcodeAssistant
+      - target: YcodePreviews
+      - target: SwiftCodeExtensions
+      - target: SwiftCodeSDK
+      - target: SwiftCodeSDKStudio
+      - target: SwiftCodePaywall
+      - target: SwiftCodeCloud
+      - target: SwiftCodeGitHub
+      - target: YcodeUI
+      - target: YcodeDarwinKernel
+      - target: YcodeMCP
+      - target: YcodeProject
+      - target: YcodeWorkspace
+      - target: YcodeSettings
+      - target: YcodePlist
+      - target: YcodeSubprocess
+      - target: YcodeDebug
+      - target: YcodeLanguage
+      - target: YcodeXcodebuild
+      - target: YcodeBuildServer
+      - target: YcodeSimFeatures
+      - target: YcodeHealthStore
+      - target: YcodeDeviceModel
+      - target: YcodeDeviceUI
+      - target: YcodeProfiler
+      - target: YcodeDisplayStream
+      - target: YcodeSimLink
+      - target: YcodeTestAgent
+      - target: YcodeIcon
+      - target: YcodeAssetCatalog
+      - target: YcodeStrings
+      - target: YcodeSigning
+      - target: SwiftCodeConnect
+      - target: SwiftCodeCollaboration
+
+  swiftcode-cli:
+    type: tool
+    platform: macOS
+    deploymentTarget: "15.0"
+    settings:
+      base:
+        PRODUCT_NAME: swiftcode
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+    sources:
+      - path: swiftcode/Sources/ycode
+    dependencies:
+      - target: SwiftCode
+
+  swiftcodebuild:
+    type: tool
+    platform: macOS
+    deploymentTarget: "15.0"
+    settings:
+      base:
+        PRODUCT_NAME: swiftcodebuild
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+    sources:
+      - path: swiftcode/Sources/ycodebuild-cli
+    dependencies:
+      - target: SwiftCode

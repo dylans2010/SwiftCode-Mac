@@ -47,9 +47,9 @@ public struct JSONRPCRequest: Codable, Sendable {
     public let jsonrpc: String
     public let id: MCPJSONRPCID?
     public let method: String
-    public let params: SwiftCodeAssistant.JSONValue?
+    public let params: YcodeAssistant.JSONValue?
 
-    public init(id: MCPJSONRPCID?, method: String, params: SwiftCodeAssistant.JSONValue?) {
+    public init(id: MCPJSONRPCID?, method: String, params: YcodeAssistant.JSONValue?) {
         self.jsonrpc = "2.0"
         self.id = id
         self.method = method
@@ -60,10 +60,10 @@ public struct JSONRPCRequest: Codable, Sendable {
 public struct JSONRPCResponse: Codable, Sendable {
     public let jsonrpc: String?
     public let id: MCPJSONRPCID?
-    public let result: SwiftCodeAssistant.JSONValue?
+    public let result: YcodeAssistant.JSONValue?
     public let error: MCPJSONRPCError?
 
-    public init(jsonrpc: String? = "2.0", id: MCPJSONRPCID?, result: SwiftCodeAssistant.JSONValue?, error: MCPJSONRPCError?) {
+    public init(jsonrpc: String? = "2.0", id: MCPJSONRPCID?, result: YcodeAssistant.JSONValue?, error: MCPJSONRPCError?) {
         self.jsonrpc = jsonrpc
         self.id = id
         self.result = result
@@ -78,7 +78,7 @@ public struct JSONRPCResponse: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.jsonrpc = try? container.decodeIfPresent(String.self, forKey: .jsonrpc)
         self.id = try? container.decodeIfPresent(MCPJSONRPCID.self, forKey: .id)
-        self.result = try? container.decodeIfPresent(SwiftCodeAssistant.JSONValue.self, forKey: .result)
+        self.result = try? container.decodeIfPresent(YcodeAssistant.JSONValue.self, forKey: .result)
         self.error = try? container.decodeIfPresent(MCPJSONRPCError.self, forKey: .error)
     }
 }
@@ -86,9 +86,9 @@ public struct JSONRPCResponse: Codable, Sendable {
 public struct JSONRPCNotification: Codable, Sendable {
     public let jsonrpc: String
     public let method: String
-    public let params: SwiftCodeAssistant.JSONValue?
+    public let params: YcodeAssistant.JSONValue?
 
-    public init(method: String, params: SwiftCodeAssistant.JSONValue?) {
+    public init(method: String, params: YcodeAssistant.JSONValue?) {
         self.jsonrpc = "2.0"
         self.method = method
         self.params = params
@@ -98,7 +98,7 @@ public struct JSONRPCNotification: Codable, Sendable {
 public struct MCPJSONRPCError: Codable, Sendable, Error {
     public let code: Int
     public let message: String
-    public let data: SwiftCodeAssistant.JSONValue?
+    public let data: YcodeAssistant.JSONValue?
 }
 
 public enum SSEParser {
@@ -1143,12 +1143,12 @@ public final class MCPClient: Sendable {
 
     private func performHandshake() async throws -> MCPServerMetadata {
         logEvent(severity: .info, message: "Performing protocol handshake negotiation...")
-        let clientInfo: [String: SwiftCodeAssistant.JSONValue] = [
+        let clientInfo: [String: YcodeAssistant.JSONValue] = [
             "name": .string("SwiftCodeIDE"),
             "version": .string("1.0.0")
         ]
 
-        let params: [String: SwiftCodeAssistant.JSONValue] = [
+        let params: [String: YcodeAssistant.JSONValue] = [
             "protocolVersion": .string("2024-11-05"),
             "capabilities": .object([
                 "tools": .object([:])
@@ -1232,11 +1232,11 @@ public final class MCPClient: Sendable {
         return mcpTools
     }
 
-    public func callTool(name: String, arguments: [String: SwiftCodeAssistant.JSONValue]) async throws -> MCPExecutionResponse {
+    public func callTool(name: String, arguments: [String: YcodeAssistant.JSONValue]) async throws -> MCPExecutionResponse {
         logger.log("Executing tool '\(name)' on server '\(self.server.displayName)'...")
         logEvent(severity: .info, message: "Calling tool '\(name)' with arguments: \(arguments)")
 
-        let params: [String: SwiftCodeAssistant.JSONValue] = [
+        let params: [String: YcodeAssistant.JSONValue] = [
             "name": .string(name),
             "arguments": .object(arguments)
         ]
@@ -1264,7 +1264,7 @@ public final class MCPClient: Sendable {
         }
     }
 
-    private func sendRPCRequest(method: String, params: SwiftCodeAssistant.JSONValue?) async throws -> JSONRPCResponse {
+    private func sendRPCRequest(method: String, params: YcodeAssistant.JSONValue?) async throws -> JSONRPCResponse {
         let reqID = getNextRequestID()
         let rpcRequest = JSONRPCRequest(id: .integer(reqID), method: method, params: params)
 
@@ -1275,7 +1275,7 @@ public final class MCPClient: Sendable {
         return try await session.send(request: rpcRequest)
     }
 
-    private func sendNotification(method: String, params: SwiftCodeAssistant.JSONValue?) async throws {
+    private func sendNotification(method: String, params: YcodeAssistant.JSONValue?) async throws {
         let notification = JSONRPCNotification(method: method, params: params)
 
         guard let session = activeSession.withLock({ $0 }) else {

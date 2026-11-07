@@ -1,6 +1,19 @@
 import Foundation
 import Observation
 
+public struct MuseCustomEndpoint: Identifiable, Codable, Equatable, Sendable {
+    public var id = UUID()
+    public var name: String
+    public var models: [String]
+    public var isLocal: Bool
+
+    public init(name: String, models: [String], isLocal: Bool) {
+        self.name = name
+        self.models = models
+        self.isLocal = isLocal
+    }
+}
+
 public struct CustomEndpointHeader: Identifiable, Codable, Equatable, Sendable {
     public var id = UUID()
     public var name: String

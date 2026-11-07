@@ -277,7 +277,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
 
         if isOAuthMode && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
             if isGoogleProvider || (isAntigravityCatalogModel && (apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
-                oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+                oauthToken = GoogleAccountAuthService.shared.currentAccessToken
                 apiKey = nil
                 executionMode = "antigravity"
             }

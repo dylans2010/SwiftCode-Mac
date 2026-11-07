@@ -78,14 +78,14 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         let t0 = Date()
         let fm = FileManager.default
         let cache = workDirectory.appendingPathComponent("ModuleCache")
-        let version = "\(tc.sdkVersion)-v\(SwiftCodePreviews.PreviewHost.sourceVersion)"
+        let version = "\(tc.sdkVersion)-v\(YcodePreviews.PreviewHost.sourceVersion)"
         if hostExecutable?.version != version {
             progress("Building the preview host")
             let dir = workDirectory.appendingPathComponent("host-\(version)")
-            let src = dir.appendingPathComponent("main.swift"), exe = dir.appendingPathComponent(SwiftCodePreviews.PreviewHost.executableName)
+            let src = dir.appendingPathComponent("main.swift"), exe = dir.appendingPathComponent(YcodePreviews.PreviewHost.executableName)
             if !fm.isExecutableFile(atPath: exe.path) {
-                do { try PreviewPayloadGenerator.write(SwiftCodePreviews.PreviewHost.bundledPlanSource, to: src) } catch { return .failure(.host("\(error)")) }
-                let r = PreviewChild.runSwiftc(tc.arguments(sources: [src], output: exe, moduleName: SwiftCodePreviews.PreviewHost.executableName, library: false, moduleCache: cache))
+                do { try PreviewPayloadGenerator.write(YcodePreviews.PreviewHost.bundledPlanSource, to: src) } catch { return .failure(.host("\(error)")) }
+                let r = PreviewChild.runSwiftc(tc.arguments(sources: [src], output: exe, moduleName: YcodePreviews.PreviewHost.executableName, library: false, moduleCache: cache))
                 guard r.status == 0 else { return .failure(.host("The preview host did not build: \(r.output.suffix(600))")) }
             }
             hostExecutable = (version, exe)
@@ -100,7 +100,7 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
                                                            kit: .uiKit, into: workDirectory.appendingPathComponent("src"), texts: [file: request.text])
         } catch { return .failure(.host("Could not write the preview's sources: \(error)")) }
         generation += 1
-        let app = workDirectory.appendingPathComponent("app/\(SwiftCodePreviews.PreviewHost.appName)")
+        let app = workDirectory.appendingPathComponent("app/\(YcodePreviews.PreviewHost.appName)")
         try? fm.removeItem(at: app)
         let previewsDir = app.appendingPathComponent("Previews")
         let payload = previewsDir.appendingPathComponent("payload.dylib")
@@ -111,10 +111,10 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
         }
         let regions = Self.regions(request.tiles, screen: request.screen)
         do {
-            try fm.copyItem(at: hostExe, to: app.appendingPathComponent(SwiftCodePreviews.PreviewHost.executableName))
-            try SwiftCodePreviews.PreviewHost.infoPlist(platform: .iOS, deploymentTarget: tc.sdkVersion).write(to: app.appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
-            try SwiftCodePreviews.PreviewHost.iconPNG(size: 120).write(to: app.appendingPathComponent("AppIcon60x60@2x.png"))
-            try SwiftCodePreviews.PreviewHost.iconPNG(size: 180).write(to: app.appendingPathComponent("AppIcon60x60@3x.png"))
+            try fm.copyItem(at: hostExe, to: app.appendingPathComponent(YcodePreviews.PreviewHost.executableName))
+            try YcodePreviews.PreviewHost.infoPlist(platform: .iOS, deploymentTarget: tc.sdkVersion).write(to: app.appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
+            try YcodePreviews.PreviewHost.iconPNG(size: 120).write(to: app.appendingPathComponent("AppIcon60x60@2x.png"))
+            try YcodePreviews.PreviewHost.iconPNG(size: 180).write(to: app.appendingPathComponent("AppIcon60x60@3x.png"))
             try PreviewPlan(generation: generation, payload: "payload.dylib", regions: regions).json().write(to: previewsDir.appendingPathComponent("plan.json"))
         } catch { return .failure(.host("Could not make the preview app: \(error)")) }
         let t1 = Date()
@@ -132,7 +132,7 @@ public final class SimulatorPreviewEngine: PreviewCanvasEngine, @unchecked Senda
             }
             let up = try c.upload(app)
             guard up.ok else { return .failure(.host("Uploading the preview failed: \(up.error ?? "")")) }
-            let r = try c.request(LinkRequest(op: "run", device: device, app: app.lastPathComponent, bundleID: SwiftCodePreviews.PreviewHost.bundleIdentifier))
+            let r = try c.request(LinkRequest(op: "run", device: device, app: app.lastPathComponent, bundleID: YcodePreviews.PreviewHost.bundleIdentifier))
             guard r.ok else { return .failure(.host("The simulator host did not launch the preview: \(r.error ?? "")")) }
             progress("Booting the preview device")
             let deadline = Date().addingTimeInterval(startTimeout)

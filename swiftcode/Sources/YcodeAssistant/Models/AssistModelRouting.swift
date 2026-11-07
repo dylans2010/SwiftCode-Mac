@@ -345,12 +345,7 @@ public enum AssistRoutingStrategy: String, Codable, Sendable, CaseIterable {
     }
 }
 
-public enum AssistModelSource: String, Codable, Sendable {
-    case provider
-    case custom
-    case cloud
-    case foundation
-}
+public typealias AssistModelSource = ModelSource
 
 public struct AssistCandidateModel: Sendable, Equatable {
     public var id: String
@@ -413,6 +408,28 @@ public struct AssistCandidateModel: Sendable, Equatable {
         self.statusDescription = statusDescription
         self.endpointURL = endpointURL
         self.isSynthetic = isSynthetic
+    }
+
+    public init(availableModel m: AssistAvailableModel) {
+        self.id = m.id
+        self.modelIdentifier = m.modelIdentifier
+        self.displayName = m.displayName
+        self.provider = ProviderKind(rawValue: m.providerID) ?? .gemini
+        self.capabilities = m.capabilities
+        self.contextWindow = 128_000
+        self.supportsStreaming = m.supportsStreaming
+        self.supportsToolCalling = m.supportsToolCalling
+        self.supportsAgenticUse = m.supportsAgenticUse
+        self.supportsSubagents = m.supportsSubagents
+        self.supportsVision = m.supportsVision
+        self.supportsStructuredOutput = m.supportsStructuredOutput
+        self.priority = m.priority
+        self.isConfigured = m.isConfigured
+        self.hasCredentials = m.isConfigured
+        self.source = m.source
+        self.statusDescription = m.statusDescription
+        self.endpointURL = nil
+        self.isSynthetic = false
     }
 
     public static func fromSpecification(id: String) -> AssistCandidateModel {

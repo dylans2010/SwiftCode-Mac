@@ -1,5 +1,11 @@
 import Foundation
+#if canImport(YcodeHypervisor)
 import YcodeHypervisor
+#else
+public enum Hypervisor {
+    public static var isAvailable: Bool { false }
+}
+#endif
 
 public struct VMRecord: Codable, Sendable, Equatable, Identifiable {
     public var id: UUID

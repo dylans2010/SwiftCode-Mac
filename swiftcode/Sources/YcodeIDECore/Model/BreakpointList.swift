@@ -1,7 +1,7 @@
 import Foundation
 import YcodeWorkspace
 
-typealias XNode = SwiftCodeWorkspace.XMLNode
+typealias XNode = YcodeWorkspace.XMLNode
 
 public struct BreakpointList: Equatable, Sendable {
     public static let fileBreakpointID = "Xcode.Breakpoint.FileBreakpoint"
@@ -13,7 +13,7 @@ public struct BreakpointList: Equatable, Sendable {
         public var breakpoint: BreakpointStore.Breakpoint
     }
 
-    public private(set) var bucket: SwiftCodeWorkspace.XMLNode
+    public private(set) var bucket: YcodeWorkspace.XMLNode
 
     public init() {
         bucket = XNode("Bucket", attributes: [("uuid", Self.newUUID()), ("type", "1"), ("version", "2.0")],

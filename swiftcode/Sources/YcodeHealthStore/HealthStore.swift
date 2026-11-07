@@ -1,4 +1,8 @@
+#if canImport(CSQLite)
 import CSQLite
+#elseif canImport(SQLite3)
+import SQLite3
+#endif
 import Foundation
 import YcodeSimFeatures
 

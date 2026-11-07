@@ -429,7 +429,7 @@ final class MacPreviewHostProcess: @unchecked Sendable {
         }
     }
 
-    func send(_ r: PreviewMacHost.Request, newPayload: Bool) -> SwiftCodePreviews.PreviewHost.Report? {
+    func send(_ r: PreviewMacHost.Request, newPayload: Bool) -> YcodePreviews.PreviewHost.Report? {
         MainThreadGuard.blockingCall("preview host request")
         ioLock.lock()
         guard !inputClosed, process.isRunning else { ioLock.unlock(); return nil }
@@ -440,7 +440,7 @@ final class MacPreviewHostProcess: @unchecked Sendable {
         guard ok else { stop(); return nil }
         let deadline = Date().addingTimeInterval(Self.requestTimeout)
         while let line = readLine(deadline: deadline) {
-            guard let report = SwiftCodePreviews.PreviewHost.parseReport(line) else { continue }
+            guard let report = YcodePreviews.PreviewHost.parseReport(line) else { continue }
             switch report {
             case .started: continue
             case .ready(let g, _), .error(let g, _): if g == r.generation || g == 0 { return report }

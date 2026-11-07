@@ -1,4 +1,6 @@
+#if os(Linux) && canImport(CYcodeGauge)
 import CYcodeGauge
+#endif
 import Foundation
 #if canImport(Glibc)
 import Glibc

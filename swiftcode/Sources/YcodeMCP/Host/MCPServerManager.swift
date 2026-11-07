@@ -171,7 +171,7 @@ public final class MCPServerManager: Sendable {
         }
     }
 
-    public func callTool(serverID: UUID, name: String, arguments: [String: SwiftCodeAssistant.JSONValue]) async throws -> MCPExecutionResponse {
+    public func callTool(serverID: UUID, name: String, arguments: [String: YcodeAssistant.JSONValue]) async throws -> MCPExecutionResponse {
         if activeClients[serverID] == nil {
             guard let server = servers.first(where: { $0.id == serverID }) else {
                 throw MCPError.connectionFailed("Server is not registered.")

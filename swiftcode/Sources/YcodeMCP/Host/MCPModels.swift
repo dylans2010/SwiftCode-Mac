@@ -204,9 +204,9 @@ public struct MCPServerConfig: Codable, Sendable, Identifiable {
 
 public struct MCPExecutionRequest: Codable, Sendable {
     public let name: String
-    public let arguments: [String: SwiftCodeAssistant.JSONValue]
+    public let arguments: [String: YcodeAssistant.JSONValue]
 
-    public init(name: String, arguments: [String: SwiftCodeAssistant.JSONValue]) {
+    public init(name: String, arguments: [String: YcodeAssistant.JSONValue]) {
         self.name = name
         self.arguments = arguments
     }

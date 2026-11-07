@@ -16,7 +16,7 @@ public struct GoogleAuthErrorClassification: Sendable, Equatable {
     public let service: String?
     public let method: String?
 
-    public static func classify(_ errorText: String, storedScopes: String?) -> GoogleAuthErrorClassification {
+    public static func classify(_ errorText: String, storedScopes: String? = nil) -> GoogleAuthErrorClassification {
         let text = errorText
         let lower = text.lowercased()
 

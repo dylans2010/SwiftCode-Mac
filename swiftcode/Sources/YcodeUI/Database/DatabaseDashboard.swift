@@ -203,7 +203,7 @@ struct DatabaseDashboard: View {
         }
         do {
             let db = try SQLiteDatabase(path: path)
-            let model = SwiftCodeIDECore.DatabaseDashboard(db: db)
+            let model = YcodeIDECore.DatabaseDashboard(db: db)
             stats = try model.stats()
         } catch {
             stats = nil

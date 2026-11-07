@@ -3,10 +3,10 @@ import YcodeProject
 import YcodeWorkspace
 
 enum AutocreatedScheme {
-    static func reference(_ t: PBXObject, _ p: LoadedProject, _ container: String) -> SwiftCodeWorkspace.XMLNode {
+    static func reference(_ t: PBXObject, _ p: LoadedProject, _ container: String) -> YcodeWorkspace.XMLNode {
         let name = t.string("name") ?? ""
         let product = t.string("productReference").flatMap { p.proj[$0]?.string("path") } ?? name
-        return SwiftCodeWorkspace.XMLNode("BuildableReference", attributes: [
+        return YcodeWorkspace.XMLNode("BuildableReference", attributes: [
             ("BuildableIdentifier", "primary"), ("BlueprintIdentifier", t.id), ("BuildableName", product),
             ("BlueprintName", name), ("ReferencedContainer", "container:\(container)"),
         ])
