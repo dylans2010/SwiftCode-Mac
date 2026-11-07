@@ -34,7 +34,7 @@ public struct AssistSpeechUI: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Color.accentColor)
 
-                    Text("Voice Assistant Prompt")
+                    Text("Voice Assist Prompt")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
 

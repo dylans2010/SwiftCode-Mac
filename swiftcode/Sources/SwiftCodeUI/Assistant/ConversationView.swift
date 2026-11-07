@@ -414,7 +414,7 @@ enum ProviderMenu {
         let refresh = NSMenuItem(title: "Check Again", action: checkAgain, keyEquivalent: "")
         refresh.target = target
         menu.addItem(refresh)
-        let s = NSMenuItem(title: "Coding Assistant Settings…", action: settings, keyEquivalent: "")
+        let s = NSMenuItem(title: "Coding Assist Settings…", action: settings, keyEquivalent: "")
         s.target = target
         menu.addItem(s)
         return menu
@@ -496,7 +496,7 @@ public final class MessageView: NSStackView {
     required init?(coder: NSCoder) { fatalError() }
 
     func build() {
-        let who = NSTextField(labelWithString: message.role == .user ? "You" : (message.source ?? "Assistant"))
+        let who = NSTextField(labelWithString: message.role == .user ? "You" : (message.source ?? "Assist"))
         who.font = .boldSystemFont(ofSize: 11)
         who.textColor = .secondaryLabelColor
         addArrangedSubview(who)
