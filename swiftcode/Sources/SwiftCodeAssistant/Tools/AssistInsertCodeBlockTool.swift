@@ -93,7 +93,15 @@ public struct AssistInsertCodeBlockTool: AssistTool {
             let origCount = content.components(separatedBy: .newlines).count
             let newCount = updated.components(separatedBy: .newlines).count
             let addedLines = max(0, newCount - origCount)
-            _ = addedLines
+            await MainActor.run {
+                ProjectSessionStore.shared.recordAssistFileMutation(
+                    path: path,
+                    beforeContent: content,
+                    afterContent: updated,
+                    addedLines: addedLines > 0 ? addedLines : 1,
+                    deletedLines: 0
+                )
+            }
 
             return .success("Code block inserted into \(path)", data: ["path": path], filesChanged: [path])
         } catch {

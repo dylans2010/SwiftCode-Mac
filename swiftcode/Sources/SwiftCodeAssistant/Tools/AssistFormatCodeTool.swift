@@ -1,0 +1,74 @@
+import Foundation
+
+public struct AssistFormatCodeTool: AssistTool {
+    public let id = "code_format"
+    public let name = "Format Code"
+    public let description = "Formats the code according to project style guidelines."
+
+    public init() {}
+
+    public var capability: ToolCapability { .fileModification }
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+
+    public var parametersSchema: JSONSchema {
+        JSONSchema(
+            type: "object",
+            description: "Formats code files with basic normalization (indentation, trailing whitespace, blank lines).",
+            properties: [
+                "path": JSONSchema(type: "string", description: "Workspace-relative file or directory to format. Default: \".\".")
+            ],
+            required: []
+        )
+    }
+
+    public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
+        let path = input["path"] as? String ?? "."
+        let targetURL = AssistToolingSupport.resolvePath(path, workspaceRoot: context.workspaceRoot)
+        var isDir: ObjCBool = false
+
+        guard FileManager.default.fileExists(atPath: targetURL.path, isDirectory: &isDir) else {
+            return .failure("Path does not exist: \(path)")
+        }
+
+        let files: [URL]
+        if isDir.boolValue {
+            files = AssistToolingSupport.enumeratedFiles(at: targetURL, allowedExtensions: ["swift", "m", "h", "c", "cpp", "js", "ts", "py"])
+        } else {
+            files = [targetURL]
+        }
+
+        var formattedCount = 0
+        do {
+            for file in files {
+                guard let content = AssistToolingSupport.readText(file) else { continue }
+                let formatted = simpleFormat(content)
+                if formatted != content {
+                    let relative = AssistToolingSupport.relativePath(for: file, workspaceRoot: context.workspaceRoot)
+                    try context.fileSystem.writeFile(at: relative, content: formatted)
+                    formattedCount += 1
+                }
+            }
+        } catch {
+            return .failure("Failed to format at \(path): \(error.localizedDescription)")
+        }
+
+        return .success("Code formatting completed at \(path)", data: ["formatted_files": "\(formattedCount)"])
+    }
+
+    private func simpleFormat(_ content: String) -> String {
+        var result: [String] = []
+        var previousBlank = false
+        for rawLine in content.components(separatedBy: .newlines) {
+            let expanded = rawLine.replacingOccurrences(of: "\t", with: "    ")
+            let line = expanded.replacingOccurrences(of: "[ \\t]+$", with: "", options: .regularExpression)
+            let isBlank = line.trimmingCharacters(in: .whitespaces).isEmpty
+            if isBlank {
+                if !previousBlank { result.append("") }
+            } else {
+                result.append(line)
+            }
+            previousBlank = isBlank
+        }
+        return result.joined(separator: "\n") + "\n"
+    }
+}

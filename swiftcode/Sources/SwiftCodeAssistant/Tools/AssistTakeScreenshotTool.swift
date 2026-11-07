@@ -1,12 +1,7 @@
 import Foundation
-#if canImport(CoreGraphics)
 import CoreGraphics
-#endif
-#if canImport(AppKit)
 import AppKit
-#endif
 
-#if canImport(AppKit) && canImport(ScreenCaptureKit)
 public struct AssistTakeScreenshotTool: AssistTool {
     public let id = "take_screenshot"
     public let name = "take_screenshot"
@@ -146,5 +141,3 @@ public struct AssistTakeScreenshotTool: AssistTool {
         )
     }
 }
-
-#endif

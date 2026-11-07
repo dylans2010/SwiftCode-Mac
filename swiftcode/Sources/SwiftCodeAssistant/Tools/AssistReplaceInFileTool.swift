@@ -99,6 +99,18 @@ public struct AssistReplaceInFileTool: AssistTool {
 
             let origCount = original.components(separatedBy: .newlines).count
             let modCount = modified.components(separatedBy: .newlines).count
+            let addedLines = max(0, modCount - origCount)
+            let deletedLines = max(0, origCount - modCount)
+
+            await MainActor.run {
+                ProjectSessionStore.shared.recordAssistFileMutation(
+                    path: path,
+                    beforeContent: original,
+                    afterContent: modified,
+                    addedLines: addedLines > 0 ? addedLines : (original != modified ? 1 : 0),
+                    deletedLines: deletedLines > 0 ? deletedLines : (original != modified ? 1 : 0)
+                )
+            }
 
             return AssistToolResult(
                 success: true,
