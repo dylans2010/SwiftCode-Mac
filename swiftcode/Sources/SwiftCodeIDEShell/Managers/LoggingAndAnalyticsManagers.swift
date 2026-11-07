@@ -53,6 +53,40 @@
 //   again after a recalculation to refresh them. D3's A1–A3 fixes above
 //   (ResourceMonitor / PerformanceManager / TimelineManager) were verified
 //   still intact and are untouched.
+//
+// CLEANUP (2026-11-06, writer D6) — invented assistant claims and fake
+// latency deleted:
+// - `AIEngineeringAssistant.askQuestion` slept 1.2 s before answering a
+//   locally generated response. The sleep is gone: the response is
+//   generated from local state with no I/O, so it answers immediately.
+// - `generateResponse` asserted "boost speeds by up to 18%" and
+//   "reclaiming up to 40% of wasted build storage". Both percentages
+//   were invented. The speed answer now points at the measured average
+//   build duration as the baseline to re-measure against; the storage
+//   answer now names the measured DerivedData size that purging would
+//   free. The package answer's hardcoded "Update 'ZIPFoundation'"
+//   recommendation is gone too: it now names the packages this
+//   workspace actually reports as "Update Available" (none, now that
+//   `DependencyManager` reports "Unknown" instead of stamping a status),
+//   or says so.
+// - Other `Task.sleep` sites, checked in context:
+//   * `ResourceMonitor` 2.0 s — legitimate telemetry polling interval.
+//     Left alone.
+//   * `PerformanceManager` 4.0 s — legitimate telemetry polling
+//     interval. Left alone.
+//   * `AutomationEngine.triggerWorkflow` 0.3 s — sleep-and-report-
+//     success stub: it logged each workflow action as "completed"
+//     without executing anything (actions are free-text names with no
+//     executor). The loop is deleted; triggering still records the real
+//     "Automation Triggered" event, but nothing is claimed completed.
+//     Wiring a real action executor is the blocker, not a sleep.
+//   * `AIEngineeringReports.generateReport` 0.6 s — fake "thinking"
+//     delay before real work (the file scan that follows is genuine).
+//     Removed; the report generates immediately.
+// - D3's A1–A3 fixes (ResourceMonitor / PerformanceManager /
+//   TimelineManager) and D5's WorkspaceAnalytics / WorkspaceIntelligence
+//   / NotificationCenterManager fixes were verified still intact and are
+//   untouched.
 
 import Foundation
 #if os(macOS)
@@ -202,9 +236,9 @@ public final class AIEngineeringAssistant {
 
         isAnalyzing = true
 
+        // No artificial delay: the response is generated locally from
+        // workspace state with no I/O, so it answers immediately.
         Task {
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-
             let responseText = generateResponse(for: question.lowercased())
             let aiMsg = Message(id: UUID(), isUser: false, text: responseText, date: Date())
 
@@ -233,7 +267,7 @@ public final class AIEngineeringAssistant {
             Based on the actual compilation log database:
             • We have \(totalProjects) active workspace files.
             • The average build duration is currently \(String(format: "%.1f", PerformanceManager.shared.averageBuildDuration)) seconds.
-            • Recommended optimization: Since your project uses \(packages) packages, clean caches and disable unnecessary background indexing under preferences to boost speeds by up to 18%.
+            • Recommended optimization: Since your project uses \(packages) packages, clean caches and disable unnecessary background indexing under preferences. The average build duration above is the measured baseline — re-measure after the change instead of assuming a gain.
             """
         }
 
@@ -252,12 +286,18 @@ public final class AIEngineeringAssistant {
         }
 
         if question.contains("package") || question.contains("dependency") || question.contains("graph") {
+            // Names only packages this workspace actually reports as
+            // having an update available — never a hardcoded package name.
+            let outdated = DependencyManager.shared.dependencies.filter { $0.status == "Update Available" }
+            let action = outdated.isEmpty
+                ? "No package in this workspace reports an available update."
+                : "Review updates for: \(outdated.map(\.name).joined(separator: ", "))."
             return """
             Analyzing local package graph:
             • Total package links detected: \(packages).
             • Shared packages linked in multiple codebases: \(WorkspaceIntelligence.shared.sharedPackages.count).
-            • Outdated packages with available updates: \(DependencyManager.shared.dependencies.filter { $0.status == "Update Available" }.count).
-            • Recommended action: Update 'ZIPFoundation' or simplify unused frameworks to speed up project loading times.
+            • Outdated packages with available updates: \(outdated.count).
+            • Recommended action: \(action)
             """
         }
 
@@ -267,7 +307,7 @@ public final class AIEngineeringAssistant {
             • Local Projects: \(String(format: "%.2f GB", SCOperationsStorageManager.shared.projectUsageGB))
             • DerivedData / Builds: \(String(format: "%.2f GB", SCOperationsStorageManager.shared.derivedDataGB))
             • Caches & VM Disk files: \(String(format: "%.2f GB", SCOperationsStorageManager.shared.cacheUsageGB))
-            • Recommendation: Click 'Clean Artifacts' under the storage manager tab to purge DerivedData, reclaiming up to 40% of wasted build storage.
+            • Recommendation: Click 'Clean Artifacts' under the storage manager tab to purge DerivedData (currently \(String(format: "%.2f GB", SCOperationsStorageManager.shared.derivedDataGB))).
             """
         }
 
@@ -570,17 +610,12 @@ public final class AutomationEngine {
                 category: "Diagnostics Completed"
             )
 
-            // Perform actions asynchronously
-            Task {
-                for action in wf.actions {
-                    try? await Task.sleep(nanoseconds: 300_000_000)
-                    WorkspaceTimelineManager.shared.addEvent(
-                        title: "Automation Executed Action",
-                        detail: "Workflow '\(wf.name)' completed action: '\(action)'",
-                        category: "Diagnostics Completed"
-                    )
-                }
-            }
+            // Actions are recorded names only ("Start VM", "Run npm
+            // install", …) and no executor exists for them, so nothing
+            // is logged as completed. The old loop slept 0.3 s per
+            // action and then logged each one as completed without
+            // executing anything — a sleep-and-report-success stub —
+            // and is deleted, not reworded.
         }
     }
 
@@ -1236,8 +1271,8 @@ public final class AIEngineeringReports {
         isAnalyzing = true
         insights.removeAll()
 
-        try? await Task.sleep(nanoseconds: 600_000_000)
-
+        // No artificial delay: the file scan below is real local work
+        // with no async operation to wait for, so it runs immediately.
         guard let project = ProjectSessionStore.shared.activeProject else {
             insights.append(SCAIInsightReport(
                 title: "No Project Loaded",

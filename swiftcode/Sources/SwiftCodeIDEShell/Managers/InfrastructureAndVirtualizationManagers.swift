@@ -45,6 +45,46 @@
 // "Offline"). No `xcrun` / no devices means an empty list (apart from
 // this Mac), never invented rows. D4's C30 `refreshCertificates` code was
 // verified still intact and is untouched.
+//
+// Cleanup D6 (2026-11-06) — fabricated dependency / VM / cloud data deleted:
+// - `DependencyManager.refreshDependencies` seeded ZIPFoundation 0.9.19 /
+//   Playwright-Swift 0.1.3 when the list was empty, and stamped version
+//   "1.0.0" / license "MIT" / status "Up to date" on every parsed package.
+//   Dependencies now come only from the active project's real
+//   `Package.swift` (`.package(url:)` → "Swift Package", `.package(path:)`
+//   → "Local Package"); no Package.swift (or no `.package` lines) means
+//   an empty list. Version comes only from the real `Package.resolved`
+//   next to it (v1 `object.pins` or v2 `pins`, `state.version` matched by
+//   identity / package name / repository URL); otherwise "Unknown".
+//   Status is "Unknown" — no update check is performed — and license is
+//   "" (unstated). The `SCDependencyItem` init's license default is ""
+//   for the same reason (it used to stamp "MIT" on any caller that
+//   omitted it). `Package.resolved` pins that are not declared in
+//   `Package.swift` (transitive pins) are not listed: they are not the
+//   project's direct dependencies.
+// - `VirtualizationIntegration.refreshVMs` seeded "Default Ubuntu Server
+//   Host" / "Debian Testing Container" when the store was empty. It now
+//   lists only VMs actually registered in `VirtualizationStateStore`; an
+//   empty store means an empty list.
+// - `SCVirtualMachine.ipAddress` defaulted to "192.168.64.2". It is now
+//   `String? = nil` (unknown until the VM reports one). Residue, not
+//   fixed here: `refreshVMs` maps the store VM's `ipAddress` verbatim,
+//   and the store model (`swiftcode-ide` `VirtualMachine`) still defaults
+//   it to a random `192.168.64.x` and nothing ever assigns it a reported
+//   address, so a mapped address can still be invented upstream —
+//   fixing that default belongs to the VM model's owner, outside this
+//   file. No display site for `SCVirtualMachine.ipAddress` exists
+//   repo-wide (the monitor view reads the store model), so no call site
+//   needed updating.
+// - `CloudIntegration` reported storageQuotaUsedGB 0.4 / max 10.0 when
+//   authenticated. Both are now `Double? = nil` ("quota unknown"):
+//   no cloud provider API in this codebase reports storage quota
+//   (`SwiftCodeCloud.CloudManager` exposes only sync lifecycle, and
+//   `AuthManager` exposes auth state only), so nothing real can be
+//   reported. Nothing reads these properties today, so the optional
+//   change has no call-site fallout.
+// - D4's C30 `refreshCertificates` and D5's `recalculateSizes` /
+//   `refreshDevices` were verified still intact and are untouched.
 import Foundation
 import Observation
 #if canImport(Security)
@@ -60,7 +100,7 @@ public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
     public let homepage: String
     public let license: String
 
-    public init(id: UUID = UUID(), name: String, version: String, type: String, status: String, homepage: String = "", license: String = "MIT") {
+    public init(id: UUID = UUID(), name: String, version: String, type: String, status: String, homepage: String = "", license: String = "") {
         self.id = id
         self.name = name
         self.version = version
@@ -192,54 +232,88 @@ public final class DependencyManager {
 
         guard let project = ProjectSessionStore.shared.activeProject else { return }
 
-        // Read real Package.swift if exists
+        // Direct dependencies come only from the project's real
+        // Package.swift. No Package.swift (or no `.package` lines in it)
+        // means an empty list — never seeded rows. Version comes only
+        // from the real Package.resolved next to it; status is "Unknown"
+        // (no update check is performed) and license is "" (unstated).
         let packageURL = project.directoryURL.appendingPathComponent("Package.swift")
-        if FileManager.default.fileExists(atPath: packageURL.path),
-           let contents = try? String(contentsOf: packageURL, encoding: .utf8) {
+        guard FileManager.default.fileExists(atPath: packageURL.path),
+              let contents = try? String(contentsOf: packageURL, encoding: .utf8),
+              contents.contains(".package") else { return }
 
-            // Simple parser for package dependency rules
-            if contents.contains(".package") {
-                // Find all packages using simple pattern matching
-                let lines = contents.components(separatedBy: .newlines)
-                for line in lines {
-                    if line.contains("url:") {
-                        let components = line.components(separatedBy: "\"")
-                        if components.count >= 2 {
-                            let urlStr = components[1]
-                            let name = urlStr.components(separatedBy: "/").last?.replacingOccurrences(of: ".git", with: "") ?? "Package"
-                            dependencies.append(SCDependencyItem(
-                                name: name,
-                                version: "1.0.0",
-                                type: "Swift Package",
-                                status: "Up to date",
-                                homepage: urlStr,
-                                license: "MIT"
-                            ))
-                        }
-                    }
+        let resolved = Self.resolvedVersions(in: project.directoryURL)
+
+        for line in contents.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.contains(".package(") else { continue }
+            if let url = Self.quotedValue(after: "url:", in: trimmed) {
+                let name = url.components(separatedBy: "/").last?.replacingOccurrences(of: ".git", with: "") ?? "Package"
+                dependencies.append(SCDependencyItem(
+                    name: name,
+                    version: resolved[name.lowercased()] ?? "Unknown",
+                    type: "Swift Package",
+                    status: "Unknown",
+                    homepage: url,
+                    license: ""
+                ))
+            } else if let path = Self.quotedValue(after: "path:", in: trimmed) {
+                let name = path.components(separatedBy: "/").last ?? "Package"
+                dependencies.append(SCDependencyItem(
+                    name: name,
+                    version: "Unknown",
+                    type: "Local Package",
+                    status: "Unknown",
+                    homepage: "",
+                    license: ""
+                ))
+            }
+        }
+    }
+
+    /// The first double-quoted value after `label` on this line, or nil.
+    private static func quotedValue(after label: String, in line: String) -> String? {
+        guard let labelRange = line.range(of: label) else { return nil }
+        let rest = line[labelRange.upperBound...]
+        guard let open = rest.firstIndex(of: "\""),
+              let close = rest[rest.index(after: open)...].firstIndex(of: "\"") else { return nil }
+        return String(rest[rest.index(after: open)..<close])
+    }
+
+    /// `name → version` from the real Package.resolved in `directory`
+    /// (v2 top-level `pins`, or v1 `object.pins`). A pin states its
+    /// version under `state.version`; branch/revision pins carry no
+    /// version, so they contribute nothing. Empty when the file is
+    /// absent or unreadable.
+    private static func resolvedVersions(in directory: URL) -> [String: String] {
+        let resolvedURL = directory.appendingPathComponent("Package.resolved")
+        guard let data = try? Data(contentsOf: resolvedURL),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        let pins = (root["pins"] as? [[String: Any]])
+            ?? (root["object"] as? [String: Any])?["pins"] as? [[String: Any]]
+            ?? []
+        var out: [String: String] = [:]
+        for pin in pins {
+            guard let state = pin["state"] as? [String: Any],
+                  let version = state["version"] as? String, !version.isEmpty else { continue }
+            if let identity = pin["identity"] as? String, !identity.isEmpty {
+                out[identity.lowercased()] = version
+            }
+            if let name = pin["package"] as? String, !name.isEmpty {
+                out[name.lowercased()] = version
+            }
+            var remotes: [String] = []
+            if let location = pin["location"] as? String { remotes.append(location) }
+            if let location = pin["location"] as? [String: Any],
+               let array = location["remote"] as? [String] { remotes += array }
+            if let repositoryURL = pin["repositoryURL"] as? String { remotes.append(repositoryURL) }
+            for url in remotes {
+                if let repo = url.components(separatedBy: "/").last?.replacingOccurrences(of: ".git", with: ""), !repo.isEmpty {
+                    out[repo.lowercased()] = version
                 }
             }
         }
-
-        // Add standard fallback dependencies if empty
-        if dependencies.isEmpty {
-            dependencies.append(SCDependencyItem(
-                name: "ZIPFoundation",
-                version: "0.9.19",
-                type: "Swift Package",
-                status: "Up to date",
-                homepage: "https://github.com/weichsel/ZIPFoundation",
-                license: "MIT"
-            ))
-            dependencies.append(SCDependencyItem(
-                name: "Playwright-Swift",
-                version: "0.1.3",
-                type: "Swift Package",
-                status: "Update Available",
-                homepage: "https://github.com/playwright-community/playwright-swift",
-                license: "Apache-2.0"
-            ))
-        }
+        return out
     }
 }
 
@@ -547,11 +621,14 @@ public struct SCVirtualMachine: Identifiable, Codable, Sendable, Hashable {
     public var status: String
     public var uptime: TimeInterval
     public var storageGB: Int
-    public var ipAddress: String
+    /// The VM's reported IP address, or `nil` when it has not reported
+    /// one. Never a placeholder address: the old "192.168.64.2" default
+    /// was invented, and display sites must render `nil` as "—"/"Unknown".
+    public var ipAddress: String?
     public var snapshotCount: Int
     public var attachedProjectsCount: Int
 
-    public init(id: UUID = UUID(), name: String, os: String, ramMB: Int, cores: Int, status: String, uptime: TimeInterval = 0, storageGB: Int = 20, ipAddress: String = "192.168.64.2", snapshotCount: Int = 0, attachedProjectsCount: Int = 0) {
+    public init(id: UUID = UUID(), name: String, os: String, ramMB: Int, cores: Int, status: String, uptime: TimeInterval = 0, storageGB: Int = 20, ipAddress: String? = nil, snapshotCount: Int = 0, attachedProjectsCount: Int = 0) {
         self.id = id
         self.name = name
         self.os = os
@@ -578,7 +655,12 @@ public final class VirtualizationIntegration {
     }
 
     public func refreshVMs() {
-        // Query the real VirtualizationStateStore for actual VM instances and map them
+        // Only VMs actually registered in VirtualizationStateStore are
+        // listed. An empty store means an empty list — the old seeded
+        // "Default Ubuntu Server Host" / "Debian Testing Container" rows
+        // were invented. (The store VM's `ipAddress` is mapped verbatim;
+        // see the D6 header note — the store model can still carry an
+        // invented address upstream.)
         let storeVMs = VirtualizationStateStore.shared.virtualMachines
         self.virtualMachines = storeVMs.map { vm in
             SCVirtualMachine(
@@ -594,14 +676,6 @@ public final class VirtualizationIntegration {
                 snapshotCount: vm.snapshots.count,
                 attachedProjectsCount: vm.attachedProjects.count
             )
-        }
-
-        // Seed default if empty to maintain seamless out-of-the-box system indicators
-        if self.virtualMachines.isEmpty {
-            self.virtualMachines = [
-                SCVirtualMachine(name: "Default Ubuntu Server Host", os: "Ubuntu", ramMB: 4096, cores: 2, status: "Stopped", uptime: 0, storageGB: 40, ipAddress: "192.168.64.2", snapshotCount: 1, attachedProjectsCount: 1),
-                SCVirtualMachine(name: "Debian Testing Container", os: "Debian", ramMB: 2048, cores: 1, status: "Stopped", uptime: 0, storageGB: 20, ipAddress: "192.168.64.3", snapshotCount: 0, attachedProjectsCount: 0)
-            ]
         }
     }
 }
@@ -662,8 +736,14 @@ public final class CloudIntegration {
 
     public var isConnected: Bool = false
     public var cloudUser: String? = nil
-    public var storageQuotaUsedGB: Double = 0.0
-    public var storageQuotaMaxGB: Double = 10.0
+    /// Cloud storage quota, or `nil` when unknown. No cloud provider API
+    /// in this codebase reports storage quota (`SwiftCodeCloud.CloudManager`
+    /// exposes only sync lifecycle — initialize/sync/start/stop/logout —
+    /// and `AuthManager` exposes auth state only), so nothing real can be
+    /// reported; `nil` means "quota unknown", never a measured zero. The
+    /// old authenticated-branch 0.4 GB used / 10.0 GB max were invented.
+    public var storageQuotaUsedGB: Double? = nil
+    public var storageQuotaMaxGB: Double? = nil
 
     private init() {
         refreshCloudStatus()
@@ -674,11 +754,14 @@ public final class CloudIntegration {
         if AuthManager.shared.isAuthenticated {
             self.isConnected = true
             self.cloudUser = AuthManager.shared.currentUser?.email ?? "Developer"
-            self.storageQuotaUsedGB = 0.4
+            // Quota stays unknown: no provider endpoint reports it (see above).
+            self.storageQuotaUsedGB = nil
+            self.storageQuotaMaxGB = nil
         } else {
             self.isConnected = false
             self.cloudUser = nil
-            self.storageQuotaUsedGB = 0.0
+            self.storageQuotaUsedGB = nil
+            self.storageQuotaMaxGB = nil
         }
     }
 }

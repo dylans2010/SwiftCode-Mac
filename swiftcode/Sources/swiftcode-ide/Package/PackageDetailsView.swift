@@ -5,6 +5,14 @@
 // Missing behaviour ported: README tab (fetched from raw.githubusercontent); Manifest tab; Analytics tab; Activity tab
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): DetailTab, ProjectCompatibilityView.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// Cleanup D6 (2026-11-06): the Activity tab rendered
+// `package.releaseDate` directly, which stamped `Date()` (today) for
+// every Search API result even though the API returns no release date.
+// `PackageMetadata.releaseDate` is now `Date? = nil`; this view renders
+// "Release date unknown" when nil, "No release recorded" when
+// `lastReleasedVersion` is empty, and shows the "Latest Stable Release"
+// badge only when a real version exists.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -258,18 +266,30 @@ let package = Package(
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading) {
-                        Text("v\(package.lastReleasedVersion)")
+                        // No release is recorded for most Search API
+                        // results (`lastReleasedVersion` "" /
+                        // `releaseDate` nil is the unset convention), so
+                        // neither is ever rendered as a stamped value.
+                        Text(package.lastReleasedVersion.isEmpty ? "No release recorded" : "v\(package.lastReleasedVersion)")
                             .font(.headline)
-                        Text("Released on \(package.releaseDate, style: .date)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if let releaseDate = package.releaseDate {
+                            Text("Released on \(releaseDate, style: .date)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Release date unknown")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
-                    Text("Latest Stable Release")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.15), in: Capsule())
+                    if !package.lastReleasedVersion.isEmpty {
+                        Text("Latest Stable Release")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.15), in: Capsule())
+                    }
                 }
                 .padding()
                 .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))

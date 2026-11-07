@@ -40,10 +40,12 @@
 //   ["macOS 14+", "iOS 17+"] / "1.0.0": they are "" / [] / "" (D3's C20
 //   unset convention), so `fromSearchResult` no longer inherits stamped
 //   values for fields the Search API never returns.
-// - Residue: `releaseDate` still defaults to `Date()`. The Search API
-//   returns no release date, but the field is `Date` and PackageDetailsView
-//   formats it directly, so making it nil needs that (out-of-slice) view
-//   updated too; left for a follow-up that owns that view.
+// - Residue fixed (2026-11-06, writer D6): `releaseDate` defaulted to
+//   `Date()`. The Search API returns no release date, so the field is
+//   now `Date? = nil` (`nil` = unknown) and PackageDetailsView renders
+//   "Release date unknown" instead of formatting a stamped today.
+//   `PackageMetadata`'s other unset fields keep the D3/C20 convention
+//   ("" / [] / "") — see the init's doc comment.
 import Foundation
 import Observation
 import SwiftCodeIDECore
@@ -129,17 +131,15 @@ public struct PackageMetadata: Identifiable, Codable, Hashable, Sendable {
     public var swiftToolsVersion: String
     public var platforms: [String]
     public var lastReleasedVersion: String
-    public var releaseDate: Date
+    public var releaseDate: Date?
     public var isVerified: Bool
     public var topics: [String]
     /// Unset means unknown: `swiftToolsVersion` "" / `platforms` [] /
-    /// `lastReleasedVersion` "" is D3's C20 unset convention — the GitHub
-    /// Search API returns none of these, so they stay unset instead of
-    /// being stamped "5.10" / ["macOS 14+", "iOS 17+"] / "1.0.0".
-    /// (`releaseDate` still defaults to `Date()`: the API returns no
-    /// release date, but the field is `Date` and PackageDetailsView formats
-    /// it directly — making it optional needs that view updated too.)
-    public init(name: String, fullName: String, description: String? = nil, cloneUrl: String, stars: Int, forks: Int, openIssues: Int, license: String? = nil, owner: String, swiftToolsVersion: String = "", platforms: [String] = [], lastReleasedVersion: String = "", releaseDate: Date = Date(), isVerified: Bool = false, topics: [String] = []) {
+    /// `lastReleasedVersion` "" / `releaseDate` `nil` is D3's C20 unset
+    /// convention — the GitHub Search API returns none of these, so they
+    /// stay unset instead of being stamped "5.10" / ["macOS 14+",
+    /// "iOS 17+"] / "1.0.0" / `Date()`.
+    public init(name: String, fullName: String, description: String? = nil, cloneUrl: String, stars: Int, forks: Int, openIssues: Int, license: String? = nil, owner: String, swiftToolsVersion: String = "", platforms: [String] = [], lastReleasedVersion: String = "", releaseDate: Date? = nil, isVerified: Bool = false, topics: [String] = []) {
         self.name = name; self.fullName = fullName; self.description = description; self.cloneUrl = cloneUrl
         self.stars = stars; self.forks = forks; self.openIssues = openIssues; self.license = license
         self.owner = owner; self.swiftToolsVersion = swiftToolsVersion; self.platforms = platforms
