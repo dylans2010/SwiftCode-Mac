@@ -224,7 +224,7 @@ public final class AssistFeedbackService {
 
             try saveAndRecord(collectFrameworkDiagnostics(), filename: "framework_diagnostics.json")
 
-            try saveAndRecord(collectApiEndpointTelemetry(), filename: "api_endpoint_telemetry.json")
+            try saveAndRecord(await collectApiEndpointTelemetry(), filename: "api_endpoint_telemetry.json")
 
             try saveAndRecord(collectDiagnosticEvents(), filename: "diagnostic_events_log.json")
 
@@ -266,7 +266,7 @@ public final class AssistFeedbackService {
 
             try saveAndRecord(collectFeedbackVotes(), filename: "feedback_votes_history.json")
 
-            try saveAndRecord(collectModelRegistrySnapshot(), filename: "model_registry_snapshot.json")
+            try saveAndRecord(await collectModelRegistrySnapshot(), filename: "model_registry_snapshot.json")
 
             try saveAndRecord(collectFullFailedToolResults(from: messages), filename: "tool_result_full_failures.json")
 
@@ -1078,11 +1078,11 @@ public final class AssistFeedbackService {
         ]
     }
 
-    private func collectApiEndpointTelemetry() -> [String: Any] {
+    private func collectApiEndpointTelemetry() async -> [String: Any] {
         let router = AssistModelRouter.shared
         let settings = AppSettings.shared
         var failoverHistory: [[String: Any]] = []
-        for f in router.failoverHistory {
+        for f in await router.failoverHistory {
             failoverHistory.append([
                 "failedModel": f.failedModelID,
                 "failedProvider": f.failedProviderID,
@@ -1095,7 +1095,7 @@ public final class AssistFeedbackService {
         }
 
         var quarantined: [[String: Any]] = []
-        for (model, unquar) in router.quarantinedModels {
+        for (model, unquar) in await router.quarantinedModels {
             quarantined.append([
                 "modelID": model,
                 "unquarantineAt": ISO8601DateFormatter().string(from: unquar)
@@ -1110,7 +1110,7 @@ public final class AssistFeedbackService {
             "swiftCodeCloudWithMetaSDK": settings.swiftCodeCloudWithMetaSDK,
             "currentGeneration": AssistManager.shared.currentGeneration.value,
             "quarantinedModels": quarantined,
-            "failedAttemptsCount": router.failedAttemptsCount,
+            "failedAttemptsCount": await router.failedAttemptsCount,
             "failoverHistory": failoverHistory
         ]
     }
@@ -1710,17 +1710,18 @@ public final class AssistFeedbackService {
         }
     }
 
-    private func collectModelRegistrySnapshot() -> [String: Any] {
+    private func collectModelRegistrySnapshot() async -> [String: Any] {
         let iso = ISO8601DateFormatter()
         let service = AssistModelDiscoveryService.shared
-        let models = service.discoveredModels.map { m -> [String: Any] in
+        let discoveredModels = await service.discoveredModels
+        let models = discoveredModels.map { m -> [String: Any] in
             var dict: [String: Any] = [
                 "id": m.id,
                 "displayName": m.displayName,
                 "providerID": m.providerID,
                 "providerName": m.providerName,
                 "modelIdentifier": m.modelIdentifier,
-                "source": m.source.rawValue,
+                "source": m.nativeProvider.rawValue,
                 "isConfigured": m.isConfigured,
                 "isAvailable": m.isAvailable,
                 "supportsStreaming": m.supportsStreaming,
@@ -1730,23 +1731,19 @@ public final class AssistFeedbackService {
                 "supportsAgenticUse": m.supportsAgenticUse,
                 "supportsSubagents": m.supportsSubagents,
                 "priority": m.priority,
-                "status": m.status.rawValue,
+                "status": m.isAvailable ? "available" : "unavailable",
                 "statusDescription": m.statusDescription,
-                "isCurrentlyRateLimited": m.isCurrentlyRateLimited,
                 "contextWindow": m.contextWindow
             ]
-            if let until = m.rateLimitedUntil { dict["rateLimitedUntil"] = iso.string(from: until) }
-            if let reason = m.lastFailureReason { dict["lastFailureReason"] = reason }
-            if let url = m.endpointURL { dict["endpointURL"] = url }
             return dict
         }
         return [
             "capturedAt": iso.string(from: Date()),
-            "isDiscovering": service.isDiscovering,
-            "lastDiscoveryDate": service.lastDiscoveryDate.map { iso.string(from: $0) } ?? "never",
-            "lastDiscoveryErrors": service.lastDiscoveryErrors,
-            "hiddenProviderNames": Array(service.hiddenProviderNames),
-            "removedModelIDs": Array(service.removedModelIDs),
+            "isDiscovering": await service.isDiscovering,
+            "lastDiscoveryDate": (await service.lastDiscoveryDate).map { iso.string(from: $0) } ?? "never",
+            "lastDiscoveryErrors": await service.lastDiscoveryErrors,
+            "hiddenProviderNames": Array(await service.hiddenProviderNames),
+            "removedModelIDs": Array(await service.removedModelIDs),
             "totalModels": models.count,
             "models": models
         ]

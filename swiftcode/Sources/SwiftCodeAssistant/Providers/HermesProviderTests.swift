@@ -74,7 +74,7 @@ public final class HermesProviderTests: Sendable {
             passed = false
             message = "A Hermes id did not select the Hermes provider."
         }
-        if AssistSDKSessionRunner.applicableKind(for: "hermes:openrouter:anthropic/claude-sonnet-4-6") != nil {
+        if await AssistSDKSessionRunner.applicableKind(for: "hermes:openrouter:anthropic/claude-sonnet-4-6") != nil {
             passed = false
             message = "A Hermes id was claimed by the SDK path."
         }

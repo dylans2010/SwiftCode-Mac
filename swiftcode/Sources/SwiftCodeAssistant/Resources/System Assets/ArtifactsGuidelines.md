@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/ArtifactsGuidelines.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: CallTool.md -->
 # Artifacts Guidelines — Native Markdown Artifact Workflow
 
@@ -35,7 +34,7 @@ Every artifact has a **kind**, shown as a badge in the Artifacts UI:
 
 | Tool | Risk | Purpose |
 |---|---|---|
-| `create_artifact` | execution | Create (`mode: create`), replace (`mode: update`), or extend (`mode: append`) a Markdown artifact. Refuses to overwrite in `create` mode unless `update`/`append` is chosen. Accepts `kind` (`artifact` \| `execution_plan`). |
+| `create_artifact` | safeMutation | Create (`mode: create`), replace (`mode: update`), or extend (`mode: append`) a Markdown artifact. Refuses to overwrite in `create` mode unless `update`/`append` is chosen. Accepts `kind` (`artifact` \| `execution_plan`). |
 | `list_artifacts` | safeRead | List all artifacts (including `agent_notes.md`), newest first, with descriptions and kind badges. |
 | `read_artifact` | safeRead | Read an artifact's content (truncated at 60k characters, marked). |
 | `delete_artifact` | potentiallyDestructive | Permanently delete an artifact. Requires `confirm: true`. `agent_notes.md` is protected and cannot be deleted. |
@@ -231,7 +230,7 @@ Budget: up to ~15,000 characters.
 
 An artifact's claims are only as strong as their citations. Every factual claim about the codebase, the system, or a tool result must be traceable.
 
-- **File references use `path:line`.** `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools.swift:65` — never "in the tools file" or "somewhere in the MCP host".
+- **File references use `path:line`.** `SwiftCode/Backend/Assist/AssistManager.swift:142` — never "in the manager file" or "somewhere in Assist".
 - **Tool results are cited, not pasted.** Quote the decisive excerpt (a few lines in a code fence); reference the rest by what it was ("full output in Appendix"). Never paste a whole file or a whole tool result into the body.
 - **Label the epistemic status of every non-trivial claim:**
   - **Verified** — confirmed by a tool result, a build, a test, or direct inspection. Say how: "verified by `xcodebuild` on …", "confirmed by reading …".
@@ -350,12 +349,12 @@ Never promise the user interactive behavior inside an artifact.
 
 ## Display titles vs filenames
 
-The Artifacts UI shows **human-readable display titles** derived from filenames (`repository_analysis.md` → "Repository Analysis"). Filenames are never the primary UI title. When you mention an artifact in chat, use its display title, not the raw filename.
+The Artifacts UI (`AssistArtifactsView`) shows **human-readable display titles** derived from filenames (`repository_analysis.md` → "Repository Analysis"). Filenames are never the primary UI title. When you mention an artifact in chat, use its display title, not the raw filename.
 
-## Plan integration
+## Plan and Autopilot integration
 
 - **Plan mode** produces evidence and planning artifacts (`create_artifact` with `kind: "execution_plan"`); it defers consequential actions. A plan artifact is the handoff contract for execution.
-- **Autonomous execution** carries out the plan, verifies each step against real tool results, and reports honestly. When it finishes a deliverable, it saves it with `create_artifact` (mode `create` for new work, `update` for revisions) and names the artifact's display title in its final report. There is no Autopilot mode that bypasses approvals in SwiftCode.
+- **Autopilot mode** executes the plan, verifies each step against real tool results, and reports honestly. When Autopilot finishes a deliverable, it saves it with `create_artifact` (mode `create` for new work, `update` for revisions) and names the artifact's display title in its final report.
 - `agent_notes.md` remains the live scratch record during execution; promote its finalized content to a proper artifact at session end when the user wants to keep it.
 
 ## Pre-save self-review checklist

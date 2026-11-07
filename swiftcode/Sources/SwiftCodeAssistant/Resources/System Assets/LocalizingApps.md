@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/LocalizingApps.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: CallTool.md -->
 # Localizing Apps — Full Apple App Localization
 

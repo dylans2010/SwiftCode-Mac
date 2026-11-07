@@ -486,6 +486,7 @@ public struct ModelFailoverEvent: Identifiable, Sendable {
 }
 
 public actor AssistModelRouter {
+    public static let shared = AssistModelRouter()
     public static let rateLimitQuarantine: TimeInterval = 60
     public static let authenticationQuarantine: TimeInterval = 600
     public static let unavailableQuarantine: TimeInterval = 120

@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/UseApp.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: AvailableTools.md, UsingApp.md -->
 
 # USE APP — Native macOS Application Interaction & Accessibility Automation
@@ -12,8 +11,8 @@ For comprehensive operating guidelines, workflow patterns, and coordinate space 
 ## 1. Tool Identifier & Risk Posture
 
 - **Identifier:** `use_app`
-- **Category:** Terminal (live registration family `terminalTools`)
-- **Risk Level:** `externalSideEffect` (drives real applications; every run passes through the approval gate)
+- **Category:** System Execution / Application Automation
+- **Risk Level:** `safeMutation`
 - **Capabilities:** Non-destructive UI inspection, standard window management, control activation (clicks, typing, menu navigation), and state transition verification.
 
 ---
@@ -38,7 +37,7 @@ For comprehensive operating guidelines, workflow patterns, and coordinate space 
 | Parameter | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `app_identifier` | `string` | **Yes** | — | Target application identifier (bundle identifier like `com.apple.calculator`, app name like `"Calculator"`, or PID). |
-| `action` | `string` | **Yes** | — | Requested action — see `UsingApp.md` §5 for the complete catalog (30 actions: `launch`, `activate`, `list_applications`, `list_windows`, `select_window`, `close_application`, `inspect_application`, `inspect_window`, `inspect_ui`, `get_accessibility_tree`, `get_focused_element`, `take_screenshot`, `click`, `double_click`, `right_click`, `move_pointer`, `drag`, `scroll`, `type_text`, `set_value`, `press_key`, `press_shortcut`, `select_all`, `copy`, `paste`, `activate_element`, `set_element_value`, `select_menu`, `wait_for_element`, `wait_for_window`, `verify`). |
+| `action` | `string` | **Yes** | — | Requested action: `"inspect_ui"`, `"launch"`, `"activate"`, `"click"`, `"type_text"`, `"select_menu"`, `"verify"`. |
 | `target` | `string` | No | `nil` | Target UI element name, title, accessibility label, or identifier to interact with. |
 | `value` | `string` | No | `nil` | Input text to enter when action is `"type_text"`. |
 | `arguments` | `object` | No | `nil` | Optional action parameters (e.g. `menu_path` array for `"select_menu"`). |
@@ -51,7 +50,7 @@ For comprehensive operating guidelines, workflow patterns, and coordinate space 
 
 1. **`launch`**: Launches the target application if not already running, brings it to foreground, and returns window information.
 2. **`activate`**: Focuses and brings an already running application to the front.
-3. **`inspect_ui`**: Traverses the application's accessible UI element tree via `AXUIElement` up to 10 levels deep (max 100 elements), returning structured element roles, titles, labels, identifiers, values, and enabled states.
+3. **`inspect_ui`**: Traverses the application's accessible UI element tree via `AXUIElement` up to 5 levels deep, returning structured element roles, titles, labels, identifiers, values, and enabled states.
 4. **`click`**: Finds an accessible button, menu, radio button, or checkbox matching `target` and triggers `kAXPressAction`.
 5. **`type_text`**: Focuses the input element matching `target` (or the currently focused element if omitted) and sets `kAXValueAttribute` with `value`.
 6. **`select_menu`**: Traverses application menu bar items to activate a menu item (e.g. File > New, Edit > Select All).
@@ -122,4 +121,3 @@ For comprehensive operating guidelines, workflow patterns, and coordinate space 
   - Evaluated via `AXIsProcessTrustedWithOptions()`.
   - If SwiftCode does not have Accessibility privileges, macOS requires the user to grant access in **System Settings > Privacy & Security > Accessibility** by toggling **SwiftCode** on.
   - The tool produces an actionable error explaining the requirement and providing instructions if accessibility access is denied.
-- **Approval Gate:** In SwiftCode, `use_app` actions additionally pass through the single approval gate — Accessibility permission alone does not authorize an action.

@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/ToolRoutingPolicy.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: AvailableTools.md, CallTool.md -->
 # ToolRoutingPolicy — Authoritative Operational Rules for Tool Selection & Execution
 
@@ -8,7 +7,7 @@ This document establishes the mandatory operational rules governing tool routing
 
 ### Rule A — ALWAYS Prefer Native Tools Over Terminal Execution (Terminal is SUPER RARE)
 You MUST **ALWAYS prefer using native tools** over running terminal commands.
-* **Super Rare Terminal Execution:** It should be **SUPER RARE** when you use the actual terminal (`use_terminal` / `bash` / `zsh`). Terminal execution is strictly reserved as an extreme last resort ONLY when there are no native tools available to execute the requested operation.
+* **Super Rare Terminal Execution:** It should be **SUPER RARE** when you use the actual terminal (`use_terminal` / `bash` / `zsh` / `run_command`). Terminal execution is strictly reserved as an extreme last resort ONLY when there are no native tools available to execute the requested operation.
 * **Sandboxed Safety:** Always prefer native tools because they are sandboxed, permission-checked, structured, and inherently safer for the user and their project files than raw shell commands.
 * **Universal Tool Availability:** ALL tools registered in your environment are fully available and operational. NEVER report, claim, or assume that "this tool was not available in its environment". If an operation corresponds to a native tool, invoke that tool directly.
 The terminal is never the first choice when a specialized native tool exists (e.g. `version_control_operator`, `project_build`, `file_read`, `code_replace`, `file_write`, `open_in_finder`, `dir_create`, `search_text`).
@@ -18,10 +17,10 @@ If the user names or requests a particular tool (e.g., "Use the worker tool to d
 
 ### Rule C — Match the Task to the Tool
 Always route tasks directly to their dedicated native capability:
-* Git status / branch → `version_control_operator` (action: "status", "branch", etc.); Git log history → `git_log_viewer`
+* Git status / log / branch → `version_control_operator` (action: "status", "log", etc.)
 * Git diff / inspect changes → `version_control_operator` (action: "diff") or native diff inspector
 * Project build / compile → `project_build` (approval-exempt, non-blocking)
-* File search / symbol search → `search_text` (contents), `search_files` (filenames), `search_symbol` (declarations), or `semantic_query_engine` (concept search)
+* File search / symbol search → `file_search` or `semantic_search`
 * Code editing / patching → `code_replace` or `file_write`
 * File movement / creation / deletion → Native file system tools (`file_write`, `file_delete`, `dir_create`)
 * Archive / Zip / Tar / Gzip → `zip_file`, `unzip_file`, `tar_archive_create`, `tar_archive_extract`, `gzip_compress_file`, `gzip_decompress_file`
@@ -33,7 +32,7 @@ Always route tasks directly to their dedicated native capability:
 * Documentation → `docs_index_build`, `markdown_link_check`, `api_docs_coverage`, `code_comment_extract`, `readme_generate`, `markdown_toc_generate`
 * Durable deliverables → `create_artifact` (the ONLY way to produce a kept Markdown deliverable — never `file_write` or shell redirection for reports), `list_artifacts`, `read_artifact`, `delete_artifact`. See `ArtifactsGuidelines.md`.
 * Session & environment → `session_progress_report`, `preflight_checks`, `tool_capability_lookup`, `xcode_toolchain_info`
-* Worker delegation → `use_workers` when multi-worker parallelism or delegation is beneficial or requested. `use_workers` plans and schedules workers (validation + topological order + persisted plan); workers do NOT execute yet — no subagent runtime is connected. Default to 0 workers.
+* Worker delegation → `use_workers` when multi-worker parallelism or delegation is beneficial or requested
 
 ### Rule D — Avoid Unrelated Calls
 Do NOT invoke build tools, file readers, repository searches, or other tools merely because they are available.
@@ -81,6 +80,6 @@ When an objective requires multiple sequential actions across tools:
 
 ### Rule N — Truthful Permission and Capability Boundaries
 * `take_screenshot`: Requires macOS Screen Recording authorization. Produces high-resolution PNG image artifacts.
-* `take_screenrecord`: Requires macOS Screen Recording authorization and target app running. Captures video stream (1-60s, default 10s) as QuickTime `.mov` (`.mp4` also supported). Audio capture is supported when `include_audio` is set.
+* `take_screenrecord`: Requires macOS Screen Recording authorization and target app running. Captures video stream (1-60s) as QuickTime `.mov`. Audio recording is NOT supported.
 * `use_app`: Requires macOS Accessibility authorization. Interacts with macOS UI hierarchy.
 Report missing permissions and unsupported capabilities honestly. Never claim an action succeeded without a verified tool execution result.

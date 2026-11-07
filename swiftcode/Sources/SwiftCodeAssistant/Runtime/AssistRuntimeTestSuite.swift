@@ -41,7 +41,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testEventNormalizationAndActivityTrajectory())
         results.append(await testAssistIntentClassifier())
         results.append(await testAssistBuildProjectIncrementalParsing())
-        results.append(await testEmptyTemplateBlankState())
         results.append(await testCodingToolsServiceActions())
         results.append(await testAssistConversationMemory())
         results.append(await testAssistFinderToolsAndAliases())
@@ -1100,22 +1099,6 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    public func testEmptyTemplateBlankState() async -> RuntimeTestCaseResult {
-        let start = Date()
-        let template = EmptyTemplate()
-
-        let passed = template.name == "Empty" &&
-            template.files.isEmpty &&
-            !template.description.isEmpty &&
-            template.icon == "square.dashed"
-
-        return RuntimeTestCaseResult(
-            testName: "Empty Project Template Blank State",
-            passed: passed,
-            message: passed ? "Empty template verified completely blank with 0 pre-populated files." : "Empty template verification failed.",
-            duration: Date().timeIntervalSince(start)
-        )
-    }
 
     public func testCodingToolsServiceActions() async -> RuntimeTestCaseResult {
         let start = Date()

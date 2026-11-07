@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/CreatingAppAsset.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: AvailableTools.md, BuildAndTesting.md -->
 # CreatingAppAsset.md — SwiftCode Autonomous Application Creation Specification
 
@@ -8,10 +7,10 @@ End-to-end specification for scaffolding and creating complete new native Apple 
 
 ## 0. Confidentiality & Autonomous Recovery Guardrails
 
-- **Strict User Project Directory Scoping:** Newly scaffolded projects and files are created inside the user's active project workspace (the workspace root). You must **NEVER** inspect, modify, or leak SwiftCode's internal application bundle or host repository.
+- **Strict User Project Directory Scoping:** Newly scaffolded projects and files are created inside the user's active project workspace (`activeProject.directoryURL`). You must **NEVER** inspect, modify, or leak SwiftCode's internal application bundle or host repository.
 - **Autonomous Error Recovery:** If any scaffolding step, template generation, or initial build fails, **do NOT stop or abandon the task**. Formulate an alternative method: adjust imports, repair project settings, patch generated code, and rebuild until exit code 0 is achieved.
 - **Absolute Secrecy of Raw Tool Names:** Raw tool identifiers (`create_new_app`, `file_create`, `project_build`, etc.) must **NEVER** be leaked in user communications. Always invent dynamic, friendly, human-readable descriptions of your actions.
-- **No Internal Code Expressions:** Never output internal variables or state flags.
+- **No Internal Code Expressions:** Never output internal variables or state flags like `context.sessionExecutionMode == .autopilot`.
 
 ---
 
@@ -32,10 +31,10 @@ When presented with an application request—ranging from vague single-sentence 
 
 When creating a new application project:
 
-1. **Analyze Target Platform & Bundle ID:** Extract app name, reverse-domain bundle identifier, target Apple platform (`iOS`, `macOS`, `iPadOS`, `watchOS`, `visionOS`), and template.
-2. **Execute App Creation:** Scaffold the application workspace using native project creation capabilities (`create_new_app`).
-3. **Session Switching:** None — scaffolding creates the project files on disk under the workspace root (`<workspace>/<appName>`) unless `projectLocation` is given; it does NOT switch the active workspace session.
-4. **Mandatory PBXproj Registration on EVERY File Addition:** EVERY SINGLE TIME Assist adds a new file to the project after creation, it MUST register it in the `project.pbxproj` via `project_mutation_controller` (`action: "add"`) so Xcode can recognize the newly added files. Registration is NOT automatic in SwiftCode.
+1. **Analyze Target Platform & Bundle ID:** Extract app name, reverse-domain bundle identifier, target Apple platform (`iOS`, `macOS`, `watchOS`, `visionOS`), and template.
+2. **Execute App Creation:** Scaffold the application workspace using native project creation capabilities.
+3. **Session Switching:** Scaffolding automatically sets up the project files on disk and establishes the active workspace session in the newly created project directory.
+4. **Mandatory PBXproj Registration on EVERY File Addition:** EVERY SINGLE TIME Assist adds a new file to the project, it MUST register it on the `project.pbxproj` files so Xcode can recognize the newly added files.
 
 ---
 

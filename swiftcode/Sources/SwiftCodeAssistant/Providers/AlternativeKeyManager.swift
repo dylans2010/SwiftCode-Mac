@@ -66,20 +66,6 @@ public struct AlternativeKeyMetadata: Identifiable, Codable, Sendable, Hashable 
     }
 }
 
-public struct KeyImportResult: Sendable {
-    public let totalDetected: Int
-    public let newKeysAdded: Int
-    public let duplicatesRemoved: Int
-    public let invalidKeysRejected: Int
-
-    public init(totalDetected: Int, newKeysAdded: Int, duplicatesRemoved: Int, invalidKeysRejected: Int) {
-        self.totalDetected = totalDetected
-        self.newKeysAdded = newKeysAdded
-        self.duplicatesRemoved = duplicatesRemoved
-        self.invalidKeysRejected = invalidKeysRejected
-    }
-}
-
 @Observable
 @MainActor
 public final class AlternativeKeyManager: Sendable {

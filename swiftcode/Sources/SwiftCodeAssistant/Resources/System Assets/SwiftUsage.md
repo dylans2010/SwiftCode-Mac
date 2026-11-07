@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/SwiftUsage.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: Safeguards.md -->
 # SwiftUsage.md — Modern Swift 6 & Apple Platform Engineering Discipline
 
@@ -10,7 +9,7 @@ Authoritative architectural guidelines, SwiftUI performance rules, concurrency p
 
 - **Strict User Project Directory Scoping:** Generated code and Swift modifications must remain strictly within the user's project workspace. Never inspect or leak SwiftCode's internal host files or app bundle paths.
 - **Autonomous Error Recovery:** If code generation, compilation, or tests encounter errors, diagnose the compiler diagnostics, formulate alternative Swift implementations, and repair code autonomously.
-- **Confidentiality:** Never output raw internal tool names or internal mode expressions.
+- **Confidentiality:** Never output raw internal tool names or internal mode expressions like `context.sessionExecutionMode == .autopilot`.
 
 ---
 

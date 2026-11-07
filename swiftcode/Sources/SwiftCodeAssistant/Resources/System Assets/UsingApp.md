@@ -1,18 +1,17 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/UsingApp.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: Safeguards.md, AvailableTools.md -->
 # UsingApp — Operating Instructions for the use_app Tool
 
 `use_app` is the dedicated native macOS application interaction system for Assist. It allows you to inspect, navigate, operate, and verify third-party and installed macOS applications through native macOS Accessibility APIs (`AXUIElement`), CoreGraphics synthetic event generation (`CGEvent`), `ScreenCaptureKit` visual perception, and `NSWorkspace` session lifecycle management.
 
-The tool's schema is registered in the SwiftCode MCP tool catalogue (`swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+AppInteraction.swift`). This document teaches *when* and *how* to use it, following Assist's operational standards.
+The tool's schema is registered in `AssistToolRegistry`. This document teaches *when* and *how* to use it, following Assist's operational standards.
 
 ---
 
 ## 1. Tool Identity & Risk Posture
 
 - **Identifier:** `use_app`
-- **Category:** Terminal (live registration family `terminalTools`)
-- **Risk Level:** `externalSideEffect` (drives real applications; every run passes through the approval gate)
+- **Category:** System Execution / Application Automation
+- **Risk Level:** `safeMutation`
 - **Capabilities:** Non-destructive UI inspection, window management, semantic Accessibility control, synthetic mouse and keyboard event injection, visual perception with screenshot verification, and state transition validation.
 
 ---
@@ -94,12 +93,12 @@ Do not use `use_app` when:
 ### Semantic Controls
 - `activate_element`: Invokes accessibility actions (`kAXPressAction` or `AXPick`).
 - `set_element_value`: Sets accessibility value directly (`kAXValueAttribute`).
-- `select_menu`: Traverses native macOS application menu bar and triggers menu items by path (`File > New Window`). (`select_menu_item` does not exist in SwiftCode — use `select_menu`.)
+- `select_menu` / `select_menu_item`: Traverses native macOS application menu bar and triggers menu items by path (`File > New Window`).
 
 ### Synchronization & Verification
 - `wait_for_element`: Bounded polling until expected UI element appears in the accessibility hierarchy.
 - `wait_for_window`: Bounded polling until expected window title appears.
-- `verify`: Confirms an element exists or its value matches expected text. (`verify_element_state` does not exist in SwiftCode — use `verify`.)
+- `verify` / `verify_element_state`: Confirms an element exists or its value matches expected text.
 
 ---
 
@@ -146,9 +145,9 @@ The interaction engine automatically handles display offsets, multi-monitor setu
 
 ## 9. Error Recovery & Diagnostics
 
-Every failure is reported as a structured error with an actionable recovery hint:
-- **Application, window, or UI target not found:** Re-run `list_applications`, `list_windows`, or `inspect_ui` to get the fresh identifier.
-- **Permission denied:** Accessibility or Screen Recording permission is missing in macOS System Settings. Advise the user to enable SwiftCode in System Settings > Privacy & Security > Accessibility.
-- **Timeout:** State transition did not occur within the timeout period. Re-inspect current UI to determine actual state.
-- **Invalid input:** Target was ambiguous or coordinates were invalid. Refine target using an exact `elem_X` ID.
-- **Execution failed:** Control rejected action. Try synthetic pointer click or keyboard shortcut fallback.
+Every failure produces an error code from `AssistToolErrorCode` and an actionable `recoveryHint`:
+- `notFound`: Application, window, or UI target was not found. Re-run `list_applications`, `list_windows`, or `inspect_ui` to get the fresh identifier.
+- `permissionDenied`: Accessibility or Screen Recording permission is missing in macOS System Settings. Advise the user to enable SwiftCode in System Settings > Privacy & Security > Accessibility.
+- `timeout`: State transition did not occur within the timeout period. Re-inspect current UI to determine actual state.
+- `invalidInput`: Target was ambiguous or coordinates were invalid. Refine target using an exact `elem_X` ID.
+- `executionFailed`: Control rejected action. Try synthetic pointer click or keyboard shortcut fallback.

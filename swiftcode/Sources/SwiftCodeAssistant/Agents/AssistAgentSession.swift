@@ -978,7 +978,7 @@ public final class AssistAgentSession: Sendable {
             let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
             if !phaseTools.contains(where: { $0.id == toolId }) {
                 let meta = AssistToolRouter.shared.metadata(for: toolId)
-                if meta.isMutating || meta.riskLevel >= .potentiallyDestructive {
+                if meta.isMutating || meta.riskLevel >= ToolRiskLevel.potentiallyDestructive {
                     let phaseMsg = "Tool '\(toolId)' (\(meta.riskLevel.rawValue)) is restricted during agent phase '\(self.state.status.rawValue)'."
                     finalizeStreamedToolPreview(status: .failed, result: phaseMsg)
                     pipelineLogger.warning("Phase enforcement blocked execution: \(phaseMsg)")
@@ -991,7 +991,7 @@ public final class AssistAgentSession: Sendable {
             transition(to: .executing, reason: "Executing tool [\(toolId)]")
 
             let toolMeta = AssistToolRouter.shared.metadata(for: toolId)
-            if !didInjectToolStageGuidance && toolMeta.riskLevel >= .potentiallyDestructive {
+            if !didInjectToolStageGuidance && toolMeta.riskLevel >= ToolRiskLevel.potentiallyDestructive {
                 didInjectToolStageGuidance = true
                 let toolQuery = InstructionQueryContext(
                     userText: "executing tool \(toolId) with risk level \(toolMeta.riskLevel.rawValue): \(explanation)",

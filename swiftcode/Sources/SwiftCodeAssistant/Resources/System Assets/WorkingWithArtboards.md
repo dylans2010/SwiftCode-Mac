@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/WorkingWithArtboards.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 # Working with Artboards & Visual UI Builder
 
 This guide provides canonical instructions and architectural context for Assist when interacting with SwiftCode's **Artboards**, **Visual UI Builder**, and **SwiftUI Live Preview** subsystem.
@@ -29,8 +28,8 @@ The Visual UI Builder allows visual design, layout composition, and live SwiftUI
 ┌─────────────────────────────────────────────────────────────┐
 │                       Preview Engine                         │
 │     PreviewManager  <───>  PreviewSession                   │
-│     XcodeBuildAPI   <───>  FullAppRunManager                │
-│     (Simulator sandboxing & launch)                          │
+│     XcodeBuildAPI   <───>  BuildDestinationResolver         │
+│     FullAppRunManager (Simulator sandboxing & launch)       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,9 +51,10 @@ The Visual UI Builder allows visual design, layout composition, and live SwiftUI
 
 The **Artboard Simulator** supports two primary modes:
 
-### Mode 0: Live Preview — NOT AVAILABLE
-- There is no live artboard preview session in SwiftCode (no `NativePreviewHost`): `artboard_compile` compiles an artboard or the active SwiftUI file and returns compiler logs, but does not host a live interactive canvas. Do not claim a live preview exists or that a canvas updated.
-- If an artboard contains custom SwiftUI code, compile it with `artboard_compile` and verify with `artboard_run_app` (Mode 1).
+### Mode 0: Live Preview
+- Compiles the active SwiftUI view or custom artboard code using the JIT/Swift compiler pipeline into a hosted native view (`NativePreviewHost`).
+- Provides sub-second interactive canvas updates without launching a full iOS simulator window.
+- If an artboard contains custom SwiftUI code, it compiles dynamically into `DocumentCoordinator.shared.compiledArtboardViews`.
 
 ### Mode 1: Run Full App
 - Uses `FullAppRunManager.shared.runFullApp()`.
@@ -79,7 +79,7 @@ Assist has dedicated native tools to inspect, mutate, compile, and troubleshoot 
 | `artboard_create` | `safeMutation` | Creates a new artboard with a name, device frame, and optional SwiftUI code. |
 | `artboard_update` | `safeMutation` | Modifies an existing artboard's properties, device frame, appearance, or SwiftUI source. |
 | `artboard_delete` | `safeMutation` | Deletes an artboard (guards against deleting "Default"). |
-| `artboard_compile` | `safeMutation` | Compiles an artboard or the active SwiftUI file, returning compiler logs. (No live preview session is hosted.) |
+| `artboard_compile` | `safeMutation` | Compiles an artboard or the active SwiftUI file for live preview, returning compiler logs. |
 | `artboard_run_app` | `safeMutation` | Compiles and executes the full application in a simulator. |
 | `fix_artboards` | `safeMutation` | Diagnoses and repairs artboard, preview, simulator, and destination errors. |
 
@@ -87,7 +87,7 @@ Assist has dedicated native tools to inspect, mutate, compile, and troubleshoot 
 
 ## 4. Diagnosing & Repairing Issues (`fix_artboards` Playbook)
 
-When the user reports that Visual UI Builder / Previews / Full App Run is failing, Assist must execute `fix_artboards` and follow this step-by-step diagnostic workflow:
+When the user clicks **"Fix with Assist"** or reports that Visual UI Builder / Previews / Full App Run is failing, Assist must execute `fix_artboards` and follow this step-by-step diagnostic workflow:
 
 ### Step 1: Simulator & Destination Alignment
 - **Problem**: `xcodebuild` fails with **exit code 70** or `Building for macOS but target is iOS`.

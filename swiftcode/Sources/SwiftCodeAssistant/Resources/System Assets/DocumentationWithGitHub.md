@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/DocumentationWithGitHub.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: CallTool.md, AvailableTools.md -->
 # Documentation & GitHub Repository Intelligence
 
@@ -105,7 +104,7 @@ The strongest answers combine the two sources: the repository shows **what the c
 1. `repository_info` to confirm identity and default branch.
 2. `get_tree` for the full map; `fetch_repository` with a `query` naming the audit focus.
 3. Read the retrieval report first: which files were fetched, which were skipped and why, whether the tree was truncated.
-4. Only then write findings. **Never claim a file was inspected unless the tool returned it.** Cite repository-relative paths (`swiftcode/Sources/SwiftCodeMCP/...`), not vague locations.
+4. Only then write findings. **Never claim a file was inspected unless the tool returned it.** Cite repository-relative paths (`SwiftCode/Backend/Assist/Tools/...`), not vague locations.
 5. If the audit needs API correctness judgments (e.g. "is this API used correctly?"), fetch the relevant Apple documentation and compare — the repo shows usage, Apple shows contract.
 
 ### Example C — API compatibility check

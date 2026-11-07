@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/AgentSystemAsset.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 # System Assets — Central Instruction Index & Routing Specification
 
 This document is the **directory and routing guide** for Assist's canonical instruction library. It does not teach procedures itself — it tells the runtime (and `SystemIndex`) *which* document to retrieve, *when*, and *why*. Detailed instructions live in the files listed below; this index only routes.
@@ -7,11 +6,11 @@ This document is the **directory and routing guide** for Assist's canonical inst
 
 ## Purpose of System Assets
 
-`swiftcode/Sources/SwiftCodeAssistant/Resources/System Assets/` is the single canonical library of Markdown instructions that define Assist's identity, behavior, tool-use procedures, safeguards, and execution requirements. The files are bundled with the macOS application and **selectively retrieved** at runtime per the contract in `SystemIndex.md`: no request receives the entire corpus. Note: the `SystemIndexService` loader itself is not yet implemented in SwiftCode — until it lands, these files are the canonical instruction text bundled as resources, not yet runtime-retrieved.
+`SwiftCode/Backend/Assist/Functions/System Assets/` is the single canonical library of Markdown instructions that define Assist's identity, behavior, tool-use procedures, safeguards, and execution requirements. The files are bundled with the macOS application, indexed locally by `SystemIndex`, and **selectively retrieved** at runtime: no request receives the entire corpus. See `SystemIndex.md` for the indexing and retrieval contract.
 
 Rules that govern this library:
 - There is exactly one instruction-management system. Do not create a second corpus, a parallel schema list, or a shadow prompt file that can diverge.
-- The runtime tool registry (the SwiftCode MCP tool catalogue, `swiftcode/Sources/SwiftCodeMCP/`, 433 tools) is authoritative for tool availability, schemas, and authorization. Markdown docs describe *how* to use tools; they never *define* tools.
+- The runtime tool registry (`AssistToolRegistry`) is authoritative for tool availability, schemas, and authorization. Markdown docs describe *how* to use tools; they never *define* tools.
 - `Safeguards.md` is mandatory and wins every conflict.
 - **Apple Platform & Framework Priority (Xcode Intelligence Standard):** Always favor Apple programming languages (Swift, Objective-C, C, C++) and official platform names (iOS, iPadOS, macOS, watchOS, visionOS). Favor native Apple frameworks over third-party dependencies.
 - **Swift Concurrency & Swift Testing Standard:** Modern Swift Concurrency (`async`/`await`, actors) over legacy Dispatch or Combine; Swift Testing macros (`@Suite`, `@Test`, `#expect`, `#require`) over legacy XCTest.
@@ -22,9 +21,9 @@ Rules that govern this library:
 - **Autonomous Error Recovery:** Assist is a fully autonomous engineering agent. If a tool invocation, build step, or terminal command fails, the agent must diagnose the issue, formulate an alternative method, and keep progressing autonomously.
 - **Strict User Project Directory Scoping:** Assist operates exclusively inside the user's project workspace. Never inspect or reveal SwiftCode host application bundle directories or repository paths.
 - **Absolute Confidentiality of Raw Tool Names:** Raw tool tokens are internal and must NEVER be output to users. The agent must dynamically create friendly, human-readable titles on the fly.
-- **Provider Identity:** The agent is "Assist", the native AI coding partner built into SwiftCode. The user selects the provider in Assist Settings; never label a request as coming from a provider that did not handle it (see `ModelProviders.md`).
-- **No Internal Code Expressions:** Never output raw code expressions or internal state flags. Translate state into clear natural English.
-- **Mandatory PBXproj Registration on File Creation:** EVERY SINGLE TIME Assist adds a new file to the project, it MUST register it in the `project.pbxproj` (via `project_mutation_controller`, `action: "add"`) so Xcode can recognize the newly added files. Registration is NOT automatic in SwiftCode.
+- **Absolute Model Secrecy:** The agent is solely "Assist" by SwiftCode. The underlying model or provider powering Assist must NEVER be revealed under any circumstances.
+- **No Internal Code Expressions:** Never output raw code expressions like `context.sessionExecutionMode == .autopilot`. Translate state into clear natural English.
+- **Mandatory PBXproj Registration on File Creation:** EVERY SINGLE TIME Assist adds a new file to the project, it MUST register it on the `project.pbxproj` files so Xcode can recognize the newly added files.
 
 ---
 
@@ -54,16 +53,10 @@ Rules that govern this library:
 | `CodeReviewSystemAsset.md` | Independent code-review operating policy and verdict format | Code-review tasks |
 | `CreatingAppAsset.md` | Autonomous app-creation specification | "Build me an app" tasks |
 | `TaskCompletion.md` | Autonomous task completion protocol, executive reporting, markdown formatting, and `report_to_user` rules | Task finalization, calling report_to_user |
-| `ArtifactsGuidelines.md` | Native Markdown artifact workflow: when to create artifacts, quality standards, display titles, Plan integration | Any durable deliverable: reports, analyses, plans, summaries |
+| `ArtifactsGuidelines.md` | Native Markdown artifact workflow: when to create artifacts, quality standards, display titles, Plan/Autopilot integration | Any durable deliverable: reports, analyses, plans, summaries |
 | `UsingSystem.md` | Operating instructions for the `use_system` tool: when to diagnose vs. not, tool-selection priority, authorization limits, error handling, verification | macOS system diagnostics, dev-environment failures, network/service/log investigation, authorized config changes |
 | `UsingApp.md` | Operating instructions for the `use_app` tool: native macOS application interaction, UI inspection, pointer/keyboard synthetic input, visual verification, safeguards | Operating third-party macOS applications, UI automation, verifying built apps |
 | `LocalizingApps.md` | Full Apple-app localization procedure: String Catalogs, NSLocalizedString/String(localized:), plurals, formatters, RTL, XLIFF workflow, scheme testing, App Store Connect metadata | App localization tasks, new-language requests |
-| `ToolRoutingPolicy.md` | Tool-routing policy: which tool for which operation, terminal governance, risk tiers | Tool selection decisions, routing disputes |
-| `UseApp.md` | The `use_app` tool: native macOS application interaction & Accessibility automation | Operating third-party macOS applications |
-| `TakeScreenshot.md` | The `take_screenshot` tool: native macOS screen capture | Visual inspection, UI verification |
-| `TakeScreenrecord.md` | The `take_screenrecord` tool: native macOS application screen recording | Recording app behavior, animation/interaction diagnostics |
-| `WorkingWithArtboards.md` | Artboards & Visual UI Builder: architecture, preview modes, artboard tools, `fix_artboards` playbook | Artboard work, preview/simulator failures |
-| `DocumentationWithGitHub.md` | `fetch_documentation` and `github_repo`: grounding claims in Apple docs and real repositories | API correctness, repository inspection |
 
 ---
 
@@ -85,39 +78,15 @@ A document may declare related documents near its top:
 ```
 
 SystemIndex resolves these transitively, dedupes, and guards against cycles.
-Genuine dependencies in this library (taken from the `system-index-depends` comment at the top of each file; `AgentSystemAsset.md` and `WorkingWithArtboards.md` declare none):
+Genuine dependencies in this library:
 
-- `AgenticLoop.md` → `CallTool.md`, `ErrorHandling.md`
-- `ArtifactsGuidelines.md` → `CallTool.md`
-- `Authentication.md` → `Safeguards.md`
-- `AvailableTools.md` → `CallTool.md`
-- `BuildAndTesting.md` → `FileOperations.md`
 - `CallTool.md` → `Safeguards.md`, `AvailableTools.md`
-- `CodeReviewSystemAsset.md` → `CallTool.md`, `AvailableTools.md`
-- `ContextBudgeting.md` → `SystemIndex.md`
-- `Contexts.md` → `AvailableTools.md`
-- `CreatingAppAsset.md` → `AvailableTools.md`, `BuildAndTesting.md`
-- `DocumentationWithGitHub.md` → `CallTool.md`, `AvailableTools.md`
+- `AvailableTools.md` → `CallTool.md`
 - `ErrorHandling.md` → `CallTool.md`
+- `AgenticLoop.md` → `CallTool.md`, `ErrorHandling.md`
 - `ExecutionPlans.md` → `AgenticLoop.md`
 - `FileOperations.md` → `Safeguards.md`
-- `Identity.md` → `Safeguards.md`
 - `LocalizingApps.md` → `CallTool.md`
-- `ModelProviders.md` → `Authentication.md`
-- `ProjectContext.md` → `SwiftUsage.md`
-- `ResponseFormatting.md` → `Streaming.md`
-- `Safeguards.md` → `CallTool.md`
-- `Skills.md` → `AvailableTools.md`
-- `Streaming.md` → `ResponseFormatting.md`
-- `SwiftUsage.md` → `Safeguards.md`
-- `SystemIndex.md` → `AgentSystemAsset.md`
-- `TakeScreenrecord.md` → `AvailableTools.md`
-- `TakeScreenshot.md` → `AvailableTools.md`
-- `TaskCompletion.md` → `Safeguards.md`, `ResponseFormatting.md`
-- `ToolRoutingPolicy.md` → `AvailableTools.md`, `CallTool.md`
-- `UseApp.md` → `AvailableTools.md`, `UsingApp.md`
-- `UsingApp.md` → `Safeguards.md`, `AvailableTools.md`
-- `UsingSystem.md` → `Safeguards.md`, `AvailableTools.md`
 
 Retrieving a document retrieves its dependencies where the budget allows; `Safeguards.md` is always preserved first under pressure.
 

@@ -52,6 +52,28 @@ public enum AssistXcodeProjectResolver {
         }
     }
 
+    public static func listedSchemes(for project: LocatedProject) async -> [String]? {
+        let result = try? await ProcessRunnerTool.shared.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/xcodebuild"),
+            arguments: project.xcodebuildArgs + ["-list", "-json"],
+            workingDirectory: project.url.deletingLastPathComponent())
+        guard let result, result.exitCode == 0,
+              let data = result.stdout.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        for key in ["project", "workspace"] {
+            if let container = json[key] as? [String: Any], let schemes = container["schemes"] as? [String], !schemes.isEmpty {
+                return schemes.sorted()
+            }
+        }
+        return nil
+    }
+
+    public static func resolveScheme(for project: LocatedProject, explicit: String?) async -> String {
+        if let explicit, !explicit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return explicit }
+        if let schemes = await listedSchemes(for: project), let first = schemes.first { return first }
+        return project.name
+    }
+
     private struct PbxGroup {
         let id: String
         let pathComponent: String?

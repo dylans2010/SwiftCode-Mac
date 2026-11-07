@@ -26,7 +26,7 @@ public final class AssistContextBuilder {
         self.activeProject = project
     }
 
-    public static func resolvedWorkspaceRoot(project: AssistProject? = nil) -> URL {
+    public nonisolated static func resolvedWorkspaceRoot(project: AssistProject? = nil) -> URL {
         if let projectURL = project?.directoryURL {
             return projectURL
         }

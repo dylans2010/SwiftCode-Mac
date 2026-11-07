@@ -1,4 +1,3 @@
-<!-- Re-derived 2026-11-06 from the live SwiftCode tool catalogue (433 tools, 0 duplicate IDs) — derivation method and evidence: specs/ide/wave19-system-assets.md. Legacy source: SwiftCode/Backend/Assist/Functions/System Assets/TakeScreenrecord.md (Legacy main d51a8f0d). Every tool ID below was verified against swiftcode/Sources/SwiftCodeMCP/ at local HEAD 305696b. -->
 <!-- system-index-depends: AvailableTools.md -->
 
 # TAKE SCREENRECORD — Native macOS Application Screen Recording
@@ -10,8 +9,8 @@ The `take_screenrecord` tool enables Assist to record real-time video frames fro
 ## 1. Tool Identifier & Risk Posture
 
 - **Identifier:** `take_screenrecord`
-- **Category:** Terminal (live registration family `terminalTools`)
-- **Risk Level:** `externalSideEffect` (writes a recording artifact; annotations `externalRead`, `writes` implied by the artifact)
+- **Category:** Diagnostics / Screen & Video
+- **Risk Level:** `safeRead`
 - **Output Artifacts:** Valid QuickTime `.mov` video file saved in `.assist_temp/artifacts/<appName>_recording_<timestamp>.mov`.
 
 ---
@@ -26,7 +25,7 @@ The `take_screenrecord` tool enables Assist to record real-time video frames fro
 ### When NOT to Use
 - **Do not record without an identifiable target application.** The model must provide a valid `app_identifier` (bundle ID, app name, or PID).
 - **Do not use for static verification.** Use `take_screenshot` when a single frame snapshot is sufficient.
-- **Do not record indefinitely.** Safety limits constrain duration between 1 and 60 seconds (default 10 seconds).
+- **Do not record indefinitely.** Safety limits constrain duration between 1 and 60 seconds (default 5 seconds).
 
 ---
 
@@ -35,10 +34,10 @@ The `take_screenrecord` tool enables Assist to record real-time video frames fro
 | Parameter | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `app_identifier` | `string` | **Yes** | — | Target application identifier (bundle identifier like `com.apple.dt.Xcode`, app name, or PID). |
-| `recording_duration` | `number` | No | `10.0` | Duration to record in seconds (clamped between `1.0` and `60.0`). |
-| `capture_mode` | `string` | No | `"window"` | Target capture scope: `"window"` (app's main window) or `"application_display"` (display containing app). |
-| `include_audio` | `boolean` | No | `false` | Whether to capture application audio when supported. |
-| `output_format` | `string` | No | `"mov"` | Video container format. Supported: `"mov"`, `"mp4"`. Defaults to `"mov"`. |
+| `recording_duration` | `number` | No | `5.0` | Duration to record in seconds (clamped between `1.0` and `60.0`). |
+| `capture_mode` | `string` | No | `"window"` | Target capture scope: `"window"` (app's main window) or `"display"` (display containing app). |
+| `include_audio` | `boolean` | No | `false` | Known limitation: Audio capture is NOT supported; video stream only. |
+| `output_format` | `string` | No | `"mov"` | Video container format (`"mov"` standard). |
 | `purpose` | `string` | No | `nil` | Natural language explanation of why the recording is requested. |
 
 ---
@@ -105,4 +104,6 @@ The `take_screenrecord` tool enables Assist to record real-time video frames fro
 - **Frameworks:** `ScreenCaptureKit` (`SCStream`, `SCStreamConfiguration`, `SCContentFilter`) and `AVFoundation` (`AVAssetWriter`, `AVAssetWriterInput`).
 - **Resource Management:**
   - Recording runs off the main thread with explicit sample buffer delegates.
+  - Video tracks are encoded with `AVVideoCodecType.h264`.
   - Sessions automatically finalize and flush when the requested duration elapses or upon cancellation.
+  - Concurrent recordings are synchronized with a mutual exclusion lock to prevent resource contention.

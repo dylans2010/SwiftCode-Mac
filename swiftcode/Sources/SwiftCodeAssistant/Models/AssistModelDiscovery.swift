@@ -105,6 +105,7 @@ public actor AssistModelDiscoveryService {
     public var isGoogleOAuthAuthenticated = false
 
     public private(set) var discoveredModels: [AssistDiscoveredModel] = []
+    public private(set) var isDiscovering = false
     public private(set) var lastDiscoveryDate: Date?
     public private(set) var lastDiscoveryErrors: [String: String] = [:]
     public var hiddenProviderNames: Set<String> = []
@@ -131,6 +132,8 @@ public actor AssistModelDiscoveryService {
     }
 
     public func discoverAllModels(forceRefresh: Bool = false) async -> [AssistDiscoveredModel] {
+        isDiscovering = true
+        defer { isDiscovering = false }
         if !forceRefresh && hasFreshDiscoveryCache {
             return discoveredModels
         }

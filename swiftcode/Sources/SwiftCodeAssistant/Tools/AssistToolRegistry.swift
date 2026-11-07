@@ -65,7 +65,19 @@ public final class AssistToolRegistry {
     public var version: Int { registryVersion }
     private var cachedToolSchemas: [[String: Any]]?
 
+    public private(set) var rejectedToolIds: [String] = []
+
+    public var surfaceGaps: [AssistToolCatalogEntry] {
+        AssistToolCatalog.entries.filter { tools[$0.id] == nil }
+    }
+
+    public var surfaceIsComplete: Bool { surfaceGaps.isEmpty }
+
     public func register(_ tool: AssistTool) {
+        guard AssistToolCatalog.contains(tool.id) else {
+            if !rejectedToolIds.contains(tool.id) { rejectedToolIds.append(tool.id) }
+            return
+        }
         if tools[tool.id] != nil {
             print("[AssistToolRegistry] Duplicate tool ID '\(tool.id)' — keeping the first registration.")
             return
@@ -250,7 +262,7 @@ public final class AssistToolRegistry {
     }
 
     public var allTools: [AssistTool] {
-        return Array(tools.values).sorted(by: { $0.id < $1.id })
+        return Array(tools.values).filter { AssistToolCatalog.contains($0.id) }.sorted(by: { $0.id < $1.id })
     }
 
     public func getToolSchemas() -> [[String: Any]] {
