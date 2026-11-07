@@ -38,7 +38,7 @@ public final class AssistModelRouter: Sendable {
     public var quarantinedModels: [String: Date] = [:]
     public var failedAttemptsCount: [String: Int] = [:]
 
-    private init() {}
+    public init() {}
 
     public func resolveCapabilities(for modelId: String) -> ModelCapabilities {
         return AgentModelAdapter.shared.specification(for: modelId).capabilities

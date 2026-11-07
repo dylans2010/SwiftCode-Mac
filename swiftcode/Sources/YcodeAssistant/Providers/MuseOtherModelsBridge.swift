@@ -681,3 +681,71 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
         return String(json.dropFirst().dropLast())
     }
 }
+
+
+// MARK: - MuseOtherModelsProxyError & MuseOtherModelsProxyController
+
+/// Why the other-models proxy could not start.
+public enum MuseOtherModelsProxyError: Error, Sendable, Equatable, LocalizedError {
+    /// No `muse` executable was found: other-model mode cannot
+    /// run without the Muse host it points at.
+    case museNotFound
+    /// No loopback port could be bound (the default port is taken
+    /// AND no free port could be bound). The string is the
+    /// underlying bind error's description.
+    case proxyUnavailable(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .museNotFound:
+            return "Other-model mode needs the 'muse' CLI executable, which was not found. Install the Muse Code CLI and sign in once by running `muse` in Terminal."
+        case .proxyUnavailable(let detail):
+            return "The other-models proxy could not start: \(detail)"
+        }
+    }
+}
+
+public actor MuseOtherModelsProxyController {
+    public static let shared = MuseOtherModelsProxyController()
+
+    private let proxy = MuseLocalProxyServer()
+
+    public init() {}
+
+    /// Whether the proxy is running (other-model mode is on).
+    public var isEnabled: Bool { proxy.isRunning }
+    /// The running proxy's real URL, or nil when it is stopped.
+    /// The host hands this to the provider as `proxyBaseURL`.
+    public var proxyBaseURL: String? { proxy.serverURL?.absoluteString }
+    /// The model the running proxy serves, or nil when stopped.
+    public var activeModel: MuseOtherModelResolution? { proxy.activeModel }
+
+    /// The mode predicate: either toggle turns other-model mode on.
+    public static func isOtherModelModeEnabled(
+        otherModelsWithMetaSDK: Bool,
+        swiftCodeCloudWithMetaSDK: Bool
+    ) -> Bool {
+        otherModelsWithMetaSDK || swiftCodeCloudWithMetaSDK
+    }
+
+    /// Starts the proxy for `resolution`.
+    @discardableResult
+    public func enable(
+        resolution: MuseOtherModelResolution,
+        executable: URL?,
+        port: UInt16 = MuseLocalProxyServer.defaultPort,
+        streamChat: @escaping MuseLocalProxyServer.StreamChat
+    ) throws -> URL {
+        guard executable != nil else { throw MuseOtherModelsProxyError.museNotFound }
+        do {
+            return try proxy.start(active: resolution, port: port, streamChat: streamChat)
+        } catch {
+            throw MuseOtherModelsProxyError.proxyUnavailable(error.localizedDescription)
+        }
+    }
+
+    /// Stops the proxy.
+    public func disable() {
+        proxy.stop()
+    }
+}
