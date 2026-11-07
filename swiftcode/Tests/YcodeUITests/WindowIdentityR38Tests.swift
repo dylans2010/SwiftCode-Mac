@@ -1,0 +1,141 @@
+import AppKit
+import Foundation
+import Testing
+import YcodeProject
+@testable import YcodeUI
+
+@MainActor
+@Suite(.serialized) struct WindowIdentityR38Tests {
+    let r32 = WindowChromeR32Tests()
+
+    @Test func titleSurvivesTheDocumentMachinery() throws {
+        let dir = try LaunchWelcomeR31Tests().tempDir("r38-title")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let proj = try LaunchWelcomeR31Tests().iosApp(in: dir)
+        let wc = try LaunchWelcomeR31Tests().window(proj)
+        let doc = WorkspaceDocument()
+        doc.addWindowController(wc)
+        #expect(wc.window?.title == "Tour \u{2014} Tour.xcodeproj")
+        wc.synchronizeWindowTitleWithDocumentName()
+        #expect(wc.window?.title == "Tour \u{2014} Tour.xcodeproj")
+
+        let file = try #require(wc.session.model.root.allFiles.first { $0.name == "ContentView.swift" }?.path)
+        wc.open(path: file, line: nil)
+        #expect(wc.window?.title == "Tour \u{2014} ContentView.swift")
+        wc.synchronizeWindowTitleWithDocumentName()
+        #expect(wc.window?.title == "Tour \u{2014} ContentView.swift")
+        wc.editor.textView.insertText("// edit\n", replacementRange: NSRange(location: 0, length: 0))
+        wc.saveDocument(nil)
+        #expect(wc.window?.title == "Tour \u{2014} ContentView.swift")
+        wc.newTab(nil)
+        #expect(wc.window?.title == "Tour \u{2014} Tour.xcodeproj")
+        wc.selectPreviousTab(nil)
+        #expect(wc.window?.title == "Tour \u{2014} ContentView.swift")
+        wc.selectNextTab(nil)
+        wc.closeTab(nil)
+        #expect(wc.window?.title == "Tour \u{2014} ContentView.swift")
+        wc.closeDocument(nil)
+        #expect(wc.window?.title == "Tour \u{2014} Tour.xcodeproj")
+        doc.removeWindowController(wc)
+    }
+
+    @Test func packageTitleAndOtherEditorsNameTheFileWithItsExtension() throws {
+        let dir = try r32.package("r38-pkg-title")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let plist = dir.appendingPathComponent("Sources/Chrome/Data.plist")
+        try "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict/>\n</plist>\n".write(to: plist, atomically: true, encoding: .utf8)
+        let wc = try r32.window(dir)
+        let doc = WorkspaceDocument()
+        doc.addWindowController(wc)
+        let name = dir.lastPathComponent
+        #expect(wc.window?.title == "\(name) \u{2014} \(name)")
+        wc.open(path: dir.appendingPathComponent("Sources/Chrome/Model.swift").path, line: nil)
+        #expect(wc.window?.title == "\(name) \u{2014} Model.swift")
+        wc.open(path: plist.path, line: nil)
+        #expect(wc.editor.auxiliary != nil && wc.editor.auxiliaryFile?.lastPathComponent == "Data.plist")
+        #expect(wc.window?.title == "\(name) \u{2014} Data.plist")
+        doc.removeWindowController(wc)
+    }
+
+    @Test func looseFilesOpenAsSingleFilesOrInTheirWorkspace() throws {
+        let dir = try r32.package("r38-loose")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = dir.appendingPathComponent("Sources/Chrome/Model.swift")
+        let loose = try LaunchWelcomeR31Tests().tempDir("r38-loose-file").appendingPathComponent("Notes.swift")
+        try "let note = 1\n\tlet tabbed = 2\n".write(to: loose, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: loose.deletingLastPathComponent()) }
+
+        _ = NSApplication.shared
+        let dc = SwiftCodeDocumentController()
+        #expect(try dc.typeForContents(of: dir) == WorkspaceDocument.typeName)
+        #expect(try dc.typeForContents(of: dir.appendingPathComponent("Package.swift")) == WorkspaceDocument.typeName)
+        #expect(try dc.typeForContents(of: URL(fileURLWithPath: "/p/App.xcodeproj")) == WorkspaceDocument.typeName)
+        #expect(try dc.typeForContents(of: loose) == SourceFileDocument.typeName)
+        #expect(dc.documentClass(forType: SourceFileDocument.typeName) == SourceFileDocument.self)
+        #expect(dc.documentClass(forType: WorkspaceDocument.typeName) == WorkspaceDocument.self)
+
+        let wc = try r32.window(dir)
+        #expect(SwiftCodeDocumentController.workspaceWindow(containing: model, among: [wc]) === wc)
+        #expect(SwiftCodeDocumentController.workspaceWindow(containing: loose, among: [wc]) == nil)
+
+        let doc = try SourceFileDocument(contentsOf: loose, ofType: SourceFileDocument.typeName)
+        doc.makeWindowControllers()
+        let fw = try #require(doc.fileWindowController)
+        #expect(fw.window?.title == "Notes.swift")
+        #expect(fw.editor.fileURL?.path == loose.path && fw.editor.text.hasPrefix("let note"))
+        #expect(fw.editor.jumpBarTitles.contains("Notes") && !fw.editor.showsNoDocument)
+        #expect(fw.window?.contentViewController === fw.editor)
+        fw.editor.textView.insertText("// x\n", replacementRange: NSRange(location: 0, length: 0))
+        fw.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+        #expect(try String(contentsOf: loose, encoding: .utf8).hasPrefix("// x\n"))
+        doc.close()
+
+        let bin = loose.deletingLastPathComponent().appendingPathComponent("blob.bin")
+        try Data([0xff, 0xfe, 0x00, 0xd8, 0x00]).write(to: bin)
+        #expect(throws: CocoaError.self) { _ = try SourceFileDocument(contentsOf: bin, ofType: SourceFileDocument.typeName) }
+    }
+
+    @Test func firstOpenShowsAnEmptyEditorUnderNoSelection() throws {
+        let dir = try r32.package("r38-first")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let wc = try r32.window(dir)
+        let win = try #require(wc.window)
+        win.contentView?.layoutSubtreeIfNeeded()
+        let e = wc.editor
+        #expect(e.jumpBarTitles == ["Navigate to Related Items", "No Selection"])
+        #expect(e.emptyView == nil && e.fileURL == nil && e.showsNoDocument)
+        #expect(!e.scrollView.rulersVisible && !e.textView.isEditable)
+        let area = wc.editorArea.view.convert(wc.editorArea.view.bounds, to: nil)
+        let bar = e.jumpBar.convert(e.jumpBar.bounds, to: nil)
+        #expect(abs(bar.maxY - (area.maxY - wc.editorArea.view.safeAreaInsets.top)) < 0.5)
+        e.scrollView.rulersVisible = true
+        win.contentView?.layoutSubtreeIfNeeded()
+        #expect(e.gutter.clipsToBounds && e.scrollView.clipsToBounds)
+        let frame = try #require(win.contentView?.superview)
+        let rep = try #require(frame.bitmapImageRepForCachingDisplay(in: frame.bounds))
+        frame.cacheDisplay(in: frame.bounds, to: rep)
+        let scale = CGFloat(rep.pixelsWide) / frame.bounds.width
+        let gutterEdge = e.gutter.convert(e.gutter.bounds, to: nil).maxX
+        func pixel(_ x: CGFloat) -> NSColor? {
+            rep.colorAt(x: Int(x * scale), y: Int((frame.bounds.height - (bar.maxY - 3)) * scale))
+        }
+        let edge = try #require(pixel(gutterEdge - 0.5)), plain = try #require(pixel(gutterEdge + 12))
+        #expect(edge.isClose(to: plain))
+
+        wc.open(path: dir.appendingPathComponent("Sources/Chrome/Model.swift").path, line: nil)
+        #expect(!e.showsNoDocument && e.scrollView.rulersVisible && e.textView.isEditable)
+        wc.newTab(nil)
+        #expect(wc.editor.emptyView != nil)
+        let tabEmpty = try #require(wc.editor.emptyView)
+        wc.window?.contentView?.layoutSubtreeIfNeeded()
+        #expect(tabEmpty.frame.maxY <= wc.editor.jumpBar.frame.minY + 0.5)
+    }
+}
+
+extension NSColor {
+    func isClose(to o: NSColor, tolerance: CGFloat = 0.02) -> Bool {
+        guard let a = usingColorSpace(.deviceRGB), let b = o.usingColorSpace(.deviceRGB) else { return false }
+        return abs(a.redComponent - b.redComponent) <= tolerance && abs(a.greenComponent - b.greenComponent) <= tolerance
+            && abs(a.blueComponent - b.blueComponent) <= tolerance
+    }
+}

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import SwiftCodeAssistant
+import YcodeAssistant
 @testable import SwiftCodeCloud
 
 @MainActor

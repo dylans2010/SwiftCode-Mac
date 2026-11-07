@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodeSubprocess
+import YcodeSubprocess
 
 public struct InstalledPackage: Sendable {
     public let directory: URL

@@ -1,0 +1,350 @@
+#if os(macOS)
+import AppKit
+import Accelerate
+import Compression
+import Foundation
+import ImageIO
+import YcodeDisplayStream
+
+final class FrameCanvas: @unchecked Sendable {
+    let width: Int, height: Int
+    let context: CGContext
+
+    init?(width: Int, height: Int) {
+        guard width > 0, height > 0,
+              let c = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        self.width = width
+        self.height = height
+        context = c
+        c.setFillColor(gray: 0, alpha: 1)
+        c.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        c.interpolationQuality = .none
+    }
+
+    func apply(_ tile: DisplayTile, encoding: DisplayEncoding) -> Bool {
+        applyAll([tile], encoding: encoding)
+    }
+
+    func applyAll(_ tiles: [DisplayTile], encoding: DisplayEncoding) -> Bool {
+        let ok = TileFlags(count: tiles.count)
+        let fallback = FallbackImages(count: tiles.count)
+        let work: @Sendable (Int) -> Void = { i in
+            let tile = tiles[i]
+            guard tile.width > 0, tile.height > 0, tile.x + tile.width <= self.width, tile.y + tile.height <= self.height else { return }
+            switch encoding {
+            case .jpeg:
+                guard let image = Self.decodeJPEG(tile.data) else { return }
+                if self.copyPixels(of: image, to: tile) { ok.set(i) } else { fallback.set(i, image) }
+            case .zlibBGRA:
+                if self.inflate(tile) { ok.set(i) }
+            case .h264, .hevc, .hevc444:
+                return
+            }
+        }
+        if tiles.count == 1 { work(0) } else { DispatchQueue.concurrentPerform(iterations: tiles.count, execute: work) }
+        for (i, image) in fallback.images.enumerated() {
+            guard let image else { continue }
+            let t = tiles[i]
+            context.draw(image, in: CGRect(x: t.x, y: height - t.y - t.height, width: t.width, height: t.height))
+            ok.set(i)
+        }
+        return ok.all
+    }
+
+    static func decodeJPEG(_ data: [UInt8]) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(Data(data) as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+    }
+
+    private func copyPixels(of image: CGImage, to tile: DisplayTile) -> Bool {
+        guard image.width == tile.width, image.height == tile.height, image.bitsPerComponent == 8, image.bitsPerPixel == 32,
+              let base = context.data, let data = image.dataProvider?.data, let src = CFDataGetBytePtr(data) else { return false }
+        let alpha = image.alphaInfo, order = image.bitmapInfo.intersection(.byteOrderMask)
+        let map: (Int, Int, Int)
+        switch (alpha, order) {
+        case (.noneSkipLast, .byteOrder32Big), (.noneSkipLast, []), (.premultipliedLast, .byteOrder32Big), (.premultipliedLast, []):
+            map = (2, 1, 0)
+        case (.noneSkipFirst, .byteOrder32Little), (.premultipliedFirst, .byteOrder32Little):
+            map = (0, 1, 2)
+        case (.noneSkipFirst, .byteOrder32Big), (.noneSkipFirst, []), (.premultipliedFirst, .byteOrder32Big), (.premultipliedFirst, []):
+            map = (3, 2, 1)
+        default:
+            return false
+        }
+        let srcRow = image.bytesPerRow, dstRow = context.bytesPerRow
+        let dst = base.assumingMemoryBound(to: UInt8.self)
+        var sb = vImage_Buffer(data: UnsafeMutableRawPointer(mutating: src), height: vImagePixelCount(tile.height),
+                               width: vImagePixelCount(tile.width), rowBytes: srcRow)
+        var db = vImage_Buffer(data: dst + tile.y * dstRow + tile.x * 4, height: vImagePixelCount(tile.height),
+                               width: vImagePixelCount(tile.width), rowBytes: dstRow)
+        let fourth = 6 - map.0 - map.1 - map.2
+        let permute: [UInt8] = [UInt8(map.0), UInt8(map.1), UInt8(map.2), UInt8(fourth)]
+        return vImagePermuteChannels_ARGB8888(&sb, &db, permute, vImage_Flags(kvImageDoNotTile)) == kvImageNoError
+    }
+
+    private func inflate(_ tile: DisplayTile) -> Bool {
+        let count = tile.width * tile.height * 4
+        guard tile.data.count > 6, let base = context.data else { return false }
+        var pixels = [UInt8](repeating: 0, count: count)
+        let n = tile.data.withUnsafeBufferPointer { src in
+            compression_decode_buffer(&pixels, count, src.baseAddress! + 2, src.count - 6, nil, COMPRESSION_ZLIB)
+        }
+        guard n == count else { return false }
+        let rowBytes = context.bytesPerRow
+        pixels.withUnsafeBytes { p in
+            for row in 0..<tile.height {
+                memcpy(base + (tile.y + row) * rowBytes + tile.x * 4, p.baseAddress! + row * tile.width * 4, tile.width * 4)
+            }
+        }
+        return true
+    }
+
+    func image() -> CGImage? { context.makeImage() }
+
+    func image(rotation: Int) -> CGImage? {
+        let turns = (((rotation % 360) + 360) % 360) / 90
+        guard turns != 0, let data = context.data else { return image() }
+        let (w, h) = turns % 2 == 1 ? (height, width) : (width, height)
+        let out = UnsafeMutableRawPointer.allocate(byteCount: w * h * 4, alignment: 64)
+        var src = vImage_Buffer(data: data, height: vImagePixelCount(height), width: vImagePixelCount(width), rowBytes: context.bytesPerRow)
+        var dst = vImage_Buffer(data: out, height: vImagePixelCount(h), width: vImagePixelCount(w), rowBytes: w * 4)
+        let constant: Int = turns == 1 ? kRotate90DegreesClockwise : turns == 2 ? kRotate180DegreesClockwise : kRotate270DegreesClockwise
+        var black: [UInt8] = [0, 0, 0, 0xFF]
+        guard vImageRotate90_ARGB8888(&src, &dst, UInt8(constant), &black, vImage_Flags(kvImageNoFlags)) == kvImageNoError,
+              let provider = CGDataProvider(dataInfo: nil, data: out, size: w * h * 4, releaseData: { _, p, _ in p.deallocate() })
+        else { out.deallocate(); return nil }
+        return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                       space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+    }
+}
+
+private final class TileFlags: @unchecked Sendable {
+    private var flags: [Bool]
+    private let lock = NSLock()
+    init(count: Int) { flags = [Bool](repeating: false, count: count) }
+    func set(_ i: Int) { lock.withLock { flags[i] = true } }
+    var all: Bool { lock.withLock { !flags.contains(false) } }
+}
+
+private final class FallbackImages: @unchecked Sendable {
+    private var slots: [CGImage?]
+    private let lock = NSLock()
+    init(count: Int) { slots = [CGImage?](repeating: nil, count: count) }
+    func set(_ i: Int, _ image: CGImage) { lock.withLock { slots[i] = image } }
+    var images: [CGImage?] { lock.withLock { slots } }
+}
+
+@MainActor
+public protocol ViewerConnectionDelegate: AnyObject {
+    func connection(_ c: ViewerConnection, phase: String, detail: String?)
+    func connection(_ c: ViewerConnection, hello: DisplayServerHello)
+    func connection(_ c: ViewerConnection, status: DisplayStatus)
+    func connection(_ c: ViewerConnection, image: CGImage, frame: DisplayFrame, receivedAt: UInt64)
+    func connection(_ c: ViewerConnection, notice: String)
+    func connection(_ c: ViewerConnection, screenshot png: [UInt8], token: UInt32)
+    func connection(_ c: ViewerConnection, pongToken token: UInt64, rttMilliseconds: Double)
+    func connection(_ c: ViewerConnection, displayState: DisplayPanelState)
+}
+
+public func nowNanoseconds() -> UInt64 { clock_gettime_nsec_np(CLOCK_UPTIME_RAW) }
+
+public final class ViewerConnection: @unchecked Sendable {
+    public let address: DisplayAddress
+    public private(set) var settings: DisplayClientHello
+    public weak var delegate: ViewerConnectionDelegate?
+    private let lock = NSLock()
+    private var connection: DisplayTransport?
+    private let connector: (@Sendable () throws -> DisplayTransport)?
+    private var stopped = false
+    private var inputSequence: UInt32 = 0
+    private var pings: [UInt64: UInt64] = [:]
+    private var nextCommand: UInt32 = 0
+    private var commandReplies: [UInt32: @MainActor @Sendable (String) -> Void] = [:]
+    private var nextPing: UInt64 = 1
+    private var pending: (CGImage, DisplayFrame, UInt64)?
+    private var shownDisplay: String?
+    private var rotation = 0
+    private var takenOver = false
+    private var expectingTakeover = false
+
+    private(set) var bytesReceived = 0
+    private(set) var framesReceived = 0
+
+    public init(address: DisplayAddress, settings: DisplayClientHello, connector: (@Sendable () throws -> DisplayTransport)? = nil) {
+        self.address = address
+        self.settings = settings
+        self.connector = connector
+    }
+
+    public func start() {
+        let t = Thread { [self] in run() }
+        t.name = "viewer-connection"
+        t.start()
+    }
+
+    public func stop() {
+        let c = lock.withLock { () -> DisplayTransport? in stopped = true; return connection }
+        c?.close()
+    }
+
+    public var stats: (bytes: Int, frames: Int) { lock.withLock { (bytesReceived, framesReceived) } }
+
+    public func expectTakeover(_ on: Bool) { lock.withLock { expectingTakeover = on } }
+
+    public func takeBack() { lock.withLock { takenOver = false; expectingTakeover = false } }
+
+    public var isTakenOver: Bool { lock.withLock { takenOver } }
+
+    private func main(_ body: @escaping @MainActor @Sendable () -> Void) { DispatchQueue.main.async { MainActor.assumeIsolated { body() } } }
+
+    private func run() {
+        var attempt = 0
+        while !lock.withLock({ stopped }) {
+            attempt += 1
+            let detail = attempt > 1 ? "attempt \(attempt)" : nil
+            main { self.delegate?.connection(self, phase: "connecting", detail: detail) }
+            let c: DisplayTransport
+            do {
+                c = try connector?() ?? DisplayConnection.connect(to: address)
+            } catch {
+                Thread.sleep(forTimeInterval: 1)
+                continue
+            }
+            lock.withLock { connection = c }
+            try? c.send(DisplayMessage.clientHello(settings).encoded())
+            var parser = DisplayMessageParser()
+            var canvas: FrameCanvas?
+            var gotHello = false
+            while let bytes = c.receive(max: 1 << 20) {
+                lock.withLock { bytesReceived += bytes.count }
+                parser.append(bytes)
+                do {
+                    while let m = try parser.next() {
+                        if case .hello = m { gotHello = true }
+                        handle(m, canvas: &canvas)
+                    }
+                } catch {
+                    main { self.delegate?.connection(self, notice: "protocol error: \(error)") }
+                    break
+                }
+            }
+            c.close()
+            lock.withLock { connection = nil }
+            if lock.withLock({ stopped }) { break }
+            if lock.withLock({ takenOver }) {
+                let quiet = lock.withLock { expectingTakeover }
+                main { self.delegate?.connection(self, phase: DisplayNotice.takenOverPhase, detail: quiet ? "headset" : nil) }
+                while lock.withLock({ takenOver && !stopped }) { Thread.sleep(forTimeInterval: 0.02) }
+                attempt = 0
+                continue
+            }
+            main { self.delegate?.connection(self, phase: "disconnected", detail: gotHello ? "the device stopped or the link dropped" : nil) }
+            Thread.sleep(forTimeInterval: 1)
+        }
+    }
+
+    private func handle(_ m: DisplayMessage, canvas: inout FrameCanvas?) {
+        switch m {
+        case .hello(let h):
+            main { self.delegate?.connection(self, hello: h) }
+        case .status(let s):
+            main { self.delegate?.connection(self, status: s) }
+        case .notice(let text):
+            if text == DisplayNotice.takenOver {
+                let quiet = lock.withLock { () -> Bool in takenOver = true; return expectingTakeover }
+                if quiet { return }
+            }
+            main { self.delegate?.connection(self, notice: text) }
+        case .displayState(let state):
+            if lock.withLock({ () -> Bool in
+                defer { rotation = state.rotation; pending = nil }
+                return shownDisplay != state.display
+            }) { canvas = nil }
+            lock.withLock { shownDisplay = state.display }
+            main { self.delegate?.connection(self, displayState: state) }
+        case .screenshot(let token, let png):
+            main { self.delegate?.connection(self, screenshot: png, token: token) }
+        case .commandReply(let token, let text):
+            let done = lock.withLock { commandReplies.removeValue(forKey: token) }
+            if let done { main { done(text) } }
+        case .pong(let token, _):
+            let sent = lock.withLock { pings.removeValue(forKey: token) }
+            if let sent {
+                let rtt = Double(nowNanoseconds() - sent) / 1e6
+                main { self.delegate?.connection(self, pongToken: token, rttMilliseconds: rtt) }
+            }
+        case .frame(let f):
+            let received = nowNanoseconds()
+            if canvas == nil || canvas!.width != f.width || canvas!.height != f.height {
+                canvas = FrameCanvas(width: f.width, height: f.height)
+                if !f.isFull { send(.keyframeRequest) }
+            }
+            guard let canvas else { return }
+            if !canvas.applyAll(f.tiles, encoding: f.encoding) { send(.keyframeRequest) }
+            lock.withLock { framesReceived += 1 }
+            guard let image = canvas.image(rotation: lock.withLock { rotation }) else { return }
+            let post = lock.withLock { () -> Bool in
+                defer { pending = (image, f, received) }
+                return pending == nil
+            }
+            if post {
+                main {
+                    guard let p = self.lock.withLock({ () -> (CGImage, DisplayFrame, UInt64)? in
+                        defer { self.pending = nil }
+                        return self.pending
+                    }) else { return }
+                    self.delegate?.connection(self, image: p.0, frame: p.1, receivedAt: p.2)
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    @discardableResult
+    public func send(_ m: DisplayMessage) -> Bool {
+        guard let c = lock.withLock({ connection }) else { return false }
+        do { try c.send(m.encoded()) } catch { return false }
+        return true
+    }
+
+    @discardableResult
+    public func sendInput(_ make: (UInt32) -> DisplayInput) -> UInt32 {
+        let seq = lock.withLock { () -> UInt32 in inputSequence &+= 1; return inputSequence }
+        return send(.input(make(seq))) ? seq : 0
+    }
+
+    public func ping() {
+        let token = lock.withLock { () -> UInt64 in
+            nextPing += 1
+            pings[nextPing] = nowNanoseconds()
+            if pings.count > 32 { pings.removeAll() }
+            return nextPing
+        }
+        send(.ping(token: token))
+    }
+
+    public func sendCommand(_ text: String, reply: @escaping @MainActor @Sendable (String) -> Void) {
+        let token = lock.withLock { () -> UInt32 in
+            nextCommand &+= 1
+            commandReplies[nextCommand] = reply
+            return nextCommand
+        }
+        if !send(.command(token: token, text: text)) {
+            _ = lock.withLock { commandReplies.removeValue(forKey: token) }
+            main { reply("error: not connected") }
+        }
+    }
+
+    public func updateSettings(_ s: DisplayClientHello) {
+        settings = s
+        send(.clientHello(s))
+    }
+}
+
+#endif

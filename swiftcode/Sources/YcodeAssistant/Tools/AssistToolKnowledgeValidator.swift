@@ -1,0 +1,134 @@
+import Foundation
+import os
+
+@MainActor
+public final class AssistToolKnowledgeValidator: Sendable {
+    public static let shared = AssistToolKnowledgeValidator()
+
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistToolKnowledgeValidator")
+
+    private init() {}
+
+    public func runAllTests() async -> [RuntimeTestCaseResult] {
+        var results: [RuntimeTestCaseResult] = []
+        results.append(await testCatalogPresent())
+        results.append(await testAllRegisteredToolsDocumented())
+        results.append(await testNoOrphanedToolDocumentation())
+        results.append(await testSafeguardsBaselinePresent())
+        results.append(await testIndexReferencesExpectedDocuments())
+        return results
+    }
+
+    private func loadAsset(_ relativePath: String) -> String? {
+        SystemIndexService.shared.bundledText(forRelativePath: relativePath)
+    }
+
+    private func catalogToolIds(in catalog: String) -> [String] {
+        var ids: [String] = []
+        let sections = catalog.components(separatedBy: "## Cloud Toolkit")
+        let localCatalog = sections.first ?? catalog
+        for line in localCatalog.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("## Cloud Toolkit") { break }
+            guard trimmed.hasPrefix("- `") else { continue }
+            let afterTick = trimmed.dropFirst(3)
+            guard let end = afterTick.firstIndex(of: "`") else { continue }
+            let id = String(afterTick[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty, id.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else { continue }
+            ids.append(id)
+        }
+        return ids
+    }
+
+    private func result(testName: String, passed: Bool, message: String, start: Date) -> RuntimeTestCaseResult {
+        RuntimeTestCaseResult(
+            testName: testName,
+            passed: passed,
+            message: message,
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    private func testCatalogPresent() async -> RuntimeTestCaseResult {
+        let start = Date()
+        guard let catalog = loadAsset("AvailableTools.md"), !catalog.isEmpty else {
+            return result(testName: "Tool Knowledge: Catalog Present", passed: false,
+                          message: "AvailableTools.md not found in bundled System Assets.", start: start)
+        }
+        guard let procedures = loadAsset("CallTool.md"), !procedures.isEmpty else {
+            return result(testName: "Tool Knowledge: Catalog Present", passed: false,
+                          message: "CallTool.md not found in bundled System Assets.", start: start)
+        }
+        return result(testName: "Tool Knowledge: Catalog Present", passed: true,
+                      message: "Catalog (\(catalog.count) chars) and procedures (\(procedures.count) chars) present.", start: start)
+    }
+
+    private func testAllRegisteredToolsDocumented() async -> RuntimeTestCaseResult {
+        let start = Date()
+        guard let catalog = loadAsset("AvailableTools.md") else {
+            return result(testName: "Tool Knowledge: Tools Documented", passed: false,
+                          message: "AvailableTools.md unavailable.", start: start)
+        }
+        let documented = Set(catalogToolIds(in: catalog))
+        let registry = AssistToolRegistry()
+        let missing = registry.allTools.map(\.id).filter { !documented.contains($0) }.sorted()
+        if missing.isEmpty {
+            return result(testName: "Tool Knowledge: Tools Documented", passed: true,
+                          message: "All \(registry.allTools.count) registered tools documented in AvailableTools.md.", start: start)
+        }
+        return result(testName: "Tool Knowledge: Tools Documented", passed: false,
+                      message: "Undocumented tools: \(missing.joined(separator: ", "))", start: start)
+    }
+
+    private func testNoOrphanedToolDocumentation() async -> RuntimeTestCaseResult {
+        let start = Date()
+        guard let catalog = loadAsset("AvailableTools.md") else {
+            return result(testName: "Tool Knowledge: No Orphan Docs", passed: false,
+                          message: "AvailableTools.md unavailable.", start: start)
+        }
+        let documented = catalogToolIds(in: catalog)
+        let registry = AssistToolRegistry()
+        let registeredIds = Set(registry.allTools.map(\.id))
+        let orphans = documented.filter { !registeredIds.contains($0) }.sorted()
+        if orphans.isEmpty {
+            return result(testName: "Tool Knowledge: No Orphan Docs", passed: true,
+                          message: "No catalog entry refers to an unregistered tool.", start: start)
+        }
+        return result(testName: "Tool Knowledge: No Orphan Docs", passed: false,
+                      message: "Orphaned doc entries: \(orphans.joined(separator: ", "))", start: start)
+    }
+
+    private func testSafeguardsBaselinePresent() async -> RuntimeTestCaseResult {
+        let start = Date()
+        guard let safeguards = loadAsset("Safeguards.md"), !safeguards.isEmpty else {
+            return result(testName: "Tool Knowledge: Safeguards Baseline", passed: false,
+                          message: "Safeguards.md not found in bundled System Assets.", start: start)
+        }
+        let lower = safeguards.lowercased()
+        let required = ["credential", "destructive"]
+        let missing = required.filter { !lower.contains($0) }
+        if missing.isEmpty {
+            return result(testName: "Tool Knowledge: Safeguards Baseline", passed: true,
+                          message: "Safeguards.md present (\(safeguards.count) chars).", start: start)
+        }
+        return result(testName: "Tool Knowledge: Safeguards Baseline", passed: false,
+                      message: "Safeguards.md missing expected topics: \(missing.joined(separator: ", ")).", start: start)
+    }
+
+    private func testIndexReferencesExpectedDocuments() async -> RuntimeTestCaseResult {
+        let start = Date()
+        guard let index = loadAsset("AgentSystemAsset.md"), !index.isEmpty else {
+            return result(testName: "Tool Knowledge: Index Coherent", passed: false,
+                          message: "AgentSystemAsset.md not found in bundled System Assets.", start: start)
+        }
+        let expected = ["Identity.md", "Safeguards.md", "CallTool.md", "AvailableTools.md",
+                        "Contexts.md", "ErrorHandling.md", "Authentication.md"]
+        let missing = expected.filter { !index.contains($0) }
+        if missing.isEmpty {
+            return result(testName: "Tool Knowledge: Index Coherent", passed: true,
+                          message: "AgentSystemAsset.md references all expected documents.", start: start)
+        }
+        return result(testName: "Tool Knowledge: Index Coherent", passed: false,
+                      message: "Index missing references: \(missing.joined(separator: ", ")).", start: start)
+    }
+}

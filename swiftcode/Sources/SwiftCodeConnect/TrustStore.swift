@@ -2,7 +2,7 @@ import Foundation
 import Network
 import os.log
 
-import SwiftCodeAssistant
+import YcodeAssistant
 
 public struct TrustedDevice: Codable, Identifiable, Sendable {
     public let id: String

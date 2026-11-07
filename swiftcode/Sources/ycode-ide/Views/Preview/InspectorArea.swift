@@ -1,0 +1,177 @@
+import Foundation
+import SwiftUI
+import YcodeIDECore
+import YcodeIDEShell
+
+struct InspectorColumn: View {
+    var model: WorkspaceShellModel
+    @State private var assetTab = false
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let c = ShellColors(scheme)
+        VStack(spacing: 0) {
+            InspectorToolbar(model: model)
+            let ibTab = ibModel?.inspectorTab
+            let tab = ibTab.map { 3 + $0.rawValue }
+                ?? (assetTab && assetModel != nil ? AssetInspectorTab.index : model.languageFeatures.inspectorTab.rawValue)
+            let extras = ibModel != nil ? IBInspectorTab.allCases.map(\.symbol) : assetModel != nil ? [AssetInspectorTab.symbol] : []
+            InspectorTabs(selected: tab, extras: extras) { i in
+                if let ib = ibModel {
+                    ib.inspectorTab = IBInspectorTab(rawValue: i - 3)
+                    if i < 3 { model.showInspector(ShellLanguageFeatures.InspectorTab(rawValue: i) ?? .file) }
+                    return
+                }
+                assetTab = i == AssetInspectorTab.index
+                if !assetTab { model.showInspector(ShellLanguageFeatures.InspectorTab(rawValue: i) ?? .file) }
+            }
+                .padding(.horizontal, CGFloat(WorkspaceChrome.selectorInset))
+            Group {
+                if let ib = ibModel, let t = ibTab {
+                    IBInspectorView(model: ib, tab: t)
+                } else if tab == AssetInspectorTab.index, let a = assetModel {
+                    AssetAttributesInspector(model: a)
+                } else if tab == 2 {
+                    QuickHelpInspector(model: model)
+                } else if tab == 1 {
+                    FileHistoryInspector(model: model)
+                } else if tab == 0, model.sourceControl.pane != nil {
+                    SourceControlInspector(scm: model.sourceControl)
+                } else if tab != 0 {
+                    centered("No Quick Help", c)
+                } else if model.document == nil {
+                    centered("Not Applicable", c)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(model.fileInspector.enumerated()), id: \.offset) { pair in
+                            if pair.offset > 0 {
+                                Hairline(color: c.separator).padding(.top, 10).padding(.bottom, 8)
+                            }
+                            section(pair.element, c)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, CGFloat(WorkspaceChrome.inspectorContentInset))
+                    .padding(.top, CGFloat(WorkspaceChrome.inspectorContentTopInset))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .shellTarget("inspector")
+        .onChange(of: assetModel != nil) { _, on in assetTab = on }
+        .onAppear { if assetModel != nil { assetTab = true } }
+    }
+
+    var assetModel: AssetCatalogEditorModel? {
+        if case .assetCatalog(let m)? = model.structuredEditor { return m }
+        return nil
+    }
+
+    var ibModel: InterfaceBuilderShellModel? {
+        if case .interfaceBuilder(let m)? = model.structuredEditor { return m }
+        return nil
+    }
+
+    func centered(_ s: String, _ c: ShellColors) -> some View {
+        Text(verbatim: s).font(Font.system(size: 13)).foregroundStyle(c.secondaryLabel)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.top, -(CGFloat(WorkspaceChrome.toolbarHeight) + CGFloat(WorkspaceChrome.selectorHeight)))
+    }
+
+    func section(_ s: InspectorSection, _ c: ShellColors) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(verbatim: s.title).font(ShellFonts.smallBold).tracking(ShellFonts.smallTracking).foregroundStyle(c.label)
+                .padding(.bottom, 2)
+            ForEach(Array(s.rows.enumerated()), id: \.offset) { pair in
+                row(pair.element, c)
+            }
+        }
+    }
+
+    func row(_ r: InspectorRow, _ c: ShellColors) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: CGFloat(WorkspaceChrome.inspectorKeyToValue)) {
+            Text(verbatim: r.key).font(ShellFonts.small).tracking(ShellFonts.smallTracking).foregroundStyle(c.secondaryLabel)
+                .frame(width: CGFloat(WorkspaceChrome.inspectorKeyColumnWidth), alignment: .trailing)
+            value(r.value, c)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    func value(_ v: InspectorRow.Value, _ c: ShellColors) -> some View {
+        switch v {
+        case .field(let s):
+            Text(verbatim: s).font(ShellFonts.small).tracking(ShellFonts.smallTracking).foregroundStyle(c.label).lineLimit(1)
+                .padding(.horizontal, 6)
+                .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(c.fieldFill)
+                        .overlay { RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(c.fieldStroke, lineWidth: 1) }
+                }
+        case .popUp(let s, let button):
+            HStack(spacing: 6) {
+                PopUpLook(title: s)
+                if let button { Image(systemName: button).font(.system(size: 12)).foregroundStyle(c.secondaryLabel) }
+            }
+        case .label(let s, let bold):
+            Text(verbatim: s).font(bold ? ShellFonts.smallBold : ShellFonts.small).foregroundStyle(c.label).lineLimit(1)
+        case .path(let s, let button):
+            HStack(alignment: .center, spacing: 6) {
+                Text(verbatim: s).font(ShellFonts.small).tracking(ShellFonts.smallTracking).foregroundStyle(c.label).lineLimit(12)
+                    .frame(width: 132, alignment: .leading)
+                Spacer(minLength: 0)
+                Image(systemName: button).font(.system(size: 12)).foregroundStyle(c.secondaryLabel)
+            }
+        case .steppers(let list):
+            HStack(spacing: 12) {
+                ForEach(Array(list.enumerated()), id: \.offset) { pair in
+                    VStack(spacing: 1) {
+                        HStack(spacing: 4) {
+                            Text(verbatim: "\(pair.element.value)").font(ShellFonts.small).tracking(ShellFonts.smallTracking).foregroundStyle(c.label)
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(c.secondaryLabel)
+                                .frame(width: 14, height: 18)
+                                .background { Capsule(style: .continuous).stroke(c.fieldStroke, lineWidth: 1) }
+                        }
+                        Text(verbatim: pair.element.title).font(.system(size: 9)).foregroundStyle(c.secondaryLabel)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct InspectorTabs: View {
+    var selected: Int
+    var extras: [String] = []
+    var select: (Int) -> Void
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let c = ShellColors(scheme)
+        let pill = WorkspaceChrome.inspectorTabPillSize
+        HStack(spacing: 0) {
+            ForEach(Array((WorkspaceChrome.inspectorSymbols + extras).enumerated()), id: \.offset) { pair in
+                let on = pair.offset == selected
+                let width: CGFloat = extras.isEmpty ? CGFloat(pill.width) : extras.count == 1 ? 58 : 30
+                Button { select(pair.offset) } label: {
+                    ZStack {
+                        if on { Capsule(style: .continuous).fill(c.selectorPill).frame(width: width, height: CGFloat(pill.height)) }
+                        Image(systemName: pair.element).font(.system(size: 13)).foregroundStyle(on ? c.accent : c.toolbarIcon)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: CGFloat(WorkspaceChrome.selectorHeight))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(pair.offset < 3 ? ["Show the File inspector", "Show the History inspector", "Show the Quick Help inspector"][pair.offset]
+                      : extras.count == 1 ? "Show the Attributes inspector" : "Show the \(IBInspectorTab(rawValue: pair.offset - 3)?.title ?? "") inspector")
+                .shellTarget("inspector tab \(pair.offset)")
+            }
+        }
+        .padding(.horizontal, 3)
+        .frame(height: CGFloat(WorkspaceChrome.selectorHeight))
+        .background { GlassCapsule(height: CGFloat(WorkspaceChrome.selectorHeight)) }
+    }
+}

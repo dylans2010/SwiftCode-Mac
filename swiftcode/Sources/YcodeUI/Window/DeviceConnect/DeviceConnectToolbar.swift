@@ -1,0 +1,115 @@
+import YcodeDeviceModel
+import YcodeXcodebuild
+import SwiftUI
+
+public struct DeviceConnectToolbar: View {
+    @State private var deviceManager = DeviceManager.shared
+    @State private var deploymentManager = DeploymentManager.shared
+    @State private var environmentManager = EnvironmentManager.shared
+    @State private var runtimeManager = DeviceConnectRuntimeManager.shared
+
+    public init() {}
+
+    public var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "iphone")
+                    .foregroundStyle(.blue)
+                Text(deviceManager.selectedDevice?.name ?? "No Device Target")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(NSColor.windowBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            Button(action: {
+                Task {
+                    await deviceManager.refreshDevices()
+                }
+            }) {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .disabled(deviceManager.isDiscovering)
+
+            Button(action: {
+                Task {
+                    await environmentManager.validateEnvironment()
+                }
+            }) {
+                Label("Validate Env", systemImage: "checkmark.shield")
+            }
+            .disabled(environmentManager.isValidating)
+
+            Divider()
+                .frame(height: 20)
+
+            Button(action: {
+                triggerDeploymentRun()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "play.fill")
+                    Text("Run")
+                }
+                .foregroundStyle(.green)
+            }
+            .disabled(deviceManager.selectedDevice == nil || deploymentManager.isDeploying)
+
+            Button(action: {
+                stopDeploymentRun()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "stop.fill")
+                    Text("Stop")
+                }
+                .foregroundStyle(.red)
+            }
+            .disabled(!deploymentManager.isDeploying && runtimeManager.runtimeStatus != .running)
+
+            Spacer()
+
+            Button(action: {
+                Task {
+                    await environmentManager.clearDerivedData()
+                }
+            }) {
+                Label("Clear DerivedData", systemImage: "trash.slash")
+            }
+            .disabled(environmentManager.isDerivedDataClearing)
+        }
+        .padding()
+        .liquidGlass(style: .standard, cornerRadius: 0)
+    }
+
+    private func triggerDeploymentRun() {
+        guard let selected = deviceManager.selectedDevice else { return }
+
+        let api = XcodeBuildAPI.shared
+        let activeProj = api.determineActiveProject() ?? ProjectSessionStore.shared.activeProject.map { XcodeProject(url: $0.directoryURL.appendingPathComponent("\($0.name).xcodeproj"), name: $0.name, schemes: []) }
+        let projectName = api.determineProductName()
+        let projectPath = activeProj?.url.path ?? ProjectSessionStore.shared.activeProject?.directoryURL.appendingPathComponent("\(projectName).xcodeproj").path ?? ""
+        let scheme = api.determineActiveScheme()?.name ?? projectName
+        let appBundleURL = api.determineAppBundleURL() ?? URL(fileURLWithPath: "\(projectPath)/build/DerivedData/Build/Products/Debug/\(projectName).app")
+        let bundleID = api.determineBundleIdentifier()
+
+        Task {
+            await deploymentManager.startDeployment(
+                device: selected,
+                projectName: projectName,
+                projectPath: projectPath,
+                scheme: scheme,
+                appBundleURL: appBundleURL,
+                bundleIdentifier: bundleID
+            )
+        }
+    }
+
+    private func stopDeploymentRun() {
+        guard let selected = deviceManager.selectedDevice else { return }
+        let bundleID = XcodeBuildAPI.shared.determineBundleIdentifier()
+        Task {
+            _ = try? await DeviceConnectRuntimeService().stop(deviceUDID: selected.udid, bundleIdentifier: bundleID)
+            runtimeManager.stopMonitoring(deviceUDID: selected.udid)
+        }
+    }
+}

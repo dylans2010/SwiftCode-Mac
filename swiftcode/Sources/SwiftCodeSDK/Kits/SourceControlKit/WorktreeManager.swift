@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 import os.log
-import SwiftCodeSubprocess
+import YcodeSubprocess
 
 private let logger = Logger(subsystem: "com.swiftcode.git", category: "WorktreeManager")
 

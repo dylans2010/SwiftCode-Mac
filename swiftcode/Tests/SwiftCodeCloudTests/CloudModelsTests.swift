@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import SwiftCodeAssistant
+import YcodeAssistant
 @testable import SwiftCodeCloud
 
 private func hex(_ bytes: [UInt8]) -> String {

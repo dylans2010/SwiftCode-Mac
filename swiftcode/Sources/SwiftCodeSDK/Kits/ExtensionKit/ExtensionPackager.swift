@@ -1,7 +1,7 @@
 import Foundation
-import SwiftCodeAssistant
+import YcodeAssistant
 import SwiftCodeExtensions
-import SwiftCodeSubprocess
+import YcodeSubprocess
 
 public struct ExtensionPackageInfo: Sendable, Codable {
     public let extensionId: String

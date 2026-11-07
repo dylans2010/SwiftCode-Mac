@@ -1,7 +1,6 @@
 import Foundation
 import Testing
-import SwiftCodeAssistant
-@testable import SwiftCodeGoogleAuth
+import YcodeAssistant
 
 struct GoogleAntigravityParsingTests {
 

@@ -1,6 +1,6 @@
 import XCTest
 @testable import SwiftCodeSDK
-import SwiftCodeAssistant
+import YcodeAssistant
 
 final class SDKAssistHostBackendTests: XCTestCase {
 

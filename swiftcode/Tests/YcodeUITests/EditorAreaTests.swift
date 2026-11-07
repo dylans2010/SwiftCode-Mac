@@ -1,0 +1,99 @@
+import AppKit
+import Foundation
+import Testing
+@testable import YcodeIDECore
+@testable import YcodeUI
+
+private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+@MainActor
+@Suite(.serialized) struct EditorAreaTests {
+    @Test func assistantModesInWindow() throws {
+        let (wc, src) = try makeWorkspace()
+        try "#include \"c.h\"\nint d(void);\n".write(to: src.appendingPathComponent("d.c"), atomically: true, encoding: .utf8)
+        wc.session.model.root = NavigatorTree.package(at: src.deletingLastPathComponent().deletingLastPathComponent())
+        wc.open(path: src.appendingPathComponent("d.c").path, line: nil)
+        wc.toggleAssistant(nil)
+        let a = try #require(wc.editorArea.tab.assistant)
+        #expect(a.assistantModeTitles == AssistantModeCatalog.titles)
+        #expect(!a.disabledAssistantModes.contains("Includes") && a.disabledAssistantModes.contains("Disassembly"))
+        #expect(a.fileURL == nil)
+        wc.setAssistantMode(.includes)
+        #expect(a.fileURL?.lastPathComponent == "c.h" && a.counterpartTitles == ["c.h"])
+        wc.setAssistantMode(.manual)
+        wc.open(path: src.appendingPathComponent("A.swift").path, line: nil)
+        #expect(a.fileURL?.lastPathComponent == "c.h")
+        wc.setAssistantMode(.counterparts)
+        #expect(a.fileURL?.lastPathComponent == "ATests.swift")
+    }
+
+    func makeWorkspace() throws -> (WorkspaceWindowController, URL) {
+        _ = NSApplication.shared
+        let dir = swiftcodeDir.appendingPathComponent(".build-ide/editor-area")
+        try? FileManager.default.removeItem(at: dir)
+        let src = dir.appendingPathComponent("Sources/E")
+        try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
+        try "// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: \"E\", targets: [.target(name: \"E\")])\n"
+            .write(to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        for (n, t) in [("A.swift", "let a = 1\n"), ("B.swift", "let b = 2\n"), ("ATests.swift", "// tests of A\n"), ("c.h", "int c(void);\n"), ("c.c", "int c(void) { return 0; }\n")] {
+            try t.write(to: src.appendingPathComponent(n), atomically: true, encoding: .utf8)
+        }
+        let wc = WorkspaceWindowController(session: WorkspaceSession(model: try WorkspaceModel(url: dir)), loadDestinations: false, startLanguageService: false)
+        wc.window?.appearance = NSAppearance(named: .aqua)
+        wc.applyDefaultLayout()
+        return (wc, src)
+    }
+
+    @Test func tabsSplitsAndHistory() throws {
+        let (wc, src) = try makeWorkspace()
+        let a = src.appendingPathComponent("A.swift").path, b = src.appendingPathComponent("B.swift").path
+        wc.open(path: a, line: nil)
+        wc.open(path: b, line: nil)
+        let first = wc.editor
+        wc.goBack(nil)
+        #expect(first.fileURL?.path == a)
+        wc.goForward(nil)
+        #expect(first.fileURL?.path == b)
+
+        wc.newTab(nil)
+        #expect(wc.editorArea.tabs.count == 2 && wc.editor !== first && wc.editor.fileURL == nil && wc.editor.emptyView != nil)
+        wc.open(path: a, line: nil)
+        #expect(wc.editorArea.tabTitles == ["B", "A"])
+        wc.selectPreviousTab(nil)
+        #expect(wc.editor === first)
+        wc.selectNextTab(nil)
+        #expect(wc.editor.fileURL?.path == a)
+        wc.closeTab(nil)
+        #expect(wc.editorArea.tabs.count == 1 && wc.editor === first)
+
+        wc.splitEditor(nil)
+        let right = wc.editor
+        #expect(wc.editorArea.tab.editors.count == 2 && wc.editorArea.tab.sideBySide && right.fileURL?.path == b)
+        wc.open(path: a, line: nil)
+        #expect(right.fileURL?.path == a && first.fileURL?.path == b)
+        wc.goBack(nil)
+        #expect(right.fileURL?.path == b)
+        #expect(first.history.items == [a, b])
+        _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "editor-split.png")
+        wc.closeEditor(nil)
+        #expect(wc.editorArea.tab.editors.count == 1)
+        wc.splitEditorBelow(nil)
+        #expect(!wc.editorArea.tab.sideBySide)
+        wc.closeEditor(nil)
+    }
+
+    @Test func assistantFollowsCounterparts() throws {
+        let (wc, src) = try makeWorkspace()
+        wc.open(path: src.appendingPathComponent("A.swift").path, line: nil)
+        #expect(wc.editor.counterpartTitles == ["ATests.swift"])
+        wc.toggleAssistant(nil)
+        let assistant = try #require(wc.editorArea.tab.assistant)
+        #expect(assistant.fileURL?.lastPathComponent == "ATests.swift")
+        wc.open(path: src.appendingPathComponent("c.h").path, line: nil)
+        #expect(assistant.fileURL?.lastPathComponent == "c.c")
+        #expect(wc.editor.counterpartTitles == ["c.c"])
+        _ = try WindowSnapshotTests().render(wc.window!.contentView!.superview!, to: "editor-assistant.png")
+        wc.toggleAssistant(nil)
+        #expect(wc.editorArea.tab.assistant == nil && wc.editorArea.tab.editors.count == 1)
+    }
+}

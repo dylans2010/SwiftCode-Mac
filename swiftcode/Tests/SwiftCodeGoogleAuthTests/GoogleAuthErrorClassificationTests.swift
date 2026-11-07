@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SwiftCodeGoogleAuth
+@testable import YcodeAssistant
 
 struct GoogleAuthErrorClassificationTests {
 

@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodeSubprocess
+import YcodeSubprocess
 
 public struct DeveloperToolInfo: Codable, Sendable {
     public let name: String

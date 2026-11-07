@@ -1,0 +1,4228 @@
+import SwiftUI
+import os
+import YcodeAssistant
+
+private let logger = Logger(subsystem: "com.swiftcode.AssistSettings", category: "AssistSettings")
+
+struct HeaderItem: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var key: String
+    var value: String
+}
+
+struct CachedModel: Codable, Identifiable, Equatable {
+    var id: String { modelID }
+    let modelID: String
+    let providerName: String
+}
+
+@Observable
+@MainActor
+public final class FreeModelsFallback {
+    public static let shared = FreeModelsFallback()
+
+    public var isEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isEnabled, forKey: "free_models_fallback_enabled")
+        }
+    }
+
+    private init() {
+        self.isEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
+    }
+
+    public func executeWithFallback<T>(task: @escaping (String) async throws -> T) async throws -> T {
+        let allModels = (try? await OpenRouterClient.shared.fetchModels()) ?? []
+        let freeModels = allModels.filter { $0.id.lowercased().contains("free") }
+
+        guard isEnabled && !freeModels.isEmpty else {
+            let currentDefaultModel = AppSettings.shared.selectedAssistModelID
+            return try await task(currentDefaultModel)
+        }
+
+        logger.log("[FreeModelsFallback] fallback-rotation is active. Free models identified: \(freeModels.map { $0.id })")
+
+        var lastError: Error? = nil
+        for model in freeModels {
+            do {
+                logger.log("[FreeModelsFallback] Attempting request utilizing free model: \(model.id)")
+                return try await task(model.id)
+            } catch {
+                logger.error("[FreeModelsFallback] Request failed on model: \(model.id) due to error: \(error.localizedDescription, privacy: .public). Proceeding to next fallback model.")
+                lastError = error
+            }
+        }
+
+        if let error = lastError {
+            throw error
+        } else {
+            throw NSError(domain: "FreeModelsFallback", code: 500, userInfo: [NSLocalizedDescriptionKey: "All free fallback models failed."])
+        }
+    }
+}
+
+struct FreeORModels: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var settings: AppSettings
+    @State private var freeModels: [OpenRouterModel] = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Select a free OpenRouter model to set as your default model or browse all currently available free endpoints.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Free Models") {
+                    if freeModels.isEmpty {
+                        Text("No free models cached yet. Fetch available models first.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(freeModels) { model in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(model.name)
+                                        .font(.headline)
+                                    Text(model.id)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if settings.selectedAssistModelID == model.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("Select") {
+                                        settings.selectedAssistModelID = model.id
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Free OpenRouter Models")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onAppear {
+                Task {
+                    do {
+                        let allModels = try await OpenRouterClient.shared.fetchModels()
+                        freeModels = allModels.filter { $0.id.lowercased().contains("free") }
+                    } catch {
+                        logger.error("[FreeORModels] Failed to fetch free models dynamically: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+        .frame(width: 480, height: 420)
+    }
+}
+
+@MainActor
+struct FoundationModelsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable private var manager = FoundationModels.shared
+
+    @State private var isTesting = false
+    @State private var testLogs: [String] = []
+    @State private var testResponse = ""
+    @State private var testSuccess: Bool? = nil
+    @State private var lastSuccessTime: String? = {
+        UserDefaults.standard.string(forKey: "apple_foundation_model_last_test_time")
+    }()
+    @State private var failureStage = ""
+    @State private var underlyingError = ""
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Apple Foundation Models", systemImage: "apple.logo")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Spacer()
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Third-Gen Apple Foundation Models")
+                                    .font(.headline)
+                                Text("Configure on-device intelligence using Apple's native secure architecture (AFM 3).")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                Label("Configuration", systemImage: "gearshape")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                Spacer()
+                            }
+
+                            Toggle("Enable Private On-Device Models", isOn: $manager.isEnabled)
+                                .toggleStyle(.switch)
+
+                            Text("Process natural language commands locally on Apple Silicon.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .groupBoxStyle(ModernGroupBoxStyle())
+
+                    if manager.isEnabled {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Active Model Select (AFM 3 Series)", systemImage: "play.circle")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
+                                    Spacer()
+                                }
+
+                                VStack(spacing: 12) {
+                                    ForEach(AppleFoundationModel.allCases) { model in
+                                        HStack(alignment: .top) {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack(spacing: 6) {
+                                                    Text(model.rawValue)
+                                                        .font(.body.bold())
+
+                                                    Text("On-Device")
+                                                        .font(.system(size: 9, weight: .bold))
+                                                        .padding(.horizontal, 4)
+                                                        .padding(.vertical, 1)
+                                                        .background(Color.green.opacity(0.15))
+                                                        .foregroundStyle(.green)
+                                                        .cornerRadius(3)
+                                                }
+
+                                                Text(model.description)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+
+                                            if manager.selectedModel == model {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(Color.accentColor)
+                                            } else {
+                                                Circle()
+                                                    .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1)
+                                                    .frame(width: 16, height: 16)
+                                            }
+                                        }
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            manager.selectedModel = model
+                                        }
+                                        .padding(.vertical, 4)
+
+                                        if model != AppleFoundationModel.allCases.last {
+                                            Divider()
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Label("Developer Diagnostics Console", systemImage: "terminal.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.orange)
+                                    Spacer()
+                                    if let lastTime = lastSuccessTime {
+                                        Text("Last Success: \(lastTime)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Text("Perform a real inference generation request using the configured Foundation Model to verify runtime performance, latency, and system readiness.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: 12) {
+                                    Button(action: runInferenceDiagnostics) {
+                                        HStack {
+                                            if isTesting {
+                                                ProgressView().scaleEffect(0.5).padding(.trailing, 4)
+                                            } else {
+                                                Image(systemName: "play.terminal.fill")
+                                            }
+                                            Text(isTesting ? "Testing Model..." : "Test Models")
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.orange)
+                                    .disabled(isTesting)
+
+                                    if testSuccess != nil {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: testSuccess == true ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                                .foregroundColor(testSuccess == true ? .green : .red)
+                                            Text(testSuccess == true ? "SUCCESS" : "FAILED")
+                                                .font(.caption.bold())
+                                                .foregroundColor(testSuccess == true ? .green : .red)
+                                        }
+                                    }
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Diagnostic Run Logs")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+
+                                    ScrollView {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            if testLogs.isEmpty {
+                                                Text("Press 'Test Models' to start diagnostics.")
+                                                    .font(.system(.caption, design: .monospaced))
+                                                    .foregroundStyle(.secondary)
+                                            } else {
+                                                ForEach(testLogs, id: \.self) { log in
+                                                    Text(log)
+                                                        .font(.system(.caption, design: .monospaced))
+                                                        .foregroundStyle(log.contains("[Error]") ? .red : (log.contains("[Success]") ? .green : (log.contains("[Warning]") ? .orange : .primary)))
+                                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                                }
+                                            }
+                                        }
+                                        .padding(10)
+                                    }
+                                    .frame(height: 140)
+                                    .background(Color.black.opacity(0.12))
+                                    .cornerRadius(6)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                                    )
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Inference Text Response")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+
+                                    Text(testResponse.isEmpty ? "No response received yet." : testResponse)
+                                        .font(.system(.body, design: .monospaced))
+                                        .padding(10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.secondary.opacity(0.08))
+                                        .cornerRadius(6)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                                        )
+                                }
+
+                                if let testSuccess, !testSuccess {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Failure Diagnostics")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.red)
+                                        Text("Failure Stage: \(failureStage)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text("Underlying Error: \(underlyingError)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(10)
+                                    .background(Color.red.opacity(0.06))
+                                    .cornerRadius(6)
+                                }
+                            }
+                            .padding()
+                        }
+                        .groupBoxStyle(ModernGroupBoxStyle())
+                    }
+                }
+                .padding(24)
+            }
+            .navigationTitle("Apple Foundation Models")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(width: 520, height: 680)
+    }
+
+    private func runInferenceDiagnostics() {
+        guard !isTesting else { return }
+        isTesting = true
+        testLogs = []
+        testResponse = ""
+        testSuccess = nil
+        failureStage = ""
+        underlyingError = ""
+
+        Task {
+            let startTime = Date()
+
+            appendLog("[Info] Initializing Foundation Models...")
+            guard FoundationModels.shared.isEnabled else {
+                appendLog("[Error] Failed: Foundation Models are disabled in settings.")
+                failureStage = "Initialization"
+                underlyingError = "Apple Foundation Models are disabled."
+                testSuccess = false
+                isTesting = false
+                return
+            }
+
+            appendLog("[Info] Creating the generation session for \(FoundationModels.shared.selectedModel.rawValue)...")
+            try? await Task.sleep(nanoseconds: 100_000_000)
+
+            appendLog("[Info] Building prompt: \"Respond with a short sentence confirming that Foundation Models are working.\"")
+            let prompt = "Respond with a short sentence confirming that Foundation Models are working."
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            appendLog("[Info] Starting generation...")
+
+            appendLog("[Info] Connecting to streaming response generation...")
+
+            var generatedText = ""
+            do {
+                let streamStartTime = Date()
+                try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { @MainActor token in
+                    generatedText += token
+                    testResponse = generatedText
+                    appendLog("[Streaming] Received token: \"\(token.trimmingCharacters(in: .whitespacesAndNewlines))\"")
+                }
+
+                let endTime = Date()
+                let totalDuration = endTime.timeIntervalSince(startTime)
+                let completionTime = endTime.timeIntervalSince(streamStartTime)
+
+                appendLog("[Success] Response completed successfully.")
+                appendLog("[Success] Completion time: \(String(format: "%.3f", completionTime))s")
+                appendLog("[Success] Total duration: \(String(format: "%.3f", totalDuration))s")
+
+                testSuccess = true
+                let nowStr = Date().formatted(date: .abbreviated, time: .shortened)
+                lastSuccessTime = nowStr
+                UserDefaults.standard.set(nowStr, forKey: "apple_foundation_model_last_test_time")
+            } catch {
+                appendLog("[Error] Generation stream failed with error: \(error.localizedDescription)")
+                failureStage = "Streaming & Generation"
+                underlyingError = error.localizedDescription
+                testSuccess = false
+            }
+
+            isTesting = false
+        }
+    }
+
+    private func appendLog(_ message: String) {
+        let timestamp = Date().formatted(date: .omitted, time: .standard)
+        testLogs.append("[\(timestamp)] \(message)")
+    }
+}
+
+@MainActor
+struct AssistSettingsView: View {
+    @EnvironmentObject private var settings: AppSettings
+
+    enum FetchProviderOption: Hashable, Identifiable {
+        case openRouter
+        case openai
+        case anthropic
+        case gemini
+        case foundation
+        case custom(id: UUID, name: String)
+
+        var id: String {
+            switch self {
+            case .openRouter: return "openRouter"
+            case .openai: return "openai"
+            case .anthropic: return "anthropic"
+            case .gemini: return "gemini"
+            case .foundation: return "foundation"
+            case .custom(let id, _): return "custom-\(id.uuidString)"
+            }
+        }
+
+        var displayName: String {
+            switch self {
+            case .openRouter: return "OpenRouter"
+            case .openai: return "OpenAI"
+            case .anthropic: return "Anthropic"
+            case .gemini: return "Gemini"
+            case .foundation: return "Foundation Models"
+            case .custom(_, let name): return name
+            }
+        }
+    }
+
+    @State private var selectedFetchProvider: FetchProviderOption = .openRouter
+    @State private var autoFetchTask: Task<Void, Never>? = nil
+
+    @State private var reverseStatusText: String = "Not checked yet."
+    @State private var isCheckingReverse = false
+    @State private var reverseCapabilitiesText: String = ""
+
+    @State private var openRouterKey = ""
+    @State private var openaiKey = ""
+    @State private var anthropicKey = ""
+    @State private var geminiKey = ""
+    @State private var composioKey = ""
+    @State private var hasSavedKeys = false
+    @State private var googleClientSecretInput = ""
+    @State private var googleOAuthClientIDInput = ""
+    @State private var isAPIKeysExpanded = false
+    @State private var showingTerminalCommands = false
+    @State private var isAdvancedExpanded = false
+    @State private var cloudModels: [SCCloudModelInfo] = []
+    @State private var cloudModelsUpdatedAt: Date? = nil
+    @State private var isRefreshingCloudModels = false
+
+    @State private var openRouterModels: [OpenRouterModel] = []
+    @State private var isFetchingOpenRouterModels = false
+    @State private var openRouterFetchError: String? = nil
+
+    @State private var providerOpenRouterModels: [OpenRouterModel] = []
+    @State private var isFetchingProviderOpenRouterModels = false
+    @State private var providerOpenRouterError: String? = nil
+    @State private var openRouterTestResult: String? = nil
+    @State private var isTestingOpenRouter = false
+    @State private var openRouterValidationResult: String? = nil
+    @State private var isValidatingOpenRouter = false
+    @State private var openCodeServerURL = OpenCodeConfiguration.load().serverURL.absoluteString
+    @State private var openCodeAgentName = OpenCodeConfiguration.load().agentName
+    @State private var openCodeStatus: String? = nil
+    @State private var isCheckingOpenCode = false
+    @State private var openCodeModels: [OpenCodeModel] = []
+    @State private var isFetchingOpenCodeModels = false
+    @State private var openCodeFetchError: String? = nil
+    @State private var openCodeManualModel = ""
+
+    @State private var hermesExecutablePath = HermesConfiguration.load().executablePath
+    @State private var hermesManualModel = ""
+    @State private var hermesToolsets = HermesConfiguration.load().toolsets
+    @State private var hermesMaxTurnsText = {
+        let turns = HermesConfiguration.load().maxTurns
+        return turns > 0 ? String(turns) : ""
+    }()
+    @State private var hermesStatus: String? = nil
+    @State private var hermesError: String? = nil
+    @State private var isCheckingHermes = false
+    @State private var hermesModels: [HermesProvider.HermesDiscoveredModel] = []
+    @State private var isFetchingHermesModels = false
+    @State private var hermesFetchError: String? = nil
+
+    @State private var sdkStatuses: [SDKProvider: SDKRuntimeStatus] = [:]
+    @State private var sdkInstallingProviders: Set<SDKProvider> = []
+    @State private var sdkInstallErrors: [SDKProvider: String] = [:]
+    @State private var sdkInstallNotices: [SDKProvider: String] = [:]
+
+    @State private var customEndpointsManager = CustomEndpointManager.shared
+    @State private var selectedEndpoint: SavedCustomEndpoint? = nil
+    @State private var isEditingEndpoint = false
+    @State private var isNewEndpoint = false
+    @State private var customEndpointName = ""
+    @State private var customEndpoint = "https://api.openai.com/v1"
+    @State private var customHeaders: [HeaderItem] = [
+        HeaderItem(key: "Content-Type", value: "application/json")
+    ]
+    @State private var customAPIKey = ""
+    @State private var customModels: [String] = []
+    @State private var isFetchingCustomModels = false
+    @State private var customFetchError: String? = nil
+    @State private var isEndpointLocal = false
+    @State private var localEndpointPort = "11434"
+    @State private var endpointShowInPopup = true
+
+    @State private var discoveryService = AssistModelDiscoveryService.shared
+    @State private var cachedModels: [CachedModel] = []
+    @State private var isFetchingAvailableModels = false
+    @State private var availableModelsFetchError: String? = nil
+
+    @State private var showFreeModelsSheet = false
+    @State private var showFoundationModelsSheet = false
+    @State private var showMCPServersSheet = false
+    @State private var showComposioSheet = false
+    @State private var showSkillsSheet = false
+    @State private var showAlternativeKeysSheet = false
+    @State private var showUserMemorySheet = false
+
+    @State private var composioService = ComposioService.shared
+
+    @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "google_oauth"
+    @State private var googleAuth = GoogleAccountAuthService.shared
+    @ObservedObject private var metaAuth = MetaAccountAuthService.shared
+    @State private var quotaService = AntigravityQuotaService.shared
+    @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
+    @State private var showSignOutConfirmation = false
+
+    @State private var availableModelsSearchText: String = ""
+    @State private var selectedProviderFilter: String = "All"
+
+    @State private var isDownloadingResources = false
+    @State private var downloadStatusMessage = "Preparing pip installation..."
+    @State private var downloadCompleted = false
+    @State private var downloadErrorMessage: String? = nil
+
+    @State private var fallbackRotation = FreeModelsFallback.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .center, spacing: 10) {
+                            Image(systemName: "cpu.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : (settings.isHermesAssist ? Color.teal : Color.purple)))
+
+                            Text("Assist System")
+                                .font(.system(size: 13, weight: .semibold))
+
+                            Spacer()
+
+                            Picker("Active Assist System", selection: $settings.assistSystemID) {
+                                Text("Native Assist System")
+                                    .tag(AppSettings.nativeAssistSystemID)
+                                Text("Assist on Google Cloud")
+                                    .tag(AppSettings.googleCloudAssistSystemID)
+                                Text("Assist on Meta")
+                                    .tag(AppSettings.metaAssistSystemID)
+                                Text("OpenRouter")
+                                    .tag(AppSettings.openRouterAssistSystemID)
+                                Text("OpenCode")
+                                    .tag(AppSettings.openCodeAssistSystemID)
+                                Text("Hermes")
+                                    .tag(AppSettings.hermesAssistSystemID)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 200)
+                        }
+
+                        if let note = assistSystemModelNote {
+                            Text(note)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+                            .padding(.vertical, 2)
+
+                        Toggle(isOn: $settings.assistAutomaticallySwitchModels) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Automatically Switch Models")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("On: a failed model may be replaced by another model mid-turn. Off: Assist never switches models at all — it waits on (retries) the selected model and shows that wait in the activity status, with the model name and the error, until the turn succeeds or its retries run out.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        Toggle(isOn: $settings.assistUseProviderModels) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Use Provider Models")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("On: Assist may only use models fetched from the selected provider (see that provider's card below for its fetched list). It never uses any user-provided (custom) model while this is on — a turn with a custom model selected fails explicitly instead of substituting another model. Off: custom models are allowed again.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        if settings.isMetaAssist {
+                            Divider()
+                                .padding(.vertical, 2)
+
+                            HStack(spacing: 8) {
+                                if metaAuth.isAuthenticating {
+                                    ProgressView()
+                                        .scaleEffect(0.65)
+                                        .frame(width: 14, height: 14)
+                                    if let code = metaAuth.currentCode {
+                                        Text("Authenticating via CLI (Code: \(code))...")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("Authenticating via CLI...")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let url = metaAuth.currentAuthURL {
+                                        Link("Open Browser", destination: url)
+                                            .font(.caption)
+                                    }
+                                } else if let email = metaAuth.userEmail, !email.isEmpty {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.caption)
+                                    Text("Meta Account: \(email).")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.primary)
+
+                                    Spacer()
+
+                                    Button("Re-authenticate") {
+                                        metaAuth.startAuthFlow()
+                                    }
+                                    .buttonStyle(.link)
+                                    .font(.caption)
+                                } else {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                        .font(.caption)
+                                    Text("Meta Account: Not authenticated.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
+                                    Spacer()
+
+                                    Button("Authenticate via CLI") {
+                                        metaAuth.startAuthFlow()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
+                            }
+
+                            Divider()
+                                .padding(.vertical, 2)
+
+                            Toggle(isOn: $settings.useMetaSlashCommands) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Use Meta's Slash Commands")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("Type \"/\" on Assist to list and run all commands from Muse Code.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.switch)
+                        }
+                    }
+                    .padding(10)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.indigo.opacity(0.14))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.indigo)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Assist Configuration")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Configure toolkits, model routing, and cloud options")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Assist Toolkit")
+                                    .font(.system(size: 12, weight: .medium))
+                                Spacer()
+                                Text(settings.isProviderToolkit ? "Provider Tools (\(settings.activeProviderToolkitName))" : "SwiftCode Tools")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(settings.isProviderToolkit ? .blue : .indigo)
+                            }
+
+                            Picker("Assist Toolkit", selection: $settings.assistToolkit) {
+                                Text("System (SwiftCode)").tag("System")
+                                Text("Provider (\(settings.activeProviderToolkitName))").tag("Provider")
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+
+                            Text(settings.isProviderToolkit
+                                 ? "Provider toolkit uses the \(settings.activeProviderToolkitName) toolset from the Assist System picked above — OpenRouter tools for OpenRouter, OpenCode tools for OpenCode, Hermes' own tools for Hermes, Muse SDK tools for Meta, Antigravity SDK tools for Google Cloud. Provider tools run under that provider's permissions, not SwiftCode's."
+                                 : "System toolkit uses SwiftCode's native code editing, build diagnostics, and terminal tools.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Model Routing Strategy")
+                                    .font(.system(size: 12, weight: .medium))
+                                Spacer()
+                            }
+
+                            Picker("Model Strategy", selection: $settings.assistModelRoutingStrategy) {
+                                Text("Official SDK Default").tag("default")
+                                Text("App Model Catalog").tag("app_models")
+                                Text("Gemini Key Rotation").tag("rotation")
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+
+                            if settings.assistModelRoutingStrategy == "rotation" {
+                                rotationKeysRow
+                            } else if settings.assistModelRoutingStrategy == "app_models" {
+                                appModelsStatsRow
+                            }
+                        }
+
+                        Divider()
+
+                        swiftCodeCloudSection
+
+                        if settings.isMetaAssist {
+                            Divider()
+                            metaSDKOtherModelsSection
+                        }
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                if settings.isOpenRouterAssist {
+                    openRouterProvidersSection
+                }
+                if settings.isOpenCodeAssist {
+                    openCodeProvidersSection
+                }
+                if settings.isHermesAssist {
+                    hermesProvidersSection
+                }
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.orange.opacity(0.14))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Reverse (@Reverse)")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Static reverse engineering via the native Reverse subsystem (REA rea-agents@6.5.0). No external agent, no MCP.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Divider()
+
+                        Toggle("Enable Reverse", isOn: $settings.reverseEnabled)
+                            .font(.system(size: 12, weight: .medium))
+                        Text("When disabled, @Reverse and the reverse_analyze tool report that Reverse is unavailable.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Bridge script path (optional override; empty = bundled resource)")
+                                .font(.system(size: 11, weight: .medium))
+                            TextField("/path/to/ReverseBridge.mjs", text: $settings.reverseBridgePath)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("REA package directory (rea-agents@6.5.0; empty = auto-resolve)")
+                                .font(.system(size: 11, weight: .medium))
+                            TextField("/path/to/rea-agents", text: $settings.reverseReaDir)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 11, design: .monospaced))
+                            Text("SwiftCode never downloads or installs REA automatically. Place the pinned package in a folder and point here, or beside the bridge script.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        HStack(spacing: 8) {
+                            Button {
+                                isCheckingReverse = true
+                                reverseStatusText = "Checking…"
+                                Task {
+                                    let snapshot = await ReverseManager.shared.statusSnapshot(refresh: true)
+                                    await MainActor.run {
+                                        var parts: [String] = []
+                                        parts.append(snapshot.ready ? "Ready" : "Not ready")
+                                        if let node = snapshot.nodeVersion { parts.append("Node \(node)") }
+                                        if let rea = snapshot.reaVersion { parts.append("REA \(rea)") }
+                                        if let error = snapshot.lastError { parts.append("Error: \(error)") }
+                                        reverseStatusText = parts.joined(separator: " · ")
+                                        let available = snapshot.capabilities.filter(\.available).map(\.displayName)
+                                        let unavailable = snapshot.capabilities.filter { !$0.available }.map { "\($0.displayName) (\($0.unavailableReason ?? "unavailable"))" }
+                                        reverseCapabilitiesText = "Available: " + (available.isEmpty ? "none" : available.joined(separator: ", ")) + "\nUnavailable: " + (unavailable.isEmpty ? "none" : unavailable.joined(separator: "; "))
+                                        isCheckingReverse = false
+                                    }
+                                }
+                            } label: {
+                                Text(isCheckingReverse ? "Checking…" : "Check readiness")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .disabled(isCheckingReverse)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        Text(reverseStatusText)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        if !reverseCapabilitiesText.isEmpty {
+                            Text(reverseCapabilitiesText)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("Scope: targets must be files inside the open project, ~/Downloads, ~/Desktop, or ~/Documents. All operations are static inspections — nothing executes the target. DRM / license-check / anti-cheat circumvention is refused.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                if settings.isMetaAssist {
+                    MetaAssistModelsUI()
+                } else {
+                    googleAccountCard
+                }
+
+                GroupBox {
+                    DisclosureGroup(isExpanded: $isAPIKeysExpanded) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Configure API Keys to power your smart developer assistance models.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Divider()
+                                .padding(.vertical, 4)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("OpenRouter API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://openrouter.ai/keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                SecureField("sk-or-v1-...", text: $openRouterKey)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("OpenAI API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://platform.openai.com/api-keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                SecureField("sk-...", text: $openaiKey)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Anthropic API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://console.anthropic.com/settings/keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                SecureField("sk-ant-...", text: $anthropicKey)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Gemini API Key")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                SecureField("AIza...", text: $geminiKey)
+                                    .textFieldStyle(.roundedBorder)
+
+                                HStack {
+                                    Button {
+                                        showAlternativeKeysSheet = true
+                                    } label: {
+                                        Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
+                                            .font(.caption2)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+
+                                    Spacer()
+                                }
+                                .padding(.top, 2)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Composio API Key")
+                                        .font(.caption.bold())
+                                    if composioService.hasConfiguredKey {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "lock.shield.fill")
+                                                .foregroundColor(.green)
+                                                .font(.caption2)
+                                            Text("Secured in Keychain")
+                                                .font(.caption2)
+                                                .foregroundColor(.green)
+                                        }
+                                    }
+                                    Spacer()
+                                    Link(destination: URL(string: "https://dashboard.composio.dev/~/project/settings/api-keys")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                SecureField(
+                                    composioService.hasConfiguredKey ? "•••••••••••••••• (Configured & Protected)" : "ak_... or uak_...",
+                                    text: $composioKey
+                                )
+                                .textFieldStyle(.roundedBorder)
+                            }
+
+                            Button(action: saveAPIKeys) {
+                                Label("Save API Keys", systemImage: "checkmark.circle.fill")
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .padding(.top, 10)
+
+                            if hasSavedKeys {
+                                Text("API Keys saved securely in the system keychain!")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .padding(.top, 8)
+                    } label: {
+                        Label("AI Provider API Keys", systemImage: "key.fill")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                    }
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                advancedOAuthSection
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            HStack(spacing: 8) {
+                                Label("Available Models", systemImage: "sparkles")
+                                    .font(.headline)
+                                    .foregroundColor(.purple)
+
+                                if discoveryService.isDiscovering {
+                                    HStack(spacing: 4) {
+                                        ProgressView().scaleEffect(0.55)
+                                        Text("Refreshing models…")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+
+                            Spacer()
+
+                            let removableProviders = discoveryService.availableProviderNames.filter {
+                                $0 != "Apple Foundation Models" && !discoveryService.hiddenProviderNames.contains($0)
+                            }
+                            if !removableProviders.isEmpty {
+                                Menu {
+                                    Section("Select Provider to Remove") {
+                                        ForEach(removableProviders, id: \.self) { providerName in
+                                            Button {
+                                                discoveryService.removeProvider(providerName)
+                                                Task {
+                                                    await discoveryService.discoverAllModels(forceRefresh: true)
+                                                }
+                                            } label: {
+                                                Label("Remove \(providerName)", systemImage: "trash")
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Label("Remove Providers", systemImage: "line.3.horizontal.decrease.circle")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+
+                            Button {
+                                Task {
+                                    await discoveryService.discoverAllModels(forceRefresh: true)
+                                }
+                            } label: {
+                                Label("Refresh", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(discoveryService.isDiscovering)
+                        }
+
+                        let stats = discoveryService.getDiscoveryStats()
+                        HStack(spacing: 8) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 9))
+                                Text("\(stats.agentCompatible) Agent-Ready")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.purple.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.purple)
+
+                            HStack(spacing: 4) {
+                                Circle().fill(Color.green).frame(width: 5, height: 5)
+                                Text("\(stats.total) Total")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.green.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.green)
+
+                            HStack(spacing: 4) {
+                                Image(systemName: "server.rack")
+                                    .font(.system(size: 9))
+                                Text("\(stats.providers) Providers")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.primary.opacity(0.05), in: Capsule())
+                            .foregroundStyle(.secondary)
+
+                            if !discoveryService.hiddenProviderNames.isEmpty {
+                                Text("\(discoveryService.hiddenProviderNames.count) hidden")
+                                    .font(.system(size: 10))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.orange.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.orange)
+                            }
+
+                            Spacer()
+
+                            if let last = discoveryService.lastDiscoveryDate {
+                                Text("Updated \(last.formatted(date: .omitted, time: .shortened))")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            TextField("Search models by name, model ID, or provider...", text: $availableModelsSearchText)
+                                .textFieldStyle(.plain)
+                                .font(.caption)
+
+                            if !availableModelsSearchText.isEmpty {
+                                Button {
+                                    availableModelsSearchText = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                let allFilters = ["All"] + discoveryService.modelsByProvider.map { $0.providerName }
+                                ForEach(allFilters, id: \.self) { filterName in
+                                    Button {
+                                        selectedProviderFilter = filterName
+                                    } label: {
+                                        Text(filterName)
+                                            .font(.system(size: 11, weight: selectedProviderFilter == filterName ? .bold : .medium))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                selectedProviderFilter == filterName
+                                                    ? Color.purple.opacity(0.18)
+                                                    : Color.primary.opacity(0.04),
+                                                in: Capsule()
+                                            )
+                                            .foregroundStyle(selectedProviderFilter == filterName ? Color.purple : Color.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+
+                        let query = availableModelsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        let filteredGroups = discoveryService.modelsByProvider.compactMap { group -> (providerName: String, models: [AssistAvailableModel])? in
+                            if selectedProviderFilter != "All" && group.providerName != selectedProviderFilter {
+                                return nil
+                            }
+                            let models = group.models.filter { model in
+                                if query.isEmpty { return true }
+                                return model.displayName.lowercased().contains(query) ||
+                                       model.modelIdentifier.lowercased().contains(query) ||
+                                       model.providerName.lowercased().contains(query)
+                            }
+                            return models.isEmpty ? nil : (providerName: group.providerName, models: models)
+                        }
+
+                        if filteredGroups.isEmpty {
+                            VStack(spacing: 8) {
+                                if discoveryService.isDiscovering {
+                                    ProgressView().scaleEffect(0.8)
+                                    Text("Discovering models across providers...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Image(systemName: query.isEmpty ? "sparkles" : "magnifyingglass")
+                                        .font(.title2)
+                                        .foregroundStyle(.secondary.opacity(0.5))
+                                    Text(query.isEmpty ? "No models discovered. Ensure your API keys or custom endpoints are configured." : "No models found matching \"\(availableModelsSearchText)\"")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(filteredGroups, id: \.providerName) { group in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text(group.providerName)
+                                                .font(.system(size: 12, weight: .bold))
+                                                .foregroundStyle(.primary)
+
+                                            let availCount = group.models.filter { $0.isAvailable }.count
+                                            Text("\(availCount) available")
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(availCount > 0 ? Color.green.opacity(0.12) : Color.secondary.opacity(0.1), in: Capsule())
+                                                .foregroundStyle(availCount > 0 ? Color.green : Color.secondary)
+
+                                            if let err = discoveryService.lastDiscoveryErrors[group.providerName] {
+                                                Text("— \(err)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.red)
+                                                    .lineLimit(1)
+                                            }
+
+                                            Spacer()
+                                        }
+
+                                        VStack(spacing: 5) {
+                                            ForEach(group.models) { model in
+                                                HStack(spacing: 8) {
+                                                    Circle()
+                                                        .fill(modelStatusColor(model))
+                                                        .frame(width: 6, height: 6)
+
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        HStack(spacing: 6) {
+                                                            Text(model.displayName)
+                                                                .font(.system(size: 12, weight: .semibold))
+
+                                                            if model.supportsToolCalling {
+                                                                Text("Tools")
+                                                                    .font(.system(size: 8, weight: .bold))
+                                                                    .padding(.horizontal, 4)
+                                                                    .padding(.vertical, 1)
+                                                                    .background(Color.blue.opacity(0.12))
+                                                                    .foregroundStyle(.blue)
+                                                                    .cornerRadius(3)
+                                                            }
+
+                                                            if model.supportsVision {
+                                                                HStack(spacing: 2) {
+                                                                    Image(systemName: "eye.fill")
+                                                                        .font(.system(size: 7))
+                                                                    Text("Vision")
+                                                                        .font(.system(size: 8, weight: .bold))
+                                                                }
+                                                                .padding(.horizontal, 4)
+                                                                .padding(.vertical, 1)
+                                                                .background(Color.purple.opacity(0.12))
+                                                                .foregroundStyle(.purple)
+                                                                .cornerRadius(3)
+                                                            }
+
+                                                            if model.supportsSubagents {
+                                                                Text("Subagents")
+                                                                    .font(.system(size: 8, weight: .bold))
+                                                                    .padding(.horizontal, 4)
+                                                                    .padding(.vertical, 1)
+                                                                    .background(Color.indigo.opacity(0.12))
+                                                                    .foregroundStyle(.indigo)
+                                                                    .cornerRadius(3)
+                                                            }
+                                                        }
+
+                                                        Text(model.modelIdentifier)
+                                                            .font(.system(size: 10, design: .monospaced))
+                                                            .foregroundStyle(.secondary)
+                                                    }
+
+                                                    Spacer()
+
+                                                    Text(modelStatusLabel(model))
+                                                        .font(.system(size: 10, weight: .medium))
+                                                        .foregroundStyle(modelStatusColor(model))
+
+                                                    if settings.selectedAssistModelID == model.modelIdentifier {
+                                                        Image(systemName: "checkmark.circle.fill")
+                                                            .font(.system(size: 14))
+                                                            .foregroundStyle(.green)
+                                                    } else if model.isAvailable {
+                                                        Button("Select") {
+                                                            settings.selectedAssistModelID = model.modelIdentifier
+                                                            settings.selectedModel = model.modelIdentifier
+                                                            if model.source == .appleFoundationModels || model.source == .appleFoundation || model.providerName == "Apple Foundation Models" {
+                                                                FoundationModels.shared.isEnabled = true
+                                                                if let appleModel = AppleFoundationModel(rawValue: model.modelIdentifier) {
+                                                                    FoundationModels.shared.selectedModel = appleModel
+                                                                }
+                                                            } else {
+                                                                FoundationModels.shared.isEnabled = false
+                                                                AssistModelManager.shared.customModelID = model.modelIdentifier
+                                                            }
+                                                            Task {
+                                                                await ModelSessionManager.shared.switchModel(to: model.modelIdentifier)
+                                                                AssistModelRouter.shared.currentRuntimeModel = model
+                                                                AssistManager.shared.resetActiveGoogleCloudSessionIfModelChanged(to: model.modelIdentifier)
+                                                            }
+                                                        }
+                                                        .buttonStyle(.bordered)
+                                                        .controlSize(.mini)
+                                                    }
+
+                                                    if discoveryService.isFoundationModel(model) {
+                                                        Image(systemName: "lock.shield")
+                                                            .font(.system(size: 11))
+                                                            .foregroundStyle(.secondary.opacity(0.6))
+                                                            .help("Foundation Models is a system model integration (Protected)")
+                                                    } else {
+                                                        Button {
+                                                            discoveryService.removeModel(model.modelIdentifier)
+                                                            Task {
+                                                                await discoveryService.discoverAllModels(forceRefresh: true)
+                                                            }
+                                                        } label: {
+                                                            Image(systemName: "trash")
+                                                                .font(.system(size: 11))
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                        .help("Remove model permanently")
+                                                    }
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(settings.selectedAssistModelID == model.modelIdentifier ? Color.accentColor.opacity(0.06) : Color.primary.opacity(0.02))
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .padding(10)
+                                    .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.primary.opacity(0.04), lineWidth: 1)
+                                    )
+                                }
+                            }
+                        }
+
+                        Divider().padding(.vertical, 2)
+
+                        Toggle(isOn: Binding(
+                            get: { fallbackRotation.isEnabled },
+                            set: { fallbackRotation.isEnabled = $0 }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Automatic Fallback to Other Models")
+                                    .font(.subheadline.bold())
+                                Text("Rotates through all available models automatically if rate limits or network issues strike.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Label("Integrations & Extensions", systemImage: "puzzlepiece.extension.fill")
+                                .font(.headline)
+                                .foregroundColor(.indigo)
+                            Spacer()
+                        }
+
+                        Text("Extend Assist with on-device Apple intelligence, Model Context Protocol servers, external app tools, and domain-specific engineering playbooks.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+                            .padding(.vertical, 2)
+
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.green.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "apple.logo")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Apple Foundation Models")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("On-device Apple Silicon intelligence without remote requests")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                showFoundationModelsSheet = true
+                            } label: {
+                                Label("Configure", systemImage: "slider.horizontal.3")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
+
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.purple.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "network")
+                                    .foregroundColor(.purple)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Model Context Protocol (MCP)")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Connect stdio or remote HTTP servers for dynamic tools & context")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                showMCPServersSheet = true
+                            } label: {
+                                Label("Manage MCP", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
+
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.indigo.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "link.badge.plus")
+                                    .foregroundColor(.indigo)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Composio Integrations")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    if composioService.isConnected {
+                                        Text("Connected")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundColor(.green)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.green.opacity(0.12), in: Capsule())
+                                    }
+                                }
+                                Text("External toolkits: GitHub, Slack, Calendar, Jira, Linear")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                showComposioSheet = true
+                            } label: {
+                                Label("Manage Composio", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
+
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.orange.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(.orange)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Agent Skills")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    let activeCount = SkillIndex.shared.skills.filter { $0.isEnabled }.count
+                                    Text("\(activeCount) Active")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.12), in: Capsule())
+                                }
+                                Text("Domain-specific engineering playbooks & autonomous workflows")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button {
+                                showSkillsSheet = true
+                            } label: {
+                                Label("Manage Skills", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Custom Models", systemImage: "apple.intelligence")
+                                .font(.headline)
+                                .foregroundColor(.cyan)
+                            Spacer()
+
+                            Button(action: openAddEndpoint) {
+                                Label("Add New", systemImage: "plus")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isEditingEndpoint)
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Connect to any OpenAI-compatible API endpoint (e.g. Together AI, DeepInfra, Ollama, LM Studio, etc.) or local inference port to use custom models.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Toggle(isOn: $settings.onlyUseFreeModels) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Only Use Free Models")
+                                        .font(.subheadline.bold())
+                                    Text("By enabling this, SwiftCode will only show the free models that re available on this provider. Keep in mind not all providers might support this feature of showing all free models.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+
+                            Divider()
+                                .padding(.vertical, 4)
+
+                            if customEndpointsManager.endpoints.isEmpty {
+                                Text("No custom endpoints configured. Click 'Add Custom' to register one.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 4)
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Saved Endpoints")
+                                        .font(.subheadline.bold())
+
+                                    ForEach($customEndpointsManager.endpoints) { $endpoint in
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Button {
+                                                    openEditEndpoint(endpoint)
+                                                } label: {
+                                                    HStack {
+                                                        Text(endpoint.name)
+                                                            .font(.headline)
+                                                            .foregroundStyle(.blue)
+                                                        Text(endpoint.isLocal ? "(Local Port: \(endpoint.localPort))" : "(Remote URL: \(endpoint.endpoint))")
+                                                            .font(.caption2)
+                                                            .foregroundStyle(.secondary)
+                                                    }
+                                                }
+                                                .buttonStyle(.plain)
+
+                                                if !endpoint.models.isEmpty {
+                                                    Text("Models: \(endpoint.models.joined(separator: ", "))")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                } else {
+                                                    Text("No models fetched yet")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+
+                                            Spacer()
+
+                                            Toggle("Show in Popup", isOn: $endpoint.showInPopup)
+                                                .toggleStyle(.switch)
+                                                .labelsHidden()
+                                                .controlSize(.small)
+                                        }
+                                        .padding(.vertical, 4)
+                                        Divider()
+                                    }
+                                }
+                            }
+
+                            if isEditingEndpoint {
+                                Divider()
+                                    .padding(.vertical, 8)
+
+                                HStack(spacing: 6) {
+                                    Image(systemName: isNewEndpoint ? "plus.circle.fill" : "pencil.circle.fill")
+                                        .foregroundStyle(.cyan)
+                                    Text(isNewEndpoint ? "New Custom Endpoint" : "Edit Custom Endpoint")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(.cyan)
+                                }
+
+                                Picker("Type", selection: $isEndpointLocal) {
+                                    Label("Remote API", systemImage: "globe").tag(false)
+                                    Label("Local Host", systemImage: "laptopcomputer").tag(true)
+                                }
+                                .pickerStyle(.segmented)
+                                .tint(.cyan)
+
+                                VStack(alignment: .leading, spacing: 14) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Label("Endpoint Alias Name", systemImage: "tag")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.cyan)
+                                        TextField("e.g. My Local Llama", text: $customEndpointName)
+                                            .textFieldStyle(.roundedBorder)
+                                            .autocorrectionDisabled()
+                                    }
+
+                                    if isEndpointLocal {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Label("Localhost Port", systemImage: "network.badge.shield.half.filled")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.cyan)
+                                            TextField("11434", text: $localEndpointPort)
+                                                .textFieldStyle(.roundedBorder)
+                                                .autocorrectionDisabled()
+                                        }
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Label("API Endpoint Base URL", systemImage: "link")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.cyan)
+                                            TextField("https://api.openai.com/v1", text: $customEndpoint)
+                                                .textFieldStyle(.roundedBorder)
+                                                .autocorrectionDisabled()
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack {
+                                                Label("Custom HTTP Headers", systemImage: "list.bullet.rectangle")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.cyan)
+                                                Spacer()
+                                                Button(action: {
+                                                    customHeaders.append(HeaderItem(key: "New-Header", value: "Value"))
+                                                }) {
+                                                    Label("Add Header", systemImage: "plus.circle.fill")
+                                                        .font(.caption.bold())
+                                                        .foregroundStyle(.cyan)
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+
+                                            ForEach($customHeaders) { $header in
+                                                HStack(spacing: 8) {
+                                                    TextField("Header Key", text: $header.key)
+                                                        .textFieldStyle(.roundedBorder)
+                                                        .font(.system(.body, design: .monospaced))
+                                                    TextField("Value", text: $header.value)
+                                                        .textFieldStyle(.roundedBorder)
+                                                        .font(.system(.body, design: .monospaced))
+                                                    Button(action: {
+                                                        customHeaders.removeAll { $0.id == header.id }
+                                                    }) {
+                                                        Image(systemName: "trash")
+                                                            .foregroundColor(.red)
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                            }
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Label("Custom API Authorization Key", systemImage: "key.fill")
+                                                .font(.caption.bold())
+                                                .foregroundStyle(.cyan)
+                                            SecureField("Enter custom provider API key", text: $customAPIKey)
+                                                .textFieldStyle(.roundedBorder)
+                                        }
+                                    }
+
+                                    Toggle(isOn: $endpointShowInPopup) {
+                                        Label("Display on Model Popup Menu", systemImage: "eye.fill")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(.cyan)
+                                    }
+                                    .toggleStyle(.switch)
+                                    .tint(.cyan)
+
+                                    HStack(spacing: 12) {
+                                        Button(action: {
+                                            Task { await fetchCustomModels() }
+                                        }) {
+                                            HStack {
+                                                if isFetchingCustomModels {
+                                                    ProgressView().scaleEffect(0.6).padding(.trailing, 4)
+                                                } else {
+                                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                                }
+                                                Text(isFetchingCustomModels ? "Connecting..." : "Fetch Available Models")
+                                                    .fontWeight(.semibold)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.regular)
+                                        .disabled(isFetchingCustomModels)
+                                    }
+                                    .padding(.top, 4)
+
+                                    if let error = customFetchError {
+                                        Text(error)
+                                            .font(.caption)
+                                            .foregroundStyle(.red)
+                                    }
+
+                                    if !customModels.isEmpty {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Detected Models (\(customModels.count)):")
+                                                .font(.subheadline.bold())
+
+                                            ScrollView {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    ForEach(customModels, id: \.self) { m in
+                                                        HStack {
+                                                            Image(systemName: "cube.fill")
+                                                                .foregroundStyle(.blue)
+                                                            Text(m)
+                                                                .font(.caption.monospaced())
+                                                            Spacer()
+                                                            Button("Set as Default") {
+                                                                settings.selectedAssistModelID = m
+                                                            }
+                                                            .buttonStyle(.bordered)
+                                                            .controlSize(.small)
+                                                        }
+                                                        .padding(.vertical, 2)
+                                                        Divider()
+                                                    }
+                                                }
+                                            }
+                                            .frame(maxHeight: 120)
+                                        }
+                                    }
+
+                                    HStack(spacing: 12) {
+                                        Button(action: saveEndpoint) {
+                                            Text(isNewEndpoint ? "Save Endpoint" : "Update Endpoint")
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.cyan)
+
+                                        if !isNewEndpoint, let endpoint = selectedEndpoint {
+                                            Button(role: .destructive) {
+                                                deleteEndpoint(endpoint)
+                                            } label: {
+                                                Text("Delete")
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
+
+                                        Button("Cancel") {
+                                            isEditingEndpoint = false
+                                            selectedEndpoint = nil
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                    .padding(.top, 8)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Terminal Command Approvals", systemImage: "terminal.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                            Button {
+                                showingTerminalCommands = true
+                            } label: {
+                                Label("Manage", systemImage: "chevron.right")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .sheet(isPresented: $showingTerminalCommands) {
+                            AllowedTerminalCommandsView()
+                                .frame(minWidth: 560, minHeight: 520)
+                        }
+
+                        Text("Choose which terminal commands Assist may run without asking for approval, or enable Full Access to skip approval for every command.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.purple.opacity(0.14))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "append.page")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.purple)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Assist Memory")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Save context, preferences, and remember technical instructions across sessions")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                showUserMemorySheet = true
+                            } label: {
+                                Label("Manage Memory", systemImage: "slider.horizontal.2.square")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Divider()
+
+                        Toggle(isOn: $settings.enableUserMemory) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Enable Memory Recording")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("When enabled, Assist automatically records valuable context into it's Memory and references it in future tasks.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        HStack {
+                            Text("Memory is saved on device and Assist can access it for any future tasks.")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Open File") {
+                                NSWorkspace.shared.open(UserMemoryManager.shared.memoryFileURL)
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("About Assist", systemImage: "info.circle")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+
+                        Text("Assist is your personal AI assistant for SwiftCode.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+            }
+            .padding(24)
+        }
+        .clipped()
+        .navigationTitle("Assist Settings")
+        .sheet(isPresented: $showFreeModelsSheet) {
+            FreeORModels()
+                .environmentObject(settings)
+        }
+        .sheet(isPresented: $showFoundationModelsSheet) {
+            FoundationModelsView()
+        }
+        .sheet(isPresented: $showMCPServersSheet) {
+            AddMCPServerView()
+        }
+        .sheet(isPresented: $showUserMemorySheet) {
+            UserMemoryView()
+        }
+        .sheet(isPresented: $showComposioSheet) {
+            NavigationStack {
+                ScrollView {
+                    ComposioSettingsView()
+                        .padding()
+                }
+                .navigationTitle("Integrations")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showComposioSheet = false
+                        }
+                    }
+                }
+            }
+            .frame(minWidth: 700, minHeight: 650)
+        }
+        .sheet(isPresented: $showAlternativeKeysSheet) {
+            AlternativeKeysView()
+                .environmentObject(settings)
+        }
+        .sheet(isPresented: $showSkillsSheet) {
+            VStack(spacing: 0) {
+                HStack {
+                    Label("Skills", systemImage: "sparkles")
+                        .font(.headline)
+                    Spacer()
+                    Button("Done") {
+                        showSkillsSheet = false
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+                Divider()
+
+                ModernSkillsBrowserView()
+            }
+            .frame(minWidth: 850, minHeight: 600)
+        }
+        .sheet(isPresented: $isDownloadingResources) {
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.12))
+                        .frame(width: 64, height: 64)
+
+                    if downloadCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 34))
+                            .foregroundColor(.green)
+                    } else if downloadErrorMessage != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 34))
+                            .foregroundColor(.red)
+                    } else {
+                        ProgressView()
+                            .controlSize(.large)
+                    }
+                }
+
+                VStack(spacing: 6) {
+                    Text("Downloading Resources")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Installing official SDK runtime for direct execution")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(alignment: .center, spacing: 6) {
+                    Text(downloadStatusMessage)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(downloadErrorMessage != nil ? Color.red : (downloadCompleted ? Color.green : Color.blue))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                    if let err = downloadErrorMessage {
+                        ScrollView {
+                            Text(err)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .padding(8)
+                        }
+                        .frame(maxHeight: 90)
+                        .background(Color.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+                .padding(12)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+
+                if downloadCompleted || downloadErrorMessage != nil {
+                    HStack(spacing: 12) {
+                        if let err = downloadErrorMessage {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(err, forType: .string)
+                            } label: {
+                                Label("Copy Error", systemImage: "doc.on.doc")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                        }
+
+                        Button("Done") {
+                            isDownloadingResources = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                    }
+                }
+            }
+            .padding(28)
+            .frame(width: 440)
+            .interactiveDismissDisabled(!downloadCompleted && downloadErrorMessage == nil)
+        }
+        .alert("Sign Out of Account?", isPresented: $showSignOutConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sign Out", role: .destructive) {
+                googleAuth.signOut()
+            }
+        } message: {
+            Text("Are you sure you want to sign out? Google models will be unavailable until you sign in again or switch to API key authentication in Settings.")
+        }
+        .onAppear {
+            loadAPIKeys()
+            loadCachedModels()
+            metaAuth.checkAuthStatus()
+            if settings.isMetaAssist && !metaAuth.isAuthenticated {
+                metaAuth.onAssistOnMetaSelected()
+            }
+            Task {
+                await discoveryService.discoverAllModels(forceRefresh: true)
+            }
+        }
+        .onChange(of: settings.assistSystemID) { _, newSystemID in
+            if newSystemID == AppSettings.metaAssistSystemID {
+                metaAuth.onAssistOnMetaSelected()
+            }
+        }
+        .onChange(of: googleAuth.isAuthenticated) { _, _ in
+            Task {
+                await discoveryService.discoverAllModels(forceRefresh: true)
+            }
+        }
+        .onChange(of: metaAuth.isAuthenticated) { _, _ in
+            Task {
+                await discoveryService.discoverAllModels(forceRefresh: true)
+            }
+        }
+        .onChange(of: customEndpoint) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+        .onChange(of: localEndpointPort) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+        .onChange(of: customAPIKey) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+        .onChange(of: isEndpointLocal) { _, _ in
+            if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+    }
+
+    @ViewBuilder
+
+    private var rotationKeysRow: some View {
+        let keyCount = AlternativeKeyManager.shared.keys.count
+        let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
+        return HStack(spacing: 8) {
+            Circle()
+                .fill(readyCount > 0 ? Color.green : Color.secondary)
+                .frame(width: 6, height: 6)
+            Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
+                .font(.system(size: 10.5, weight: .medium))
+            Spacer()
+            Button {
+                showAlternativeKeysSheet = true
+            } label: {
+                Text("Manage Keys")
+                    .font(.system(size: 10.5, weight: .semibold))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var appModelsStatsRow: some View {
+        let stats = discoveryService.getDiscoveryStats()
+        return HStack(spacing: 6) {
+            Circle().fill(Color.green).frame(width: 5, height: 5)
+            Text("\(stats.total) models in catalog")
+                .font(.system(size: 10.5, weight: .semibold))
+            Text("·").foregroundStyle(.secondary)
+            Text("\(stats.providers) providers")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            Text("·").foregroundStyle(.secondary)
+            Text("\(stats.agentCompatible) agent-compatible")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.blue)
+            Spacer()
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var hasSavedOpenRouterKey: Bool {
+        if let key = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !key.isEmpty {
+            return true
+        }
+        return APIKeyManager.shared.retrieveKey(service: .openRouter)?.isEmpty == false
+    }
+
+    private var isOpenRouterModelSelected: Bool {
+        let id = settings.selectedAssistModelID
+        return !id.isEmpty && !OpenCodeModelID.isOpenCodeModelID(id) && id.contains("/")
+    }
+
+    private var isOpenCodeModelSelected: Bool {
+        OpenCodeModelID.isOpenCodeModelID(settings.selectedAssistModelID)
+    }
+
+    private func selectProviderModel(storedID: String, provider: AssistModelProvider) {
+        settings.selectedAssistModelID = storedID
+        AssistProviderSelection.persistedProvider = provider
+        if provider == .openCode {
+            Task { await OpenCodeClient.shared.resetAllSessions() }
+        }
+    }
+
+    private func saveOpenCodeConfiguration() {
+        var config = OpenCodeConfiguration.load()
+        if let url = URL(string: openCodeServerURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+           let scheme = url.scheme?.lowercased(), (scheme == "http" || scheme == "https"), url.host != nil {
+            config.serverURL = url
+        } else {
+            openCodeStatus = "Server URL is not a valid http(s) URL; previous URL kept."
+            return
+        }
+        let agent = openCodeAgentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.agentName = agent.isEmpty ? OpenCodeConfiguration.defaultAgentName : agent
+        config.save()
+        openCodeStatus = "OpenCode settings saved."
+    }
+
+    private var openRouterProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.purple.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "cpu")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.purple)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("OpenRouter")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Model provider for the same Assist loop — SwiftCode keeps its system prompt, tools, and permissions.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("OpenRouter")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        if isOpenRouterModelSelected {
+                            Text("Active")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    Text("Runs over OpenRouter's OpenAI-compatible API with your saved key (managed in API Keys below). Selecting a model below makes OpenRouter the provider for new Assist requests; it never substitutes another model.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text(hasSavedOpenRouterKey ? "API key saved" : "No API key saved")
+                            .font(.caption)
+                            .foregroundStyle(hasSavedOpenRouterKey ? .green : .orange)
+                        Spacer()
+                        Button(isTestingOpenRouter ? "Testing…" : "Test connection") {
+                            isTestingOpenRouter = true
+                            openRouterTestResult = nil
+                            Task {
+                                do {
+                                    openRouterTestResult = try await OpenRouterAssistProvider.testConnection()
+                                } catch {
+                                    openRouterTestResult = error.localizedDescription
+                                }
+                                isTestingOpenRouter = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isTestingOpenRouter)
+                    }
+                    if let result = openRouterTestResult {
+                        Text(result)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Button(isFetchingProviderOpenRouterModels ? "Discovering…" : "Discover models") {
+                            isFetchingProviderOpenRouterModels = true
+                            providerOpenRouterError = nil
+                            Task {
+                                do {
+                                    providerOpenRouterModels = try await OpenRouterAssistProvider.fetchModels()
+                                } catch {
+                                    providerOpenRouterError = error.localizedDescription
+                                }
+                                isFetchingProviderOpenRouterModels = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isFetchingProviderOpenRouterModels)
+                        Button(isValidatingOpenRouter ? "Validating…" : "Validate selected model") {
+                            isValidatingOpenRouter = true
+                            openRouterValidationResult = nil
+                            Task {
+                                do {
+                                    let support = try await OpenRouterAssistProvider.validateModel(settings.selectedAssistModelID)
+                                    switch support {
+                                    case .supports:
+                                        openRouterValidationResult = "“\(settings.selectedAssistModelID)” exists on OpenRouter and advertises native tool calling."
+                                    case .doesNotSupport:
+                                        openRouterValidationResult = "“\(settings.selectedAssistModelID)” exists on OpenRouter but does not advertise native tool calling. Assist still works through its JSON tool protocol; no model was substituted."
+                                    case .unknown:
+                                        openRouterValidationResult = "“\(settings.selectedAssistModelID)” exists on OpenRouter. Native tool-calling support is not advertised in its catalog entry; Assist still works through its JSON tool protocol."
+                                    }
+                                } catch {
+                                    openRouterValidationResult = error.localizedDescription
+                                }
+                                isValidatingOpenRouter = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isValidatingOpenRouter || settings.selectedAssistModelID.isEmpty)
+                    }
+                    if let error = providerOpenRouterError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    if let result = openRouterValidationResult {
+                        Text(result)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !providerOpenRouterModels.isEmpty {
+                        ForEach(providerOpenRouterModels.prefix(50)) { model in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.name)
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text(model.id)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if settings.selectedAssistModelID == model.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("Select") {
+                                        selectProviderModel(storedID: model.id, provider: .openRouter)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                        if providerOpenRouterModels.count > 50 {
+                            Text("Showing the first 50 discovered models. Use the Available Models list below to browse all of them.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if settings.assistUseProviderModels {
+                        Text("Use Provider Models is on: only the fetched OpenRouter models listed above may be used. User-provided models are blocked while this is on.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                    Divider()
+                    sdkRuntimeRow(for: .openRouter)
+                }
+
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private var openCodeProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.purple.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "cpu")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.purple)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("OpenCode")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Model provider for the same Assist loop — SwiftCode keeps its system prompt, tools, and permissions.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("OpenCode")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        if isOpenCodeModelSelected {
+                            Text("Active")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    Text("SwiftCode sends its own system prompt and the selected model; with SwiftCode tools the model returns JSON tool requests that SwiftCode validates, permission-checks, and executes with its own tools. OpenCode model credentials stay in OpenCode's own configuration and are never stored by SwiftCode.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Server is managed automatically (loopback only): if no server is reachable, SwiftCode starts one, finds the `opencode` binary in the well-known install locations, or installs it via npm/bun — and writes the deny-all `swiftcode` agent definition if it is missing. You never need to start `opencode serve` by hand or flip a toggle.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Server URL")
+                            .font(.caption)
+                            .frame(width: 70, alignment: .leading)
+                        TextField("http://127.0.0.1:4096", text: $openCodeServerURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                    HStack {
+                        Text("Agent")
+                            .font(.caption)
+                            .frame(width: 70, alignment: .leading)
+                        TextField("swiftcode", text: $openCodeAgentName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                    HStack {
+                        Button("Save OpenCode settings") {
+                            saveOpenCodeConfiguration()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        Button(isCheckingOpenCode ? "Checking…" : "Check server") {
+                            isCheckingOpenCode = true
+                            openCodeStatus = nil
+                            Task {
+                                do {
+                                    try await OpenCodeClient.shared.ensureServer()
+                                    openCodeStatus = "OpenCode server is reachable at \(OpenCodeConfiguration.load().serverURL.absoluteString)."
+                                } catch {
+                                    openCodeStatus = error.localizedDescription
+                                }
+                                isCheckingOpenCode = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isCheckingOpenCode)
+                        Button(isFetchingOpenCodeModels ? "Discovering…" : "Discover models") {
+                            isFetchingOpenCodeModels = true
+                            openCodeFetchError = nil
+                            Task {
+                                do {
+                                    openCodeModels = try await OpenCodeClient.shared.fetchModels()
+                                } catch {
+                                    openCodeFetchError = error.localizedDescription
+                                }
+                                isFetchingOpenCodeModels = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isFetchingOpenCodeModels)
+                    }
+                    if let status = openCodeStatus {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let error = openCodeFetchError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    HStack {
+                        TextField("provider/model (e.g. anthropic/claude-sonnet-4-5)", text: $openCodeManualModel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                        Button("Select") {
+                            let trimmed = openCodeManualModel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard trimmed.contains("/"), !trimmed.hasPrefix("opencode:") else {
+                                openCodeFetchError = "Enter an OpenCode model as provider/model (without the opencode: prefix)."
+                                return
+                            }
+                            openCodeFetchError = nil
+                            selectProviderModel(storedID: "opencode:\(trimmed)", provider: .openCode)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(openCodeManualModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if !openCodeModels.isEmpty {
+                        ForEach(openCodeModels) { model in
+                            HStack {
+                                Text(model.displayName)
+                                    .font(.system(.caption, design: .monospaced))
+                                Spacer()
+                                if settings.selectedAssistModelID == model.storedID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("Select") {
+                                        selectProviderModel(storedID: model.storedID, provider: .openCode)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                    }
+                    if settings.assistUseProviderModels {
+                        Text("Use Provider Models is on: only the fetched models listed above (plus a provider/model you enter here) may be used. User-provided models are blocked while this is on.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                    Divider()
+                    sdkRuntimeRow(for: .openCode)
+                }
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private func sdkRuntimeRow(for provider: SDKProvider) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(provider.displayName) SDK runtime")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if sdkStatuses[provider]?.isBridgeRunning == true {
+                    Text("Bridge running")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.green)
+                }
+            }
+            Text(sdkStatuses[provider]?.summary ?? "Status unknown — use Refresh status.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text("\(provider.packageName)@\(provider.pinnedVersion) pinned. Runtime directory: \(SDKRuntimeManager.runtimeDirectory(for: provider)?.path ?? "unavailable"). Deleting that directory uninstalls the runtime; Install recreates it.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            HStack {
+                if sdkInstallingProviders.contains(provider) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Installing…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Install") { sdkInstall(provider: provider, force: false) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    Button("Repair") { sdkInstall(provider: provider, force: true) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    if sdkStatuses[provider]?.isBridgeRunning == true {
+                        Button("Stop bridge") {
+                            Task {
+                                await SDKRuntimeManager.shared.terminateBridge(provider: provider)
+                                await refreshSDKStatuses()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                Spacer()
+                Button("Refresh status") {
+                    Task { await refreshSDKStatuses() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(sdkInstallingProviders.contains(provider))
+            }
+            if let error = sdkInstallErrors[provider] {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+            } else if let notice = sdkInstallNotices[provider] {
+                Text(notice)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.green)
+            }
+            Text("SDK tool panels are session-only: tool events live in memory for the current conversation and are not persisted with saved conversations.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .onAppear {
+            Task { await refreshSDKStatuses() }
+        }
+    }
+
+    private func refreshSDKStatuses() async {
+        sdkStatuses = await SDKRuntimeManager.shared.statuses()
+    }
+
+    private func sdkInstall(provider: SDKProvider, force: Bool) {
+        guard !sdkInstallingProviders.contains(provider) else { return }
+        let wasAlreadyInstalled = sdkStatuses[provider]?.isInstalled == true && !force
+        sdkInstallingProviders.insert(provider)
+        sdkInstallErrors[provider] = nil
+        sdkInstallNotices[provider] = nil
+        Task {
+            do {
+                let status = try await SDKRuntimeManager.shared.ensureInstalled(for: provider, force: force)
+                sdkStatuses[provider] = status
+                sdkInstallNotices[provider] = wasAlreadyInstalled
+                    ? "Already installed and verified: \(provider.packageName) \(status.installedVersion ?? "")"
+                    : "Installed \(provider.packageName) \(status.installedVersion ?? "")"
+            } catch {
+                sdkInstallErrors[provider] = error.localizedDescription
+                await refreshSDKStatuses()
+            }
+            sdkInstallingProviders.remove(provider)
+        }
+    }
+
+    private var isHermesModelSelected: Bool {
+        HermesModelID.isHermesModelID(settings.selectedAssistModelID)
+    }
+
+    private var assistSystemModelNote: String? {
+        let expected: AssistModelProvider?
+        let systemName: String
+        if settings.isOpenRouterAssist {
+            expected = .openRouter; systemName = "OpenRouter"
+        } else if settings.isOpenCodeAssist {
+            expected = .openCode; systemName = "OpenCode"
+        } else if settings.isHermesAssist {
+            expected = .hermes; systemName = "Hermes"
+        } else {
+            return nil
+        }
+        let selected = settings.selectedAssistModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selected.isEmpty else {
+            return "Showing \(systemName) settings. No model is selected yet — pick one in the card below to route new Assist requests to \(systemName)."
+        }
+        let actual = AssistProviderSelection.provider(for: selected)
+        guard actual != expected else { return nil }
+        return "Showing \(systemName) settings, but new Assist requests still use “\(selected)” until you select a \(systemName) model in the card below."
+    }
+
+    private var hermesProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.teal.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.teal)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Hermes Agent")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Nous Research's Hermes Agent as a selectable Assist provider, via its documented stream-json one-shot CLI. SwiftCode stays the host: it owns the session, the prompt, and the transcript; Hermes owns only the agent loop inside one run.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                Text(hermesStatus ?? "Status unknown — use Check installation.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                if let error = hermesError {
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                }
+                HStack {
+                    if isCheckingHermes {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Checking…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("Check installation") { hermesCheck() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Save Hermes settings") { hermesSave() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Executable path (blank = auto-detect from PATH and ~/.local/bin)")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("hermes", text: $hermesExecutablePath)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Hermes model (without the hermes: prefix)")
+                        .font(.system(size: 12, weight: .medium))
+                    HStack {
+                        TextField("provider:model (e.g. openrouter:anthropic/claude-sonnet-4-6) or a bare model", text: $hermesManualModel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                        Button("Select") {
+                            let trimmed = hermesManualModel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard HermesModelID.parse("hermes:\(trimmed)") != nil else {
+                                hermesError = "Enter a Hermes model as provider:model or a bare model name (without the hermes: prefix)."
+                                return
+                            }
+                            hermesError = nil
+                            selectProviderModel(storedID: "hermes:\(trimmed)", provider: .hermes)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(hermesManualModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if isHermesModelSelected {
+                        Text("Hermes is the currently selected provider: \(settings.selectedAssistModelID)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Toolsets (optional, comma-separated; blank = Hermes defaults)")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("file,web", text: $hermesToolsets)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                    Text("Max turns (optional; blank = Hermes default). This is the iteration budget for a run.")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("500", text: $hermesMaxTurnsText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Provider models (fetched from Hermes)")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Hermes has no model-list command, so this reads Hermes' current model from `hermes model` and, when Hermes is OpenRouter-backed, expands to OpenRouter's live catalog (via SwiftCode's saved OpenRouter key). It never invents a catalog.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button(isFetchingHermesModels ? "Discovering…" : "Discover models") {
+                            isFetchingHermesModels = true
+                            hermesFetchError = nil
+                            Task {
+                                do {
+                                    hermesModels = try await HermesProvider.fetchModels()
+                                } catch {
+                                    hermesFetchError = error.localizedDescription
+                                }
+                                isFetchingHermesModels = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isFetchingHermesModels)
+                        Spacer()
+                    }
+                    if let error = hermesFetchError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    ForEach(hermesModels) { model in
+                        HStack {
+                            Text(model.displayName)
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            if settings.selectedAssistModelID == model.storedID {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            } else {
+                                Button("Select") {
+                                    selectProviderModel(storedID: model.storedID, provider: .hermes)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                    if settings.assistUseProviderModels {
+                        Text("Use Provider Models is on: only the fetched models listed above may be used. User-provided models are blocked while this is on.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("How Hermes runs in SwiftCode — read before first use")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("One fresh `hermes chat --oneshot --format stream-json` run per task (never resumed, never --yolo). Hermes runs its own tools — SwiftCode native tools do NOT execute in Hermes runs — under Hermes' own approvals, not SwiftCode's tool permissions. SwiftCode's system prompt is sent as the first part of the query (Hermes has no --system-prompt flag). Hermes keys live in ~/.hermes/.env; SwiftCode stores no Hermes key. Run `hermes setup` and `hermes model` in a terminal first, then Check installation above.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Hermes has no JS SDK runtime, so there is no Install/Repair row here — Check installation is its equivalent.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private func hermesCheck() {
+        guard !isCheckingHermes else { return }
+        isCheckingHermes = true
+        hermesError = nil
+        let configured = hermesExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            do {
+                let executable = configured.isEmpty
+                    ? HermesProvider.resolveExecutable()
+                    : (FileManager.default.isExecutableFile(atPath: configured) ? configured : nil)
+                guard let executable else {
+                    throw HermesError.executableNotFound(
+                        configured.isEmpty
+                            ? "no `hermes` executable on PATH or in ~/.local/bin"
+                            : "configured path \"\(configured)\" is not executable"
+                    )
+                }
+                let version = try await HermesProvider.detectVersion(executablePath: executable)
+                hermesStatus = "Found: \(version) at \(executable)"
+            } catch {
+                hermesError = error.localizedDescription
+                hermesStatus = "Hermes not verified."
+            }
+            isCheckingHermes = false
+        }
+    }
+
+    private func hermesSave() {
+        let trimmedTurns = hermesMaxTurnsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let turns: Int
+        if trimmedTurns.isEmpty {
+            turns = 0
+        } else if let parsed = Int(trimmedTurns), parsed > 0 {
+            turns = parsed
+        } else {
+            hermesError = "Max turns must be a positive number, or blank for the Hermes default. Nothing was saved."
+            return
+        }
+        var config = HermesConfiguration.load()
+        config.executablePath = hermesExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.toolsets = hermesToolsets.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.maxTurns = turns
+        config.save()
+        hermesError = nil
+        hermesStatus = "Hermes settings saved."
+    }
+
+    @ViewBuilder
+    private var swiftCodeCloudSection: some View {
+        let cloudRemaining = SCCloudModelClient.shared.remainingRequestsToday
+        let cloudLimit = SCCloudConfiguration.dailyRequestLimit
+        return VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: $settings.useSwiftCodeCloudModel) {
+                HStack {
+                    Text("Use SwiftCode's Cloud Model")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Text("\(cloudRemaining)/\(cloudLimit) left today")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(cloudRemaining > 0 ? Color.secondary : Color.orange)
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .onChange(of: settings.useSwiftCodeCloudModel) { _, isOn in
+                if isOn {
+                    SCCloudDeviceFingerprint.ensureFingerprint()
+                    Task { await refreshCloudModels() }
+                }
+            }
+
+            Text("Adds SwiftCode's hosted cloud models to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(cloudLimit) requests per device per day for fair use.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            if settings.useSwiftCodeCloudModel {
+                Divider()
+                cloudModelListSection
+            }
+        }
+    }
+
+    @ViewBuilder
+
+    private var cloudModelListSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Cloud Models")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if isRefreshingCloudModels {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Button("Refresh") {
+                        Task { await refreshCloudModels() }
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.link)
+                }
+            }
+
+            if let updated = cloudModelsUpdatedAt, !cloudModels.isEmpty {
+                Text("\(cloudModels.count) models · updated \(updated, style: .relative) ago")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            } else if !isRefreshingCloudModels {
+                Text("No models discovered yet — tap Refresh to ask the server which models it serves.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(cloudModels, id: \.endpointName) { model in
+                Button {
+                    settings.selectedAssistModelID = model.internalID
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: settings.selectedAssistModelID == model.internalID
+                              ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(settings.selectedAssistModelID == model.internalID
+                                             ? Color.accentColor : Color.secondary)
+                        Text(model.displayName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if let blurb = model.blurb, !blurb.isEmpty {
+                            Text(blurb)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .onAppear {
+            cloudModels = SCCloudModelDiscovery.shared.models
+            cloudModelsUpdatedAt = SCCloudModelDiscovery.shared.lastUpdated
+        }
+    }
+
+    private func refreshCloudModels() async {
+        await MainActor.run { isRefreshingCloudModels = true }
+        let fresh = await SCCloudModelDiscovery.shared.refresh()
+        let updated = SCCloudModelDiscovery.shared.lastUpdated
+        await MainActor.run {
+            cloudModels = fresh
+            cloudModelsUpdatedAt = updated
+            isRefreshingCloudModels = false
+        }
+    }
+
+    @ViewBuilder
+
+    private var metaSDKOtherModelsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $settings.otherModelsWithMetaSDK) {
+                HStack(spacing: 6) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.purple)
+                    Text("Other Models with Meta SDK")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    if settings.otherModelsWithMetaSDK {
+                        Text("Bridge Active")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.15), in: Capsule())
+                            .foregroundStyle(.purple)
+                    }
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Toggle(isOn: $settings.swiftCodeCloudWithMetaSDK) {
+                HStack(spacing: 6) {
+                    Image(systemName: "cloud.sun.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.blue)
+                    Text("SwiftCode Cloud Models with Meta SDK")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    let remaining = SCCloudModelClient.shared.remainingRequestsToday
+                    Text("\(remaining)/\(SCCloudConfiguration.dailyRequestLimit) left today")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(remaining > 0 ? Color.secondary : Color.orange)
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Text("Route Assist with Meta turns through the Muse SDK bridge using third-party models from your saved API providers (OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Qwen), Custom Model Setups, or SwiftCode's Cloud Models.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            if settings.otherModelsWithMetaSDK || settings.swiftCodeCloudWithMetaSDK {
+                VStack(alignment: .leading, spacing: 10) {
+                    Divider()
+
+                    Toggle(isOn: $settings.useOtherModelsWhenRateLimited) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Use Other Models when Rate Limited")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Automatically failover to the bridged model if Meta models hit rate limits (429), token limits, or quota exhaustion.")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Bridged Model")
+                            .font(.system(size: 11, weight: .medium))
+
+                        let availableModels = MuseOtherModelsBridge.shared.availableOtherModels()
+                        let activeModel = MuseOtherModelsBridge.shared.resolveActiveModel()
+
+                        Menu {
+                            let cloudModels = SCCloudModelDiscovery.shared.models
+                            if !cloudModels.isEmpty {
+                                Section("SwiftCode Cloud Models") {
+                                    ForEach(cloudModels, id: \.endpointName) { model in
+                                        Button {
+                                            settings.metaSelectedOtherModelID = model.internalID
+                                            settings.metaSelectedOtherModelProvider = SCCloudConfiguration.providerName
+                                            settings.selectedAssistModelID = model.internalID
+                                            settings.useSwiftCodeCloudModel = true
+                                            SCCloudDeviceFingerprint.ensureFingerprint()
+                                        } label: {
+                                            HStack {
+                                                Text("SwiftCode Cloud: \(model.displayName)")
+                                                if settings.metaSelectedOtherModelID == model.internalID {
+                                                    Image(systemName: "checkmark")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Section("Saved API Providers & Models") {
+                                ForEach(availableModels.filter { $0.source != .custom && $0.source != .local && !SCCloudConfiguration.isCloudModelID($0.id) }) { model in
+                                    Button {
+                                        settings.metaSelectedOtherModelID = model.modelIdentifier
+                                        settings.metaSelectedOtherModelProvider = model.providerName
+                                    } label: {
+                                        HStack {
+                                            Text(model.displayName)
+                                            if settings.metaSelectedOtherModelID == model.modelIdentifier {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            let customEndpoints = CustomEndpointManager.shared.endpoints
+                            if !customEndpoints.isEmpty {
+                                Section("Custom Model Setups") {
+                                    ForEach(customEndpoints) { endpoint in
+                                        let eligibleModels = AssistModelEligibilityPolicy.filterEligibleModelIDs(endpoint.models, onlyUseFreeModels: settings.onlyUseFreeModels)
+                                        ForEach(eligibleModels, id: \.self) { modelID in
+                                            Button {
+                                                settings.metaSelectedOtherModelID = modelID
+                                                settings.metaSelectedOtherModelProvider = endpoint.name
+                                            } label: {
+                                                HStack {
+                                                    Text("\(endpoint.name): \(modelID)")
+                                                    if settings.metaSelectedOtherModelID == modelID {
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(.purple)
+                                    .font(.system(size: 11))
+                                Text(activeModel.displayName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(activeModel.provider)
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.purple.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.purple)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+                }
+                .padding(10)
+                .background(Color.purple.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.purple.opacity(0.15), lineWidth: 1))
+            }
+        }
+    }
+
+    @ViewBuilder
+
+    private var googleAccountCard: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Google Account Authentication", systemImage: "person.badge.key.fill")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                    Spacer()
+                    googleAuthStatusBadge
+                }
+
+                if googleAuth.isAuthenticated {
+                    authenticatedAccountView
+                } else {
+                    googleSignInControls
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private var googleAuthStatusBadge: some View {
+        Group {
+            if googleAuth.isAuthenticating {
+                Label("Signing in…", systemImage: "progress.indicator")
+                    .foregroundStyle(.secondary)
+            } else if googleAuth.isAuthenticated {
+                Label("Authenticated", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if googleAuth.authError != nil {
+                Label("Sign-in failed", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            } else if googleAuth.lastTokenRefreshError != nil {
+                Label("Session expired", systemImage: "clock.badge.exclamationmark.fill")
+                    .foregroundStyle(.orange)
+            } else {
+                Label("Not signed in", systemImage: "person.crop.circle")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption2)
+    }
+
+    private var googleSignInControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
+                Text("Sign in with Google").tag("google_oauth")
+                Text("API Key").tag("api_key")
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .labelsHidden()
+            .onChange(of: assistGoogleAuthMode) { _, newValue in
+                AppSettings.shared.assistGoogleAuthMode = newValue
+            }
+
+            if assistGoogleAuthMode == "google_oauth" {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Button {
+                            googleAuth.signIn()
+                        } label: {
+                            HStack {
+                                if googleAuth.isAuthenticating {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .padding(.trailing, 4)
+                                    Text("Signing In...")
+                                } else {
+                                    Image(systemName: "person.badge.key.fill")
+                                    Text("Sign in with Google")
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .disabled(googleAuth.isAuthenticating)
+
+                        if googleAuth.findAgyCLI() != nil || googleAuth.fetchAntigravityCredentialsFromKeychain() != nil {
+                            Button {
+                                googleAuth.signInViaCLI()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "terminal.fill")
+                                    Text("Via CLI")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                            .disabled(googleAuth.isAuthenticating)
+                            .help("Authenticate in the background using the agy CLI")
+                        }
+                    }
+
+                    Text("Sign in with your Google account to use Gemini models without an API key. OAuth usage is attributed to your Google Cloud project (see Advanced below).")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    if let error = googleAuth.authError {
+                        HStack(alignment: .top, spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption2)
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+                        .padding(.top, 2)
+                    }
+
+                    if let refreshError = googleAuth.lastTokenRefreshError {
+                        HStack(alignment: .top, spacing: 4) {
+                            Image(systemName: "clock.badge.exclamationmark.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption2)
+                            Text("Previous session expired: \(refreshError). Sign in again to continue.")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+                .padding(.vertical, 2)
+            } else {
+                Text("API Key mode: add your Gemini API key under AI Provider API Keys below.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var advancedOAuthSection: some View {
+        GroupBox {
+            DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Google Cloud Project ID")
+                            .font(.caption2.bold())
+                        TextField("my-project-id", text: Binding(
+                            get: { AppSettings.shared.assistGoogleCloudProject },
+                            set: { AppSettings.shared.assistGoogleCloudProject = $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption2)
+                        Text("Required for Sign in with Google: the Gemini API bills OAuth usage to this project. Find it in the Google Cloud console.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("OAuth Client ID Override")
+                            .font(.caption2.bold())
+                        TextField("Empty = SwiftCode's built-in client", text: $googleOAuthClientIDInput)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.caption2)
+                            .onChange(of: googleOAuthClientIDInput) { _, newValue in
+                                AppSettings.shared.assistGoogleOAuthClientIDOverride = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        Text("Only needed if you must use a different OAuth client than SwiftCode's built-in one. Applies to the next sign-in.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Text("OAuth Client Secret")
+                                .font(.caption2.bold())
+                            if googleAuth.hasKeychainClientSecret {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "lock.shield.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption2)
+                                    Text("Saved in Keychain")
+                                        .font(.caption2)
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            Spacer()
+                            if googleAuth.hasKeychainClientSecret {
+                                Button("Clear") {
+                                    googleAuth.clearClientSecret()
+                                }
+                                .font(.caption2)
+                                .buttonStyle(.plain)
+                                .foregroundColor(.red)
+                            }
+                        }
+                        HStack(spacing: 6) {
+                            SecureField("Paste client secret", text: $googleClientSecretInput)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption2)
+                            Button("Save") {
+                                googleAuth.setClientSecret(googleClientSecretInput)
+                                googleClientSecretInput = ""
+                            }
+                            .font(.caption2)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(googleClientSecretInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        Text("Required for Sign in with Google: Google's token endpoint rejects the sign-in without it (\"client_secret is missing.\"). Stored only in Keychain, never in the app bundle.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("Advanced", systemImage: "gearshape.fill")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private var authenticatedAccountView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(quotaService.fiveHourGaugeColor.opacity(0.15))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.system(size: 19))
+                        .foregroundColor(quotaService.fiveHourGaugeColor)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    if let email = googleAuth.userEmail, !email.isEmpty {
+                        Text(email)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("Google Account")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+
+                    HStack(spacing: 5) {
+                        Circle().fill(quotaService.fiveHourGaugeColor).frame(width: 6, height: 6)
+                        Text("OAuth Active · Using Account Allowance")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Button(role: .destructive) {
+                    showSignOutConfirmation = true
+                } label: {
+                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            if !googleAuth.hasRequiredAssistScopes() {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Gemini API Permissions Needed")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text("Your session needs updated permissions to use Assist directly with your Google account without an API key.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("Update Permissions") {
+                        googleAuth.reAuthenticateForAssistScopes()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                )
+            }
+
+            Divider()
+
+            accountLimitsAllowanceCard
+        }
+        .padding(12)
+        .background(quotaService.fiveHourGaugeColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(quotaService.fiveHourGaugeColor.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var accountLimitsAllowanceCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "gauge.with.needle.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(quotaService.fiveHourGaugeColor)
+                    Text("Account Allowance")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                Button {
+                    quotaService.refreshRealGoogleQuota()
+                } label: {
+                    if quotaService.isRefreshingQuota {
+                        ProgressView()
+                            .scaleEffect(0.55)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Refresh live rate limits via CLI script")
+                .disabled(quotaService.isRefreshingQuota)
+
+                Text("\(quotaService.fiveHourRemainingPercentString) Remaining")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(quotaService.fiveHourGaugeColor.opacity(0.15), in: Capsule())
+                    .foregroundStyle(quotaService.fiveHourGaugeColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Gemini 5-Hour Rate Limit")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(quotaService.fiveHourRemainingPercentString) remaining")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(quotaService.fiveHourGaugeColor)
+                }
+
+                ProgressView(value: quotaService.fiveHourRemainingFraction)
+                    .tint(quotaService.fiveHourGaugeColor)
+
+                HStack {
+                    Text("Resets in: \(quotaService.fiveHourResetCountdownString)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Live CLI Allowance")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Gemini Weekly Allowance")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(quotaService.weeklyRemainingPercentString) remaining")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(quotaService.weeklyGaugeColor)
+                }
+
+                ProgressView(value: quotaService.weeklyRemainingFraction)
+                    .tint(quotaService.weeklyGaugeColor)
+
+                HStack {
+                    Text("Resets: \(quotaService.weeklyResetString)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Live CLI Allowance")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+        .onAppear {
+            quotaService.refreshRealGoogleQuota()
+        }
+    }
+
+    private func loadAPIKeys() {
+        openRouterKey = APIKeyManager.shared.retrieveKey(service: .openRouter)
+            ?? KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey)
+            ?? KeychainService.shared.get(forKey: "openrouter-api-key")
+            ?? ""
+        openaiKey = APIKeyManager.shared.retrieveKey(service: .openai)
+            ?? KeychainService.shared.get(forKey: LLMProvider.openai.keychainKey)
+            ?? KeychainService.shared.get(forKey: "openai-api-key")
+            ?? KeychainService.shared.get(forKey: "openai_api_key")
+            ?? ""
+        anthropicKey = APIKeyManager.shared.retrieveKey(service: .anthropic)
+            ?? KeychainService.shared.get(forKey: LLMProvider.anthropic.keychainKey)
+            ?? KeychainService.shared.get(forKey: "anthropic-api-key")
+            ?? KeychainService.shared.get(forKey: "anthropic_api_key")
+            ?? ""
+        geminiKey = APIKeyManager.shared.retrieveKey(service: .google)
+            ?? KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
+            ?? KeychainService.shared.get(forKey: "gemini-api-key")
+            ?? KeychainService.shared.get(forKey: "gemini_api_key")
+            ?? ""
+        composioKey = ""
+        googleOAuthClientIDInput = AppSettings.shared.assistGoogleOAuthClientIDOverride
+    }
+
+    private func saveAPIKeys() {
+        let trimmedOR = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAI = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAnthropic = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGemini = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedComposio = composioKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        APIKeyManager.shared.storeKey(service: .openRouter, key: trimmedOR)
+        APIKeyManager.shared.storeKey(service: .openai, key: trimmedOpenAI)
+        APIKeyManager.shared.storeKey(service: .anthropic, key: trimmedAnthropic)
+        APIKeyManager.shared.storeKey(service: .google, key: trimmedGemini)
+
+        KeychainService.shared.set(trimmedOR, forKey: "openrouter-api-key")
+        KeychainService.shared.set(trimmedOR, forKey: KeychainService.openRouterAPIKey)
+        KeychainService.shared.set(trimmedOpenAI, forKey: "openai-api-key")
+        KeychainService.shared.set(trimmedOpenAI, forKey: "openai_api_key")
+        KeychainService.shared.set(trimmedOpenAI, forKey: LLMProvider.openai.keychainKey)
+        KeychainService.shared.set(trimmedAnthropic, forKey: "anthropic-api-key")
+        KeychainService.shared.set(trimmedAnthropic, forKey: "anthropic_api_key")
+        KeychainService.shared.set(trimmedAnthropic, forKey: LLMProvider.anthropic.keychainKey)
+        KeychainService.shared.set(trimmedGemini, forKey: "gemini-api-key")
+        KeychainService.shared.set(trimmedGemini, forKey: "gemini_api_key")
+        KeychainService.shared.set(trimmedGemini, forKey: LLMProvider.google.keychainKey)
+
+        if !trimmedComposio.isEmpty {
+            ComposioService.shared.saveApiKey(trimmedComposio)
+            composioKey = ""
+        }
+
+        hasSavedKeys = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            hasSavedKeys = false
+        }
+
+        Task {
+            await fetchOpenRouterModels()
+            await discoveryService.discoverAllModels(forceRefresh: true)
+        }
+    }
+
+    private func fetchOpenRouterModels() async {
+        isFetchingOpenRouterModels = true
+        openRouterFetchError = nil
+        do {
+            let models = try await OpenRouterClient.shared.fetchModels()
+            if !models.isEmpty {
+                openRouterModels = models
+            }
+        } catch {
+            openRouterFetchError = error.localizedDescription
+        }
+        isFetchingOpenRouterModels = false
+    }
+
+    private func fetchCustomModels() async {
+        isFetchingCustomModels = true
+        customFetchError = nil
+        customModels = []
+
+        do {
+            var urlString = ""
+            if isEndpointLocal {
+                urlString = "http://localhost:\(localEndpointPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1/models"
+            } else {
+                urlString = customEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !urlString.lowercased().hasSuffix("/models") {
+                    if urlString.hasSuffix("/") {
+                        urlString += "models"
+                    } else {
+                        urlString += "/models"
+                    }
+                }
+            }
+
+            guard let url = URL(string: urlString) else {
+                throw NSError(domain: "Invalid URL", code: 0, userInfo: [NSLocalizedDescriptionKey: "The constructed models URL is invalid."])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 10.0
+
+            if !isEndpointLocal {
+                let trimmedKey = customAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty {
+                    request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+                }
+
+                for header in customHeaders {
+                    let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                        request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                    }
+                }
+            }
+
+            var data: Data
+            var response: URLResponse
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch {
+                if isEndpointLocal {
+                    let fallbackUrlString = "http://localhost:\(localEndpointPort.trimmingCharacters(in: .whitespacesAndNewlines))/models"
+                    if let fallbackUrl = URL(string: fallbackUrlString) {
+                        var fallbackRequest = URLRequest(url: fallbackUrl)
+                        fallbackRequest.httpMethod = "GET"
+                        fallbackRequest.timeoutInterval = 10.0
+                        (data, response) = try await URLSession.shared.data(for: fallbackRequest)
+                    } else {
+                        throw error
+                    }
+                } else {
+                    throw error
+                }
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let body = String(data: data, encoding: .utf8) ?? "No body"
+                throw NSError(domain: "API Error", code: code, userInfo: [NSLocalizedDescriptionKey: "Server returned status \(code): \(body)"])
+            }
+
+            struct CustomModelsResponse: Codable {
+                let data: [ModelEntry]
+                struct ModelEntry: Codable {
+                    let id: String
+                }
+            }
+
+            let decoded = try JSONDecoder().decode(CustomModelsResponse.self, from: data)
+            let modelsList = decoded.data.map { $0.id }
+            if modelsList.isEmpty {
+                customFetchError = "No models were found in the response."
+            } else {
+                customModels = modelsList
+            }
+        } catch {
+            customFetchError = error.localizedDescription
+        }
+
+        isFetchingCustomModels = false
+    }
+
+    private func triggerAutoFetchCustomModels() {
+        autoFetchTask?.cancel()
+        autoFetchTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            await fetchCustomModels()
+        }
+    }
+
+    private func openAddEndpoint() {
+        isNewEndpoint = true
+        customEndpointName = ""
+        customEndpoint = "https://api.openai.com/v1"
+        customAPIKey = ""
+        customHeaders = [HeaderItem(key: "Content-Type", value: "application/json")]
+        customModels = []
+        isEndpointLocal = false
+        localEndpointPort = "11434"
+        endpointShowInPopup = true
+        selectedEndpoint = nil
+        isEditingEndpoint = true
+        triggerAutoFetchCustomModels()
+    }
+
+    private func openEditEndpoint(_ endpoint: SavedCustomEndpoint) {
+        isNewEndpoint = false
+        selectedEndpoint = endpoint
+        customEndpointName = endpoint.name
+        customEndpoint = endpoint.endpoint
+        customAPIKey = endpoint.apiKey
+        customHeaders = endpoint.headers
+        customModels = endpoint.models
+        isEndpointLocal = endpoint.isLocal
+        localEndpointPort = endpoint.localPort
+        endpointShowInPopup = endpoint.showInPopup
+        isEditingEndpoint = true
+    }
+
+    private func saveEndpoint() {
+        let nameToSave = customEndpointName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom Endpoint" : customEndpointName
+
+        let newOrUpdated = SavedCustomEndpoint(
+            id: selectedEndpoint?.id ?? UUID(),
+            name: nameToSave,
+            endpoint: customEndpoint,
+            apiKey: customAPIKey,
+            headers: customHeaders,
+            models: customModels.isEmpty ? [nameToSave] : customModels,
+            showInPopup: endpointShowInPopup,
+            isLocal: isEndpointLocal,
+            localPort: localEndpointPort
+        )
+
+        if isNewEndpoint {
+            customEndpointsManager.endpoints.append(newOrUpdated)
+        } else if let selected = selectedEndpoint {
+            if let index = customEndpointsManager.endpoints.firstIndex(where: { $0.id == selected.id }) {
+                customEndpointsManager.endpoints[index] = newOrUpdated
+            }
+        }
+
+        isEditingEndpoint = false
+        selectedEndpoint = nil
+
+        Task {
+            await discoveryService.discoverAllModels(forceRefresh: true)
+        }
+    }
+
+    private func deleteEndpoint(_ endpoint: SavedCustomEndpoint) {
+        customEndpointsManager.deleteEndpoint(id: endpoint.id)
+        isEditingEndpoint = false
+        selectedEndpoint = nil
+
+        Task {
+            await discoveryService.discoverAllModels(forceRefresh: true)
+        }
+    }
+
+    private func loadCachedModels() {
+        cachedModels = discoveryService.discoveredModels.map { CachedModel(modelID: $0.modelIdentifier, providerName: $0.providerName) }
+    }
+
+    private func saveCachedModels() {
+    }
+
+    private func modelStatusColor(_ model: AssistAvailableModel) -> Color {
+        if model.isCurrentlyRateLimited { return .orange }
+        switch model.status {
+        case .available:
+            return model.supportsAgenticUse ? .green : .purple
+        case .authRequired:
+            return .yellow
+        case .providerUnavailable:
+            return .red
+        case .unsupportedAgentic:
+            return .purple
+        case .rateLimited:
+            return .orange
+        case .configured:
+            return .blue
+        case .unavailable:
+            return .secondary
+        }
+    }
+
+    private func modelStatusLabel(_ model: AssistAvailableModel) -> String {
+        if model.isCurrentlyRateLimited { return "Rate limited" }
+        switch model.status {
+        case .available:
+            return model.supportsAgenticUse ? "Available" : "No tool support"
+        case .authRequired:
+            return "Auth required"
+        case .providerUnavailable:
+            return "Provider offline"
+        case .unsupportedAgentic:
+            return "Unsupported for agentic use"
+        case .rateLimited:
+            return "Rate limited"
+        case .configured:
+            return "Configured"
+        case .unavailable:
+            return "Unavailable"
+        }
+    }
+}
+
+extension AssistSettingsView {
+    private func fetchModels(for option: FetchProviderOption) async {
+        isFetchingAvailableModels = true
+        availableModelsFetchError = nil
+        cachedModels = []
+
+        switch option {
+        case .openRouter:
+            let trimmed = openRouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "OpenRouter API Key is empty."
+            } else {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openRouter, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "OpenRouter") }
+                } catch {
+                    availableModelsFetchError = "OpenRouter fetch failed: \(error.localizedDescription)"
+                }
+            }
+        case .openai:
+            let trimmed = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "OpenAI API Key is empty."
+            } else {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .openai, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "OpenAI") }
+                } catch {
+                    availableModelsFetchError = "OpenAI fetch failed: \(error.localizedDescription)"
+                }
+            }
+        case .anthropic:
+            let trimmed = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                availableModelsFetchError = "Anthropic API Key is empty."
+            } else {
+                do {
+                    let models = try await LLMService.shared.fetchAvailableModels(provider: .anthropic, key: trimmed)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "Anthropic") }
+                } catch {
+                    availableModelsFetchError = "Anthropic fetch failed: \(error.localizedDescription)"
+                }
+            }
+        case .gemini:
+            if assistGoogleAuthMode == "google_oauth" {
+                if let token = try? await GoogleAccountAuthService.shared.getValidAccessToken() {
+                    do {
+                        let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: token)
+                        cachedModels = models.map { CachedModel(modelID: $0, providerName: "Gemini") }
+                    } catch {
+                        availableModelsFetchError = "Gemini fetch failed: \(error.localizedDescription)"
+                    }
+                } else {
+                    availableModelsFetchError = "Please sign in with your Google account first."
+                }
+            } else {
+                let trimmed = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    availableModelsFetchError = "Gemini API Key is empty."
+                } else {
+                    do {
+                        let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmed)
+                        cachedModels = models.map { CachedModel(modelID: $0, providerName: "Gemini") }
+                    } catch {
+                        availableModelsFetchError = "Gemini fetch failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+        case .foundation:
+            cachedModels = [
+                CachedModel(modelID: AppleFoundationModel.afm3Core.rawValue, providerName: "Foundation Models"),
+                CachedModel(modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue, providerName: "Foundation Models")
+            ]
+        case .custom(let id, let name):
+            if let endpoint = customEndpointsManager.endpoints.first(where: { $0.id == id }) {
+                do {
+                    let models = try await fetchModelsForCustomEndpoint(endpoint)
+                    cachedModels = models.map { CachedModel(modelID: $0, providerName: name) }
+                } catch {
+                    availableModelsFetchError = "Custom endpoint '\(name)' fetch failed: \(error.localizedDescription)"
+                }
+            } else {
+                availableModelsFetchError = "Custom endpoint '\(name)' not found."
+            }
+        }
+
+        isFetchingAvailableModels = false
+    }
+
+    private func fetchModelsForCustomEndpoint(_ endpoint: SavedCustomEndpoint) async throws -> [String] {
+        var urlString = ""
+        if endpoint.isLocal {
+            urlString = "http://localhost:\(endpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1/models"
+        } else {
+            urlString = endpoint.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/models") {
+                if urlString.hasSuffix("/") {
+                    urlString += "models"
+                } else {
+                    urlString += "/models"
+                }
+            }
+        }
+
+        guard let url = URL(string: urlString) else {
+            throw NSError(domain: "Invalid URL", code: 0, userInfo: [NSLocalizedDescriptionKey: "The constructed models URL is invalid."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10.0
+
+        if !endpoint.isLocal {
+            let trimmedKey = endpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedKey.isEmpty {
+                request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in endpoint.headers {
+                let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                    request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                }
+            }
+        }
+
+        var data: Data
+        var response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            if endpoint.isLocal {
+                let fallbackUrlString = "http://localhost:\(endpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/models"
+                if let fallbackUrl = URL(string: fallbackUrlString) {
+                    var fallbackRequest = URLRequest(url: fallbackUrl)
+                    fallbackRequest.httpMethod = "GET"
+                    fallbackRequest.timeoutInterval = 10.0
+                    (data, response) = try await URLSession.shared.data(for: fallbackRequest)
+                } else {
+                    throw error
+                }
+            } else {
+                throw error
+            }
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let body = String(data: data, encoding: .utf8) ?? "No body"
+            throw NSError(domain: "API Error", code: code, userInfo: [NSLocalizedDescriptionKey: "Server returned status \(code): \(body)"])
+        }
+
+        struct CustomModelsResponse: Codable {
+            let data: [ModelEntry]
+            struct ModelEntry: Codable {
+                let id: String
+            }
+        }
+
+        let decoded = try JSONDecoder().decode(CustomModelsResponse.self, from: data)
+        return decoded.data.map { $0.id }
+    }
+
+    @ViewBuilder
+    private var googleCloudStatusBadge: some View {
+        let runtime = GoogleCloudSDKRuntime.shared
+        if runtime.isRunning {
+            HStack(spacing: 6) {
+                Circle().fill(Color.green).frame(width: 8, height: 8)
+                Text("Active (v\(runtime.sdkVersion))")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.green)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.green.opacity(0.12), in: Capsule())
+        } else if runtime.isStarting {
+            HStack(spacing: 6) {
+                ProgressView().scaleEffect(0.55)
+                Text("Starting Engine...")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.orange)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.orange.opacity(0.12), in: Capsule())
+        } else if runtime.isAvailable {
+            HStack(spacing: 6) {
+                Circle().fill(Color.secondary).frame(width: 8, height: 8)
+                Text("Standby (v\(runtime.sdkVersion))")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.1), in: Capsule())
+        } else {
+            HStack(spacing: 6) {
+                Circle().fill(Color.red).frame(width: 8, height: 8)
+                Text("Unavailable")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.red)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.red.opacity(0.12), in: Capsule())
+        }
+    }
+
+    private func downloadGoogleAntigravityResources() {
+        isDownloadingResources = true
+        downloadStatusMessage = "Running SDK installation..."
+        downloadErrorMessage = nil
+        downloadCompleted = false
+
+        let bundledSDKDir = GoogleCloudSDKProcess.resolveSDKDirectory()
+
+        Task.detached(priority: .userInitiated) {
+            let candidatePythons = [
+                "/opt/homebrew/bin/python3",
+                "/usr/local/bin/python3",
+                "/usr/bin/python3"
+            ]
+
+            var success = false
+            var lastErr = ""
+
+            for pyPath in candidatePythons {
+                guard FileManager.default.fileExists(atPath: pyPath) else { continue }
+
+                let process = Process()
+                let pipe = Pipe()
+                process.executableURL = URL(fileURLWithPath: pyPath)
+                process.arguments = ["-m", "pip", "install", "google-antigravity", "--break-system-packages", "--upgrade"]
+                process.standardOutput = pipe
+                process.standardError = pipe
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    let output = String(data: data, encoding: .utf8) ?? ""
+
+                    if process.terminationStatus == 0 {
+                        success = true
+                        await MainActor.run {
+                            self.downloadStatusMessage = "Official SDK installed successfully!"
+                            self.downloadCompleted = true
+                            self.settings.antigravityExecutionMode = "resources"
+                            Task {
+                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                            }
+                        }
+                        break
+                    } else {
+                        lastErr = output.isEmpty ? "Process exited with code \(process.terminationStatus)" : output
+                    }
+                } catch {
+                    lastErr = error.localizedDescription
+                }
+            }
+
+            if !success {
+                await MainActor.run {
+                    self.downloadStatusMessage = "Deploying bundled SDK resources..."
+                }
+
+                if let sdkDir = bundledSDKDir {
+                    let fm = FileManager.default
+                    let homeDir = fm.homeDirectoryForCurrentUser.path
+                    let srcSitePackages = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages")
+
+                    let candidateTargetDirs = [
+                        "\(homeDir)/Library/Python/3.14/lib/python/site-packages",
+                        "\(homeDir)/.local/lib/python3.14/site-packages",
+                        "\(homeDir)/.local/lib/python3.11/site-packages",
+                        "\(homeDir)/Library/Python/3.11/lib/python/site-packages"
+                    ]
+
+                    var deploySuccess = false
+                    for targetSitePackages in candidateTargetDirs {
+                        do {
+                            try fm.createDirectory(atPath: targetSitePackages, withIntermediateDirectories: true)
+                            let items = (try? fm.contentsOfDirectory(atPath: srcSitePackages.path)) ?? []
+                            for item in items {
+                                let srcItem = srcSitePackages.appendingPathComponent(item).path
+                                let dstItem = "\(targetSitePackages)/\(item)"
+                                if fm.fileExists(atPath: dstItem) {
+                                    try? fm.removeItem(atPath: dstItem)
+                                }
+                                try fm.copyItem(atPath: srcItem, toPath: dstItem)
+                            }
+
+                            let launcherScript = """
+                            #!/usr/bin/env python3
+                            import sys
+                            import os
+
+                            for cand in [
+                                os.path.expanduser("~/Library/Python/3.14/lib/python/site-packages/google/antigravity/bin/localharness"),
+                                os.path.expanduser("~/.local/lib/python3.14/site-packages/google/antigravity/bin/localharness"),
+                                "/opt/homebrew/lib/python3.14/site-packages/google/antigravity/bin/localharness"
+                            ]:
+                                if os.path.exists(cand):
+                                    os.environ["ANTIGRAVITY_HARNESS_PATH"] = cand
+                                    break
+
+                            from google.antigravity.server.main import main
+
+                            if __name__ == "__main__":
+                                main()
+                            """
+
+                            for binDir in ["\(homeDir)/.local/bin", "\(homeDir)/Library/Python/3.14/bin"] {
+                                try? fm.createDirectory(atPath: binDir, withIntermediateDirectories: true)
+                                let binPath = "\(binDir)/google-antigravity"
+                                try? launcherScript.write(toFile: binPath, atomically: true, encoding: .utf8)
+                                chmod(binPath, 0o755)
+                            }
+
+                            deploySuccess = true
+                            break
+                        } catch {
+                            lastErr = "Failed deploying to \(targetSitePackages): \(error.localizedDescription)"
+                        }
+                    }
+
+                    if deploySuccess {
+                        success = true
+                        await MainActor.run {
+                            self.downloadStatusMessage = "Official SDK resources deployed successfully!"
+                            self.downloadCompleted = true
+                            self.downloadErrorMessage = nil
+                            self.settings.antigravityExecutionMode = "resources"
+                            Task {
+                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                            }
+                        }
+                    }
+                }
+            }
+
+            if success {
+                let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+                let launcherScript = """
+                #!/usr/bin/env python3
+                import sys
+                import os
+
+                for cand in [
+                    os.path.expanduser("~/Library/Python/3.14/lib/python/site-packages/google/antigravity/bin/localharness"),
+                    os.path.expanduser("~/.local/lib/python3.14/site-packages/google/antigravity/bin/localharness"),
+                    "/opt/homebrew/lib/python3.14/site-packages/google/antigravity/bin/localharness"
+                ]:
+                    if os.path.exists(cand):
+                        os.environ["ANTIGRAVITY_HARNESS_PATH"] = cand
+                        break
+
+                from google.antigravity.server.main import main
+
+                if __name__ == "__main__":
+                    main()
+                """
+
+                for binDir in ["\(homeDir)/.local/bin", "\(homeDir)/Library/Python/3.14/bin"] {
+                    try? FileManager.default.createDirectory(atPath: binDir, withIntermediateDirectories: true)
+                    let binPath = "\(binDir)/google-antigravity"
+                    try? launcherScript.write(toFile: binPath, atomically: true, encoding: .utf8)
+                    chmod(binPath, 0o755)
+                }
+            } else {
+                await MainActor.run {
+                    self.downloadErrorMessage = lastErr.isEmpty ? "Failed to install google-antigravity." : lastErr
+                    self.downloadStatusMessage = "Installation failed."
+                }
+            }
+        }
+    }
+}

@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodeAssistant
+import YcodeAssistant
 
 @MainActor
 public final class CloudAuthManager {

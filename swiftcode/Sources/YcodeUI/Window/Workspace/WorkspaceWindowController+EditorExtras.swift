@@ -1,0 +1,64 @@
+import AppKit
+import YcodeIDECore
+
+extension WorkspaceWindowController {
+    func wireEditorExtras(_ e: SourceEditorController) {
+        QuickHelpView.onOpenFile = { [weak self] f in self?.open(path: f, line: nil) }
+        QuickHelpView.onOpenDocumentation = { name in
+            var c = URLComponents(string: "https://developer.apple.com/search/")!
+            c.queryItems = [URLQueryItem(name: "q", value: name)]
+            if let u = c.url { NSWorkspace.shared.open(u) }
+        }
+        e.onBecameEmpty = { [weak self, weak e] in
+            guard let self, let e else { return }
+            self.showEmptyEditor(e)
+            self.updateWindowTitle()
+        }
+        wireChangeGutter(e)
+        wirePrediction(e)
+    }
+
+    func showEmptyEditor(_ e: SourceEditorController) {
+        let recent = Array(navigator.recentFiles.reversed()), root = Self.breadcrumbRoot(session.model.url)
+        withWorkspaceCandidates { [weak self, weak e] candidates in
+            guard let self, let e, e.fileURL == nil, e.auxiliary == nil else { return }
+            e.showEmptyState(recent: recent, candidates: candidates, root: root) { [weak self, weak e] path, line in
+                guard let self else { return }
+                if let e, let i = self.editorArea.tab.editors.firstIndex(where: { $0 === e }) { self.editorArea.tab.focused = i }
+                self.open(path: path, line: line)
+            }
+        }
+    }
+
+    func withWorkspaceCandidates(_ apply: @escaping @MainActor ([FuzzyMatch.Candidate]) -> Void) {
+        let index = candidateIndex
+        apply(index.value ?? [])
+        index.waiting.append(apply)
+        guard index.task == nil else { return }
+        let root = session.model.root
+        index.task = Task {
+            let fresh = await Task.detached { FuzzyMatch.candidates(in: root) }.value
+            index.value = fresh
+            let waiting = index.waiting
+            index.waiting = []
+            index.task = nil
+            for w in waiting { w(fresh) }
+        }
+    }
+
+    public func workspaceCandidatesIdle() async {
+        while let t = candidateIndex.task { await t.value }
+    }
+
+    static func breadcrumbRoot(_ url: URL) -> String {
+        let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        let folder = isDir && !["xcodeproj", "xcworkspace"].contains(url.pathExtension) ? url : url.deletingLastPathComponent()
+        return folder.deletingLastPathComponent().path
+    }
+}
+
+@MainActor final class WorkspaceCandidateIndex {
+    var value: [FuzzyMatch.Candidate]?
+    var task: Task<Void, Never>?
+    var waiting: [@MainActor ([FuzzyMatch.Candidate]) -> Void] = []
+}

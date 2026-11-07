@@ -1,0 +1,90 @@
+import AppKit
+import Foundation
+import Testing
+@testable import YcodeIDECore
+import YcodePlist
+import YcodeProject
+@testable import YcodeUI
+
+private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+@MainActor
+@Suite struct NewItemR35Tests {
+    func temp(_ tag: String) throws -> URL {
+        let d = FileManager.default.temporaryDirectory.appendingPathComponent("swiftcode-newitem-\(tag)-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }
+
+    func run(_ tool: String, _ args: [String]) -> (Int32, String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        p.arguments = [tool] + args
+        let pipe = Pipe()
+        p.standardError = pipe
+        p.standardOutput = pipe
+        do { try p.run() } catch { return (-1, "\(error)") }
+        let out = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (p.terminationStatus, String(decoding: out, as: UTF8.self))
+    }
+
+    func helloProject(in dir: URL) throws -> (URL, PBXProj) {
+        let proj = dir.appendingPathComponent("Hello.xcodeproj")
+        try FileManager.default.createDirectory(at: proj, withIntermediateDirectories: true)
+        let text = try String(contentsOf: swiftcodeDir.appendingPathComponent("Tests/SwiftCodeProjectTests/Fixtures/Hello.xcodeproj/project.pbxproj"), encoding: .utf8)
+        try text.write(to: proj.appendingPathComponent("project.pbxproj"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("Hello"), withIntermediateDirectories: true)
+        try "print(1)\n".write(to: dir.appendingPathComponent("Hello/main.swift"), atomically: true, encoding: .utf8)
+        return (proj, try PBXProj(parsing: text))
+    }
+
+    @Test func saveStepGroupsAndTargets() throws {
+        let dir = try temp("save")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var (url, proj) = try helloProject(in: dir)
+        proj.addTarget(.init(name: "Other", productType: "com.apple.product-type.tool", productPath: "Other", productFileType: "compiled.mach-o.executable",
+                             settings: [], phases: ["PBXSourcesBuildPhase"]))
+        let main = dir.appendingPathComponent("Hello/main.swift")
+        let a = SaveStepAccessory(proj: proj, xcodeprojURL: url, selectedFile: main, directory: main.deletingLastPathComponent())
+        _ = a.view
+        #expect(a.groups.map(\.title) == ["Hello", "Hello"] && a.groups.map(\.depth) == [0, 1])
+        #expect(a.groupPopUp.itemTitles == ["Hello", "Hello"] && a.groupPopUp.indexOfSelectedItem == 1)
+        #expect(a.selectedDirectory.standardizedFileURL.path == main.deletingLastPathComponent().standardizedFileURL.path)
+        #expect(a.targets == ["Hello", "Other"] && a.checkedTargets == ["Hello"])
+        #expect(a.targetBoxes.map(\.state) == [.on, .off])
+        var moved: URL?
+        a.onGroupChange = { moved = $0 }
+        a.selectGroup(0)
+        #expect(moved?.standardizedFileURL.path == dir.standardizedFileURL.path)
+        a.setTarget("Other", checked: true)
+        a.setTarget("Hello", checked: false)
+        #expect(a.checkedTargets == ["Other"] && a.targetBoxes.map(\.state) == [.off, .on])
+        let none = SaveStepAccessory(proj: proj, xcodeprojURL: url, selectedFile: nil, directory: dir)
+        #expect(none.checkedTargets == ["Hello"] && none.selectedGroup == 0)
+        var p: PBXProj? = proj
+        let made = try FileTemplateCatalog.create(TemplateEntry("C File", ext: "c"), name: "util", in: main.deletingLastPathComponent(),
+                                                  project: &p, xcodeprojURL: url, targets: ["Other"])
+        #expect(made.map(\.lastPathComponent) == ["util.c"])
+        let written = try #require(p)
+        let other = try #require(written.targets.first { $0.string("name") == "Other" })
+        let files = written.buildPhases(ofTarget: other.id).first?.references("files") ?? []
+        #expect(files.count == 1 && written.fileReference(ofBuildFile: files[0])?.string("path") == "util.c")
+        let hello = try #require(written.targets.first { $0.string("name") == "Hello" })
+        #expect(written.buildPhases(ofTarget: hello.id).first { $0.isa == "PBXSourcesBuildPhase" }?.references("files").count == 2)
+        _ = try FileTemplateCatalog.create(TemplateEntry("Asset Catalog", ext: "xcassets"), name: "Media", in: main.deletingLastPathComponent(),
+                                           project: &p, xcodeprojURL: url, targets: ["Hello"])
+        #expect(FileManager.default.fileExists(atPath: main.deletingLastPathComponent().appendingPathComponent("Media.xcassets/Contents.json").path))
+    }
+
+    @Test func chooseTemplateOpensAnEmptyWorkspaceWindow() throws {
+        _ = NSApplication.shared
+        let wc = NewProjectFlow.emptyWorkspaceWindow()
+        #expect(wc.session.model.kind == .workspace && wc.session.model.isUntitled)
+        #expect(wc.window?.title == "Untitled")
+        #expect(wc.session.model.root.children.isEmpty && wc.session.model.projects.isEmpty)
+        _ = wc.window?.contentView
+        #expect(wc.navigator.isViewLoaded || wc.navigator.view.superview != nil)
+        wc.close()
+    }
+}

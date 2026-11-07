@@ -1,7 +1,6 @@
 import Foundation
 import Testing
-import SwiftCodeAssistant
-@testable import SwiftCodeGoogleAuth
+import YcodeAssistant
 
 final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (status: Int, headers: [String: String], body: Data))?

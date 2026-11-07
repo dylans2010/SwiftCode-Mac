@@ -1,6 +1,6 @@
 import Foundation
-import SwiftCodeDebug
-import SwiftCodeLanguage
+import YcodeDebug
+import YcodeLanguage
 
 public actor ExtV2LanguageClient {
     public struct ServerInfo: Sendable, Equatable {

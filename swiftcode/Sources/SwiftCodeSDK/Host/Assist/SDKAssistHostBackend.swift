@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodeAssistant
+import YcodeAssistant
 
 public struct SDKAssistProviderResolution: Sendable {
     public let provider: any AssistantProvider

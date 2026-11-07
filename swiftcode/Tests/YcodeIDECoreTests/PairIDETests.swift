@@ -1,0 +1,292 @@
+import Foundation
+import Testing
+import YcodeBuild
+import YcodeProject
+@testable import YcodeIDECore
+
+private let swiftcodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+@MainActor
+@Suite(.serialized) struct PairIDETests {
+    static let iosRoot = "/rt/iOS-27.0-24A434/RuntimeRoot"
+    static let watchRoot = "/rt/watchOS-27.0-24R362/RuntimeRoot"
+
+    func settings() -> RemoteSimulatorSettings {
+        var s = RemoteSimulatorSettings(destination: "tester@sim-host", dataDirectory: "/data/swiftcode",
+                                        runtimeRoot: Self.iosRoot, simdPath: "/data/swiftcode/bin/swiftcode-sim", deviceName: "dev")
+        s.otherRuntimeRoots = [Self.watchRoot]
+        s.runtimeVersion = "27.0"
+        s.runtimeVersions = [Self.iosRoot: "27.0", Self.watchRoot: "27.0"]
+        s.runtimePlatforms = [Self.iosRoot: "iOS", Self.watchRoot: "watchOS"]
+        return s
+    }
+
+    static let listing = """
+    swiftcode-sim: a status line first
+    {
+      "pairs" : {
+        "a14c1055-1f81-4d7b-a25c-710d1d9a7dc1" : {
+          "phone" : { "name" : "iPhone 18 Pro [dev-phone]", "state" : "Booted", "udid" : "3381bcad-0000-0000-0000-000000000001" },
+          "state" : "(active, connected)",
+          "watch" : { "name" : "Apple Watch Series 12 (46mm) [dev-watch]", "state" : "Booted", "udid" : "71ef2e8d-0000-0000-0000-000000000002" }
+        },
+        "B0000000-0000-0000-0000-000000000003" : {
+          "phone" : { "name" : "iPhone 18 Pro [dev-phone]", "state" : "Booted", "udid" : "3381BCAD-0000-0000-0000-000000000001" },
+          "state" : "(inactive, disconnected)",
+          "watch" : { "name" : "Apple Watch Ultra 4 (49mm) [dev-ultra]", "state" : "Shutdown", "udid" : "U" }
+        },
+        "C0000000-0000-0000-0000-000000000004" : {
+          "phone" : { "name" : "? [missing]", "state" : "Shutdown", "udid" : "X" },
+          "state" : "(active, disconnected)",
+          "watch" : { "name" : "Apple Watch SE 3 (44mm) [dev-se]", "state" : "Shutdown", "udid" : "Y" }
+        }
+      }
+    }
+    """
+
+    @Test func listPairsJSONIsParsed() throws {
+        let pairs = try #require(RemotePairListing.parse(Data(Self.listing.utf8)))
+        #expect(pairs.count == 2)
+        let a = try #require(pairs.first { $0.active })
+        #expect(a.id == "A14C1055-1F81-4D7B-A25C-710D1D9A7DC1")
+        #expect(a.phoneDirectory == "dev-phone" && a.watchDirectory == "dev-watch")
+        #expect(a.phoneTypeName == "iPhone 18 Pro" && a.watchTypeName == "Apple Watch Series 12 (46mm)")
+        #expect(a.connected && a.watchBooted && a.phoneBooted)
+        #expect(a.phoneUDID == "3381BCAD-0000-0000-0000-000000000001")
+        #expect(a.stateText == "(active, connected)")
+        let b = try #require(pairs.first { !$0.active })
+        #expect(!b.connected && !b.watchBooted && b.stateText == "(inactive, disconnected)")
+        #expect(RemotePairListing.parse(Data("no pairs".utf8)) == nil)
+        #expect(RemotePairListing.parse(Data(#"{"pairs": {}}"#.utf8)) == [])
+        #expect(RemotePairListing.split(name: "Apple Watch Ultra 4 (49mm) [d]") == ("Apple Watch Ultra 4 (49mm)", "d"))
+        #expect(RemotePairListing.split(name: "? [missing]").directory == nil)
+        #expect(RemotePairListing.split(name: "plain").directory == nil)
+        let p = RemotePairing(pairs)
+        #expect(p.activePair(phone: "dev-phone")?.watchDirectory == "dev-watch")
+        #expect(p.pairs(ofDirectory: "dev-phone").map(\.watchDirectory) == ["dev-watch", "dev-ultra"])
+        #expect(p.isPaired(watch: "dev-ultra") && !p.isPaired(watch: "dev-other"))
+    }
+
+    @Test func pairOutputGivesThePairID() {
+        #expect(RemoteSimulator.pairID(fromPairOutput: "swiftcode-simd: note\na14c1055-1f81-4d7b-a25c-710d1d9a7dc1\n") == "A14C1055-1F81-4D7B-A25C-710D1D9A7DC1")
+        #expect(RemoteSimulator.pairID(fromPairOutput: "swiftcode-simd: refused") == nil)
+    }
+
+    @Test func pairingCommandsNameTheDeviceSet() throws {
+        let s = settings()
+        let phone = RemoteSimulator(settings: s, target: s.targets[0])
+        let watch = RemoteSimulator(settings: s, target: s.watchTargets[0])
+        #expect(phone.deviceSetPath == "/data/swiftcode/devices")
+        #expect(phone.listPairsCommand == "exec env SWIFTCODE_SIM_DEVICE_SET='/data/swiftcode/devices' '/data/swiftcode/bin/swiftcode-sim' 'list-pairs' '--json'")
+        #expect(phone.unpairCommand("P1") == "exec env SWIFTCODE_SIM_DEVICE_SET='/data/swiftcode/devices' '/data/swiftcode/bin/swiftcode-sim' 'unpair' 'P1'")
+        #expect(phone.activateCommand("P1").hasSuffix("'pair-activate' 'P1'"))
+        let pair = phone.pairCommand(watch: watch)
+        #expect(pair.contains("printf '%s\\n' 'apple-watch-series-12-46mm' > '/data/swiftcode/devices/dev-apple-watch-series-12-46mm-27.0'/swiftcode-device-type"))
+        #expect(phone.remoteDevicePath == "/data/swiftcode/devices/dev-iphone-18-pro-27.0")
+        #expect(pair.contains("printf '%s\\n' 'iphone-18-pro' > '/data/swiftcode/devices/dev-iphone-18-pro-27.0'/swiftcode-device-type"))
+        #expect(pair.hasSuffix("'pair' '/data/swiftcode/devices/dev-apple-watch-series-12-46mm-27.0' '/data/swiftcode/devices/dev-iphone-18-pro-27.0'"))
+        #expect(pair.contains("[ -e '/data/swiftcode/devices/dev-iphone-18-pro-27.0'/data/var/run/launchd_bootstrap.plist ]"), "a booted device keeps its record")
+    }
+
+    @Test func typeRecordCommandWritesOnlyWhenMissing() throws {
+        let dir = swiftcodeDir.appendingPathComponent(".build-ide/pair-ide-type-\(UUID().uuidString.prefix(8))")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dev = dir.appendingPathComponent("devices/new one").path
+        func run(_ c: String) -> Int32 {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/sh")
+            p.arguments = ["-c", c]
+            try? p.run()
+            p.waitUntilExit()
+            return p.terminationStatus
+        }
+        #expect(run(RemoteSimulator.typeRecordCommand(devicePath: dev, typeID: "iphone-18-pro")) == 0)
+        #expect((try? String(contentsOfFile: dev + "/swiftcode-device-type", encoding: .utf8)) == "iphone-18-pro\n")
+        try "ipad-a16\n".write(toFile: dev + "/swiftcode-device-type", atomically: true, encoding: .utf8)
+        #expect(run(RemoteSimulator.typeRecordCommand(devicePath: dev, typeID: "iphone-18-pro")) == 0)
+        #expect((try? String(contentsOfFile: dev + "/swiftcode-device-type", encoding: .utf8)) == "ipad-a16\n", "an existing record is kept")
+    }
+
+    @Test func watchAppCommandsGoThroughThePairingAgent() {
+        let s = settings()
+        let watch = RemoteSimulator(settings: s, target: s.watchTargets[0])
+        let dev = "/data/swiftcode/devices/dev-apple-watch-series-12-46mm-27.0"
+        #expect(watch.isWatch && !RemoteSimulator(settings: s, target: s.targets[0]).isWatch)
+        #expect(watch.stagedAppsDirectory == dev + "/data/tmp/swiftcode-apps")
+        let app = URL(fileURLWithPath: "/build/WCProbe.app/Watch/WCProbeWatch.app")
+        let args = watch.stageArguments(app)
+        #expect(args.last == "tester@sim-host:\(dev)/data/tmp/swiftcode-apps/WCProbeWatch.app/")
+        #expect(args.contains("/build/WCProbe.app/Watch/WCProbeWatch.app/"))
+        let install = watch.installAppCommand(app)
+        #expect(install == "g=$(cat '\(dev)/swiftcode-device-path' 2>/dev/null); [ -n \"$g\" ] || g='\(dev)'; "
+            + "exec '/data/swiftcode/bin/swiftcode-sim' --device '\(dev)' --control pairing agent 'installApp' \"path=$g\"'/data/tmp/swiftcode-apps/WCProbeWatch.app'")
+        #expect(watch.openAppCommand(bundleID: "dev.swiftcode.wcprobe.watchkitapp")
+            == "exec '/data/swiftcode/bin/swiftcode-sim' --device '\(dev)' --control pairing agent 'openApp' 'bundleID=dev.swiftcode.wcprobe.watchkitapp'")
+        #expect(watch.pairingStateCommand.hasSuffix("--control 'pairing' 'state'"))
+        #expect(RemoteSimulator.agentIsUp(stateReply: "ok 71EF: agent up; no pairs"))
+        #expect(!RemoteSimulator.agentIsUp(stateReply: "ok 71EF: agent not up; no pairs"))
+        #expect(!RemoteSimulator.agentIsUp(stateReply: "error: no running device"))
+    }
+
+    @Test func theGuestPathOfTheStagedAppFollowsTheDeviceRecord() throws {
+        let root = swiftcodeDir.appendingPathComponent(".build-ide/pair-ide-gp-\(UUID().uuidString.prefix(8))")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let launcher = root.appendingPathComponent("swiftcode-sim")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("data/devices/w"), withIntermediateDirectories: true)
+        try "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\"; done\n".write(to: launcher, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+        var s = settings()
+        s.dataDirectory = root.appendingPathComponent("data").path
+        s.simdPath = launcher.path
+        let t = RemoteSimulatorTarget(runtimeRoot: Self.watchRoot, runtimeVersion: "27.0", deviceType: SwiftCodeSimulatorDeviceType.watches[0],
+                                      deviceDirectoryName: "w", isPrimary: false)
+        let watch = RemoteSimulator(settings: s, target: t)
+        func run(_ c: String) -> String {
+            let p = Process(), out = Pipe()
+            p.executableURL = URL(fileURLWithPath: "/bin/sh")
+            p.arguments = ["-c", c]
+            p.standardOutput = out
+            try? p.run()
+            p.waitUntilExit()
+            return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        }
+        let app = URL(fileURLWithPath: "/x/W.app")
+        #expect(run(watch.installAppCommand(app)).hasSuffix("installApp\npath=\(watch.remoteDevicePath)/data/tmp/swiftcode-apps/W.app\n"))
+        try "/guest/dev\n".write(toFile: watch.remoteDevicePath + "/swiftcode-device-path", atomically: true, encoding: .utf8)
+        #expect(run(watch.installAppCommand(app)).hasSuffix("path=/guest/dev/data/tmp/swiftcode-apps/W.app\n"))
+    }
+
+    @Test func longDeviceNamesGetShortDisplaySockets() {
+        var s = settings()
+        s.dataDirectory = "/media/someone/DATA_VOLUME/work/ide-remote/an-area-name"
+        let watch = RemoteSimulator(settings: s, target: s.watchTargets[0])
+        #expect(watch.displaySocketPath.utf8.count <= 100)
+        #expect(watch.displaySocketPath.hasPrefix(s.dataDirectory + "/display/d-") && watch.displaySocketPath.hasSuffix(".sock"))
+        #expect(watch.displaySocketPath == RemoteSimulator(settings: s, target: s.watchTargets[0]).displaySocketPath, "stable")
+        #expect(watch.displaySocketPath != RemoteSimulator(settings: s, target: s.watchTargets[1]).displaySocketPath)
+        #expect(watch.startCommand.contains("unix:\(watch.displaySocketPath)"))
+        s.dataDirectory = "/data"
+        #expect(RemoteSimulator(settings: s, target: s.watchTargets[0]).displaySocketPath == "/data/display/dev-apple-watch-series-12-46mm-27.0.sock")
+    }
+
+    @Test func createdDevicesAreTargetsWithTheirOwnDirectories() throws {
+        let t = TestDefaults("pair-ide-created")
+        defer { t.remove() }
+        var s = settings()
+        s.save(t.defaults)
+        RemoteSimulatorSettings.saveRuntimePlatform("watchOS", root: Self.watchRoot, t.defaults)
+        RemoteSimulatorSettings.saveRuntimeVersion("27.0", root: Self.watchRoot, t.defaults, primary: false)
+        RemoteSimulatorSettings.saveRuntimeVersion("27.0", root: Self.iosRoot, t.defaults)
+        let phone = RemoteSimulatorSettings.createDevice(name: "My Phone", type: .iPhone18Pro, runtimeRoot: Self.iosRoot, t.defaults)
+        let watch = RemoteSimulatorSettings.createDevice(name: "  ", type: SwiftCodeSimulatorDeviceType.watches[0], runtimeRoot: Self.watchRoot, t.defaults)
+        #expect(phone.directoryName.hasPrefix("dev-iphone-18-pro-27.0-") && phone.directoryName.count == "dev-iphone-18-pro-27.0-".count + 8)
+        #expect(watch.name == "Apple Watch Series 12 (46mm)", "an empty name is the model's")
+        RemoteSimulatorSettings.saveCreatedDevices(RemoteSimulatorSettings.createdDevices(t.defaults)
+            + [RemoteCreatedDevice(name: "Wrong", typeID: "apple-watch-ultra-4-49mm", runtimeRoot: Self.iosRoot, directoryName: "x")], t.defaults)
+        s = RemoteSimulatorSettings.load(t.defaults)
+        #expect(s.createdDevices.count == 3)
+        let p = try #require(s.targets.first { $0.deviceDirectoryName == phone.directoryName })
+        #expect(p.name == "My Phone" && p.isCreated && !p.isWatch && p.deviceType == .iPhone18Pro)
+        #expect(p.identifier == "swiftcode-remote-simulator:device:\(phone.directoryName)")
+        let w = try #require(s.watchTargets.first { $0.deviceDirectoryName == watch.directoryName })
+        #expect(w.isWatch && w.runtimeRoot == Self.watchRoot)
+        #expect(!s.hubTargets.contains { $0.deviceDirectoryName == "x" })
+        #expect(s.target(directory: watch.directoryName) == w)
+        var stale = s
+        stale.createdDevices = []
+        stale.save(t.defaults)
+        #expect(RemoteSimulatorSettings.load(t.defaults).createdDevices.count == 3)
+        RemoteSimulatorSettings.removeCreatedDevice(directory: "x", t.defaults)
+        #expect(RemoteSimulatorSettings.load(t.defaults).createdDevices.map(\.directoryName) == [phone.directoryName, watch.directoryName])
+        let row = DeviceRow.swiftcodeRemote(RemoteSimulator(settings: s, target: p), running: false)
+        #expect(row.isCreated && row.deviceDirectory == phone.directoryName && row.name == "My Phone")
+        #expect(s.runtimeRoots(platform: "watchOS").map(\.root) == [Self.watchRoot])
+        #expect(s.newDeviceTypes(platform: "watchOS", root: Self.watchRoot).first?.id == "apple-watch-series-12-46mm")
+        #expect(s.newDeviceTypes(platform: "iOS", root: Self.iosRoot).map(\.id) == ["iphone-18-pro"])
+    }
+
+    @Test func watchesAndPhonesWithAnActiveWatchAreDestinations() throws {
+        let s = settings()
+        let phone = s.targets[0], watch = s.watchTargets[0]
+        #expect(phone.deviceType == .iPhone18Pro)
+        let pairs = [RemoteDevicePair(id: "P1", watchDirectory: watch.deviceDirectoryName, phoneDirectory: phone.deviceDirectoryName, active: true),
+                     RemoteDevicePair(id: "P2", watchDirectory: s.watchTargets[1].deviceDirectoryName, phoneDirectory: phone.deviceDirectoryName, active: false)]
+        let rows = RemoteSimulator.destinations(s, pairs: pairs)
+        #expect(rows.count == s.targets.count + s.watchTargets.count + 1)
+        let w = try #require(rows.first { $0.identifier == watch.identifier })
+        #expect(w.platform == "watchOS" && w.specifier == "generic/platform=watchOS Simulator" && w.osVersion == "27.0" && w.isSwiftCodeRemoteSimulator)
+        let paired = try #require(rows.last)
+        #expect(paired.isSwiftCodePairedDestination && paired.isSwiftCodeRemoteSimulator)
+        #expect(paired.identifier == "swiftcode-remote-simulator:paired:\(phone.deviceDirectoryName)")
+        #expect(paired.name == "iPhone 18 Pro (SwiftCode) with Apple Watch Series 12 (46mm) (SwiftCode)")
+        #expect(paired.platform == "watchOS" && paired.specifier == "generic/platform=watchOS Simulator" && paired.osVersion == "27.0")
+        let both = try #require(s.pairedTargets(for: paired, pairs: pairs))
+        #expect(both.phone == phone && both.watch == watch)
+        #expect(s.target(for: paired) == phone)
+        #expect(RemoteSimulator(settings: s, destination: w).isWatch)
+        let inactive = pairs.map { var p = $0; p.active = false; return p }
+        #expect(!RemoteSimulator.destinations(s, pairs: inactive).contains { $0.isSwiftCodePairedDestination })
+        #expect(s.pairedTargets(for: paired, pairs: inactive) == nil)
+        #expect(s.pairedTargets(for: paired, pairs: []) == nil)
+        #expect(RemoteWatchRunError.noPairedWatch == "The install is directed to a paired Apple Watch, but there isn't one.")
+        #expect(RemoteWatchRunError.selectPairedPhone == "Select an iPhone Run Destination with a paired Apple Watch.")
+    }
+
+    @Test func theDestinationMenuListsWatchRowsForWatchSchemesOnly() {
+        let s = settings()
+        let pairs = [RemoteDevicePair(id: "P1", watchDirectory: s.watchTargets[0].deviceDirectoryName, phoneDirectory: s.targets[0].deviceDirectoryName, active: true)]
+        let remote = RemoteSimulator.destinations(s, pairs: pairs)
+        let watchMenu = DestinationMenuModel(current: nil, devices: [], simulators: remote, platforms: ["watchOS"], deploymentTargets: ["watchOS": "27.0"])
+        let sims = watchMenu.rows("Simulators")
+        #expect(sims.count == s.watchTargets.count + 1)
+        #expect(sims.contains { $0.isSwiftCodePairedDestination })
+        #expect(watchMenu.incompatible.contains { $0.name.hasPrefix("iPhone 18 Pro (SwiftCode)") && $0.name.hasSuffix("(mismatched platform)") })
+        let newer = DestinationMenuModel(current: nil, devices: [], simulators: remote, platforms: ["watchOS"], deploymentTargets: ["watchOS": "28.0"])
+        #expect(newer.rows("Simulators").isEmpty)
+        #expect(newer.incompatible.contains { $0.isSwiftCodePairedDestination && $0.name.hasSuffix("(OS version lower than deployment target)") })
+        let iosMenu = DestinationMenuModel(current: nil, devices: [], simulators: remote, platforms: ["iOS"])
+        #expect(iosMenu.rows("Simulators").allSatisfy { $0.platform == "iOS" })
+        #expect(iosMenu.rows("Simulators").count == s.targets.count)
+    }
+
+    @Test func theSampleWatchAppHasItsCompanion() throws {
+        let url = swiftcodeDir.appendingPathComponent("Samples/WatchSamples/WatchSamples.xcodeproj")
+        let model = try WorkspaceModel(url: url)
+        let proj = try #require(model.projects.values.first)
+        #expect(WatchCompanion.companionTargets(of: "WCProbeWatch", in: proj) == ["WCProbe"])
+        #expect(WatchCompanion.companionTargets(of: "WCProbe", in: proj).isEmpty)
+        #expect(WatchCompanion.platforms(ofTarget: "WCProbeWatch", in: proj) == ["watchOS"])
+        #expect(WatchCompanion.platforms(ofTarget: "WCProbe", in: proj) == ["iOS"])
+        #expect(WatchCompanion.deploymentTarget(ofTarget: "WCProbeWatch", platform: "watchOS", in: proj) == "27.0")
+        #expect(model.companionScheme(watchScheme: "WCProbeWatch") == "WCProbe")
+        #expect(model.companionScheme(watchScheme: "WCProbe") == nil)
+        #expect(model.platforms(scheme: "WCProbeWatch") == ["watchOS"])
+        #expect(model.schemeNames.contains("WCProbeWatch") && model.schemeNames.contains("WCProbe"))
+    }
+
+    @Test func theEmbeddedWatchAppIsFoundInTheIOSApp() throws {
+        let app = swiftcodeDir.appendingPathComponent(".build-ide/pair-ide-app-\(UUID().uuidString.prefix(8))/Probe.app")
+        defer { try? FileManager.default.removeItem(at: app.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
+        #expect(RemoteSimulator.embeddedWatchApp(in: app) == nil)
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Watch/Z.app"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Watch/A.app"), withIntermediateDirectories: true)
+        #expect(RemoteSimulator.embeddedWatchApp(in: app)?.lastPathComponent == "A.app")
+    }
+
+    @Test func thePairsAreKeptAndChangesAreAnnounced() throws {
+        let t = TestDefaults("pair-ide-store")
+        defer { t.remove() }
+        let store = RemotePairsStore(defaults: t.defaults)
+        #expect(store.current().isEmpty)
+        final class Count: @unchecked Sendable { var n = 0 }
+        let posted = Count()
+        let token = NotificationCenter.default.addObserver(forName: RemotePairsStore.didChange, object: store, queue: nil) { _ in posted.n += 1 }
+        defer { NotificationCenter.default.removeObserver(token) }
+        let p = [RemoteDevicePair(id: "P", watchDirectory: "w", phoneDirectory: "p", active: true)]
+        store.set(p)
+        store.set(p)
+        #expect(posted.n == 1, "an unchanged listing is not announced")
+        #expect(RemotePairsStore(defaults: t.defaults).current() == p, "kept across launches")
+    }
+}

@@ -1,0 +1,1083 @@
+import Foundation
+import Observation
+import os.log
+import YcodeAssistant
+import YcodeProject
+import YcodeWorkspace
+
+public enum ProjectOpeningState: Equatable {
+    case idle
+    case resolving
+    case loading(progress: Double, projectName: String)
+    case ready(Project)
+    case failed(ProjectOpenError)
+    case cancelled
+
+    public static func == (lhs: ProjectOpeningState, rhs: ProjectOpeningState) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle): return true
+        case (.resolving, .resolving): return true
+        case (.loading(let lp, let ln), .loading(let rp, let rn)): return lp == rp && ln == rn
+        case (.ready(let lp), .ready(let rp)): return lp.id == rp.id
+        case (.failed(let le), .failed(let re)): return le.localizedDescription == re.localizedDescription
+        case (.cancelled, .cancelled): return true
+        default: return false
+        }
+    }
+}
+
+@Observable
+public final class ProjectSession: Codable, @unchecked Sendable {
+    public let id: UUID
+    public var projectRootPath: String
+    public var activeFileNode: FileNode?
+    public var activeFileContent: String = ""
+    public var openFileTabs: [FileNode] = []
+    public var modifiedFilePaths: Set<String> = []
+    public var fileLoadError: String?
+
+    public var cursorPosition: Int = 0
+    public var scrollPosition: Double = 0.0
+    public var selectionRangeText: String?
+    public var foldingState: [String: Bool] = [:]
+
+    public var expandedNodeIDs: Set<String> = []
+    public var selectedNodeID: String?
+    public var lastOpenedFile: String?
+    public var lastActiveTab: String?
+    public var sidebarSelection: String?
+    public var showFileNavigator: Bool = true
+    public var showArtboardSimulator: Bool = false
+    public var showAgentInspector: Bool = false
+    public var showAppDetailsSidebar: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case id, projectRootPath, activeFileNode, openFileTabs, modifiedFilePaths, cursorPosition, scrollPosition, selectionRangeText, foldingState,
+             expandedNodeIDs, selectedNodeID, lastOpenedFile, lastActiveTab, sidebarSelection, showFileNavigator, showArtboardSimulator, showAgentInspector, showAppDetailsSidebar
+    }
+
+    public init(id: UUID, projectRootPath: String) {
+        self.id = id
+        self.projectRootPath = projectRootPath
+    }
+
+    public required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        projectRootPath = try container.decode(String.self, forKey: .projectRootPath)
+        activeFileNode = try container.decodeIfPresent(FileNode.self, forKey: .activeFileNode)
+        openFileTabs = try container.decodeIfPresent([FileNode].self, forKey: .openFileTabs) ?? []
+        let modifiedPathsArray = try container.decodeIfPresent([String].self, forKey: .modifiedFilePaths) ?? []
+        modifiedFilePaths = Set(modifiedPathsArray)
+        cursorPosition = try container.decodeIfPresent(Int.self, forKey: .cursorPosition) ?? 0
+        scrollPosition = try container.decodeIfPresent(Double.self, forKey: .scrollPosition) ?? 0.0
+        selectionRangeText = try container.decodeIfPresent(String.self, forKey: .selectionRangeText)
+        foldingState = try container.decodeIfPresent([String: Bool].self, forKey: .foldingState) ?? [:]
+
+        let expandedArr = try container.decodeIfPresent([String].self, forKey: .expandedNodeIDs) ?? []
+        expandedNodeIDs = Set(expandedArr)
+        selectedNodeID = try container.decodeIfPresent(String.self, forKey: .selectedNodeID)
+        lastOpenedFile = try container.decodeIfPresent(String.self, forKey: .lastOpenedFile)
+        lastActiveTab = try container.decodeIfPresent(String.self, forKey: .lastActiveTab)
+        sidebarSelection = try container.decodeIfPresent(String.self, forKey: .sidebarSelection)
+        showFileNavigator = try container.decodeIfPresent(Bool.self, forKey: .showFileNavigator) ?? true
+        showArtboardSimulator = try container.decodeIfPresent(Bool.self, forKey: .showArtboardSimulator) ?? false
+        showAgentInspector = try container.decodeIfPresent(Bool.self, forKey: .showAgentInspector) ?? false
+        showAppDetailsSidebar = try container.decodeIfPresent(Bool.self, forKey: .showAppDetailsSidebar) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(projectRootPath, forKey: .projectRootPath)
+        try container.encode(activeFileNode, forKey: .activeFileNode)
+        try container.encode(openFileTabs, forKey: .openFileTabs)
+        try container.encode(Array(modifiedFilePaths), forKey: .modifiedFilePaths)
+        try container.encode(cursorPosition, forKey: .cursorPosition)
+        try container.encode(scrollPosition, forKey: .scrollPosition)
+        try container.encode(selectionRangeText, forKey: .selectionRangeText)
+        try container.encode(foldingState, forKey: .foldingState)
+
+        try container.encode(Array(expandedNodeIDs), forKey: .expandedNodeIDs)
+        try container.encode(selectedNodeID, forKey: .selectedNodeID)
+        try container.encode(lastOpenedFile, forKey: .lastOpenedFile)
+        try container.encode(lastActiveTab, forKey: .lastActiveTab)
+        try container.encode(sidebarSelection, forKey: .sidebarSelection)
+        try container.encode(showFileNavigator, forKey: .showFileNavigator)
+        try container.encode(showArtboardSimulator, forKey: .showArtboardSimulator)
+        try container.encode(showAgentInspector, forKey: .showAgentInspector)
+        try container.encode(showAppDetailsSidebar, forKey: .showAppDetailsSidebar)
+    }
+}
+
+@Observable
+@MainActor
+public final class ProjectSessionStore {
+    public static let shared = ProjectSessionStore()
+
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "ProjectSession")
+    private let coordinator = ProjectOpeningCoordinator()
+    private static let projectListKey = "com.swiftcode.projectList"
+    private let fm = FileManager.default
+
+    public var state: ProjectOpeningState = .idle
+    public var projects: [Project] = [] {
+        didSet { persistProjectList() }
+    }
+
+    public var activeProject: Project? {
+        if case .ready(let project) = state {
+            return project
+        }
+        return nil
+    }
+
+    public var activeSession: ProjectSession?
+
+    private var sessions: [UUID: ProjectSession] = [:]
+
+    public var activeFileNode: FileNode? {
+        get { activeSession?.activeFileNode }
+        set { activeSession?.activeFileNode = newValue }
+    }
+    public var activeFileContent: String {
+        get { activeSession?.activeFileContent ?? "" }
+        set { activeSession?.activeFileContent = newValue }
+    }
+    public var openFileTabs: [FileNode] {
+        get { activeSession?.openFileTabs ?? [] }
+        set { activeSession?.openFileTabs = newValue }
+    }
+    public var modifiedFilePaths: Set<String> {
+        get { activeSession?.modifiedFilePaths ?? [] }
+        set { activeSession?.modifiedFilePaths = newValue }
+    }
+    public var fileLoadError: String? {
+        get { activeSession?.fileLoadError }
+        set { activeSession?.fileLoadError = newValue }
+    }
+
+    public var activeFileDiff: AssistSessionFileDiff? = nil
+    public var showDiffBanner: Bool = false
+
+    init() {
+        loadProjects()
+    }
+
+    public func getOrCreateSession(for project: Project) -> ProjectSession {
+        if let existing = sessions[project.id] {
+            return existing
+        }
+        let candidates = [
+            project.directoryURL.appendingPathComponent("SwiftCode/session.json"),
+            project.directoryURL.appendingPathComponent("session.json"),
+        ]
+        for sessionURL in candidates {
+            if let data = try? Data(contentsOf: sessionURL),
+               let session = try? JSONDecoder().decode(ProjectSession.self, from: data) {
+                sessions[project.id] = session
+                return session
+            }
+        }
+        let session = ProjectSession(id: project.id, projectRootPath: project.directoryURL.path)
+        sessions[project.id] = session
+        return session
+    }
+
+    public func saveSession(_ session: ProjectSession) {
+        let sessionURL = URL(fileURLWithPath: session.projectRootPath).appendingPathComponent("session.json")
+        if let data = try? JSONEncoder().encode(session) {
+            try? data.write(to: sessionURL, options: .atomic)
+            refreshSwiftCodeSessionJSONCopy(session: session, data: data)
+        }
+    }
+
+    private func refreshSwiftCodeSessionJSONCopy(session: ProjectSession, data: Data) {
+        let dir = URL(fileURLWithPath: session.projectRootPath).appendingPathComponent("SwiftCode")
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { return }
+        try? data.write(to: dir.appendingPathComponent("session.json"), options: .atomic)
+    }
+
+    public var projectsDirectory: URL {
+        CodingManager.shared.projectsRoot
+    }
+
+    private func persistProjectList() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(projects) {
+            UserDefaults.standard.set(data, forKey: Self.projectListKey)
+        }
+    }
+
+    func loadProjects() {
+        let fm = FileManager.default
+
+        var loaded: [Project] = []
+        if let data = UserDefaults.standard.data(forKey: Self.projectListKey) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let decoded = try? decoder.decode([Project].self, from: data) {
+                for project in decoded {
+                    if fm.fileExists(atPath: project.directoryURL.path) {
+                        loaded.append(project)
+                    }
+                }
+            }
+        }
+
+        if let contents = try? fm.contentsOfDirectory(
+            at: projectsDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: .skipsHiddenFiles
+        ) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            for url in contents {
+                guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
+
+                if loaded.contains(where: {
+                    $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
+                }) {
+                    continue
+                }
+
+                let metaURL = url.appendingPathComponent("project.json")
+                if let data = try? Data(contentsOf: metaURL),
+                   let project = try? decoder.decode(Project.self, from: data) {
+                    loaded.append(project)
+                } else {
+                    let name = url.lastPathComponent
+                    let project = Project(name: name)
+                    try? saveMetadataInPlace(project)
+                    loaded.append(project)
+                }
+            }
+        }
+
+        if loaded.isEmpty {
+             scaffoldIntroProjectIfNeeded()
+        } else {
+            self.projects = loaded.sorted { $0.lastOpened > $1.lastOpened }
+        }
+    }
+
+    private func scaffoldIntroProjectIfNeeded() {
+        let introName = "Introduction"
+        let introURL = projectsDirectory.appendingPathComponent(introName)
+
+        guard !fm.fileExists(atPath: introURL.path) else { return }
+
+        Task {
+            do {
+                try await ProjectScaffoldTemplateEngine.shared.createProject(at: introURL, template: IntroductionTemplate())
+                let project = try loadOrCreateProject(at: introURL)
+                await MainActor.run {
+                    if !self.projects.contains(where: { $0.name == introName }) {
+                        self.projects.insert(project, at: 0)
+                    }
+                }
+            } catch {
+                logger.error("Failed to scaffold intro project: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    public func updateProjectDestinations(_ destinations: [String], for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].destinations = destinations
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.destinations = destinations
+                state = .ready(p)
+            }
+        }
+    }
+
+    public func updateProjectSettings(description: String, githubRepo: String?, for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].description = description
+            projects[idx].githubRepo = githubRepo
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.description = description
+                p.githubRepo = githubRepo
+                state = .ready(p)
+            }
+        }
+    }
+
+    public func updateProjectBuildMetadata(_ metadata: ProjectBuildSettings, for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].buildSettings = metadata
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.buildSettings = metadata
+                state = .ready(p)
+            }
+        }
+    }
+
+    public func updateProjectName(_ name: String, for project: Project) {
+        let sanitized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitized.isEmpty else { return }
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].name = sanitized
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.name = sanitized
+                state = .ready(p)
+            }
+        }
+    }
+
+    private var openingTask: Task<Void, Never>?
+
+    public func openProject(_ project: Project) async {
+        openingTask?.cancel()
+        openingTask = Task {
+            guard !Task.isCancelled else { return }
+
+            state = .resolving
+            logger.info("Opening project: \(project.name)")
+
+            do {
+                let loadedProject = try await coordinator.loadProjectWithTimeout(url: project.directoryURL)
+                if Task.isCancelled { return }
+
+                let session = self.getOrCreateSession(for: loadedProject)
+                self.activeSession = session
+
+                state = .ready(loadedProject)
+
+                self.ensureSwiftCodeMetadataOnOpen(for: loadedProject, session: session)
+
+                DocumentCoordinator.shared.projectURL = loadedProject.directoryURL
+                DocumentCoordinator.shared.activeDocument = nil
+                DocumentCoordinator.shared.visualUIDocument = nil
+                DocumentCoordinator.shared.compiledArtboardViews = [:]
+                DocumentCoordinator.shared.compiledArtboardErrors = [:]
+                DocumentCoordinator.shared.previewSession = nil
+                DocumentCoordinator.shared.inspectorSelection = nil
+
+                LocalizationCore.shared.scanProjectFiles(projectURL: loadedProject.directoryURL)
+
+                if let idx = self.projects.firstIndex(where: { $0.id == project.id }) {
+                    var updated = self.projects[idx]
+                    updated.lastOpened = Date()
+                    self.projects[idx] = updated
+                    self.saveMetadata(updated)
+                }
+            } catch let error as ProjectOpenError {
+                state = .failed(error)
+            } catch is CancellationError {
+                state = .cancelled
+            } catch {
+                state = .failed(.underlyingIO(error))
+            }
+        }
+    }
+
+    public func closeProject() {
+        openingTask?.cancel()
+        if let currentSession = activeSession {
+            saveSession(currentSession)
+        }
+        state = .idle
+        activeSession = nil
+
+        DocumentCoordinator.shared.projectURL = nil
+        DocumentCoordinator.shared.activeDocument = nil
+        DocumentCoordinator.shared.visualUIDocument = nil
+        DocumentCoordinator.shared.compiledArtboardViews = [:]
+        DocumentCoordinator.shared.compiledArtboardErrors = [:]
+        DocumentCoordinator.shared.previewSession = nil
+        DocumentCoordinator.shared.inspectorSelection = nil
+    }
+
+    public func retryLoad(for project: Project) async {
+        state = .idle
+        await openProject(project)
+    }
+
+    public func cancelLoad() {
+        openingTask?.cancel()
+        state = .cancelled
+    }
+
+    public func createProject(name: String) throws -> Project {
+        let sanitized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitized.isEmpty else { throw ProjectOpenError.pathNotFound }
+
+        let projectDir = projectsDirectory.appendingPathComponent(sanitized)
+        guard !fm.fileExists(atPath: projectDir.path) else {
+            throw ProjectOpenError.underlyingIO(NSError(domain: "SwiftCode", code: 1, userInfo: [NSLocalizedDescriptionKey: "Project already exists"]))
+        }
+
+        try fm.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        try fm.createDirectory(at: projectDir.appendingPathComponent("SwiftCode"), withIntermediateDirectories: true)
+
+        var project = Project(name: sanitized)
+        project.description = "A new SwiftCode project"
+#if canImport(SwiftCodeCollaboration)
+        project.transferConfiguration = .owner
+#endif
+
+        let prefix = AppSettings.shared.defaultOrganization
+        let suffix = prefix.hasSuffix(".") ? "" : "."
+        let bundleID = "\(prefix)\(suffix)\(sanitized.lowercased().replacingOccurrences(of: " ", with: "-"))"
+        project.ciBuildConfiguration = CIBuildConfiguration(
+            platform: .iOS,
+            deploymentTarget: "16.0",
+            targetDeviceFamily: .iPhoneAndIPad,
+            schemeName: sanitized,
+            bundleIdentifier: bundleID
+        )
+
+        try saveMetadataInPlace(project)
+        projects.insert(project, at: 0)
+        return project
+    }
+
+    public func deleteProject(_ project: Project) throws {
+        try fm.removeItem(at: project.directoryURL)
+        projects.removeAll { $0.id == project.id }
+        if activeProject?.id == project.id {
+            closeProject()
+        }
+    }
+
+    public func removeProjectFromRecents(_ project: Project) {
+        projects.removeAll { $0.id == project.id }
+        if activeProject?.id == project.id {
+            closeProject()
+        }
+    }
+
+    public func renameProject(_ project: Project, to newName: String) throws {
+        let sanitized = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitized.isEmpty else { return }
+
+        let newURL = projectsDirectory.appendingPathComponent(sanitized)
+        guard !fm.fileExists(atPath: newURL.path) else { return }
+
+        try fm.moveItem(at: project.directoryURL, to: newURL)
+
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].name = sanitized
+            saveMetadata(projects[idx])
+        }
+
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.name = sanitized
+                state = .ready(p)
+            }
+        }
+    }
+
+    public func duplicateProject(_ project: Project) throws -> Project {
+        let baseName = "\(project.name) Copy"
+        var newName = baseName
+        var counter = 2
+        while fm.fileExists(atPath: projectsDirectory.appendingPathComponent(newName).path) {
+            newName = "\(baseName) \(counter)"
+            counter += 1
+        }
+
+        let newURL = projectsDirectory.appendingPathComponent(newName)
+        try fm.copyItem(at: project.directoryURL, to: newURL)
+
+        var newProject = Project(name: newName)
+        newProject.description = project.description
+#if canImport(SwiftCodeCollaboration)
+        newProject.transferConfiguration = project.transferConfiguration
+#endif
+        try saveMetadata(newProject)
+
+        projects.insert(newProject, at: 0)
+        return newProject
+    }
+
+    public func ensureSwiftCodeJSON(for project: Project, at directoryURL: URL) {
+        let swiftCodeDir = directoryURL.appendingPathComponent("SwiftCode")
+        var isDir: ObjCBool = false
+        let manifestDir = (fm.fileExists(atPath: swiftCodeDir.path, isDirectory: &isDir) && isDir.boolValue)
+            ? swiftCodeDir : directoryURL
+        let manifestURL = manifestDir.appendingPathComponent("swiftcode.json")
+
+        if fm.fileExists(atPath: manifestURL.path) {
+            if let data = try? Data(contentsOf: manifestURL),
+               var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                json["name"] = project.name
+                if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                    try? updatedData.write(to: manifestURL, options: .atomic)
+                }
+            }
+            return
+        }
+
+        let rawSlug = project.name.lowercased().replacingOccurrences(of: " ", with: "-")
+        let sanitizedID = "com.swiftcode.project.\(rawSlug)"
+        let manifest = SwiftCodeManifestJSON(
+            manifestVersion: 1,
+            id: sanitizedID,
+            name: project.name,
+            version: "0.1.0",
+            description: project.description,
+            type: "app",
+            runtime: SwiftCodeManifestRuntimeJSON(language: "typescript", entrypoint: "dist/index.js", minimumSwiftCodeVersion: "1.0.0"),
+            sdk: SwiftCodeManifestSDKRefJSON(name: "@swiftcode/sdk", versionRange: "^1.0.0", protocolVersion: 1),
+            capabilities: [],
+            assist: SwiftCodeManifestAssistJSON(requested: false)
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(manifest) {
+            try? data.write(to: manifestURL, options: .atomic)
+        }
+    }
+
+    public func ensureSwiftCodeMetadataOnOpen(for project: Project, session: ProjectSession) {
+        let swiftCodeDir = project.directoryURL.appendingPathComponent("SwiftCode")
+        try? fm.createDirectory(at: swiftCodeDir, withIntermediateDirectories: true)
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: swiftCodeDir.path, isDirectory: &isDir), isDir.boolValue else { return }
+        let manifestCopy = swiftCodeDir.appendingPathComponent("swiftcode.json")
+        if !fm.fileExists(atPath: manifestCopy.path) {
+            let rootManifest = project.directoryURL.appendingPathComponent("swiftcode.json")
+            if fm.fileExists(atPath: rootManifest.path) {
+                try? fm.copyItem(at: rootManifest, to: manifestCopy)
+            }
+        }
+        do {
+            let projectEncoder = JSONEncoder()
+            projectEncoder.dateEncodingStrategy = .iso8601
+            let projectData = try projectEncoder.encode(project)
+            refreshSwiftCodeProjectJSONCopy(for: project, data: projectData)
+        } catch {
+        }
+        ensureSwiftCodeJSON(for: project, at: project.directoryURL)
+        if let sessionData = try? JSONEncoder().encode(session) {
+            try? sessionData.write(to: swiftCodeDir.appendingPathComponent("session.json"), options: .atomic)
+        }
+    }
+
+    private func refreshSwiftCodeProjectJSONCopy(for project: Project, data: Data) {
+        let dir = project.directoryURL.appendingPathComponent("SwiftCode")
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { return }
+        try? data.write(to: dir.appendingPathComponent("project.json"), options: .atomic)
+    }
+
+    public func saveMetadataInPlace(_ project: Project) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(project)
+        let metaURL = project.directoryURL.appendingPathComponent("project.json")
+        try data.write(to: metaURL, options: .atomic)
+        refreshSwiftCodeProjectJSONCopy(for: project, data: data)
+        ensureSwiftCodeJSON(for: project, at: project.directoryURL)
+    }
+
+    public func importProject(from url: URL, name customName: String? = nil) async throws -> Project {
+        let isAccessing = url.startAccessingSecurityScopedResource()
+        defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
+
+        var rootURL = url
+        if url.pathExtension == "xcodeproj" || url.pathExtension == "xcworkspace" {
+            rootURL = url.deletingLastPathComponent()
+        }
+
+        let pathStr = rootURL.path
+
+        if let existing = projects.first(where: {
+            let existingPath = $0.customDirectoryPath ?? (CodingManager.shared.projectsRoot.appendingPathComponent($0.name).path)
+            return existingPath == pathStr
+        }) {
+            return existing
+        }
+
+        let name = customName ?? rootURL.lastPathComponent
+
+        let fmContents = try? FileManager.default.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil)
+        let schemes: [String] = {
+            let containers = (fmContents ?? []).filter { $0.pathExtension == "xcodeproj" || $0.pathExtension == "xcworkspace" }
+            let found = containers.flatMap { Scheme.discover(in: $0).map(\.name) }
+            return found.isEmpty ? [name] : found
+        }()
+
+        var bundleID = "com.example.\(name.lowercased())"
+        var targetsList: [String] = []
+        if let xcodeproj = fmContents?.first(where: { $0.pathExtension == "xcodeproj" }) {
+            if let parsed = try? PBXProj(contentsOf: xcodeproj) {
+                targetsList = parsed.targets.compactMap { $0.string("name") }
+                for config in parsed.objects(isa: "XCBuildConfiguration") {
+                    if let bid = config["buildSettings"]?.dictionary?["PRODUCT_BUNDLE_IDENTIFIER"]?.string {
+                        bundleID = bid
+                        break
+                    }
+                }
+            }
+        }
+
+        let ciConfig = CIBuildConfiguration(
+            platform: .iOS,
+            deploymentTarget: "16.0",
+            targetDeviceFamily: .iPhoneAndIPad,
+            schemeName: schemes.first ?? name,
+            bundleIdentifier: bundleID
+        )
+
+        var project = Project(name: name)
+        project.customDirectoryPath = pathStr
+        project.description = "Imported Xcode Project"
+        project.ciBuildConfiguration = ciConfig
+#if canImport(SwiftCodeCollaboration)
+        project.transferConfiguration = .owner
+#endif
+
+        project.files = try await coordinator.buildFileTreeInternal(at: rootURL, relativeTo: rootURL)
+
+        try saveMetadataInPlace(project)
+
+        projects.insert(project, at: 0)
+
+        _ = getOrCreateSession(for: project)
+
+        return project
+    }
+
+    public func openScprojPackage(at url: URL) async throws -> Project {
+        let isAccessing = url.startAccessingSecurityScopedResource()
+        defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
+
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
+            throw ProjectOpenError.pathNotFound
+        }
+        if let existing = projects.first(where: {
+            $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
+        }) {
+            return existing
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let candidates = [
+            url.appendingPathComponent("project.json"),
+            url.appendingPathComponent("SwiftCode/project.json"),
+        ]
+        var decoded: Project?
+        for metaURL in candidates {
+            if let data = try? Data(contentsOf: metaURL),
+               let project = try? decoder.decode(Project.self, from: data) {
+                decoded = project
+                break
+            }
+        }
+
+        var resolved: Project
+        if var project = decoded {
+            project.customDirectoryPath = url.path
+            project.lastOpened = Date()
+            resolved = project
+        } else {
+            var fresh = Project(name: url.deletingPathExtension().lastPathComponent)
+            fresh.customDirectoryPath = url.path
+            fresh.description = "SwiftCode project package"
+            resolved = fresh
+            try saveMetadataInPlace(resolved)
+        }
+
+        projects.insert(resolved, at: 0)
+        _ = getOrCreateSession(for: resolved)
+        return resolved
+    }
+
+    private func loadOrCreateProject(at url: URL) throws -> Project {
+        let metaURL = url.appendingPathComponent("project.json")
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        if let data = try? Data(contentsOf: metaURL),
+           let project = try? decoder.decode(Project.self, from: data) {
+            return project
+        } else {
+            let name = url.lastPathComponent
+            var project = Project(name: name)
+
+            let prefix = AppSettings.shared.defaultOrganization
+            let suffix = prefix.hasSuffix(".") ? "" : "."
+            let bundleID = "\(prefix)\(suffix)\(name.lowercased().replacingOccurrences(of: " ", with: "-"))"
+            project.ciBuildConfiguration = CIBuildConfiguration(
+                platform: .iOS,
+                deploymentTarget: "16.0",
+                targetDeviceFamily: .iPhoneAndIPad,
+                schemeName: name,
+                bundleIdentifier: bundleID
+            )
+
+            try saveMetadataInPlace(project)
+            return project
+        }
+    }
+
+    private var currentFileLoadTask: Task<Void, Never>?
+
+    public func openFile(_ node: FileNode) {
+        guard !node.isDirectory else { return }
+        guard let project = activeProject else { return }
+
+        currentFileLoadTask?.cancel()
+        fileLoadError = nil
+        activeFileNode = node
+
+        if !openFileTabs.contains(where: { $0.id == node.id }) {
+            openFileTabs.append(node)
+        }
+
+        if let currentSession = activeSession {
+            saveSession(currentSession)
+        }
+
+        let projectName = project.name
+        let relativePath = node.path
+        let nodeId = node.id
+
+        currentFileLoadTask = Task {
+            do {
+                let fileURL = project.directoryURL.appendingPathComponent(relativePath)
+                let content = try await self.readFileContent(at: fileURL)
+                guard !Task.isCancelled, self.activeFileNode?.id == nodeId else { return }
+                self.activeFileContent = content
+            } catch is CancellationError {
+            } catch {
+                guard !Task.isCancelled, self.activeFileNode?.id == nodeId else { return }
+                self.activeFileContent = ""
+                self.fileLoadError = "Failed to load: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    public func openFile(atPath relativeOrAbsolutePath: String) {
+        guard let project = activeProject else { return }
+
+        let projectPath = project.directoryURL.standardizedFileURL.path
+        var relativePath = relativeOrAbsolutePath
+        if relativePath.hasPrefix(projectPath) {
+            relativePath = String(relativePath.dropFirst(projectPath.count))
+        }
+        while relativePath.hasPrefix("/") {
+            relativePath = String(relativePath.dropFirst())
+        }
+
+        let fileURL = project.directoryURL.appendingPathComponent(relativePath).standardizedFileURL
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+
+        let fileName = fileURL.lastPathComponent
+        let node = FileNode(name: fileName, path: relativePath, isDirectory: false)
+        openFile(node)
+        refreshFileTree(for: project)
+    }
+
+    public func recordAssistFileMutation(
+        path: String,
+        beforeContent: String,
+        afterContent: String,
+        addedLines: Int,
+        deletedLines: Int
+    ) {
+        let diff = AssistSessionFileDiff(
+            filePath: path,
+            beforeContent: beforeContent,
+            afterContent: afterContent,
+            addedLines: addedLines,
+            deletedLines: deletedLines
+        )
+        self.activeFileDiff = diff
+        self.showDiffBanner = (addedLines > 0 || deletedLines > 0)
+        self.openFile(atPath: path)
+    }
+
+    public func dismissDiffBanner() {
+        self.showDiffBanner = false
+        self.activeFileDiff = nil
+    }
+
+    private func readFileContent(at url: URL) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values?.isRegularFile == true else {
+                throw NSError(domain: "SwiftCode.FileRead", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not a regular file"])
+            }
+
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            if let text = Self.decodeText(from: data) {
+                return text
+            } else {
+                let sizeDesc = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
+                return "Binary file (\(sizeDesc)) — not previewable."
+            }
+        }.value
+    }
+
+    private static func decodeText(from data: Data) -> String? {
+        if let s = String(data: data, encoding: .utf8) { return s }
+        if let s = String(data: data, encoding: .utf16LittleEndian) { return s }
+        if let s = String(data: data, encoding: .utf16BigEndian) { return s }
+        if let s = String(data: data, encoding: .isoLatin1) { return s }
+        if let s = String(data: data, encoding: .ascii) { return s }
+        return nil
+    }
+
+    public func closeTab(_ node: FileNode) {
+        openFileTabs.removeAll { $0.id == node.id }
+        if activeFileNode?.id == node.id {
+            if let last = openFileTabs.last {
+                openFile(last)
+            } else {
+                activeFileNode = nil
+                activeFileContent = ""
+            }
+        }
+        if let currentSession = activeSession {
+            saveSession(currentSession)
+        }
+    }
+
+    public func saveCurrentFile(content: String) {
+        guard let project = activeProject, let node = activeFileNode else { return }
+        do {
+            try CodingManager.shared.writeFile(content: content, at: node.path, in: project.directoryURL)
+            activeFileContent = content
+            modifiedFilePaths.remove(node.path)
+            fileLoadError = nil
+            if let currentSession = activeSession {
+                saveSession(currentSession)
+            }
+        } catch {
+            fileLoadError = "Failed to save: \(error.localizedDescription)"
+        }
+    }
+
+    public func saveAll() {
+        for node in openFileTabs {
+            if modifiedFilePaths.contains(node.path) {
+                if node.id == activeFileNode?.id {
+                    saveCurrentFile(content: activeFileContent)
+                }
+            }
+        }
+    }
+
+    public func markFileModified(path: String) {
+        modifiedFilePaths.insert(path)
+    }
+
+    public func createFile(named name: String, inDirectory directoryPath: String?, project: Project, initialContent: String? = nil) throws {
+        let content = initialContent ?? (name.hasSuffix(".swift") ? generateSwiftTemplate(for: name, in: project) : "")
+        try CodingManager.shared.createFile(named: name, at: directoryPath, in: project.directoryURL, content: content)
+        refreshFileTree(for: project)
+    }
+
+    public func createFolder(named name: String, inDirectory directoryPath: String?, project: Project) throws {
+        try CodingManager.shared.createDirectory(named: name, at: directoryPath, in: project.directoryURL)
+        refreshFileTree(for: project)
+    }
+
+    public func deleteNode(_ node: FileNode, project: Project) throws {
+        try CodingManager.shared.deleteItem(at: node.path, in: project.directoryURL)
+        if activeFileNode?.id == node.id {
+            activeFileNode = nil
+            activeFileContent = ""
+        }
+        refreshFileTree(for: project)
+    }
+
+    public func renameNode(_ node: FileNode, to newName: String, project: Project) throws {
+        try CodingManager.shared.renameItem(at: node.path, to: newName, in: project.directoryURL)
+        refreshFileTree(for: project)
+    }
+
+    public func updateCIBuildConfiguration(_ configuration: CIBuildConfiguration, for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].ciBuildConfiguration = configuration
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.ciBuildConfiguration = configuration
+                state = .ready(p)
+            }
+        }
+    }
+
+    public func refreshFileTree(for project: Project) {
+        Task {
+            let files = (try? await coordinator.buildFileTreeInternal(at: project.directoryURL, relativeTo: project.directoryURL)) ?? []
+            if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+                projects[idx].files = files
+            }
+            if activeProject?.id == project.id {
+                if case .ready(var p) = state {
+                    p.files = files
+                    state = .ready(p)
+                }
+            }
+        }
+    }
+
+    public func rebuildFileTree(at url: URL) -> [FileNode] {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else { return [] }
+
+        let basePath = url.standardizedFileURL.path
+
+        let metadataFiles = [
+            "manifest.json", "metadata.json", "integrity.json",
+            "version.json", "project.json", "project.xml", "project.plist"
+        ]
+
+        let deferredDirectoryNames: Set<String> = [
+            ".build", ".git", "DerivedData", "node_modules", "Pods", "build"
+        ]
+
+        var nodes: [FileNode] = []
+
+        for childURL in contents {
+            let filename = childURL.lastPathComponent
+            if metadataFiles.contains(filename) { continue }
+
+            let resourceValues = try? childURL.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey])
+            let isDir = resourceValues?.isDirectory ?? false
+            if resourceValues?.isSymbolicLink == true || (isDir && deferredDirectoryNames.contains(filename)) {
+                continue
+            }
+
+            let childPath = childURL.standardizedFileURL.path
+            let relativePath = childPath.hasPrefix(basePath + "/")
+                ? String(childPath.dropFirst(basePath.count + 1))
+                : filename
+
+            nodes.append(FileNode(name: filename, path: relativePath, isDirectory: isDir))
+        }
+
+        return nodes.sorted {
+            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+    }
+
+    public func saveImportedProject(_ project: Project) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(project)
+        let metaURL = project.directoryURL.appendingPathComponent("project.json")
+        try data.write(to: metaURL, options: .atomic)
+        refreshSwiftCodeProjectJSONCopy(for: project, data: data)
+
+        if !projects.contains(where: { $0.id == project.id }) {
+            projects.insert(project, at: 0)
+        }
+    }
+
+    private func saveMetadata(_ project: Project) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(project) {
+            let metaURL = project.directoryURL.appendingPathComponent("project.json")
+            try? data.write(to: metaURL)
+            refreshSwiftCodeProjectJSONCopy(for: project, data: data)
+        }
+    }
+
+    private func generateSwiftTemplate(for name: String, in project: Project) -> String {
+        let settings = AppSettings.shared
+        let rawName = (name as NSString).deletingPathExtension
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        let structName = (rawName.isEmpty || rawName.first?.isLetter == false) ? "UntitledView" : rawName
+        let author = settings.fileHeaderAuthor.trimmingCharacters(in: .whitespacesAndNewlines)
+        let authorDisplay = author.isEmpty ? "User" : author
+        let customComment = settings.fileHeaderCustomComment.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .short
+        dateFormatter.timeStyle = .none
+        let dateStr = dateFormatter.string(from: Date())
+
+        return """
+//  \(name)
+//  \(project.name)
+//
+//  Created by \(authorDisplay) on \(dateStr).
+//  \(customComment.isEmpty ? "Made with SwiftCode" : customComment)
+//
+
+import SwiftUI
+
+struct \(structName): View {
+    var body: some View {
+        VStack {
+            Text("Hello, World!")
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    \(structName)()
+}
+"""
+    }
+
+    private struct SwiftCodeManifestJSON: Codable {
+        var manifestVersion: Int
+        var id: String
+        var name: String
+        var version: String
+        var description: String?
+        var type: String
+        var runtime: SwiftCodeManifestRuntimeJSON
+        var sdk: SwiftCodeManifestSDKRefJSON
+        var capabilities: [SwiftCodeManifestCapabilityJSON]
+        var assist: SwiftCodeManifestAssistJSON
+    }
+
+    private struct SwiftCodeManifestRuntimeJSON: Codable {
+        var language: String
+        var entrypoint: String
+        var minimumSwiftCodeVersion: String
+    }
+
+    private struct SwiftCodeManifestSDKRefJSON: Codable {
+        var name: String
+        var versionRange: String
+        var protocolVersion: Int
+    }
+
+    private struct SwiftCodeManifestCapabilityJSON: Codable {
+        var id: String
+        var reason: String
+    }
+
+    private struct SwiftCodeManifestAssistJSON: Codable {
+        var requested: Bool
+    }
+}

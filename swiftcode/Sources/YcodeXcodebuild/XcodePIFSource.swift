@@ -1,0 +1,90 @@
+import Foundation
+import YcodeBuild
+
+public struct XcodePIFSource: PIFSource {
+    public var sourcePackagesDirectory: URL?
+
+    public init(sourcePackagesDirectory: URL? = nil) { self.sourcePackagesDirectory = sourcePackagesDirectory }
+
+    public static func container(for request: BuildRequest) throws -> Container {
+        switch request.container {
+        case .project(let path): return try ContainerLocator.loadProjectContainer(URL(fileURLWithPath: path).standardizedFileURL)
+        case .workspace(let path): return try ContainerLocator.loadWorkspace(URL(fileURLWithPath: path).standardizedFileURL)
+        case .package: throw XcodebuildFailure("packages use SwiftPM's PIF", exitCode: ExitCode.software)
+        }
+    }
+
+    public func makePIF(for request: BuildRequest) throws -> XcodePIF {
+        let container = try Self.container(for: request)
+        let dir = sourcePackagesDirectory ?? PackageGraphLoader.defaultSourcePackages(for: container.url)
+        let packages = try PackageGraphLoader(container: container, sourcePackagesDirectory: dir).load()
+        return XcodePIF(container: container, packages: packages)
+    }
+
+    public func pif(for request: BuildRequest) throws -> (data: Data, targets: [String]) {
+        let (data, targets, _) = try pifWithWarnings(for: request)
+        return (data, targets)
+    }
+
+    public func pifWithWarnings(for request: BuildRequest) throws -> (data: Data, targets: [String], warnings: [String: [String]]) {
+        let pif = try makePIF(for: request)
+        let targets = pif.container.projects.flatMap { $0.targets.filter { ProjectPIF.targetKind($0) != nil }.compactMap { $0.string("name") } }
+        var warnings: [String: [String]] = [:]
+        for p in pif.container.projects {
+            for t in p.targets {
+                let w = pif.synchronizedFolderWarnings(p, t)
+                if !w.isEmpty { warnings[t.string("name") ?? "", default: []] += w }
+            }
+        }
+        return (try pif.serialized(), targets, warnings)
+    }
+
+    public static func supports(_ request: BuildRequest) -> Bool {
+        if case .package = request.container { return true }
+        guard let container = try? container(for: request) else { return false }
+        return unsupportedFeatures(container).isEmpty
+    }
+
+    public static func unsupportedFeatures(_ container: Container) -> [String] {
+        var out: [String] = []
+        for p in container.projects {
+            for t in p.targets {
+                for d in t.references("dependencies") where p.proj[d]?.string("productRef") != nil {
+                    let product = p.proj[d]?.string("productRef").flatMap { p.proj[$0]?.string("productName") } ?? ""
+                    if product.hasPrefix("plugin:") && !ProjectPlugins.isSupported {
+                        out.append("\(t.string("name") ?? ""): build-tool plug-in \(product.dropFirst("plugin:".count))")
+                    }
+                }
+            }
+        }
+        return out
+    }
+}
+
+public struct SwiftBuildSettingsSource: BuildSettingsSource {
+    public var helper: String
+    public init(helper: String) { self.helper = helper }
+
+    public static func locate(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        SwiftBuildSettingsProvider.locate(environment: environment, executableDirectory: nil)
+    }
+
+    public func buildSettings(for request: BuildRequest) throws -> [(target: String, settings: [String: String])] {
+        let container = try XcodePIFSource.container(for: request)
+        var targets = container.projects.flatMap { p in p.targets.map { SettingsTarget(project: p, target: $0) } }
+        if let i = targets.firstIndex(where: { $0.name == request.scheme }) { targets.insert(targets.remove(at: i), at: 0) }
+        let configuration = request.configuration ?? container.projects.first?.defaultConfigurationName ?? "Release"
+        #if arch(arm64)
+        let arch = "arm64"
+        #else
+        let arch = "x86_64"
+        #endif
+        var parameters = BuildParameters(action: "build", configuration: configuration,
+                                         arena: Arena.forContainer(container, derivedDataPath: request.derivedDataPath,
+                                                                   derivedDataRoot: FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Developer/Xcode/DerivedData"),
+                                         runDestination: .hostMac(architecture: arch), overrides: request.settings)
+        parameters.synthesized = []
+        let all = try SwiftBuildSettingsProvider(helper: helper).settings(container: container, targets: targets, parameters: parameters)
+        return zip(targets, all).map { ($0.name, $1) }
+    }
+}

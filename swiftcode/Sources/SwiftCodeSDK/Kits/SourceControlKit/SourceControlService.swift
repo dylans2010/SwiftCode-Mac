@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodeSubprocess
+import YcodeSubprocess
 
 public enum GitError: Error, LocalizedError, Sendable {
     case notARepository(String)

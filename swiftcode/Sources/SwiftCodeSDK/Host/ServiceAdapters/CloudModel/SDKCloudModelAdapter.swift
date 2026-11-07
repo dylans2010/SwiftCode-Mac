@@ -1,5 +1,5 @@
 import Foundation
-import SwiftCodeAssistant
+import YcodeAssistant
 
 public actor SDKCloudModelAdapter {
     public static let shared = SDKCloudModelAdapter()
